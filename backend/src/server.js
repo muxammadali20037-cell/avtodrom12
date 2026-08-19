@@ -844,17 +844,40 @@ app.get('/api/dashboard', auth, async (req, res) => {
 app.use(express.static(frontendPath));
 
 /*
-  EXPRESS 5 uchun '*' o'rniga regex ishlatamiz.
-  Eski:
-  app.get('*', ...)
-  XATO.
+  Frontend fallback.
+  Express 5 bilan app.get('*') ishlatmaymiz.
 */
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
 
-app.get(/.*/, (req, res) => {
   res.sendFile(
     path.join(frontendPath, 'index.html')
   );
 });
+
+/*
+  MUHIM:
+  Vercel uchun app export qilamiz.
+*/
+export default app;
+
+/*
+  Local Windows/Render uchun serverni ishga tushiramiz.
+  Vercel'da listen kerak emas.
+*/
+if (process.env.VERCEL !== '1') {
+  app.listen(
+    PORT,
+    '0.0.0.0',
+    () => {
+      console.log(
+        `AVTODROM running on :${PORT}`
+      );
+    }
+  );
+}
 
 /* =========================
    VERCEL EXPORT
