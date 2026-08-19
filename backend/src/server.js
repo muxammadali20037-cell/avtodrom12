@@ -844,8 +844,7 @@ app.get('/api/dashboard', auth, async (req, res) => {
 app.use(express.static(frontendPath));
 
 /*
-  Frontend fallback.
-  Express 5 bilan app.get('*') ishlatmaymiz.
+  Express 5 uchun wildcard fallback.
 */
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) {
@@ -853,20 +852,23 @@ app.use((req, res, next) => {
   }
 
   res.sendFile(
-    path.join(frontendPath, 'index.html')
+    path.join(
+      frontendPath,
+      'index.html'
+    )
   );
 });
 
-/*
-  MUHIM:
-  Vercel uchun app export qilamiz.
-*/
+/* =========================
+   EXPORT
+========================= */
+
 export default app;
 
-/*
-  Local Windows/Render uchun serverni ishga tushiramiz.
-  Vercel'da listen kerak emas.
-*/
+/* =========================
+   LOCAL SERVER
+========================= */
+
 if (process.env.VERCEL !== '1') {
   app.listen(
     PORT,
@@ -878,7 +880,6 @@ if (process.env.VERCEL !== '1') {
     }
   );
 }
-
 /* =========================
    VERCEL EXPORT
 ========================= */
