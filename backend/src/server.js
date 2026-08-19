@@ -843,22 +843,29 @@ app.get('/api/dashboard', auth, async (req, res) => {
 
 app.use(express.static(frontendPath));
 
-app.get('*', (req, res) => {
+/*
+  EXPRESS 5 uchun '*' o'rniga regex ishlatamiz.
+  Eski:
+  app.get('*', ...)
+  XATO.
+*/
+
+app.get(/.*/, (req, res) => {
   res.sendFile(
     path.join(frontendPath, 'index.html')
   );
 });
 
-/*
-  MUHIM:
-  Vercel uchun app export qilamiz.
-*/
+/* =========================
+   VERCEL EXPORT
+========================= */
+
 export default app;
 
-/*
-  Local Windows/Render uchun serverni ishga tushiramiz.
-  Vercel'da listen kerak emas.
-*/
+/* =========================
+   LOCAL SERVER
+========================= */
+
 if (process.env.VERCEL !== '1') {
   app.listen(
     PORT,
