@@ -14,7 +14,7 @@
   --ink:#10221a;
   --muted:#728079;
   --line:#e3ebe6;
-  --red:#b42318
+  --red:#b42318;
 }
 
 *{box-sizing:border-box}
@@ -26,13 +26,8 @@ body{
   font-family:Arial,system-ui,sans-serif
 }
 
-button,input,select{
-  font:inherit
-}
-
-button{
-  cursor:pointer
-}
+button,input,select{font:inherit}
+button{cursor:pointer}
 
 .side{
   position:fixed;
@@ -61,20 +56,10 @@ button{
   font-weight:900
 }
 
-.brand b{
-  display:block;
-  font-size:14px
-}
+.brand b{display:block;font-size:14px}
+.brand small{font-size:9px;color:var(--muted)}
 
-.brand small{
-  font-size:9px;
-  color:var(--muted)
-}
-
-nav{
-  display:grid;
-  gap:5px
-}
+nav{display:grid;gap:5px}
 
 nav button{
   border:0;
@@ -92,9 +77,7 @@ nav button:hover{
   color:var(--g)
 }
 
-.main{
-  margin-left:225px
-}
+.main{margin-left:225px}
 
 .top{
   height:68px;
@@ -115,13 +98,8 @@ nav button:hover{
   margin:auto
 }
 
-.page{
-  display:none
-}
-
-.page.active{
-  display:block
-}
+.page{display:none}
+.page.active{display:block}
 
 .title{
   display:flex;
@@ -216,9 +194,7 @@ nav button:hover{
   padding:35px 18px
 }
 
-.table-wrap{
-  overflow:auto
-}
+.table-wrap{overflow:auto}
 
 .table{
   width:100%;
@@ -378,13 +354,6 @@ nav button:hover{
   padding:20px
 }
 
-.actions{
-  display:flex;
-  gap:8px;
-  justify-content:flex-end;
-  margin-top:15px
-}
-
 .auth{
   position:fixed;
   inset:0;
@@ -432,18 +401,30 @@ nav button:hover{
   margin-top:8px
 }
 
-.user-info{
-  display:flex;
+.user-box{
+  display:inline-flex;
   align-items:center;
-  gap:10px
+  gap:8px;
+  margin-right:10px;
+  font-size:13px
 }
 
-.online{
-  width:8px;
-  height:8px;
+.user-circle{
+  width:30px;
+  height:30px;
   border-radius:50%;
-  background:#16a34a;
-  display:inline-block
+  background:var(--s);
+  color:var(--g);
+  display:grid;
+  place-items:center;
+  font-weight:900
+}
+
+.actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+  margin-top:15px
 }
 
 .loading{
@@ -452,79 +433,25 @@ nav button:hover{
 }
 
 @media(max-width:900px){
-
-  .stats{
-    grid-template-columns:repeat(2,1fr)
-  }
-
-  .grid{
-    grid-template-columns:1fr
-  }
-
-  .report-grid{
-    grid-template-columns:1fr
-  }
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .grid{grid-template-columns:1fr}
+  .report-grid{grid-template-columns:1fr}
 }
 
 @media(max-width:700px){
-
-  .side{
-    width:68px
-  }
-
+  .side{width:68px}
   .brand div:not(.logo),
-  nav span{
-    display:none
-  }
-
-  .main{
-    margin-left:68px
-  }
-
-  .content{
-    padding:14px
-  }
-
-  .two{
-    grid-template-columns:1fr
-  }
-
-  .regions{
-    grid-template-columns:repeat(5,1fr)
-  }
-
-  .letters{
-    grid-template-columns:repeat(6,1fr)
-  }
-
+  nav span{display:none}
+  .main{margin-left:68px}
+  .content{padding:14px}
+  .two{grid-template-columns:1fr}
+  .regions{grid-template-columns:repeat(5,1fr)}
+  .letters{grid-template-columns:repeat(6,1fr)}
   .title{
     align-items:flex-start;
     flex-direction:column;
     gap:10px
   }
-
-  .top{
-    padding:0 12px
-  }
-
-  .top #clock{
-    display:none
-  }
-}
-
-button.card{
-  color:var(--ink);
-  background:#fff;
-  font-weight:normal
-}
-
-button.card:hover{
-  border-color:var(--g);
-  background:var(--s)
-}
-
-small{
-  color:var(--muted)
 }
 </style>
 </head>
@@ -548,13 +475,8 @@ small{
     </p>
 
     <div class="tabs">
-      <button id="lt" class="active">
-        Kirish
-      </button>
-
-      <button id="rt">
-        Ro‘yxatdan o‘tish
-      </button>
+      <button id="lt" class="active">Kirish</button>
+      <button id="rt">Ro‘yxatdan o‘tish</button>
     </div>
 
     <!-- LOGIN -->
@@ -622,9 +544,7 @@ small{
 
   <div class="brand">
 
-    <div class="logo">
-      A
-    </div>
+    <div class="logo">A</div>
 
     <div>
       <b>AVTODROM</b>
@@ -672,17 +592,16 @@ small{
 
 <header class="top">
 
-  <b id="title">
-    Dashboard
-  </b>
+  <b id="title">Dashboard</b>
 
-  <div class="user-info">
+  <div>
 
-    <span class="online"></span>
+    <span class="user-box">
+      <span class="user-circle" id="userCircle">A</span>
+      <span id="currentUser">Admin</span>
+    </span>
 
     <span id="clock"></span>
-
-    <span id="currentUser"></span>
 
     <button class="btn" id="logout">
       Chiqish
@@ -706,18 +625,11 @@ small{
 
     <div>
       <h1>Dashboard</h1>
-
-      <p>
-        Avtodromning asosiy ko‘rsatkichlari
-      </p>
+      <p>Avtodromning asosiy ko‘rsatkichlari</p>
     </div>
 
-    <button
-      class="btn primary"
-      onclick="go('new')">
-
+    <button class="btn primary" onclick="go('new')">
       ＋ Yangi avtomobil
-
     </button>
 
   </div>
@@ -753,15 +665,8 @@ small{
     <div class="card">
 
       <div class="head">
-
-        <h2>
-          Hozir avtodromda
-        </h2>
-
-        <span class="tag" id="atag">
-          0 ta
-        </span>
-
+        <h2>Hozir avtodromda</h2>
+        <span class="tag" id="atag">0 ta</span>
       </div>
 
       <div id="activeList"></div>
@@ -780,36 +685,21 @@ small{
         <label>Davr</label>
 
         <select id="period">
-
-          <option value="today">
-            Bugun
-          </option>
-
-          <option value="month">
-            Shu oy
-          </option>
-
-          <option value="year">
-            Shu yil
-          </option>
-
+          <option value="today">Bugun</option>
+          <option value="month">Shu oy</option>
+          <option value="year">Shu yil</option>
         </select>
 
       </div>
 
-      <div
-        id="analytics"
-        style="margin-top:15px">
-      </div>
+      <div id="analytics" style="margin-top:15px"></div>
 
     </div>
 
   </div>
 
 
-  <div
-    class="card"
-    style="margin-top:15px">
+  <div class="card" style="margin-top:15px">
 
     <div class="head">
       <h2>Kunlar bo‘yicha</h2>
@@ -820,14 +710,12 @@ small{
       <table class="table">
 
         <thead>
-
           <tr>
             <th>Sana</th>
             <th>Avtomobillar</th>
             <th>Sotilgan soat</th>
             <th>Tushum</th>
           </tr>
-
         </thead>
 
         <tbody id="days"></tbody>
@@ -850,15 +738,8 @@ small{
   <div class="title">
 
     <div>
-
-      <h1>
-        Yangi avtomobil
-      </h1>
-
-      <p>
-        Raqamni kiriting va START bosing.
-      </p>
-
+      <h1>Yangi avtomobil</h1>
+      <p>Raqamni kiriting va START bosing.</p>
     </div>
 
   </div>
@@ -870,14 +751,9 @@ small{
 
       <div class="field">
 
-        <label>
-          Viloyat kodi
-        </label>
+        <label>Viloyat kodi</label>
 
-        <div
-          class="regions"
-          id="regs">
-        </div>
+        <div class="regions" id="regs"></div>
 
       </div>
 
@@ -886,29 +762,23 @@ small{
 
         <div class="field">
 
-          <label>
-            Birinchi harf
-          </label>
+          <label>Birinchi harf</label>
 
-          <div
-            class="letters"
-            id="first">
-          </div>
+          <div class="letters" id="first"></div>
 
         </div>
 
 
         <div class="field">
 
-          <label>
-            3 xonali raqam
-          </label>
+          <label>3 xonali raqam</label>
 
           <input
             id="num"
             maxlength="3"
             inputmode="numeric"
-            placeholder="123">
+            placeholder="123"
+          >
 
         </div>
 
@@ -917,24 +787,15 @@ small{
 
       <div class="field">
 
-        <label>
-          Oxirgi 2 harf
-        </label>
+        <label>Oxirgi 2 harf</label>
 
-        <div
-          class="letters"
-          id="last">
-        </div>
+        <div class="letters" id="last"></div>
 
       </div>
 
 
-      <div
-        class="plate"
-        id="preview">
-
+      <div class="plate" id="preview">
         🇺🇿 01 A 123 AA
-
       </div>
 
 
@@ -942,26 +803,18 @@ small{
 
         <div class="field">
 
-          <label>
-            Avtomobil modeli
-          </label>
+          <label>Avtomobil modeli</label>
 
-          <input
-            id="model"
-            placeholder="Ixtiyoriy">
+          <input id="model" placeholder="Ixtiyoriy">
 
         </div>
 
 
         <div class="field">
 
-          <label>
-            Haydovchi
-          </label>
+          <label>Haydovchi</label>
 
-          <input
-            id="driver"
-            placeholder="Ixtiyoriy">
+          <input id="driver" placeholder="Ixtiyoriy">
 
         </div>
 
@@ -970,12 +823,8 @@ small{
 
       <div class="actions">
 
-        <button
-          class="btn primary"
-          id="start">
-
+        <button class="btn primary" id="start">
           START — Kirishni boshlash
-
         </button>
 
       </div>
@@ -996,24 +845,11 @@ small{
   <div class="title">
 
     <div>
-
-      <h1>
-        Jarayonda
-      </h1>
-
-      <p>
-        Hozir avtodrom ichidagi avtomobillar.
-      </p>
-
+      <h1>Jarayonda</h1>
+      <p>Hozir avtodrom ichidagi avtomobillar.</p>
     </div>
 
-    <span
-      class="tag"
-      id="pc">
-
-      0 ta
-
-    </span>
+    <span class="tag" id="pc">0 ta</span>
 
   </div>
 
@@ -1025,14 +861,12 @@ small{
       <table class="table">
 
         <thead>
-
           <tr>
             <th>Raqam</th>
             <th>Kirish</th>
             <th>Davomiyligi</th>
             <th>Hozirgi hisob</th>
           </tr>
-
         </thead>
 
         <tbody id="pt"></tbody>
@@ -1055,24 +889,11 @@ small{
   <div class="title">
 
     <div>
-
-      <h1>
-        Tugatish
-      </h1>
-
-      <p>
-        Jarayondagi avtomobildan birini tanlang va FINISH bosing.
-      </p>
-
+      <h1>Tugatish</h1>
+      <p>Jarayondagi avtomobildan birini tanlang va FINISH bosing.</p>
     </div>
 
-    <span
-      class="tag"
-      id="fc">
-
-      0 ta
-
-    </span>
+    <span class="tag" id="fc">0 ta</span>
 
   </div>
 
@@ -1080,11 +901,7 @@ small{
   <div class="card">
 
     <div class="head">
-
-      <h2>
-        Jarayondagi avtomobillar
-      </h2>
-
+      <h2>Jarayondagi avtomobillar</h2>
     </div>
 
     <div id="finishList"></div>
@@ -1092,35 +909,24 @@ small{
   </div>
 
 
-  <div
-    class="card"
-    style="margin-top:15px">
+  <div class="card" style="margin-top:15px">
 
     <div class="head">
-
-      <h2>
-        Raqam orqali qidirish
-      </h2>
-
+      <h2>Raqam orqali qidirish</h2>
     </div>
-
 
     <div class="search">
 
       <input
         id="fs"
-        placeholder="Raqamni tanlang yoki yozing">
+        placeholder="Raqamni tanlang yoki yozing"
+      >
 
-      <button
-        class="btn primary"
-        id="fb">
-
+      <button class="btn primary" id="fb">
         Qidirish
-
       </button>
 
     </div>
-
 
     <div id="fr"></div>
 
@@ -1130,7 +936,7 @@ small{
 
 
 <!-- =========================
-     REPORTS
+     REPORT
 ========================= -->
 
 <div class="page" id="reports">
@@ -1138,15 +944,8 @@ small{
   <div class="title">
 
     <div>
-
-      <h1>
-        Kunlik hisobot
-      </h1>
-
-      <p>
-        Tanlangan kunning to‘liq hisoboti.
-      </p>
-
+      <h1>Kunlik hisobot</h1>
+      <p>Tanlangan kunning to‘liq hisoboti.</p>
     </div>
 
   </div>
@@ -1155,71 +954,30 @@ small{
   <div class="report-grid">
 
     <div class="card">
-
-      <div class="kpi">
-        Avtomobillar
-      </div>
-
-      <div
-        class="big"
-        id="rc">
-
-        0
-
-      </div>
-
+      <div class="kpi">Avtomobillar</div>
+      <div class="big" id="rc">0</div>
     </div>
 
-
     <div class="card">
-
-      <div class="kpi">
-        Sotilgan soat
-      </div>
-
-      <div
-        class="big"
-        id="rh">
-
-        0
-
-      </div>
-
+      <div class="kpi">Sotilgan soat</div>
+      <div class="big" id="rh">0</div>
     </div>
 
-
     <div class="card">
-
-      <div class="kpi">
-        Tushum
-      </div>
-
-      <div
-        class="big"
-        id="ri">
-
-        0 so‘m
-
-      </div>
-
+      <div class="kpi">Tushum</div>
+      <div class="big" id="ri">0 so‘m</div>
     </div>
 
   </div>
 
 
-  <div
-    class="card"
-    style="margin-top:15px">
+  <div class="card" style="margin-top:15px">
 
     <div class="head">
 
-      <h2>
-        Sana
-      </h2>
+      <h2>Sana</h2>
 
-      <input
-        id="rd"
-        type="date">
+      <input id="rd" type="date">
 
     </div>
 
@@ -1239,15 +997,8 @@ small{
   <div class="title">
 
     <div>
-
-      <h1>
-        Sozlamalar
-      </h1>
-
-      <p>
-        Soatlik narxni shu yerda belgilang.
-      </p>
-
+      <h1>Sozlamalar</h1>
+      <p>Soatlik narxni shu yerda belgilang.</p>
     </div>
 
   </div>
@@ -1259,24 +1010,21 @@ small{
 
       <div class="field">
 
-        <label>
-          1 soat narxi (so‘m)
-        </label>
+        <label>1 soat narxi (so‘m)</label>
 
         <input
           id="rate"
           type="number"
           min="0"
-          step="1000">
+          step="1000"
+        >
 
       </div>
 
 
       <div class="field">
 
-        <label>
-          Hisoblash usuli
-        </label>
+        <label>Hisoblash usuli</label>
 
         <select id="mode">
 
@@ -1295,21 +1043,18 @@ small{
     </div>
 
 
-    <div
-      class="two"
-      style="margin-top:12px">
+    <div class="two" style="margin-top:12px">
 
       <div class="field">
 
-        <label>
-          Minimal to‘lov (so‘m)
-        </label>
+        <label>Minimal to‘lov (so‘m)</label>
 
         <input
           id="min"
           type="number"
           min="0"
-          step="1000">
+          step="1000"
+        >
 
       </div>
 
@@ -1318,12 +1063,8 @@ small{
 
     <div class="save">
 
-      <button
-        class="btn primary"
-        id="saveSet">
-
+      <button class="btn primary" id="saveSet">
         Sozlamalarni saqlash
-
       </button>
 
     </div>
@@ -1334,6 +1075,7 @@ small{
 
 
 </section>
+
 </main>
 
 
@@ -1341,34 +1083,22 @@ small{
      FINISH MODAL
 ========================= -->
 
-<div
-  class="modal-bg"
-  id="modal">
+<div class="modal-bg" id="modal">
 
   <div class="modal">
 
-    <h2>
-      Avtomobilni tugatish
-    </h2>
+    <h2>Avtomobilni tugatish</h2>
 
     <div id="ms"></div>
 
     <div class="actions">
 
-      <button
-        class="btn"
-        onclick="closeModal()">
-
+      <button class="btn" onclick="closeModal()">
         Bekor qilish
-
       </button>
 
-      <button
-        class="btn primary"
-        id="finishBtn">
-
+      <button class="btn primary" id="finishBtn">
         FINISH — Tugatish
-
       </button>
 
     </div>
@@ -1378,164 +1108,105 @@ small{
 </div>
 
 
-<div
-  class="toast"
-  id="toast">
-</div>
+<div class="toast" id="toast"></div>
 
 
 <script>
 
 /* =========================================================
-   API
+   AVTODROM FRONTEND
+   SERVER / DATABASE VERSION
+
+   MUHIM:
+   Bu versiyada localStorage orqali avtomobil saqlanmaydi.
+
+   Barcha ma'lumot:
+   LOGIN
+   REGISTER
+   VEHICLES
+   SESSIONS
+   REPORTS
+   SETTINGS
+
+   BACKEND + NEON DATABASE orqali ishlaydi.
+
+   Shu sabab:
+   1 account -> 2 yoki undan ko‘p qurilma
+   Bir qurilma -> ko‘p account
+   Accountlar -> bir-biridan ajratilgan
 ========================================================= */
+
+
+/* =========================
+   API
+========================= */
 
 const API = '/api';
 
+
+/* =========================
+   LOCAL AUTH
+========================= */
+
+const TOKEN_KEY = 'avtodrom_token';
+const USER_KEY = 'avtodrom_user';
+
+
+/* =========================
+   DOM
+========================= */
+
 const $ = id => document.getElementById(id);
 
-let reg = '01';
-let first = 'A';
-let last = ['A','A'];
 
-let target = null;
-
-let activeSessions = [];
-
-let currentSettings = {
-  hourlyRate: 30000,
-  minimumPayment: 30000,
-  calculationMode: 'hour'
-};
-
-
-/* =========================================================
-   TOKEN
-========================================================= */
-
-function getToken(){
-
-  return localStorage.getItem('avto_token');
-
-}
-
-
-/* =========================================================
-   API REQUEST
-========================================================= */
-
-async function api(url, options = {}){
-
-  const token = getToken();
-
-  const headers = {
-    'Content-Type':'application/json',
-    ...(options.headers || {})
-  };
-
-  if(token){
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  const response = await fetch(API + url,{
-    ...options,
-    headers
-  });
-
-  const data =
-    await response
-      .json()
-      .catch(() => ({}));
-
-
-  if(response.status === 401){
-
-    localStorage.removeItem('avto_token');
-    localStorage.removeItem('avto_user');
-
-    $('auth').style.display = 'flex';
-
-    throw new Error(
-      'Sessiya tugagan. Qayta kiring.'
-    );
-
-  }
-
-
-  if(!response.ok){
-
-    throw new Error(
-      data.error ||
-      'Serverda xatolik'
-    );
-
-  }
-
-
-  return data;
-
-}
-
-
-/* =========================================================
+/* =========================
    HELPERS
-========================================================= */
+========================= */
 
 const money = n =>
-  Math.round(Number(n || 0))
-    .toLocaleString('uz-UZ') +
-  ' so‘m';
+  Math.round(Number(n || 0)).toLocaleString('uz-UZ') + ' so‘m';
 
 
-function dk(t = Date.now()){
+const dk = (date = new Date()) => {
 
-  const d = new Date(t);
+  const d = new Date(date);
 
   return (
     d.getFullYear() +
     '-' +
-    String(d.getMonth()+1).padStart(2,'0') +
+    String(d.getMonth() + 1).padStart(2, '0') +
     '-' +
-    String(d.getDate()).padStart(2,'0')
+    String(d.getDate()).padStart(2, '0')
   );
 
-}
+};
 
 
-function tm(t){
-
-  return new Date(t)
-    .toLocaleTimeString(
-      'uz-UZ',
-      {
-        hour:'2-digit',
-        minute:'2-digit'
-      }
-    );
-
-}
-
-
-function dur(ms){
-
-  ms = Math.max(
-    0,
-    Number(ms || 0)
+const tm = t =>
+  new Date(t).toLocaleTimeString(
+    'uz-UZ',
+    {
+      hour:'2-digit',
+      minute:'2-digit'
+    }
   );
 
-  let m =
-    Math.floor(ms / 60000);
 
-  const h =
-    Math.floor(m / 60);
+const dur = ms => {
 
-  m %= 60;
+  ms = Math.max(0, Number(ms || 0));
+
+  let totalMinutes = Math.floor(ms / 60000);
+
+  let h = Math.floor(totalMinutes / 60);
+
+  let m = totalMinutes % 60;
 
   return h
     ? `${h} soat ${m} daqiqa`
     : `${m} daqiqa`;
 
-}
+};
 
 
 function toast(text){
@@ -1546,20 +1217,407 @@ function toast(text){
 
   clearTimeout(window.toastTimer);
 
-  window.toastTimer =
-    setTimeout(
-      () => {
-        $('toast').style.display = 'none';
-      },
-      2500
-    );
+  window.toastTimer = setTimeout(() => {
+
+    $('toast').style.display = 'none';
+
+  }, 3000);
 
 }
 
 
-/* =========================================================
+/* =========================
+   AUTH
+========================= */
+
+function getToken(){
+
+  return localStorage.getItem(TOKEN_KEY);
+
+}
+
+
+function getUser(){
+
+  try{
+
+    return JSON.parse(
+      localStorage.getItem(USER_KEY) || 'null'
+    );
+
+  }catch{
+
+    return null;
+
+  }
+
+}
+
+
+function saveAuth(data){
+
+  localStorage.setItem(
+    TOKEN_KEY,
+    data.token
+  );
+
+  localStorage.setItem(
+    USER_KEY,
+    JSON.stringify(data.user)
+  );
+
+}
+
+
+function clearAuth(){
+
+  localStorage.removeItem(TOKEN_KEY);
+
+  localStorage.removeItem(USER_KEY);
+
+}
+
+
+function showAuth(){
+
+  $('auth').style.display = 'flex';
+
+}
+
+
+function hideAuth(){
+
+  $('auth').style.display = 'none';
+
+}
+
+
+/* =========================
+   API REQUEST
+========================= */
+
+async function api(url, options = {}){
+
+  const headers = {
+    'Content-Type':'application/json',
+    ...(options.headers || {})
+  };
+
+
+  const token = getToken();
+
+  if(token){
+
+    headers.Authorization =
+      'Bearer ' + token;
+
+  }
+
+
+  const response = await fetch(
+    API + url,
+    {
+      ...options,
+      headers
+    }
+  );
+
+
+  let data = null;
+
+  try{
+
+    data = await response.json();
+
+  }catch{
+
+    data = {};
+
+  }
+
+
+  if(response.status === 401){
+
+    clearAuth();
+
+    showAuth();
+
+    throw new Error(
+      data.error ||
+      'Sessiya tugagan. Qayta kiring.'
+    );
+
+  }
+
+
+  if(!response.ok){
+
+    throw new Error(
+      data.error ||
+      'Server xatosi'
+    );
+
+  }
+
+
+  return data;
+
+}
+
+
+/* =========================
+   USER UI
+========================= */
+
+function updateUserUI(){
+
+  const user = getUser();
+
+  if(!user){
+
+    $('currentUser').textContent = '';
+
+    $('userCircle').textContent = 'A';
+
+    return;
+
+  }
+
+
+  const name =
+    user.full_name ||
+    user.username ||
+    'User';
+
+
+  $('currentUser').textContent =
+    user.username || name;
+
+
+  $('userCircle').textContent =
+    name.charAt(0).toUpperCase();
+
+}
+
+
+/* =========================
+   LOGIN
+========================= */
+
+$('lb').onclick = async () => {
+
+  const username =
+    $('lu').value.trim();
+
+  const password =
+    $('lp').value;
+
+
+  if(!username || !password){
+
+    $('ae').textContent =
+      'Login va parolni kiriting';
+
+    $('ae').style.display = 'block';
+
+    return;
+
+  }
+
+
+  $('lb').classList.add('loading');
+
+  $('ae').style.display = 'none';
+
+
+  try{
+
+    const data = await api(
+      '/auth/login',
+      {
+        method:'POST',
+        body:JSON.stringify({
+          username,
+          password
+        })
+      }
+    );
+
+
+    saveAuth(data);
+
+    updateUserUI();
+
+    hideAuth();
+
+    toast(
+      'Kirish muvaffaqiyatli'
+    );
+
+
+    await refreshAll();
+
+  }catch(error){
+
+    $('ae').textContent =
+      error.message;
+
+    $('ae').style.display =
+      'block';
+
+  }finally{
+
+    $('lb').classList.remove('loading');
+
+  }
+
+};
+
+
+/* =========================
+   REGISTER
+========================= */
+
+$('rb').onclick = async () => {
+
+  const fullName =
+    $('rn').value.trim();
+
+  const username =
+    $('ru').value.trim();
+
+  const password =
+    $('rp').value;
+
+  const password2 =
+    $('rp2').value;
+
+
+  if(
+    !fullName ||
+    !username ||
+    password.length < 6 ||
+    password !== password2
+  ){
+
+    $('ae').textContent =
+      'Ism, login va kamida 6 belgili bir xil parol kerak';
+
+    $('ae').style.display =
+      'block';
+
+    return;
+
+  }
+
+
+  $('rb').classList.add('loading');
+
+  $('ae').style.display =
+    'none';
+
+
+  try{
+
+    const data = await api(
+      '/auth/register',
+      {
+        method:'POST',
+        body:JSON.stringify({
+          fullName,
+          username,
+          password
+        })
+      }
+    );
+
+
+    saveAuth(data);
+
+    updateUserUI();
+
+    hideAuth();
+
+    toast(
+      'Account yaratildi'
+    );
+
+
+    await refreshAll();
+
+  }catch(error){
+
+    $('ae').textContent =
+      error.message;
+
+    $('ae').style.display =
+      'block';
+
+  }finally{
+
+    $('rb').classList.remove('loading');
+
+  }
+
+};
+
+
+/* =========================
+   LOGIN / REGISTER TABS
+========================= */
+
+$('lt').onclick = () => {
+
+  $('lt').classList.add('active');
+
+  $('rt').classList.remove('active');
+
+  $('lf').style.display = 'grid';
+
+  $('rf').style.display = 'none';
+
+  $('ae').style.display = 'none';
+
+};
+
+
+$('rt').onclick = () => {
+
+  $('rt').classList.add('active');
+
+  $('lt').classList.remove('active');
+
+  $('lf').style.display = 'none';
+
+  $('rf').style.display = 'grid';
+
+  $('ae').style.display = 'none';
+
+};
+
+
+/* =========================
+   LOGOUT
+========================= */
+
+$('logout').onclick = () => {
+
+  clearAuth();
+
+  showAuth();
+
+  $('lp').value = '';
+
+  $('ae').style.display = 'none';
+
+  toast('Accountdan chiqildi');
+
+};
+
+
+/* =========================
    NAVIGATION
-========================================================= */
+========================= */
 
 function go(page){
 
@@ -1603,34 +1661,28 @@ function go(page){
     titles[page] || 'Dashboard';
 
 
-  if(page === 'new'){
+  if(page === 'new')
     initPlate();
-  }
 
 
-  if(page === 'process'){
+  if(page === 'process')
     renderProcess();
-  }
 
 
-  if(page === 'finish'){
+  if(page === 'finish')
     renderFinishList();
-  }
 
 
-  if(page === 'dashboard'){
+  if(page === 'dashboard')
     renderDashboard();
-  }
 
 
-  if(page === 'reports'){
+  if(page === 'reports')
     renderReport();
-  }
 
 
-  if(page === 'settings'){
-    loadSettings();
-  }
+  if(page === 'settings')
+    loadSet();
 
 }
 
@@ -1639,36 +1691,34 @@ document
   .querySelectorAll('#nav button')
   .forEach(button => {
 
-    button.onclick =
-      () => go(button.dataset.p);
+    button.onclick = () =>
+      go(button.dataset.p);
 
   });
 
 
-/* =========================================================
+/* =========================
    PLATE
-========================================================= */
+========================= */
 
 const codes = [
-  '01',
-  '10',
-  '20',
-  '25',
-  '30',
-  '40',
-  '50',
-  '60',
-  '70',
-  '75',
-  '80',
-  '85',
-  '90',
-  '95'
+  '01','10','20','25','30','40',
+  '50','60','70','75','80','85',
+  '90','95'
 ];
 
+
 const abc =
-  'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-  .split('');
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
+
+let reg = '01';
+
+let first = 'A';
+
+let last = ['A','A'];
+
+let target = null;
 
 
 function initPlate(){
@@ -1687,9 +1737,15 @@ function initPlate(){
 
   renderRegs();
 
-  renderLetters('first','f');
+  renderLetters(
+    'first',
+    'f'
+  );
 
-  renderLetters('last','l');
+  renderLetters(
+    'last',
+    'l'
+  );
 
   updatePlate();
 
@@ -1699,22 +1755,19 @@ function initPlate(){
 function renderRegs(){
 
   $('regs').innerHTML =
-    codes
-      .map(c => `
+    codes.map(c => `
 
-        <button
-          class="region ${c === reg ? 'sel':''}"
-          data-c="${c}">
+      <button
+        class="region ${c===reg?'sel':''}"
+        data-c="${c}"
+      >
+        ${c}
+      </button>
 
-          ${c}
-
-        </button>
-
-      `)
-      .join('');
+    `).join('');
 
 
-  document
+  $('regs')
     .querySelectorAll('[data-c]')
     .forEach(button => {
 
@@ -1737,28 +1790,20 @@ function renderRegs(){
 function renderLetters(id,type){
 
   $(id).innerHTML =
-    abc
-      .map(c => {
+    abc.map(c => `
 
-        const selected =
+      <button
+        class="letter ${
           type === 'f'
-            ? first === c
-            : last.includes(c);
+            ? (first === c ? 'sel' : '')
+            : (last.includes(c) ? 'sel' : '')
+        }"
+        data-l="${c}"
+      >
+        ${c}
+      </button>
 
-        return `
-
-          <button
-            class="letter ${selected ? 'sel':''}"
-            data-l="${c}">
-
-            ${c}
-
-          </button>
-
-        `;
-
-      })
-      .join('');
+    `).join('');
 
 
   $(id)
@@ -1777,13 +1822,13 @@ function renderLetters(id,type){
 
         }else{
 
-          const index =
+          let i =
             last.indexOf(c);
 
 
-          if(index >= 0){
+          if(i >= 0){
 
-            last[index] = 'A';
+            last[i] = 'A';
 
           }else if(last[0] === 'A'){
 
@@ -1812,15 +1857,17 @@ function renderLetters(id,type){
 function updatePlate(){
 
   $('preview').textContent =
-    `🇺🇿 ${reg} ${first} ${$('num').value || '123'} ${last.join('')}`;
+    `🇺🇿 ${reg} ${first} ${
+      $('num').value || '123'
+    } ${last.join('')}`;
 
 }
 
 
-$('num').oninput = event => {
+$('num').oninput = e => {
 
-  event.target.value =
-    event.target.value
+  e.target.value =
+    e.target.value
       .replace(/\D/g,'')
       .slice(0,3);
 
@@ -1829,9 +1876,9 @@ $('num').oninput = event => {
 };
 
 
-/* =========================================================
+/* =========================
    START
-========================================================= */
+========================= */
 
 $('start').onclick = async () => {
 
@@ -1853,14 +1900,14 @@ $('start').onclick = async () => {
   const button =
     $('start');
 
-  button.disabled = true;
+  button.classList.add('loading');
 
 
   try{
 
     const data =
       await api(
-        '/api/sessions/start',
+        '/sessions/start',
         {
           method:'POST',
 
@@ -1875,33 +1922,24 @@ $('start').onclick = async () => {
             lastLetters:last.join(''),
 
             model:
-              $('model').value.trim()
-              || null,
+              $('model').value.trim() ||
+              null,
 
             driverName:
-              $('driver').value.trim()
-              || null
+              $('driver').value.trim() ||
+              null
 
           })
-
         }
       );
 
 
     toast(
-      data.plate +
-      ' START qilindi'
+      `${data.plate} START qilindi`
     );
 
 
-    $('num').value = '';
-
-    $('model').value = '';
-
-    $('driver').value = '';
-
-
-    await loadAllFromServer();
+    await renderProcess();
 
     go('process');
 
@@ -1912,242 +1950,58 @@ $('start').onclick = async () => {
 
   }finally{
 
-    button.disabled = false;
+    button.classList.remove('loading');
 
   }
 
 };
 
 
-/* =========================================================
-   SETTINGS
-========================================================= */
+/* =========================
+   ACTIVE SESSIONS
+========================= */
 
-async function loadSettings(){
+let activeSessions = [];
 
-  try{
 
-    const data =
-      await api('/api/settings');
+async function getActive(){
 
-
-    currentSettings = data;
-
-
-    $('rate').value =
-      data.hourlyRate;
-
-    $('min').value =
-      data.minimumPayment;
-
-    $('mode').value =
-      data.calculationMode;
-
-
-  }catch(error){
-
-    console.error(error);
-
-  }
-
-}
-
-
-$('saveSet').onclick = async () => {
-
-  const hourlyRate =
-    Number($('rate').value);
-
-  const minimumPayment =
-    Number($('min').value);
-
-  const calculationMode =
-    $('mode').value;
-
-
-  if(
-    !Number.isFinite(hourlyRate) ||
-    hourlyRate <= 0
-  ){
-
-    toast(
-      'Soatlik narx noto‘g‘ri'
-    );
-
-    return;
-
-  }
-
-
-  if(
-    !Number.isFinite(minimumPayment) ||
-    minimumPayment < 0
-  ){
-
-    toast(
-      'Minimal to‘lov noto‘g‘ri'
-    );
-
-    return;
-
-  }
-
-
-  try{
-
-    const data =
-      await api(
-        '/api/settings',
-        {
-          method:'PUT',
-
-          body:JSON.stringify({
-
-            hourlyRate,
-
-            minimumPayment,
-
-            calculationMode
-
-          })
-
-        }
-      );
-
-
-    currentSettings = data;
-
-
-    toast(
-      'Sozlamalar serverda saqlandi'
-    );
-
-
-    await loadAllFromServer();
-
-
-  }catch(error){
-
-    toast(error.message);
-
-  }
-
-};
-
-
-/* =========================================================
-   CALCULATION
-========================================================= */
-
-function calcServer(ms,session){
-
-  const minutes =
-    Math.max(
-      0,
-      ms / 60000
-    );
-
-
-  const hourlyRate =
-    Number(
-      session.hourly_rate ||
-      currentSettings.hourlyRate ||
-      30000
-    );
-
-
-  const minimumPayment =
-    Number(
-      session.minimum_payment ||
-      currentSettings.minimumPayment ||
-      0
-    );
-
-
-  if(
-    session.calculation_mode ===
-    'minute'
-  ){
-
-    return Math.max(
-      minimumPayment,
-
-      Math.ceil(minutes) *
-      hourlyRate /
-      60
-    );
-
-  }
-
-
-  return Math.max(
-
-    minimumPayment,
-
-    Math.max(
-      1,
-      Math.ceil(minutes / 60)
-    ) *
-    hourlyRate
-
+  return await api(
+    '/sessions/active'
   );
 
 }
 
 
-/* =========================================================
-   LOAD ACTIVE SESSIONS
-========================================================= */
-
-async function loadActiveSessions(){
-
-  const data =
-    await api(
-      '/api/sessions/active'
-    );
-
-
-  activeSessions =
-    Array.isArray(data)
-      ? data
-      : [];
-
-
-  return activeSessions;
-
-}
-
-
-/* =========================================================
+/* =========================
    PROCESS
-========================================================= */
+========================= */
 
 async function renderProcess(){
 
   try{
 
-    const sessions =
-      await loadActiveSessions();
+    const data =
+      await getActive();
+
+
+    activeSessions = data;
 
 
     $('pc').textContent =
-      sessions.length + ' ta';
+      data.length + ' ta';
 
 
     $('pt').innerHTML =
-      sessions.length
+      data.length
+        ? data.map(x => {
 
-      ? sessions
-          .map(session => {
-
-            const start =
-              new Date(
-                session.started_at
-              );
+            const started =
+              new Date(x.started_at);
 
             const ms =
               Date.now() -
-              start.getTime();
+              started.getTime();
 
 
             return `
@@ -2155,19 +2009,13 @@ async function renderProcess(){
               <tr>
 
                 <td>
-                  <b>
-                    ${session.plate}
-                  </b>
+                  <b>${x.plate}</b>
                 </td>
 
                 <td>
-
-                  ${start.toLocaleDateString('uz-UZ')}
-
+                  ${started.toLocaleDateString('uz-UZ')}
                   <br>
-
-                  ${tm(start)}
-
+                  ${tm(started)}
                 </td>
 
                 <td>
@@ -2176,157 +2024,215 @@ async function renderProcess(){
                     ${dur(ms)}
                   </b>
 
+                  <br>
+
+                  <small>
+                    ${new Date(ms)
+                      .toISOString()
+                      .substr(11,8)}
+                  </small>
+
                 </td>
 
                 <td>
-
                   ${money(
-                    calcServer(
-                      ms,
-                      session
+                    calculateSession(
+                      x,
+                      ms
                     )
                   )}
-
                 </td>
 
               </tr>
 
             `;
 
-          })
-          .join('')
+          }).join('')
 
-      : `
+        : `
 
-        <tr>
+          <tr>
 
-          <td colspan="4">
+            <td colspan="4">
 
-            <div class="empty">
+              <div class="empty">
+                Hozir jarayonda avtomobil yo‘q
+              </div>
 
-              Hozir jarayonda avtomobil yo‘q
+            </td>
 
-            </div>
+          </tr>
 
-          </td>
+        `;
 
-        </tr>
 
-      `;
+    renderFinishList();
 
 
   }catch(error){
 
-    console.error(error);
+    if(error.message)
+      toast(error.message);
 
   }
 
 }
 
 
-/* =========================================================
+/* =========================
+   SESSION CALCULATION
+========================= */
+
+function calculateSession(x,ms){
+
+  const rate =
+    Number(x.hourly_rate || 0);
+
+  const minimum =
+    Number(x.minimum_payment || 0);
+
+  const minutes =
+    Math.max(
+      0,
+      ms / 60000
+    );
+
+
+  let raw;
+
+
+  if(
+    x.calculation_mode ===
+    'minute'
+  ){
+
+    raw =
+      minutes *
+      rate /
+      60;
+
+  }else{
+
+    raw =
+      Math.max(
+        1,
+        Math.ceil(minutes / 60)
+      ) *
+      rate;
+
+  }
+
+
+  return Math.max(
+    minimum,
+    raw
+  );
+
+}
+
+
+/* =========================
    FINISH LIST
-========================================================= */
+========================= */
 
 async function renderFinishList(){
 
   try{
 
-    const sessions =
-      await loadActiveSessions();
+    const data =
+      await getActive();
+
+
+    activeSessions = data;
 
 
     $('fc').textContent =
-      sessions.length + ' ta';
+      data.length + ' ta';
 
 
     $('finishList').innerHTML =
-      sessions.length
+      data.length
 
       ? `
 
-        <div
-          style="display:grid;gap:10px">
+        <div style="display:grid;gap:10px">
 
-          ${sessions
-            .map(session => {
+          ${data.map(x => {
 
-              const start =
-                new Date(
-                  session.started_at
-                );
-
-              const ms =
-                Date.now() -
-                start.getTime();
+            const ms =
+              Date.now() -
+              new Date(x.started_at).getTime();
 
 
-              return `
+            return `
 
-                <button
-                  class="card"
+              <button
+                class="card"
+                style="
+                  text-align:left;
+                  border:1px solid var(--line);
+                  width:100%;
+                  padding:14px
+                "
+                onclick="selectFinish('${x.id}')"
+              >
+
+                <div
                   style="
-                    text-align:left;
-                    width:100%;
-                    padding:14px"
-                  onclick="selectFinish('${session.id}')">
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:center;
+                    gap:10px
+                  "
+                >
 
-                  <div
-                    style="
-                      display:flex;
-                      justify-content:space-between;
-                      align-items:center;
-                      gap:10px">
+                  <div>
 
-                    <div>
-
-                      <b
-                        style="font-size:18px">
-
-                        ${session.plate}
-
-                      </b>
-
-                      <div
-                        style="
-                          color:var(--muted);
-                          font-size:12px;
-                          margin-top:5px">
-
-                        START:
-                        ${start.toLocaleDateString('uz-UZ')}
-                        ${tm(start)}
-
-                      </div>
-
-                    </div>
+                    <b style="font-size:18px">
+                      ${x.plate}
+                    </b>
 
                     <div
-                      style="text-align:right">
-
-                      <b>
-                        ${dur(ms)}
-                      </b>
-
-                      <div
-                        style="
-                          color:var(--muted);
-                          font-size:11px">
-
-                        FINISH →
-
-                      </div>
-
+                      style="
+                        color:var(--muted);
+                        font-size:12px;
+                        margin-top:5px
+                      "
+                    >
+                      START:
+                      ${new Date(
+                        x.started_at
+                      ).toLocaleDateString('uz-UZ')}
+                      ${tm(x.started_at)}
                     </div>
 
                   </div>
 
-                </button>
 
-              `;
+                  <div style="text-align:right">
 
-            })
-            .join('')}
+                    <b>
+                      ${dur(ms)}
+                    </b>
+
+                    <div
+                      style="
+                        color:var(--muted);
+                        font-size:11px
+                      "
+                    >
+                      FINISH →
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </button>
+
+            `;
+
+          }).join('')}
 
         </div>
 
@@ -2335,13 +2241,10 @@ async function renderFinishList(){
       : `
 
         <div class="empty">
-
           Hozir tugatiladigan avtomobil yo‘q
-
         </div>
 
       `;
-
 
   }catch(error){
 
@@ -2352,156 +2255,117 @@ async function renderFinishList(){
 }
 
 
-/* =========================================================
+/* =========================
    SELECT FINISH
-========================================================= */
+========================= */
 
 async function selectFinish(id){
 
   target = id;
 
 
-  try{
-
-    const sessions =
-      await loadActiveSessions();
-
-
-    const session =
-      sessions.find(
-        x =>
-          String(x.id) ===
-          String(id)
-      );
+  const x =
+    activeSessions.find(
+      v => String(v.id) === String(id)
+    );
 
 
-    if(!session){
-
-      toast(
-        'Avtomobil topilmadi'
-      );
-
-      return;
-
-    }
+  if(!x)return;
 
 
-    const start =
-      new Date(
-        session.started_at
-      );
+  const ms =
+    Date.now() -
+    new Date(x.started_at).getTime();
 
 
-    $('fs').value =
-      session.plate;
+  $('fr').innerHTML = `
 
+    <div class="card">
 
-    $('fr').innerHTML = `
+      <div class="head">
 
-      <div class="card">
+        <h2>
+          ${x.plate}
+        </h2>
 
-        <div class="head">
-
-          <h2>
-            ${session.plate}
-          </h2>
-
-          <span class="tag">
-            Tanlandi
-          </span>
-
-        </div>
-
-        <p>
-
-          START:
-          ${start.toLocaleDateString('uz-UZ')}
-          ${tm(start)}
-
-        </p>
-
-        <p>
-
-          Davomiyligi:
-
-          <b>
-            ${dur(
-              Date.now() -
-              start.getTime()
-            )}
-          </b>
-
-        </p>
-
-        <button
-          class="btn primary"
-          onclick="openModal()">
-
-          FINISH — Tugatish
-
-        </button>
+        <span class="tag">
+          Tanlandi
+        </span>
 
       </div>
 
-    `;
+      <p>
+        START:
+        ${new Date(
+          x.started_at
+        ).toLocaleDateString('uz-UZ')}
+        ${tm(x.started_at)}
+      </p>
+
+      <p>
+        Davomiyligi:
+        <b>${dur(ms)}</b>
+      </p>
+
+      <p>
+        Hozirgi hisob:
+        <b>${money(
+          calculateSession(x,ms)
+        )}</b>
+      </p>
+
+      <button
+        class="btn primary"
+        onclick="openModal()"
+      >
+        FINISH — Tugatish
+      </button>
+
+    </div>
+
+  `;
 
 
-  }catch(error){
-
-    toast(error.message);
-
-  }
+  $('fs').value =
+    x.plate;
 
 }
 
 
-/* =========================================================
+/* =========================
    SEARCH
-========================================================= */
+========================= */
 
 $('fb').onclick = async () => {
 
-  const query =
-    $('fs')
-      .value
+  const q =
+    $('fs').value
       .trim()
       .toUpperCase();
 
 
-  if(!query){
-
-    return toast(
-      'Raqamni kiriting'
-    );
-
-  }
-
-
   try{
 
-    const sessions =
-      await loadActiveSessions();
+    const data =
+      await getActive();
 
 
-    const session =
-      sessions.find(
-        x =>
-          x.plate
-            .toUpperCase() ===
-          query
+    const x =
+      data.find(
+        v =>
+          String(v.plate)
+            .toUpperCase() === q
       );
 
 
-    if(!session){
+    if(!x){
 
       $('fr').innerHTML = `
 
         <div class="card">
 
           <div class="empty">
-
             Avtomobil topilmadi.
-
           </div>
 
         </div>
@@ -2513,7 +2377,9 @@ $('fb').onclick = async () => {
     }
 
 
-    selectFinish(session.id);
+    activeSessions = data;
+
+    selectFinish(x.id);
 
 
   }catch(error){
@@ -2525,101 +2391,62 @@ $('fb').onclick = async () => {
 };
 
 
-/* =========================================================
-   MODAL
-========================================================= */
+/* =========================
+   FINISH MODAL
+========================= */
 
-async function openModal(){
+function openModal(){
 
-  if(!target) return;
-
-
-  try{
-
-    const sessions =
-      await loadActiveSessions();
+  const x =
+    activeSessions.find(
+      v => String(v.id) === String(target)
+    );
 
 
-    const session =
-      sessions.find(
-        x =>
-          String(x.id) ===
-          String(target)
-      );
+  if(!x)return;
 
 
-    if(!session){
-
-      toast(
-        'Avtomobil topilmadi'
-      );
-
-      return;
-
-    }
+  const ms =
+    Date.now() -
+    new Date(x.started_at).getTime();
 
 
-    const start =
-      new Date(
-        session.started_at
-      );
+  $('ms').innerHTML = `
+
+    <div class="card">
+
+      <b>Raqam:</b>
+      ${x.plate}
+
+      <br><br>
+
+      <b>Kirish:</b>
+      ${tm(x.started_at)}
+
+      <br><br>
+
+      <b>Chiqish:</b>
+      ${tm(Date.now())}
+
+      <br><br>
+
+      <b>Ichkarida:</b>
+      ${dur(ms)}
+
+      <br><br>
+
+      <b>To‘lov:</b>
+      ${money(
+        calculateSession(x,ms)
+      )}
+
+    </div>
+
+  `;
 
 
-    const now =
-      Date.now();
-
-
-    const ms =
-      now -
-      start.getTime();
-
-
-    $('ms').innerHTML = `
-
-      <div class="card">
-
-        <b>Raqam:</b>
-        ${session.plate}
-
-        <br><br>
-
-        <b>Kirish:</b>
-        ${tm(start)}
-
-        <br><br>
-
-        <b>Chiqish:</b>
-        ${tm(now)}
-
-        <br><br>
-
-        <b>Ichkarida:</b>
-        ${dur(ms)}
-
-        <br><br>
-
-        <b>To‘lov:</b>
-        ${money(
-          calcServer(
-            ms,
-            session
-          )
-        )}
-
-      </div>
-
-    `;
-
-
-    $('modal').style.display =
-      'flex';
-
-
-  }catch(error){
-
-    toast(error.message);
-
-  }
+  $('modal').style.display =
+    'flex';
 
 }
 
@@ -2632,176 +2459,150 @@ function closeModal(){
 }
 
 
-/* =========================================================
-   FINISH
-========================================================= */
+/* =========================
+   FINISH API
+========================= */
 
-$('finishBtn').onclick =
-  async () => {
+$('finishBtn').onclick = async () => {
 
-    if(!target){
-
-      return toast(
-        'Avtomobil tanlanmagan'
-      );
-
-    }
+  if(!target)return;
 
 
-    const button =
-      $('finishBtn');
+  const button =
+    $('finishBtn');
 
-    button.disabled = true;
-
-
-    try{
-
-      const data =
-        await api(
-          `/api/sessions/${target}/finish`,
-          {
-            method:'POST'
-          }
-        );
+  button.classList.add('loading');
 
 
-      closeModal();
+  try{
 
-
-      $('fs').value = '';
-
-      $('fr').innerHTML = '';
-
-
-      target = null;
-
-
-      toast(
-        `${data.plate} tugatildi — ${money(data.amount)}`
+    const data =
+      await api(
+        `/sessions/${target}/finish`,
+        {
+          method:'POST'
+        }
       );
 
 
-      await loadAllFromServer();
+    closeModal();
 
 
-      go('dashboard');
+    $('fs').value = '';
+
+    $('fr').innerHTML = '';
 
 
-    }catch(error){
-
-      toast(
-        error.message
-      );
-
-    }finally{
-
-      button.disabled = false;
-
-    }
-
-  };
+    toast(
+      `${data.plate} tugatildi. ${money(data.amount)}`
+    );
 
 
-/* =========================================================
+    target = null;
+
+
+    await refreshAll();
+
+    go('dashboard');
+
+
+  }catch(error){
+
+    toast(error.message);
+
+  }finally{
+
+    button.classList.remove('loading');
+
+  }
+
+};
+
+
+/* =========================
    DASHBOARD
-========================================================= */
+========================= */
 
 async function renderDashboard(){
 
   try{
 
-    const dashboard =
-      await api(
-        '/api/dashboard'
-      );
+    const data =
+      await api('/dashboard');
 
 
     $('dc').textContent =
-      dashboard.todayCount;
+      data.todayCount;
 
 
     $('da').textContent =
-      dashboard.active;
+      data.active;
 
 
     $('dh').textContent =
       (
-        dashboard.todaySeconds /
+        data.todaySeconds /
         3600
       ).toFixed(2);
 
 
     $('di').textContent =
-      money(
-        dashboard.todayAmount
-      );
+      money(data.todayAmount);
 
 
     $('atag').textContent =
-      dashboard.active +
-      ' ta';
+      data.active + ' ta';
 
 
-    const sessions =
-      await loadActiveSessions();
+    const active =
+      await getActive();
+
+
+    activeSessions =
+      active;
 
 
     $('activeList').innerHTML =
-      sessions.length
+      active.length
 
       ? `
 
         <table class="table">
 
-          <thead>
+          <tr>
+            <th>Raqam</th>
+            <th>Kirish</th>
+            <th>Vaqt</th>
+          </tr>
 
-            <tr>
-              <th>Raqam</th>
-              <th>Kirish</th>
-              <th>Vaqt</th>
-            </tr>
+          ${active.map(x => {
 
-          </thead>
+            const ms =
+              Date.now() -
+              new Date(x.started_at).getTime();
 
-          <tbody>
 
-            ${sessions
-              .map(session => {
+            return `
 
-                const start =
-                  new Date(
-                    session.started_at
-                  );
+              <tr>
 
-                return `
+                <td>
+                  <b>${x.plate}</b>
+                </td>
 
-                  <tr>
+                <td>
+                  ${tm(x.started_at)}
+                </td>
 
-                    <td>
-                      <b>
-                        ${session.plate}
-                      </b>
-                    </td>
+                <td>
+                  ${dur(ms)}
+                </td>
 
-                    <td>
-                      ${tm(start)}
-                    </td>
+              </tr>
 
-                    <td>
-                      ${dur(
-                        Date.now() -
-                        start.getTime()
-                      )}
-                    </td>
+            `;
 
-                  </tr>
-
-                `;
-
-              })
-              .join('')}
-
-          </tbody>
+          }).join('')}
 
         </table>
 
@@ -2810,9 +2611,7 @@ async function renderDashboard(){
       : `
 
         <div class="empty">
-
           Hozir avtodromda avtomobil yo‘q
-
         </div>
 
       `;
@@ -2830,9 +2629,9 @@ async function renderDashboard(){
 }
 
 
-/* =========================================================
+/* =========================
    ANALYTICS
-========================================================= */
+========================= */
 
 async function renderAnalytics(){
 
@@ -2846,185 +2645,82 @@ async function renderAnalytics(){
       dk();
 
 
-    let date =
-      today;
+    const report =
+      await api(
+        `/reports/daily?date=${today}`
+      );
+
+
+    let count =
+      report.summary.count;
+
+
+    let hours =
+      report.summary.seconds /
+      3600;
+
+
+    let income =
+      report.summary.amount;
 
 
     if(period === 'today'){
 
-      date = today;
+      // already today
 
     }
 
 
-    /*
-      Backend daily report.
-      Oy/yil uchun frontend alohida
-      sanalarni yig‘adi.
-    */
+    $('analytics').innerHTML = `
 
+      <p>
+        <b>${count}</b>
+        ta avtomobil
+      </p>
 
-    if(period === 'today'){
+      <p>
+        <b>${hours.toFixed(2)}</b>
+        soat sotilgan
+      </p>
 
-      const data =
-        await api(
-          `/api/reports/daily?date=${date}`
-        );
+      <p>
+        <b>${money(income)}</b>
+        tushum
+      </p>
 
-
-      const count =
-        data.summary.count;
-
-
-      const hours =
-        data.summary.seconds /
-        3600;
-
-
-      const income =
-        data.summary.amount;
-
-
-      $('analytics').innerHTML = `
-
-        <p>
-          <b>${count}</b>
-          ta avtomobil
-        </p>
-
-        <p>
-          <b>${hours.toFixed(2)}</b>
-          soat sotilgan
-        </p>
-
-        <p>
-          <b>${money(income)}</b>
-          tushum
-        </p>
-
-      `;
-
-    }else{
-
-      $('analytics').innerHTML = `
-
-        <p>
-          <b>
-            Dashboard statistikasi
-          </b>
-        </p>
-
-        <p>
-          Tanlangan davr:
-          <b>
-            ${
-              period === 'month'
-                ? 'Shu oy'
-                : 'Shu yil'
-            }
-          </b>
-        </p>
-
-        <p>
-          To‘liq kunlik ma’lumotlarni
-          "Kunlik hisobot" bo‘limidan ko‘rishingiz mumkin.
-        </p>
-
-      `;
-
-    }
-
-
-    /*
-      So‘nggi kunlar.
-      31 kunlik ma’lumotni olamiz.
-    */
-
-    const dates = [];
-
-    const base =
-      new Date();
-
-
-    for(let i=0;i<31;i++){
-
-      const d =
-        new Date(base);
-
-      d.setDate(
-        d.getDate() - i
-      );
-
-      dates.push(
-        dk(d)
-      );
-
-    }
-
-
-    const reports =
-      await Promise.all(
-        dates.map(async date => {
-
-          try{
-
-            return await api(
-              `/api/reports/daily?date=${date}`
-            );
-
-          }catch{
-
-            return null;
-
-          }
-
-        })
-      );
-
-
-    const rows =
-      reports
-        .filter(
-          x =>
-            x &&
-            x.summary &&
-            x.summary.count > 0
-        );
+    `;
 
 
     $('days').innerHTML =
-      rows.length
+      report.rows.length
 
-      ? rows
-          .map(report => `
+      ? report.rows.map(x => `
 
-            <tr>
+          <tr>
 
-              <td>
-                ${report.date}
-              </td>
+            <td>
+              ${today}
+            </td>
 
-              <td>
-                ${report.summary.count}
-              </td>
+            <td>
+              1
+            </td>
 
-              <td>
-                ${(
-                  report.summary.seconds /
-                  3600
-                ).toFixed(2)}
-              </td>
+            <td>
+              ${(
+                Number(
+                  x.duration_seconds || 0
+                ) / 3600
+              ).toFixed(2)}
+            </td>
 
-              <td>
-                ${money(
-                  report.summary.amount
-                )}
-              </td>
+            <td>
+              ${money(x.amount)}
+            </td>
 
-            </tr>
+          </tr>
 
-          `)
-          .join('')
+        `).join('')
 
       : `
 
@@ -3033,7 +2729,7 @@ async function renderAnalytics(){
           <td colspan="4">
 
             <div class="empty">
-              Hisobot yo‘q
+              Bugun hisobot yo‘q
             </div>
 
           </td>
@@ -3056,15 +2752,14 @@ $('period').onchange =
   renderAnalytics;
 
 
-/* =========================================================
+/* =========================
    REPORT
-========================================================= */
+========================= */
 
 async function renderReport(){
 
   const date =
-    $('rd').value ||
-    dk();
+    $('rd').value || dk();
 
 
   $('rd').value =
@@ -3075,28 +2770,25 @@ async function renderReport(){
 
     const data =
       await api(
-        `/api/reports/daily?date=${date}`
+        `/reports/daily?date=${date}`
       );
 
 
-    const summary =
-      data.summary;
-
-
     $('rc').textContent =
-      summary.count;
+      data.summary.count;
 
 
     $('rh').textContent =
       (
-        summary.seconds /
-        3600
+        Number(
+          data.summary.seconds
+        ) / 3600
       ).toFixed(2);
 
 
     $('ri').textContent =
       money(
-        summary.amount
+        data.summary.amount
       );
 
 
@@ -3107,59 +2799,47 @@ async function renderReport(){
 
         <table class="table">
 
-          <thead>
+          <tr>
+
+            <th>Raqam</th>
+            <th>Kirish</th>
+            <th>Chiqish</th>
+            <th>Vaqt</th>
+            <th>To‘lov</th>
+
+          </tr>
+
+          ${data.rows.map(x => `
 
             <tr>
 
-              <th>Raqam</th>
-              <th>Kirish</th>
-              <th>Chiqish</th>
-              <th>Vaqt</th>
-              <th>To‘lov</th>
+              <td>
+                ${x.plate}
+              </td>
+
+              <td>
+                ${tm(x.started_at)}
+              </td>
+
+              <td>
+                ${tm(x.finished_at)}
+              </td>
+
+              <td>
+                ${dur(
+                  Number(
+                    x.duration_seconds || 0
+                  ) * 1000
+                )}
+              </td>
+
+              <td>
+                ${money(x.amount)}
+              </td>
 
             </tr>
 
-          </thead>
-
-          <tbody>
-
-            ${data.rows
-              .map(row => `
-
-                <tr>
-
-                  <td>
-                    <b>
-                      ${row.plate}
-                    </b>
-                  </td>
-
-                  <td>
-                    ${tm(row.started_at)}
-                  </td>
-
-                  <td>
-                    ${tm(row.finished_at)}
-                  </td>
-
-                  <td>
-                    ${dur(
-                      Number(
-                        row.duration_seconds
-                      ) * 1000
-                    )}
-                  </td>
-
-                  <td>
-                    ${money(row.amount)}
-                  </td>
-
-                </tr>
-
-              `)
-              .join('')}
-
-          </tbody>
+          `).join('')}
 
         </table>
 
@@ -3168,9 +2848,7 @@ async function renderReport(){
       : `
 
         <div class="empty">
-
           Tanlangan kunda ma’lumot yo‘q
-
         </div>
 
       `;
@@ -3178,7 +2856,7 @@ async function renderReport(){
 
   }catch(error){
 
-    console.error(error);
+    toast(error.message);
 
   }
 
@@ -3189,403 +2867,145 @@ $('rd').onchange =
   renderReport;
 
 
-/* =========================================================
-   LOGIN
-========================================================= */
+/* =========================
+   SETTINGS
+========================= */
 
-$('lt').onclick = () => {
+async function loadSet(){
 
-  $('lt')
-    .classList
-    .add('active');
+  try{
 
-  $('rt')
-    .classList
-    .remove('active');
-
-  $('lf').style.display =
-    'grid';
-
-  $('rf').style.display =
-    'none';
-
-  $('ae').style.display =
-    'none';
-
-};
+    const data =
+      await api('/settings');
 
 
-$('rt').onclick = () => {
-
-  $('rt')
-    .classList
-    .add('active');
-
-  $('lt')
-    .classList
-    .remove('active');
-
-  $('lf').style.display =
-    'none';
-
-  $('rf').style.display =
-    'grid';
-
-  $('ae').style.display =
-    'none';
-
-};
+    $('rate').value =
+      data.hourlyRate;
 
 
-/* =========================================================
-   LOGIN -> SERVER
-========================================================= */
-
-$('lb').onclick = async () => {
-
-  const username =
-    $('lu')
-      .value
-      .trim();
-
-  const password =
-    $('lp').value;
+    $('mode').value =
+      data.calculationMode;
 
 
-  if(!username || !password){
+    $('min').value =
+      data.minimumPayment;
 
-    $('ae').textContent =
-      'Login va parolni kiriting';
 
-    $('ae').style.display =
-      'block';
+  }catch(error){
+
+    toast(error.message);
+
+  }
+
+}
+
+
+/* =========================
+   SAVE SETTINGS
+========================= */
+
+$('saveSet').onclick =
+async () => {
+
+  const rate =
+    Number($('rate').value);
+
+
+  const min =
+    Number($('min').value);
+
+
+  const mode =
+    $('mode').value;
+
+
+  if(
+    !Number.isFinite(rate) ||
+    rate <= 0
+  ){
+
+    toast(
+      'Soatlik narx noto‘g‘ri'
+    );
 
     return;
 
   }
 
 
-  const button =
-    $('lb');
+  if(
+    !Number.isFinite(min) ||
+    min < 0
+  ){
 
-  button.disabled = true;
+    toast(
+      'Minimal to‘lov noto‘g‘ri'
+    );
+
+    return;
+
+  }
 
 
   try{
 
-    const data =
-      await apiLogin(
-        '/api/auth/login',
-        {
-          username,
-          password
-        }
-      );
-
-
-    localStorage.setItem(
-      'avto_token',
-      data.token
-    );
-
-
-    localStorage.setItem(
-      'avto_user',
-      JSON.stringify(
-        data.user
-      )
-    );
-
-
-    $('auth').style.display =
-      'none';
-
-
-    showUser();
-
-
-    $('ae').style.display =
-      'none';
-
-
-    toast(
-      'Kirish muvaffaqiyatli'
-    );
-
-
-    await loadAllFromServer();
-
-
-  }catch(error){
-
-    $('ae').textContent =
-      error.message;
-
-    $('ae').style.display =
-      'block';
-
-  }finally{
-
-    button.disabled = false;
-
-  }
-
-};
-
-
-/* =========================================================
-   LOGIN API
-========================================================= */
-
-async function apiLogin(url,body){
-
-  const response =
-    await fetch(
-      API + url,
+    await api(
+      '/settings',
       {
-        method:'POST',
+        method:'PUT',
 
-        headers:{
-          'Content-Type':
-            'application/json'
-        },
+        body:JSON.stringify({
 
-        body:
-          JSON.stringify(body)
+          hourlyRate:rate,
+
+          minimumPayment:min,
+
+          calculationMode:mode
+
+        })
       }
     );
 
 
-  const data =
-    await response
-      .json()
-      .catch(() => ({}));
-
-
-  if(!response.ok){
-
-    throw new Error(
-      data.error ||
-      'Login yoki parol noto‘g‘ri'
-    );
-
-  }
-
-
-  return data;
-
-}
-
-
-/* =========================================================
-   REGISTER -> SERVER
-========================================================= */
-
-$('rb').onclick = async () => {
-
-  const fullName =
-    $('rn')
-      .value
-      .trim();
-
-  const username =
-    $('ru')
-      .value
-      .trim();
-
-  const password =
-    $('rp').value;
-
-  const password2 =
-    $('rp2').value;
-
-
-  if(
-    !fullName ||
-    username.length < 3 ||
-    password.length < 6
-  ){
-
-    $('ae').textContent =
-      'Ism, login va kamida 6 belgili parol kerak';
-
-    $('ae').style.display =
-      'block';
-
-    return;
-
-  }
-
-
-  if(password !== password2){
-
-    $('ae').textContent =
-      'Parollar bir xil emas';
-
-    $('ae').style.display =
-      'block';
-
-    return;
-
-  }
-
-
-  const button =
-    $('rb');
-
-  button.disabled = true;
-
-
-  try{
-
-    const data =
-      await apiLogin(
-        '/api/auth/register',
-        {
-          fullName,
-          username,
-          password
-        }
-      );
-
-
-    localStorage.setItem(
-      'avto_token',
-      data.token
-    );
-
-
-    localStorage.setItem(
-      'avto_user',
-      JSON.stringify(
-        data.user
-      )
-    );
-
-
-    $('auth').style.display =
-      'none';
-
-
-    showUser();
-
-
     toast(
-      'Account yaratildi'
+      'Sozlamalar saqlandi'
     );
-
-
-    await loadAllFromServer();
 
 
   }catch(error){
 
-    $('ae').textContent =
-      error.message;
-
-    $('ae').style.display =
-      'block';
-
-  }finally{
-
-    button.disabled = false;
+    toast(error.message);
 
   }
 
 };
 
 
-/* =========================================================
-   USER
-========================================================= */
+/* =========================
+   CLOCK
+========================= */
 
-function showUser(){
+function clock(){
 
-  try{
-
-    const user =
-      JSON.parse(
-        localStorage.getItem(
-          'avto_user'
-        ) || 'null'
-      );
-
-
-    if(user){
-
-      $('currentUser').textContent =
-        user.username || '';
-
-    }else{
-
-      $('currentUser').textContent =
-        '';
-
-    }
-
-  }catch{
-
-    $('currentUser').textContent =
-      '';
-
-  }
+  $('clock').textContent =
+    new Date().toLocaleString(
+      'uz-UZ'
+    );
 
 }
 
 
-/* =========================================================
-   LOGOUT
-========================================================= */
+/* =========================
+   REFRESH ALL
+========================= */
 
-$('logout').onclick = () => {
+async function refreshAll(){
 
-  localStorage.removeItem(
-    'avto_token'
-  );
-
-  localStorage.removeItem(
-    'avto_user'
-  );
+  updateUserUI();
 
 
-  $('currentUser').textContent =
-    '';
-
-
-  $('auth').style.display =
-    'flex';
-
-
-  $('lu').value =
-    '';
-
-  $('lp').value =
-    '';
-
-
-  toast(
-    'Hisobdan chiqildi'
-  );
-
-};
-
-
-/* =========================================================
-   LOAD EVERYTHING
-========================================================= */
-
-async function loadAllFromServer(){
-
-  if(!getToken()){
-
-    return;
-
-  }
-
-
-  try{
-
-    await loadSettings();
+  if(!$('auth').style.display ||
+     $('auth').style.display === 'none'){
 
     await renderDashboard();
 
@@ -3595,119 +3015,124 @@ async function loadAllFromServer(){
 
     await renderReport();
 
+    await loadSet();
+
+  }
+
+}
+
+
+/* =========================
+   AUTO REFRESH
+========================= */
+
+async function tick(){
+
+  clock();
+
+
+  if(!getToken())
+    return;
+
+
+  try{
+
+    if(
+      $('dashboard')
+        .classList
+        .contains('active')
+    ){
+
+      await renderDashboard();
+
+    }
+
+
+    if(
+      $('process')
+        .classList
+        .contains('active')
+    ){
+
+      await renderProcess();
+
+    }
+
+
+    if(
+      $('finish')
+        .classList
+        .contains('active')
+    ){
+
+      await renderFinishList();
+
+    }
+
   }catch(error){
 
-    console.error(
-      'LOAD ERROR:',
-      error
-    );
+    console.error(error);
 
   }
 
 }
 
 
-/* =========================================================
-   CLOCK + AUTO REFRESH
-========================================================= */
+/* =========================
+   START APP
+========================= */
 
-function tick(){
+async function startApp(){
 
-  $('clock').textContent =
-    new Date()
-      .toLocaleString(
-        'uz-UZ'
-      );
+  clock();
+
+  updateUserUI();
 
 
-  const page =
-    document
-      .querySelector(
-        '.page.active'
-      );
+  if(!getToken()){
 
-
-  if(!page) return;
-
-
-  if(page.id === 'process'){
-
-    renderProcess();
-
-  }
-
-
-  if(page.id === 'finish'){
-
-    renderFinishList();
-
-  }
-
-
-  if(page.id === 'dashboard'){
-
-    renderDashboard();
-
-  }
-
-}
-
-
-setInterval(
-  tick,
-  2000
-);
-
-
-/* =========================================================
-   BOOT
-========================================================= */
-
-async function boot(){
-
-  initPlate();
-
-  showUser();
-
-
-  const token =
-    getToken();
-
-
-  if(!token){
-
-    $('auth').style.display =
-      'flex';
+    showAuth();
 
     return;
 
   }
 
 
-  $('auth').style.display =
-    'none';
+  hideAuth();
 
 
   try{
 
-    await loadAllFromServer();
+    await refreshAll();
 
   }catch(error){
 
     console.error(error);
 
-    $('auth').style.display =
-      'flex';
-
   }
-
-
-  tick();
 
 }
 
 
-boot();
+startApp();
+
+
+/*
+   Har 1 sekundda vaqtni yangilaymiz.
+   Har 5 sekundda serverdan ma'lumotni
+   qayta olamiz.
+*/
+
+setInterval(
+  clock,
+  1000
+);
+
+
+setInterval(
+  tick,
+  5000
+);
 
 </script>
 
