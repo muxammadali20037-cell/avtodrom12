@@ -1,9 +1,10 @@
 {
-  "name": "avtodrom12",
+  "name": "avtodrom12-backend",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "node --watch backend/src/server.js",
     "start": "node backend/src/server.js"
   },
   "dependencies": {
