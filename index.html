@@ -1,13 +1,123 @@
 <!doctype html>
-<html lang="uz">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="0; url=./frontend/index.html">
-  <title>Avtodrom Management</title>
-</head>
-<body>
-  <p>Avtodrom ochilmoqda...</p>
-  <p><a href="./frontend/index.html">Avtodromni ochish</a></p>
-</body>
-</html>
+<html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AVTODROM</title>
+<style>
+:root{--g:#087443;--s:#eaf8f1;--bg:#f5f8f6;--ink:#10221a;--muted:#728079;--line:#e3ebe6;--red:#b42318}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,system-ui,sans-serif}button,input,select{font:inherit}button{cursor:pointer}
+.side{position:fixed;inset:0 auto 0 0;width:225px;background:#fff;border-right:1px solid var(--line);padding:18px 12px}.brand{display:flex;gap:10px;align-items:center;padding:5px 8px 25px}.logo{width:42px;height:42px;border-radius:13px;background:var(--g);color:#fff;display:grid;place-items:center;font-weight:900}.brand b{display:block;font-size:14px}.brand small{font-size:9px;color:var(--muted)}
+nav{display:grid;gap:5px}nav button{border:0;background:transparent;text-align:left;padding:12px;border-radius:10px;color:#56635d;font-weight:700}nav button.active,nav button:hover{background:var(--s);color:var(--g)}
+.main{margin-left:225px}.top{height:68px;background:#fff;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;padding:0 24px;position:sticky;top:0;z-index:5}.content{padding:24px;max-width:1400px;margin:auto}
+.page{display:none}.page.active{display:block}.title{display:flex;justify-content:space-between;align-items:end;margin-bottom:18px}.title h1{margin:0 0 5px;font-size:27px}.title p{margin:0;color:var(--muted);font-size:13px}
+.btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 14px;font-weight:800}.primary{background:var(--g);border-color:var(--g);color:#fff}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 4px 20px #10221a08}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.stat small{color:var(--muted);font-weight:700}.stat strong{display:block;font-size:25px;margin-top:8px}
+.grid{display:grid;grid-template-columns:1.3fr .7fr;gap:15px;margin-top:15px}.head{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px}.head h2{margin:0;font-size:16px}.tag{background:var(--s);color:var(--g);padding:5px 9px;border-radius:20px;font-size:11px;font-weight:800}
+.empty{text-align:center;color:var(--muted);border:1px dashed #d6e0da;border-radius:12px;padding:35px 18px}.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse}.table th,.table td{text-align:left;padding:11px 8px;border-bottom:1px solid var(--line);font-size:13px}.table th{font-size:11px;color:var(--muted)}
+.form{display:grid;gap:12px}.field{display:grid;gap:6px}.field label{font-size:11px;font-weight:800;color:#52605a}.field input,.field select{border:1px solid var(--line);border-radius:10px;padding:11px;outline:0;width:100%}.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.regions{display:grid;grid-template-columns:repeat(7,1fr);gap:7px}.region,.letter{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 3px;font-weight:800}.region.sel,.letter.sel{background:var(--s);border-color:var(--g);color:var(--g)}.letters{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.plate{margin-top:8px;border:2px solid #222;border-radius:8px;background:#fff;padding:11px;text-align:center;font-size:22px;font-weight:900}.search{display:flex;gap:8px;margin-bottom:15px}.search input{flex:1;border:1px solid var(--line);border-radius:10px;padding:12px}
+.report-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.big{font-size:28px;font-weight:900;margin-top:6px}.kpi{font-size:12px;color:var(--muted)}
+.save{display:flex;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px;margin-top:15px}.toast{display:none;position:fixed;right:16px;bottom:16px;background:#10221a;color:#fff;padding:12px 15px;border-radius:11px;z-index:80}
+.modal-bg{display:none;position:fixed;inset:0;background:#10221a77;z-index:30;align-items:center;justify-content:center;padding:15px}.modal{background:#fff;width:min(620px,100%);max-height:90vh;overflow:auto;border-radius:18px;padding:20px}
+.auth{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:18px}.authbox{width:min(410px,100%);background:#fff;border:1px solid var(--line);border-radius:20px;padding:24px}.tabs{display:grid;grid-template-columns:1fr 1fr;background:var(--bg);padding:4px;border-radius:10px}.tabs button{border:0;background:transparent;padding:10px;border-radius:8px;font-weight:800}.tabs .active{background:#fff;color:var(--g)}.error{display:none;color:var(--red);font-size:12px;margin-top:8px}
+@media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.report-grid{grid-template-columns:1fr}}@media(max-width:700px){.side{width:68px}.brand div:not(.logo),nav span{display:none}.main{margin-left:68px}.content{padding:14px}.two{grid-template-columns:1fr}.regions{grid-template-columns:repeat(5,1fr)}.letters{grid-template-columns:repeat(6,1fr)}.title{align-items:flex-start;flex-direction:column;gap:10px}}
+button.card{color:var(--ink);background:#fff;font-weight:normal}button.card:hover{border-color:var(--g);background:var(--s)}small{color:var(--muted)}</style></head><body>
+
+<div class="auth" id="auth"><div class="authbox"><div class="logo">A</div><h1>AVTODROM</h1><p style="color:var(--muted)">Boshqaruv tizimiga kirish</p>
+<div class="tabs"><button id="lt" class="active">Kirish</button><button id="rt">Ro‘yxatdan o‘tish</button></div>
+<div id="lf" class="form" style="margin-top:16px"><div class="field"><label>Login</label><input id="lu" placeholder="admin"></div><div class="field"><label>Parol</label><input id="lp" type="password"></div><button class="btn primary" id="lb">Kirish</button></div>
+<div id="rf" class="form" style="display:none;margin-top:16px"><div class="field"><label>Ism</label><input id="rn"></div><div class="field"><label>Login</label><input id="ru"></div><div class="field"><label>Parol</label><input id="rp" type="password"></div><div class="field"><label>Parolni tasdiqlang</label><input id="rp2" type="password"></div><button class="btn primary" id="rb">Ro‘yxatdan o‘tish</button></div>
+<div class="error" id="ae"></div></div></div>
+
+<aside class="side"><div class="brand"><div class="logo">A</div><div><b>AVTODROM</b><small>BOSHQARUV TIZIMI</small></div></div>
+<nav id="nav"><button class="active" data-p="dashboard">▣ <span>Dashboard</span></button><button data-p="new">＋ <span>Yangi avtomobil</span></button><button data-p="process">◉ <span>Jarayonda</span></button><button data-p="finish">✓ <span>Tugatish</span></button><button data-p="reports">▤ <span>Kunlik hisobot</span></button><button data-p="settings">⚙ <span>Sozlamalar</span></button></nav></aside>
+
+<main class="main"><header class="top"><b id="title">Dashboard</b><div><span id="clock"></span><button class="btn" id="logout">Chiqish</button></div></header><section class="content">
+
+<div class="page active" id="dashboard"><div class="title"><div><h1>Dashboard</h1><p>Avtodromning asosiy ko‘rsatkichlari</p></div><button class="btn primary" onclick="go('new')">＋ Yangi avtomobil</button></div>
+<div class="stats"><div class="card stat"><small>Bugun kirgan avtomobillar</small><strong id="dc">0</strong></div><div class="card stat"><small>Hozir jarayonda</small><strong id="da">0</strong></div><div class="card stat"><small>Bugun sotilgan soat</small><strong id="dh">0</strong></div><div class="card stat"><small>Bugungi tushum</small><strong id="di">0 so‘m</strong></div></div>
+<div class="grid"><div class="card"><div class="head"><h2>Hozir avtodromda</h2><span class="tag" id="atag">0 ta</span></div><div id="activeList"></div></div>
+<div class="card"><div class="head"><h2>Analitika</h2></div><div class="field"><label>Davr</label><select id="period"><option value="today">Bugun</option><option value="month">Shu oy</option><option value="year">Shu yil</option></select></div><div id="analytics" style="margin-top:15px"></div></div></div>
+<div class="card" style="margin-top:15px"><div class="head"><h2>Kunlar bo‘yicha</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>Sana</th><th>Avtomobillar</th><th>Sotilgan soat</th><th>Tushum</th></tr></thead><tbody id="days"></tbody></table></div></div></div>
+
+<div class="page" id="new"><div class="title"><div><h1>Yangi avtomobil</h1><p>Raqamni kiriting va START bosing.</p></div></div><div class="card"><div class="form">
+<div class="field"><label>Viloyat kodi</label><div class="regions" id="regs"></div></div>
+<div class="two"><div class="field"><label>Birinchi harf</label><div class="letters" id="first"></div></div><div class="field"><label>3 xonali raqam</label><input id="num" maxlength="3" inputmode="numeric" placeholder="123"></div></div>
+<div class="field"><label>Oxirgi 2 harf</label><div class="letters" id="last"></div></div><div class="plate" id="preview">🇺🇿 01 A 123 AA</div>
+<div class="two"><div class="field"><label>Avtomobil modeli</label><input id="model" placeholder="Ixtiyoriy"></div><div class="field"><label>Haydovchi</label><input id="driver" placeholder="Ixtiyoriy"></div></div>
+<div class="actions"><button class="btn primary" id="start">START — Kirishni boshlash</button></div></div></div></div>
+
+<div class="page" id="process"><div class="title"><div><h1>Jarayonda</h1><p>Hozir avtodrom ichidagi avtomobillar.</p></div><span class="tag" id="pc">0 ta</span></div><div class="card"><div class="table-wrap"><table class="table"><thead><tr><th>Raqam</th><th>Kirish</th><th>Davomiyligi</th><th>Hozirgi hisob</th></tr></thead><tbody id="pt"></tbody></table></div></div></div>
+
+<div class="page" id="finish"><div class="title"><div><h1>Tugatish</h1><p>Jarayondagi avtomobildan birini tanlang va FINISH bosing.</p></div><span class="tag" id="fc">0 ta</span></div>
+<div class="card"><div class="head"><h2>Jarayondagi avtomobillar</h2></div><div id="finishList"></div></div>
+<div class="card" style="margin-top:15px"><div class="head"><h2>Raqam orqali qidirish</h2></div>
+<div class="search"><input id="fs" placeholder="Raqamni tanlang yoki yozing"><button class="btn primary" id="fb">Qidirish</button></div><div id="fr"></div></div></div>
+
+<div class="page" id="reports"><div class="title"><div><h1>Kunlik hisobot</h1><p>Tanlangan kunning to‘liq hisoboti.</p></div></div><div class="report-grid"><div class="card"><div class="kpi">Avtomobillar</div><div class="big" id="rc">0</div></div><div class="card"><div class="kpi">Sotilgan soat</div><div class="big" id="rh">0</div></div><div class="card"><div class="kpi">Tushum</div><div class="big" id="ri">0 so‘m</div></div></div><div class="card"><div class="head"><h2>Sana</h2><input id="rd" type="date"></div><div id="rtable"></div></div></div>
+
+<div class="page" id="settings"><div class="title"><div><h1>Sozlamalar</h1><p>Soatlik narxni shu yerda belgilang.</p></div></div><div class="card"><div class="two"><div class="field"><label>1 soat narxi (so‘m)</label><input id="rate" type="number" min="0" step="1000"></div><div class="field"><label>Hisoblash usuli</label><select id="mode"><option value="hour">Har boshlangan soat</option><option value="minute">Aniq daqiqalar bo‘yicha</option></select></div></div><div class="two" style="margin-top:12px"><div class="field"><label>Minimal to‘lov (so‘m)</label><input id="min" type="number" min="0" step="1000"></div></div><div class="save"><button class="btn primary" id="saveSet">Sozlamalarni saqlash</button></div></div></div>
+
+</section></main>
+<div class="modal-bg" id="modal"><div class="modal"><h2>Avtomobilni tugatish</h2><div id="ms"></div><div class="actions"><button class="btn" onclick="closeModal()">Bekor qilish</button><button class="btn primary" id="finishBtn">FINISH — Tugatish</button></div></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=x=>document.getElementById(x),DATA='avto_data',SET='avto_set',AUTH='avto_auth',USERS='avto_users';
+const codes=['01','10','20','25','30','40','50','60','70','75','80','90','95','85'], abc='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+let reg='01',first='A',last=['A','A'],target=null;
+const money=n=>Math.round(n).toLocaleString('uz-UZ')+' so‘m', dk=(t=Date.now())=>{let d=new Date(t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const tm=t=>new Date(t).toLocaleTimeString('uz-UZ',{hour:'2-digit',minute:'2-digit'}), dur=m=>{m=Math.floor(m/60000);let h=Math.floor(m/60);m%=60;return h?`${h} soat ${m} daqiqa`:`${m} daqiqa`};
+function list(){try{return JSON.parse(localStorage.getItem(DATA)||'[]')}catch(e){return[]}}function put(x){localStorage.setItem(DATA,JSON.stringify(x))}
+function setting(){try{return Object.assign({rate:30000,mode:'hour',min:30000},JSON.parse(localStorage.getItem(SET)||'{}'))}catch(e){return{rate:30000,mode:'hour',min:30000}}}
+function calc(ms){let s=setting(),m=Math.max(0,ms/60000);return s.mode==='minute'?Math.max(s.min,Math.ceil(m)*s.rate/60):Math.max(s.min,Math.max(1,Math.ceil(m/60))*s.rate)}
+function toast(t){$('toast').textContent=t;$('toast').style.display='block';clearTimeout(window.tt);window.tt=setTimeout(()=>$('toast').style.display='none',2500)}
+function go(p){document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===p));document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('active',x.dataset.p===p));$('title').textContent={dashboard:'Dashboard',new:'Yangi avtomobil',process:'Jarayonda',finish:'Tugatish',reports:'Kunlik hisobot',settings:'Sozlamalar'}[p];if(p==='new')initPlate();if(p==='process')renderProcess();if(p==='dashboard')renderDashboard();if(p==='reports')renderReport()}
+document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>go(b.dataset.p));
+function initPlate(){reg='01';first='A';last=['A','A'];$('num').value='';$('preview').textContent='🇺🇿 01 A 123 AA';renderRegs();renderLetters('first','f');renderLetters('last','l')}
+function renderRegs(){ $('regs').innerHTML=codes.map(c=>`<button class="region ${c===reg?'sel':''}" data-c="${c}">${c}</button>`).join('');document.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{reg=b.dataset.c;renderRegs();updatePlate()})}
+function renderLetters(id,type){$(id).innerHTML=abc.map(c=>`<button class="letter ${type==='f'?(first===c?'sel':''):(last.includes(c)?'sel':'')}" data-l="${c}">${c}</button>`).join('');$(id).querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>{if(type==='f')first=b.dataset.l;else{let i=last.indexOf(b.dataset.l);if(i>=0)last[i]='A';else if(last[0]==='A')last[0]=b.dataset.l;else last[1]=b.dataset.l}renderLetters(id,type);updatePlate()})}
+function updatePlate(){$('preview').textContent=`🇺🇿 ${reg} ${first} ${$('num').value||'123'} ${last.join('')}`}
+$('num').oninput=e=>{e.target.value=e.target.value.replace(/\D/g,'').slice(0,3);updatePlate()}
+$('start').onclick=()=>{let n=$('num').value.trim(),p=`${reg} ${first} ${n} ${last.join('')}`;if(!/^\d{3}$/.test(n))return toast('Raqam aynan 3 xonali bo‘lsin');let a=list();if(a.some(x=>x.active&&x.plate===p))return toast('Bu avtomobil allaqachon jarayonda');a.push({id:String(Date.now()+Math.random()),plate:p,start:Date.now(),model:$('model').value,driver:$('driver').value,active:true});put(a);toast(p+' START qilindi');go('process')};
+function renderProcess(){let a=list().filter(x=>x.active);$('pc').textContent=a.length+' ta';$('pt').innerHTML=a.length?a.map(x=>{let ms=Date.now()-x.start;return `<tr><td><b>${x.plate}</b></td><td>${new Date(x.start).toLocaleDateString('uz-UZ')}<br>${tm(x.start)}:${String(new Date(x.start).getSeconds()).padStart(2,'0')}</td><td><b>${dur(ms)}</b><br><small>${new Date(ms).toISOString().substr(11,8)}</small></td><td>${money(calc(ms))}</td></tr>`}).join(''):`<tr><td colspan="4"><div class="empty">Hozir jarayonda avtomobil yo‘q</div></td></tr>`;renderFinishList()}
+function renderFinishList(){
+  const a=list().filter(x=>x.active);
+  $('fc').textContent=a.length+' ta';
+  $('finishList').innerHTML=a.length?`<div style="display:grid;gap:10px">${a.map(x=>{
+    const ms=Date.now()-x.start;
+    return `<button class="card" style="text-align:left;border:1px solid var(--line);width:100%;padding:14px" onclick="selectFinish('${x.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div><b style="font-size:18px">${x.plate}</b><div style="color:var(--muted);font-size:12px;margin-top:5px">START: ${new Date(x.start).toLocaleDateString('uz-UZ')} ${tm(x.start)}:${String(new Date(x.start).getSeconds()).padStart(2,'0')}</div></div>
+        <div style="text-align:right"><b>${dur(ms)}</b><div style="color:var(--muted);font-size:11px">FINISH →</div></div>
+      </div>
+    </button>`}).join('')}</div>`:'<div class="empty">Hozir tugatiladigan avtomobil yo‘q</div>';
+}
+function selectFinish(id){
+  target=id;
+  const x=list().find(v=>v.id===id&&v.active);
+  if(!x)return;
+  $('fr').innerHTML=`<div class="card"><div class="head"><h2>${x.plate}</h2><span class="tag">Tanlandi</span></div><p>START: ${new Date(x.start).toLocaleDateString('uz-UZ')} ${tm(x.start)}:${String(new Date(x.start).getSeconds()).padStart(2,'0')}</p><p>Davomiyligi: <b>${dur(Date.now()-x.start)}</b></p><button class="btn primary" onclick="openModal()">FINISH — Tugatish</button></div>`;
+  $('fs').value=x.plate;
+}
+$('fb').onclick=()=>{let q=$('fs').value.trim().toUpperCase(),x=list().find(v=>v.active&&v.plate.toUpperCase()===q);if(!x)return $('fr').innerHTML='<div class="card"><div class="empty">Avtomobil topilmadi. Avval yuqoridagi avtomobillardan birini tanlang.</div></div>';selectFinish(x.id)}
+function openModal(){let x=list().find(v=>v.id===target);if(!x)return;let m=Date.now()-x.start;$('ms').innerHTML=`<div class="card"><b>Raqam:</b> ${x.plate}<br><b>Kirish:</b> ${tm(x.start)}<br><b>Chiqish:</b> ${tm(Date.now())}<br><b>Ichkarida:</b> ${dur(m)}<br><b>To‘lov:</b> ${money(calc(m))}</div>`;$('modal').style.display='flex'}
+function closeModal(){$('modal').style.display='none'}
+$('finishBtn').onclick=()=>{let a=list(),i=a.findIndex(x=>x.id===target);if(i<0)return;let end=Date.now(),m=end-a[i].start;a[i].active=false;a[i].end=end;a[i].duration=m;a[i].amount=Math.round(calc(m));put(a);closeModal();$('fs').value='';$('fr').innerHTML='';toast('Avtomobil tugatildi');renderDashboard()};
+function renderDashboard(){let a=list(),today=dk(),done=a.filter(x=>!x.active&&dk(x.start)===today),act=a.filter(x=>x.active),hours=done.reduce((s,x)=>s+x.duration/3600000,0),income=done.reduce((s,x)=>s+x.amount,0);$('dc').textContent=done.length;$('da').textContent=act.length;$('dh').textContent=hours.toFixed(2);$('di').textContent=money(income);$('atag').textContent=act.length+' ta';$('activeList').innerHTML=act.length?`<table class="table"><tr><th>Raqam</th><th>Kirish</th><th>Vaqt</th></tr>${act.map(x=>`<tr><td><b>${x.plate}</b></td><td>${tm(x.start)}</td><td>${dur(Date.now()-x.start)}</td></tr>`).join('')}</table>`:'<div class="empty">Hozir avtodromda avtomobil yo‘q</div>';renderAnalytics(a)}
+function renderAnalytics(a){let p=$('period').value,now=new Date(),done=a.filter(x=>!x.active),f=done;if(p==='today')f=done.filter(x=>dk(x.start)===dk());if(p==='month')f=done.filter(x=>{let d=new Date(x.start);return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth()});if(p==='year')f=done.filter(x=>new Date(x.start).getFullYear()===now.getFullYear());let h=f.reduce((s,x)=>s+x.duration/3600000,0),i=f.reduce((s,x)=>s+x.amount,0);$('analytics').innerHTML=`<p><b>${f.length}</b> ta avtomobil</p><p><b>${h.toFixed(2)}</b> soat sotilgan</p><p><b>${money(i)}</b> tushum</p>`;let m={};done.forEach(x=>{let d=dk(x.start);m[d]??={c:0,h:0,i:0};m[d].c++;m[d].h+=x.duration/3600000;m[d].i+=x.amount});$('days').innerHTML=Object.entries(m).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,31).map(([d,v])=>`<tr><td>${d}</td><td>${v.c}</td><td>${v.h.toFixed(2)}</td><td>${money(v.i)}</td></tr>`).join('')||'<tr><td colspan="4"><div class="empty">Hisobot yo‘q</div></td></tr>'}
+$('period').onchange=renderDashboard;
+function renderReport(){let d=$('rd').value||dk();$('rd').value=d;let a=list().filter(x=>!x.active&&dk(x.start)===d),h=a.reduce((s,x)=>s+x.duration/3600000,0),i=a.reduce((s,x)=>s+x.amount,0);$('rc').textContent=a.length;$('rh').textContent=h.toFixed(2);$('ri').textContent=money(i);$('rtable').innerHTML=a.length?`<table class="table"><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>Vaqt</th><th>To‘lov</th></tr>${a.map(x=>`<tr><td>${x.plate}</td><td>${tm(x.start)}</td><td>${tm(x.end)}</td><td>${dur(x.duration)}</td><td>${money(x.amount)}</td></tr>`).join('')}</table>`:'<div class="empty">Tanlangan kunda ma’lumot yo‘q</div>'}
+$('rd').onchange=renderReport;
+function loadSet(){let s=setting();$('rate').value=s.rate;$('mode').value=s.mode;$('min').value=s.min}
+$('saveSet').onclick=()=>{let r=Number($('rate').value),m=Number($('min').value);if(r<0||m<0)return toast('Narxni to‘g‘ri kiriting');localStorage.setItem(SET,JSON.stringify({rate:r,mode:$('mode').value,min:m}));toast('Sozlamalar saqlandi')};
+function hs(s){let h=2166136261;for(let c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return(h>>>0).toString(16)}
+function users(){try{return JSON.parse(localStorage.getItem(USERS)||'[]')}catch(e){return[]}}
+if(!localStorage.getItem(USERS))localStorage.setItem(USERS,JSON.stringify([{username:'admin',password:hs('admin123')}]));
+$('lt').onclick=()=>{$('lt').classList.add('active');$('rt').classList.remove('active');$('lf').style.display='grid';$('rf').style.display='none'}
+$('rt').onclick=()=>{$('rt').classList.add('active');$('lt').classList.remove('active');$('lf').style.display='none';$('rf').style.display='grid'}
+$('lb').onclick=()=>{let u=$('lu').value.trim(),p=$('lp').value;if(users().some(x=>x.username===u&&x.password===hs(p))){sessionStorage.setItem(AUTH,'1');$('auth').style.display='none';toast('Kirish muvaffaqiyatli')}else{$('ae').textContent='Login yoki parol noto‘g‘ri';$('ae').style.display='block'}}
+$('rb').onclick=()=>{let u=$('ru').value.trim(),p=$('rp').value,p2=$('rp2').value;if(u.length<3||p.length<6||p!==p2)return $('ae').textContent='Ma’lumotlarni to‘g‘ri kiriting',$('ae').style.display='block';let a=users();if(a.some(x=>x.username===u))return $('ae').textContent='Bu login mavjud',$('ae').style.display='block';a.push({username:u,password:hs(p)});localStorage.setItem(USERS,JSON.stringify(a));$('lu').value=u;$('lp').value='';$('lt').click();toast('Ro‘yxatdan o‘tildi')}
+$('logout').onclick=()=>{sessionStorage.removeItem(AUTH);$('auth').style.display='flex'}
+function tick(){$('clock').textContent=new Date().toLocaleString('uz-UZ');if($('process').classList.contains('active'))renderProcess();if($('finish').classList.contains('active'))renderFinishList();if($('dashboard').classList.contains('active'))renderDashboard()}
+loadSet();initPlate();renderDashboard();renderReport();tick();setInterval(tick,1000);if(sessionStorage.getItem(AUTH)==='1')$('auth').style.display='none';
+</script></body></html>
