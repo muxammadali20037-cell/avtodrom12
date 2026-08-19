@@ -880,24 +880,3 @@ if (process.env.VERCEL !== '1') {
     }
   );
 }
-/* =========================
-   VERCEL EXPORT
-========================= */
-
-export default app;
-
-/* =========================
-   LOCAL SERVER
-========================= */
-
-if (process.env.VERCEL !== '1') {
-  app.listen(
-    PORT,
-    '0.0.0.0',
-    () => {
-      console.log(
-        `AVTODROM running on :${PORT}`
-      );
-    }
-  );
-}
