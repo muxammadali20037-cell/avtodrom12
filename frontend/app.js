@@ -1,0 +1,48 @@
+import { Avtodrom } from './integration.js';
+
+const $ = (s) => document.querySelector(s);
+const esc = (s='') => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+const money = n => new Intl.NumberFormat('uz-UZ').format(Number(n||0)) + ' so‘m';
+const duration = sec => { sec=Math.max(0,Number(sec||0)); const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; };
+const fmtTime = iso => { const d=new Date(iso); return `${d.toLocaleDateString('uz-UZ')} ${d.toLocaleTimeString('uz-UZ')}`; };
+
+const regions=['01','10','20','25','30','40','50','60','70','75','80','85','90','95'];
+let selectedFinish=null;
+
+export function mountAvtodrom(root=document.body){
+  root.innerHTML=`<div class="avto-app">
+  <section id="loginView" class="avto-view"><div class="avto-box"><h1>AVTODROM</h1><p>Kirish</p><form id="loginForm"><input id="username" placeholder="Login" required><input id="password" type="password" placeholder="Parol" required><button>Kirish</button></form><hr><p>Yangi foydalanuvchi?</p><form id="regForm"><input id="fullName" placeholder="To‘liq ism" required><input id="regUser" placeholder="Login" required><input id="regPass" type="password" minlength="6" placeholder="Parol (kamida 6 belgi)" required><button type="submit">Ro‘yxatdan o‘tish</button></form><div id="authMsg"></div></div></section>
+  <section id="mainView" class="avto-view" hidden><header><div><b>AVTODROM</b><span id="clock"></span></div><button id="logout">Chiqish</button></header><nav><button data-page="dashboard">Dashboard</button><button data-page="new">Yangi avtomobil</button><button data-page="process">Jarayonda <b id="navCount">0</b></button><button data-page="finish">Tugatish</button><button data-page="reports">Kunlik hisobot</button><button data-page="settings">Sozlamalar</button></nav><main id="page"></main></section></div>`;
+  bindAuth();
+  if(localStorage.getItem('avtodrom_token')) showMain();
+}
+
+function bindAuth(){
+  $('#loginForm').onsubmit=async e=>{e.preventDefault(); await runAuth(async()=>{await Avtodrom.login($('#username').value,$('#password').value); showMain();});};
+  $('#regForm').onsubmit=async e=>{e.preventDefault(); await runAuth(async()=>{await Avtodrom.register($('#fullName').value,$('#regUser').value,$('#regPass').value); showMain();});};
+  $('#logout').onclick=()=>{Avtodrom.logout(); $('#mainView').hidden=true; $('#loginView').hidden=false;};
+  document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>openPage(b.dataset.page));
+}
+async function runAuth(fn){try{await fn();$('#authMsg').textContent='';}catch(e){$('#authMsg').textContent=e.message;}}
+function showMain(){ $('#loginView').hidden=true; $('#mainView').hidden=false; openPage('dashboard'); }
+async function openPage(page){
+  const el=$('#page');
+  try{
+    if(page==='dashboard') return dashboardPage(el);
+    if(page==='new') return newPage(el);
+    if(page==='process') return processPage(el);
+    if(page==='finish') return finishPage(el);
+    if(page==='reports') return reportsPage(el);
+    if(page==='settings') return settingsPage(el);
+  }catch(e){el.innerHTML=`<div class="avto-error">${esc(e.message)}</div>`;}
+}
+async function dashboardPage(el){const d=await Avtodrom.dashboard();el.innerHTML=`<h2>Dashboard</h2><div class="cards"><div><b>Hozir jarayonda</b><strong>${d.active}</strong></div><div><b>Bugun avtomobillar</b><strong>${d.todayCount}</strong></div><div><b>Bugun sotilgan vaqt</b><strong>${duration(d.todaySeconds)}</strong></div><div><b>Bugungi tushum</b><strong>${money(d.todayAmount)}</strong></div></div>`;}
+function newPage(el){el.innerHTML=`<h2>Yangi avtomobil</h2><form id="startForm" class="form"><label>Viloyat kodi<select id="region">${regions.map(r=>`<option>${r}</option>`).join('')}</select></label><label>Birinchi harf<input id="first" maxlength="1" required></label><label>3 xonali raqam<input id="num" inputmode="numeric" maxlength="3" required></label><label>Oxirgi 2 harf<input id="last" maxlength="2" required></label><label>Avtomobil modeli<input id="model"></label><label>Haydovchi<input id="driver"></label><button>START</button></form><div id="startMsg"></div>`;$('#startForm').onsubmit=async e=>{e.preventDefault();try{const x=await Avtodrom.start({regionCode:$('#region').value,firstLetter:$('#first').value,number:$('#num').value,lastLetters:$('#last').value,model:$('#model').value,driverName:$('#driver').value});$('#startMsg').textContent=`${x.plate} — START ${fmtTime(x.startedAt)}`;e.target.reset();}catch(err){$('#startMsg').textContent=err.message;}};}
+async function processPage(el){const rows=await Avtodrom.active();el.innerHTML=`<h2>Jarayonda</h2><div id="processList">${rows.length?rows.map(x=>`<article><b>${esc(x.plate)}</b><span>START: ${fmtTime(x.started_at)}</span><span class="live" data-start="${x.started_at}">00:00:00</span></article>`).join(''):'<p>Hozir jarayonda avtomobil yo‘q.</p>'}</div>`;tickLive();}
+async function finishPage(el){const rows=await Avtodrom.active();el.innerHTML=`<h2>Tugatish</h2><div id="finishList">${rows.length?rows.map(x=>`<button class="finishCar" data-id="${x.id}"><b>${esc(x.plate)}</b><span>${fmtTime(x.started_at)}</span><span class="live" data-start="${x.started_at}">00:00:00</span></button>`).join(''):'<p>Hozir tugatiladigan avtomobil yo‘q.</p>'}</div><div id="finishResult"></div>`;document.querySelectorAll('.finishCar').forEach(b=>b.onclick=async()=>{selectedFinish=b.dataset.id;const x=await Avtodrom.finish(selectedFinish);$('#finishResult').innerHTML=`<div class="result"><h3>${esc(x.plate)} tugatildi</h3><p>Davomiyligi: <b>${duration(x.duration_seconds)}</b></p><p>To‘lov: <b>${money(x.amount)}</b></p></div>`;finishPage(el);});tickLive();}
+async function reportsPage(el){const date=new Date().toISOString().slice(0,10);const r=await Avtodrom.report(date);el.innerHTML=`<h2>Kunlik hisobot — ${date}</h2><div class="cards"><div><b>Avtomobillar</b><strong>${r.summary.count}</strong></div><div><b>Sotilgan vaqt</b><strong>${duration(r.summary.seconds)}</strong></div><div><b>Tushum</b><strong>${money(r.summary.amount)}</strong></div></div><div class="table">${r.rows.map(x=>`<div><b>${esc(x.plate)}</b><span>${fmtTime(x.started_at)}</span><span>${duration(x.duration_seconds)}</span><span>${money(x.amount)}</span></div>`).join('')}</div>`;}
+async function settingsPage(el){const s=await Avtodrom.settings();el.innerHTML=`<h2>Sozlamalar</h2><form id="settingsForm" class="form"><label>1 soat narxi<input id="rate" type="number" min="1" value="${s.hourlyRate}"></label><label>Minimal to‘lov<input id="min" type="number" min="0" value="${s.minimumPayment}"></label><label>Hisoblash turi<select id="mode"><option value="hour" ${s.calculationMode==='hour'?'selected':''}>Soat bo‘yicha</option><option value="minute" ${s.calculationMode==='minute'?'selected':''}>Minut bo‘yicha</option></select></label><button>Saqlash</button></form><div id="settingsMsg"></div>`;$('#settingsForm').onsubmit=async e=>{e.preventDefault();try{const x=await Avtodrom.updateSettings({hourlyRate:+$('#rate').value,minimumPayment:+$('#min').value,calculationMode:$('#mode').value});$('#settingsMsg').textContent=`Saqlandi: ${money(x.hourlyRate)}`;}catch(err){$('#settingsMsg').textContent=err.message;}};}
+function tickLive(){document.querySelectorAll('.live').forEach(x=>x.textContent=duration(Math.floor((Date.now()-new Date(x.dataset.start).getTime())/1000)));}
+setInterval(()=>{const c=document.querySelector('#clock');if(c)c.textContent=new Date().toLocaleString('uz-UZ');tickLive();},1000);
+
+if(document.querySelector('#avtodrom-root')) mountAvtodrom(document.querySelector('#avtodrom-root'));
