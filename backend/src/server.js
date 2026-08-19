@@ -1,77 +1,134 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { pool } from "./db.js";
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { pool } from './db.js';
 
 dotenv.config();
 
 const app = express();
 
+const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET =
-  process.env.JWT_SECRET || "CHANGE_THIS_SECRET_IN_VERCEL";
+  process.env.JWT_SECRET || 'dev-only-change-me';
 
-app.use(cors({
-  origin: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const frontendPath = path.resolve(
+  __dirname,
+  '../../frontend'
+);
+
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN
+          .split(',')
+          .map(x => x.trim())
+      : true,
+    credentials: true
+  })
+);
 
 app.use(express.json());
 
-
-// =========================
-// JWT
-// =========================
-
-function tokenFor(user) {
+function tokenFor(u) {
   return jwt.sign(
     {
-      sub: user.id,
-      role: user.role,
-      username: user.username
+      sub: u.id,
+      role: u.role,
+      username: u.username
     },
     JWT_SECRET,
     {
-      expiresIn: "30d"
+      expiresIn: '30d'
     }
   );
 }
 
-
-// =========================
-// AUTH MIDDLEWARE
-// =========================
-
 async function auth(req, res, next) {
   try {
-    const header = req.headers.authorization || "";
+    const h = req.headers.authorization || '';
 
-    if (!header.startsWith("Bearer ")) {
-      return res.status(401).json({
-        error: "Kirish talab qilinadi"
-      });
+    if (!h.startsWith('Bearer ')) {
+      return res
+        .status(401)
+        .json({
+          error: 'Kirish talab qilinadi'
+        });
     }
 
-    const token = header.slice(7);
-
-    const decoded = jwt.verify(token, JWT_SECRET);
-
-    req.user = decoded;
+    req.user = jwt.verify(
+      h.slice(7),
+      JWT_SECRET
+    );
 
     next();
-  } catch (error) {
-    return res.status(401).json({
-      error: "Sessiya yaroqsiz yoki tugagan"
-    });
+  } catch {
+    return res
+      .status(401)
+      .json({
+        error: 'Sessiya yaroqsiz yoki tugagan'
+      });
   }
 }
 
+function plateData(b) {
+  const regions = [
+    '01',
+    '10',
+    '20',
+    '25',
+    '30',
+    '40',
+    '50',
+    '60',
+    '70',
+    '75',
+    '80',
+    '85',
+    '90',
+    '95'
+  ];
 
-// =========================
-// ACCOUNT DATA
-// =========================
+  const r = String(
+    b.regionCode || ''
+  );
+
+  const f = String(
+    b.firstLetter || ''
+  ).toUpperCase();
+
+  const n = String(
+    b.number || ''
+  );
+
+  const l = String(
+    b.lastLetters || ''
+  ).toUpperCase();
+
+  if (
+    !regions.includes(r) ||
+    !/^[A-Z]$/.test(f) ||
+    !/^[0-9]{3}$/.test(n) ||
+    !/^[A-Z]{2}$/.test(l)
+  ) {
+    throw Error(
+      'Avtomobil raqami noto‘g‘ri'
+    );
+  }
+
+  return {
+    r,
+    f,
+    n,
+    l,
+    plate: `${r} ${f} ${n} ${l}`
+  };
+}
 
 async function ensureAccountData(userId) {
   await pool.query(
@@ -86,20 +143,20 @@ async function ensureAccountData(userId) {
 }
 
 
-// =========================
-// HEALTH
-// =========================
+/* =========================
+   HEALTH
+========================= */
 
-app.get("/api/health", async (req, res) => {
+app.get('/api/health', async (_req, res) => {
   try {
-    await pool.query("SELECT 1");
+    await pool.query('SELECT 1');
 
     res.json({
       ok: true,
       database: true
     });
-  } catch (error) {
-    console.error(error);
+  } catch (e) {
+    console.error(e);
 
     res.status(503).json({
       ok: false,
@@ -109,949 +166,891 @@ app.get("/api/health", async (req, res) => {
 });
 
 
-// =========================
-// REGISTER
-// =========================
+/* =========================
+   REGISTER
+========================= */
 
-app.post("/api/auth/register", async (req, res) => {
-  const {
-    fullName,
-    username,
-    password
-  } = req.body;
-
-  if (
-    !fullName ||
-    !username ||
-    !password ||
-    password.length < 6
-  ) {
-    return res.status(400).json({
-      error: "Ism, login va kamida 6 belgili parol kerak"
-    });
-  }
-
-  const cleanName = String(fullName).trim();
-  const cleanUsername = String(username).trim();
-
-  if (cleanUsername.length < 3) {
-    return res.status(400).json({
-      error: "Login kamida 3 belgidan iborat bo‘lsin"
-    });
-  }
-
-  const client = await pool.connect();
-
-  try {
-    await client.query("BEGIN");
-
-    const passwordHash = await bcrypt.hash(password, 12);
-
-    const result = await client.query(
-      `
-      INSERT INTO users(
-        full_name,
-        username,
-        password_hash
-      )
-      VALUES($1, $2, $3)
-      RETURNING
-        id,
-        full_name,
-        username,
-        role
-      `,
-      [
-        cleanName,
-        cleanUsername,
-        passwordHash
-      ]
-    );
-
-    const user = result.rows[0];
-
-    await client.query(
-      `
-      INSERT INTO user_settings(user_id)
-      VALUES($1)
-      ON CONFLICT (user_id)
-      DO NOTHING
-      `,
-      [user.id]
-    );
-
-    await client.query("COMMIT");
-
-    const token = tokenFor(user);
-
-    return res.status(201).json({
-      user,
-      token
-    });
-
-  } catch (error) {
-
-    await client.query("ROLLBACK");
-
-    console.error(error);
-
-    if (error.code === "23505") {
-      return res.status(409).json({
-        error: "Bu login mavjud"
-      });
-    }
-
-    return res.status(500).json({
-      error: "Ro‘yxatdan o‘tishda xatolik"
-    });
-
-  } finally {
-    client.release();
-  }
-});
-
-
-// =========================
-// LOGIN
-// =========================
-
-app.post("/api/auth/login", async (req, res) => {
-  try {
-
-    const username = String(
-      req.body.username || ""
-    ).trim();
-
-    const password = String(
-      req.body.password || ""
-    );
-
-    if (!username || !password) {
-      return res.status(400).json({
-        error: "Login va parolni kiriting"
-      });
-    }
-
-    const result = await pool.query(
-      `
-      SELECT
-        id,
-        full_name,
-        username,
-        password_hash,
-        role
-      FROM users
-      WHERE username = $1
-      `,
-      [username]
-    );
-
-    if (!result.rows[0]) {
-      return res.status(401).json({
-        error: "Login yoki parol noto‘g‘ri"
-      });
-    }
-
-    const row = result.rows[0];
-
-    const correct = await bcrypt.compare(
-      password,
-      row.password_hash
-    );
-
-    if (!correct) {
-      return res.status(401).json({
-        error: "Login yoki parol noto‘g‘ri"
-      });
-    }
-
-    const user = {
-      id: row.id,
-      full_name: row.full_name,
-      username: row.username,
-      role: row.role
-    };
-
-    await ensureAccountData(user.id);
-
-    const token = tokenFor(user);
-
-    return res.json({
-      user,
-      token
-    });
-
-  } catch (error) {
-
-    console.error(error);
-
-    return res.status(500).json({
-      error: "Kirishda xatolik"
-    });
-  }
-});
-
-
-// =========================
-// CURRENT USER
-// =========================
-
-app.get("/api/auth/me", auth, async (req, res) => {
-  try {
-
-    const result = await pool.query(
-      `
-      SELECT
-        id,
-        full_name,
-        username,
-        role
-      FROM users
-      WHERE id = $1
-      `,
-      [req.user.sub]
-    );
-
-    if (!result.rows[0]) {
-      return res.status(401).json({
-        error: "Account topilmadi"
-      });
-    }
-
-    res.json({
-      user: result.rows[0]
-    });
-
-  } catch (error) {
-
-    console.error(error);
-
-    res.status(500).json({
-      error: "Accountni olishda xatolik"
-    });
-  }
-});
-
-
-// =========================
-// SETTINGS GET
-// =========================
-
-app.get("/api/settings", auth, async (req, res) => {
-  try {
-
-    await ensureAccountData(req.user.sub);
-
-    const result = await pool.query(
-      `
-      SELECT
-        hourly_rate,
-        minimum_payment,
-        calculation_mode
-      FROM user_settings
-      WHERE user_id = $1
-      `,
-      [req.user.sub]
-    );
-
-    const row = result.rows[0];
-
-    res.json({
-      hourlyRate: Number(row.hourly_rate),
-      minimumPayment: Number(row.minimum_payment),
-      calculationMode: row.calculation_mode
-    });
-
-  } catch (error) {
-
-    console.error(error);
-
-    res.status(500).json({
-      error: "Sozlamalarni olishda xatolik"
-    });
-  }
-});
-
-
-// =========================
-// SETTINGS UPDATE
-// =========================
-
-app.put("/api/settings", auth, async (req, res) => {
-  try {
-
-    await ensureAccountData(req.user.sub);
-
-    const hourlyRate = Number(
-      req.body.hourlyRate
-    );
-
-    const minimumPayment = Number(
-      req.body.minimumPayment
-    );
-
-    const calculationMode =
-      req.body.calculationMode === "minute"
-        ? "minute"
-        : "hour";
+app.post(
+  '/api/auth/register',
+  async (req, res) => {
+    const {
+      fullName,
+      username,
+      password
+    } = req.body;
 
     if (
-      !Number.isFinite(hourlyRate) ||
-      hourlyRate <= 0
+      !fullName ||
+      !username ||
+      !password ||
+      password.length < 6
     ) {
       return res.status(400).json({
-        error: "Soatlik narx noto‘g‘ri"
+        error:
+          'Ism, login va kamida 6 belgili parol kerak'
       });
     }
 
-    if (
-      !Number.isFinite(minimumPayment) ||
-      minimumPayment < 0
-    ) {
-      return res.status(400).json({
-        error: "Minimal to‘lov noto‘g‘ri"
-      });
-    }
+    const c = await pool.connect();
 
-    const result = await pool.query(
-      `
-      UPDATE user_settings
-      SET
-        hourly_rate = $1,
-        minimum_payment = $2,
-        calculation_mode = $3,
-        updated_at = NOW()
-      WHERE user_id = $4
-      RETURNING
-        hourly_rate,
-        minimum_payment,
-        calculation_mode
-      `,
-      [
-        hourlyRate,
-        minimumPayment,
-        calculationMode,
-        req.user.sub
-      ]
-    );
+    try {
+      await c.query('BEGIN');
 
-    const row = result.rows[0];
+      const hash = await bcrypt.hash(
+        password,
+        12
+      );
 
-    res.json({
-      hourlyRate: Number(row.hourly_rate),
-      minimumPayment: Number(row.minimum_payment),
-      calculationMode: row.calculation_mode
-    });
-
-  } catch (error) {
-
-    console.error(error);
-
-    res.status(500).json({
-      error: "Sozlamalarni saqlashda xatolik"
-    });
-  }
-});
-
-
-// =========================
-// PLATE VALIDATION
-// =========================
-
-function plateData(body) {
-
-  const allowedRegions = [
-    "01",
-    "10",
-    "20",
-    "25",
-    "30",
-    "40",
-    "50",
-    "60",
-    "70",
-    "75",
-    "80",
-    "85",
-    "90",
-    "95"
-  ];
-
-  const region = String(
-    body.regionCode || ""
-  );
-
-  const firstLetter = String(
-    body.firstLetter || ""
-  ).toUpperCase();
-
-  const number = String(
-    body.number || ""
-  );
-
-  const lastLetters = String(
-    body.lastLetters || ""
-  ).toUpperCase();
-
-  if (!allowedRegions.includes(region)) {
-    throw new Error("Viloyat kodi noto‘g‘ri");
-  }
-
-  if (!/^[A-Z]$/.test(firstLetter)) {
-    throw new Error("Birinchi harf noto‘g‘ri");
-  }
-
-  if (!/^[0-9]{3}$/.test(number)) {
-    throw new Error("Raqam aynan 3 xonali bo‘lishi kerak");
-  }
-
-  if (!/^[A-Z]{2}$/.test(lastLetters)) {
-    throw new Error("Oxirgi 2 harf noto‘g‘ri");
-  }
-
-  return {
-    region,
-    firstLetter,
-    number,
-    lastLetters,
-    plate: `${region} ${firstLetter} ${number} ${lastLetters}`
-  };
-}
-
-
-// =========================
-// ACTIVE SESSIONS
-// =========================
-
-app.get("/api/sessions/active", auth, async (req, res) => {
-
-  try {
-
-    const result = await pool.query(
-      `
-      SELECT
-        s.id,
-        v.plate,
-        v.model,
-        v.driver_name,
-        s.started_at,
-        s.hourly_rate,
-        s.minimum_payment,
-        s.calculation_mode
-      FROM sessions s
-      JOIN vehicles v
-        ON v.id = s.vehicle_id
-      WHERE
-        s.user_id = $1
-        AND s.status = 'active'
-      ORDER BY s.started_at
-      `,
-      [req.user.sub]
-    );
-
-    res.json(result.rows);
-
-  } catch (error) {
-
-    console.error(error);
-
-    res.status(500).json({
-      error: "Faol avtomobillarni olishda xatolik"
-    });
-  }
-});
-
-
-// =========================
-// START
-// =========================
-
-app.post("/api/sessions/start", auth, async (req, res) => {
-
-  let plate;
-
-  try {
-
-    plate = plateData(req.body);
-
-  } catch (error) {
-
-    return res.status(400).json({
-      error: error.message
-    });
-  }
-
-  const client = await pool.connect();
-
-  try {
-
-    await client.query("BEGIN");
-
-    let vehicleResult = await client.query(
-      `
-      SELECT *
-      FROM vehicles
-      WHERE
-        plate = $1
-        AND user_id = $2
-      `,
-      [
-        plate.plate,
-        req.user.sub
-      ]
-    );
-
-    let vehicle = vehicleResult.rows[0];
-
-    if (!vehicle) {
-
-      vehicleResult = await client.query(
+      const q = await c.query(
         `
-        INSERT INTO vehicles(
-          user_id,
-          region_code,
-          first_letter,
-          number,
-          last_letters,
-          plate,
-          model,
-          driver_name
+        INSERT INTO users
+        (
+          full_name,
+          username,
+          password_hash
         )
-        VALUES(
-          $1,
-          $2,
-          $3,
-          $4,
-          $5,
-          $6,
-          $7,
-          $8
-        )
-        RETURNING *
+        VALUES
+        ($1,$2,$3)
+        RETURNING
+          id,
+          full_name,
+          username,
+          role
         `,
         [
-          req.user.sub,
-          plate.region,
-          plate.firstLetter,
-          plate.number,
-          plate.lastLetters,
-          plate.plate,
-          req.body.model || null,
-          req.body.driverName || null
+          fullName.trim(),
+          username.trim(),
+          hash
         ]
       );
 
-      vehicle = vehicleResult.rows[0];
+      const u = q.rows[0];
 
-    } else {
-
-      await client.query(
+      await c.query(
         `
-        UPDATE vehicles
-        SET
-          model = COALESCE($1, model),
-          driver_name = COALESCE($2, driver_name)
-        WHERE id = $3
+        INSERT INTO user_settings(user_id)
+        VALUES($1)
         `,
-        [
-          req.body.model || null,
-          req.body.driverName || null,
-          vehicle.id
-        ]
+        [u.id]
       );
+
+      await c.query('COMMIT');
+
+      res.status(201).json({
+        user: u,
+        token: tokenFor(u)
+      });
+
+    } catch (e) {
+
+      await c.query('ROLLBACK');
+
+      console.error(e);
+
+      res.status(
+        e.code === '23505'
+          ? 409
+          : 500
+      ).json({
+        error:
+          e.code === '23505'
+            ? 'Bu login mavjud'
+            : 'Ro‘yxatdan o‘tishda xatolik'
+      });
+
+    } finally {
+      c.release();
     }
+  }
+);
 
 
-    const settingsResult = await client.query(
-      `
-      SELECT
-        hourly_rate,
-        minimum_payment,
-        calculation_mode
-      FROM user_settings
-      WHERE user_id = $1
-      `,
-      [req.user.sub]
-    );
+/* =========================
+   LOGIN
+========================= */
 
-    const settings =
-      settingsResult.rows[0] || {
-        hourly_rate: 30000,
-        minimum_payment: 30000,
-        calculation_mode: "hour"
+app.post(
+  '/api/auth/login',
+  async (req, res) => {
+
+    try {
+
+      const username =
+        String(
+          req.body.username || ''
+        ).trim();
+
+      const password =
+        req.body.password || '';
+
+      const q = await pool.query(
+        `
+        SELECT *
+        FROM users
+        WHERE username=$1
+        `,
+        [username]
+      );
+
+      if (
+        !q.rows[0] ||
+        !(await bcrypt.compare(
+          password,
+          q.rows[0].password_hash
+        ))
+      ) {
+        return res.status(401).json({
+          error:
+            'Login yoki parol noto‘g‘ri'
+        });
+      }
+
+      const u = {
+        id: q.rows[0].id,
+        full_name:
+          q.rows[0].full_name,
+        username:
+          q.rows[0].username,
+        role:
+          q.rows[0].role
       };
 
+      await ensureAccountData(u.id);
 
-    const sessionResult = await client.query(
-      `
-      INSERT INTO sessions(
-        user_id,
-        vehicle_id,
-        hourly_rate,
-        minimum_payment,
-        calculation_mode
-      )
-      VALUES(
-        $1,
-        $2,
-        $3,
-        $4,
-        $5
-      )
-      RETURNING
-        id,
-        started_at
-      `,
-      [
-        req.user.sub,
-        vehicle.id,
-        settings.hourly_rate,
-        settings.minimum_payment,
-        settings.calculation_mode
-      ]
-    );
+      res.json({
+        user: u,
+        token: tokenFor(u)
+      });
 
-    const session = sessionResult.rows[0];
+    } catch (e) {
 
-    await client.query("COMMIT");
+      console.error(e);
 
-    res.status(201).json({
-      id: session.id,
-      plate: plate.plate,
-      startedAt: session.started_at
-    });
-
-  } catch (error) {
-
-    await client.query("ROLLBACK");
-
-    console.error(error);
-
-    if (error.code === "23505") {
-
-      return res.status(409).json({
-        error: "Bu avtomobil hozir jarayonda"
+      res.status(500).json({
+        error:
+          'Kirishda server xatosi'
       });
     }
-
-    res.status(500).json({
-      error: "START bajarilmadi"
-    });
-
-  } finally {
-
-    client.release();
   }
-});
+);
 
 
-// =========================
-// FINISH
-// =========================
+/* =========================
+   SETTINGS
+========================= */
 
-app.post("/api/sessions/:id/finish", auth, async (req, res) => {
+app.get(
+  '/api/settings',
+  auth,
+  async (req, res) => {
 
-  const client = await pool.connect();
+    try {
 
-  try {
-
-    await client.query("BEGIN");
-
-    const result = await client.query(
-      `
-      SELECT
-        s.*,
-        v.plate
-      FROM sessions s
-      JOIN vehicles v
-        ON v.id = s.vehicle_id
-      WHERE
-        s.id = $1
-        AND s.user_id = $2
-        AND s.status = 'active'
-      FOR UPDATE
-      `,
-      [
-        req.params.id,
+      await ensureAccountData(
         req.user.sub
-      ]
-    );
-
-    if (!result.rows[0]) {
-
-      await client.query("ROLLBACK");
-
-      return res.status(404).json({
-        error: "Sizning accountingizda faol sessiya topilmadi"
-      });
-    }
-
-    const session = result.rows[0];
-
-    const finishedAt = new Date();
-
-    const seconds = Math.max(
-      0,
-      Math.floor(
-        (
-          finishedAt -
-          new Date(session.started_at)
-        ) / 1000
-      )
-    );
-
-    const minutes = seconds / 60;
-
-    let rawAmount;
-
-    if (
-      session.calculation_mode === "minute"
-    ) {
-
-      rawAmount =
-        minutes *
-        Number(session.hourly_rate) /
-        60;
-
-    } else {
-
-      rawAmount =
-        Math.max(
-          1,
-          Math.ceil(minutes / 60)
-        ) *
-        Number(session.hourly_rate);
-    }
-
-    const amount = Math.max(
-      Number(session.minimum_payment),
-      rawAmount
-    );
-
-
-    const updateResult = await client.query(
-      `
-      UPDATE sessions
-      SET
-        finished_at = $1,
-        duration_seconds = $2,
-        amount = $3,
-        status = 'completed'
-      WHERE
-        id = $4
-        AND user_id = $5
-      RETURNING
-        id,
-        started_at,
-        finished_at,
-        duration_seconds,
-        amount
-      `,
-      [
-        finishedAt,
-        seconds,
-        amount,
-        session.id,
-        req.user.sub
-      ]
-    );
-
-    await client.query("COMMIT");
-
-    const row = updateResult.rows[0];
-
-    res.json({
-      ...row,
-      plate: session.plate,
-      amount: Number(row.amount)
-    });
-
-  } catch (error) {
-
-    await client.query("ROLLBACK");
-
-    console.error(error);
-
-    res.status(500).json({
-      error: "FINISH bajarilmadi"
-    });
-
-  } finally {
-
-    client.release();
-  }
-});
-
-
-// =========================
-// DAILY REPORT
-// =========================
-
-app.get("/api/reports/daily", auth, async (req, res) => {
-
-  try {
-
-    const date =
-      /^\d{4}-\d{2}-\d{2}$/.test(
-        req.query.date || ""
-      )
-        ? req.query.date
-        : new Date()
-            .toISOString()
-            .slice(0, 10);
-
-
-    const result = await pool.query(
-      `
-      SELECT
-        v.plate,
-        s.started_at,
-        s.finished_at,
-        s.duration_seconds,
-        s.amount
-      FROM sessions s
-      JOIN vehicles v
-        ON v.id = s.vehicle_id
-      WHERE
-        s.user_id = $1
-        AND s.status = 'completed'
-        AND s.started_at::date = $2
-      ORDER BY s.started_at DESC
-      `,
-      [
-        req.user.sub,
-        date
-      ]
-    );
-
-
-    const summary =
-      result.rows.reduce(
-        (acc, row) => ({
-          count: acc.count + 1,
-          seconds:
-            acc.seconds +
-            Number(row.duration_seconds || 0),
-          amount:
-            acc.amount +
-            Number(row.amount || 0)
-        }),
-        {
-          count: 0,
-          seconds: 0,
-          amount: 0
-        }
       );
 
+      const q = await pool.query(
+        `
+        SELECT
+          hourly_rate,
+          minimum_payment,
+          calculation_mode
+        FROM user_settings
+        WHERE user_id=$1
+        `,
+        [req.user.sub]
+      );
 
-    res.json({
-      date,
-      summary,
-      rows: result.rows
-    });
+      const row = q.rows[0];
 
-  } catch (error) {
+      res.json({
+        hourlyRate:
+          Number(row.hourly_rate),
 
-    console.error(error);
+        minimumPayment:
+          Number(row.minimum_payment),
 
-    res.status(500).json({
-      error: "Hisobotni olishda xatolik"
-    });
+        calculationMode:
+          row.calculation_mode
+      });
+
+    } catch (e) {
+
+      console.error(e);
+
+      res.status(500).json({
+        error:
+          'Sozlamalarni olishda xatolik'
+      });
+    }
   }
-});
+);
 
 
-// =========================
-// DASHBOARD
-// =========================
+app.put(
+  '/api/settings',
+  auth,
+  async (req, res) => {
 
-app.get("/api/dashboard", auth, async (req, res) => {
+    try {
 
-  try {
+      await ensureAccountData(
+        req.user.sub
+      );
 
-    const result = await pool.query(
-      `
-      SELECT
+      const h =
+        Number(req.body.hourlyRate);
 
-        COUNT(*)
-        FILTER(
-          WHERE status = 'active'
-        )::int AS active,
+      const m =
+        Number(req.body.minimumPayment);
 
-        COUNT(*)
-        FILTER(
+      if (
+        !Number.isFinite(h) ||
+        h <= 0 ||
+        !Number.isFinite(m) ||
+        m < 0
+      ) {
+        return res.status(400).json({
+          error:
+            'Narx noto‘g‘ri'
+        });
+      }
+
+      const mode =
+        req.body.calculationMode ===
+        'minute'
+          ? 'minute'
+          : 'hour';
+
+      const q = await pool.query(
+        `
+        UPDATE user_settings
+        SET
+          hourly_rate=$1,
+          minimum_payment=$2,
+          calculation_mode=$3,
+          updated_at=NOW()
+        WHERE user_id=$4
+
+        RETURNING
+          hourly_rate,
+          minimum_payment,
+          calculation_mode
+        `,
+        [
+          h,
+          m,
+          mode,
+          req.user.sub
+        ]
+      );
+
+      const row = q.rows[0];
+
+      res.json({
+        hourlyRate:
+          Number(row.hourly_rate),
+
+        minimumPayment:
+          Number(row.minimum_payment),
+
+        calculationMode:
+          row.calculation_mode
+      });
+
+    } catch (e) {
+
+      console.error(e);
+
+      res.status(500).json({
+        error:
+          'Sozlamalarni saqlashda xatolik'
+      });
+    }
+  }
+);
+
+
+/* =========================
+   ACTIVE SESSIONS
+========================= */
+
+app.get(
+  '/api/sessions/active',
+  auth,
+  async (req, res) => {
+
+    try {
+
+      const q = await pool.query(
+        `
+        SELECT
+          s.id,
+          v.plate,
+          v.model,
+          v.driver_name,
+          s.started_at,
+          s.hourly_rate,
+          s.calculation_mode
+
+        FROM sessions s
+
+        JOIN vehicles v
+          ON v.id=s.vehicle_id
+
+        WHERE
+          s.user_id=$1
+          AND s.status='active'
+
+        ORDER BY s.started_at
+        `,
+        [req.user.sub]
+      );
+
+      res.json(q.rows);
+
+    } catch (e) {
+
+      console.error(e);
+
+      res.status(500).json({
+        error:
+          'Faol sessiyalarni olishda xatolik'
+      });
+    }
+  }
+);
+
+
+/* =========================
+   START
+========================= */
+
+app.post(
+  '/api/sessions/start',
+  auth,
+  async (req, res) => {
+
+    let p;
+
+    try {
+
+      p = plateData(req.body);
+
+    } catch (e) {
+
+      return res.status(400).json({
+        error: e.message
+      });
+    }
+
+    const c =
+      await pool.connect();
+
+    try {
+
+      await c.query('BEGIN');
+
+      let v =
+        (
+          await c.query(
+            `
+            SELECT *
+            FROM vehicles
+            WHERE
+              plate=$1
+              AND user_id=$2
+            `,
+            [
+              p.plate,
+              req.user.sub
+            ]
+          )
+        ).rows[0];
+
+      if (!v) {
+
+        v =
+          (
+            await c.query(
+              `
+              INSERT INTO vehicles
+              (
+                user_id,
+                region_code,
+                first_letter,
+                number,
+                last_letters,
+                plate,
+                model,
+                driver_name
+              )
+              VALUES
+              ($1,$2,$3,$4,$5,$6,$7,$8)
+
+              RETURNING *
+              `,
+              [
+                req.user.sub,
+                p.r,
+                p.f,
+                p.n,
+                p.l,
+                p.plate,
+                req.body.model || null,
+                req.body.driverName || null
+              ]
+            )
+          ).rows[0];
+      }
+
+      const settings =
+        (
+          await c.query(
+            `
+            SELECT
+              hourly_rate,
+              minimum_payment,
+              calculation_mode
+
+            FROM user_settings
+
+            WHERE user_id=$1
+            `,
+            [req.user.sub]
+          )
+        ).rows[0] || {
+          hourly_rate: 30000,
+          minimum_payment: 0,
+          calculation_mode: 'hour'
+        };
+
+      const x =
+        (
+          await c.query(
+            `
+            INSERT INTO sessions
+            (
+              user_id,
+              vehicle_id,
+              hourly_rate,
+              minimum_payment,
+              calculation_mode
+            )
+
+            VALUES
+            ($1,$2,$3,$4,$5)
+
+            RETURNING
+              id,
+              started_at
+            `,
+            [
+              req.user.sub,
+              v.id,
+              settings.hourly_rate,
+              settings.minimum_payment,
+              settings.calculation_mode
+            ]
+          )
+        ).rows[0];
+
+      await c.query('COMMIT');
+
+      res.status(201).json({
+        id: x.id,
+        plate: p.plate,
+        startedAt: x.started_at
+      });
+
+    } catch (e) {
+
+      await c.query('ROLLBACK');
+
+      console.error(e);
+
+      res.status(
+        e.code === '23505'
+          ? 409
+          : 500
+      ).json({
+        error:
+          e.code === '23505'
+            ? 'Bu avtomobil hozir jarayonda'
+            : 'START bajarilmadi'
+      });
+
+    } finally {
+      c.release();
+    }
+  }
+);
+
+
+/* =========================
+   FINISH
+========================= */
+
+app.post(
+  '/api/sessions/:id/finish',
+  auth,
+  async (req, res) => {
+
+    const c =
+      await pool.connect();
+
+    try {
+
+      await c.query('BEGIN');
+
+      const q =
+        await c.query(
+          `
+          SELECT
+            s.*,
+            v.plate
+
+          FROM sessions s
+
+          JOIN vehicles v
+            ON v.id=s.vehicle_id
+
           WHERE
-            status = 'completed'
-            AND started_at::date = CURRENT_DATE
-        )::int AS today_count,
+            s.id=$1
+            AND s.user_id=$2
+            AND s.status='active'
 
-        COALESCE(
-          SUM(duration_seconds)
-          FILTER(
-            WHERE
-              status = 'completed'
-              AND started_at::date = CURRENT_DATE
-          ),
-          0
-        )::bigint AS today_seconds,
+          FOR UPDATE
+          `,
+          [
+            req.params.id,
+            req.user.sub
+          ]
+        );
 
-        COALESCE(
-          SUM(amount)
-          FILTER(
-            WHERE
-              status = 'completed'
-              AND started_at::date = CURRENT_DATE
-          ),
-          0
-        )::numeric AS today_amount
+      if (!q.rows[0]) {
 
-      FROM sessions
+        await c.query('ROLLBACK');
 
-      WHERE user_id = $1
-      `,
-      [req.user.sub]
-    );
+        return res.status(404).json({
+          error:
+            'Sizning accountingizda faol sessiya topilmadi'
+        });
+      }
 
+      const s = q.rows[0];
 
-    const row = result.rows[0];
+      const end = new Date();
 
-    res.json({
-      active: Number(row.active),
-      todayCount: Number(row.today_count),
-      todaySeconds: Number(row.today_seconds),
-      todayAmount: Number(row.today_amount)
-    });
+      const sec =
+        Math.max(
+          0,
+          Math.floor(
+            (
+              end -
+              new Date(s.started_at)
+            ) / 1000
+          )
+        );
 
-  } catch (error) {
+      const min = sec / 60;
 
-    console.error(error);
+      const raw =
+        s.calculation_mode === 'minute'
+          ? min *
+            Number(s.hourly_rate) /
+            60
+          : Math.max(
+              1,
+              Math.ceil(min / 60)
+            ) *
+            Number(s.hourly_rate);
 
-    res.status(500).json({
-      error: "Dashboardni olishda xatolik"
-    });
+      const amount =
+        Math.max(
+          Number(s.minimum_payment),
+          raw
+        );
+
+      const u =
+        await c.query(
+          `
+          UPDATE sessions
+
+          SET
+            finished_at=$1,
+            duration_seconds=$2,
+            amount=$3,
+            status='completed'
+
+          WHERE
+            id=$4
+            AND user_id=$5
+
+          RETURNING
+            id,
+            started_at,
+            finished_at,
+            duration_seconds,
+            amount
+          `,
+          [
+            end,
+            sec,
+            amount,
+            s.id,
+            req.user.sub
+          ]
+        );
+
+      await c.query('COMMIT');
+
+      res.json({
+        ...u.rows[0],
+        plate: s.plate,
+        amount:
+          Number(u.rows[0].amount)
+      });
+
+    } catch (e) {
+
+      await c.query('ROLLBACK');
+
+      console.error(e);
+
+      res.status(500).json({
+        error:
+          'FINISH bajarilmadi'
+      });
+
+    } finally {
+      c.release();
+    }
   }
-});
+);
 
 
-// =========================
-// VERCEL
-// =========================
+/* =========================
+   DAILY REPORT
+========================= */
+
+app.get(
+  '/api/reports/daily',
+  auth,
+  async (req, res) => {
+
+    try {
+
+      const date =
+        /^\d{4}-\d{2}-\d{2}$/.test(
+          req.query.date || ''
+        )
+          ? req.query.date
+          : new Date()
+              .toISOString()
+              .slice(0, 10);
+
+      const q =
+        await pool.query(
+          `
+          SELECT
+            v.plate,
+            s.started_at,
+            s.finished_at,
+            s.duration_seconds,
+            s.amount
+
+          FROM sessions s
+
+          JOIN vehicles v
+            ON v.id=s.vehicle_id
+
+          WHERE
+            s.user_id=$1
+            AND s.status='completed'
+            AND started_at::date=$2
+
+          ORDER BY s.started_at DESC
+          `,
+          [
+            req.user.sub,
+            date
+          ]
+        );
+
+      const summary =
+        q.rows.reduce(
+          (a, x) => ({
+            count:
+              a.count + 1,
+
+            seconds:
+              a.seconds +
+              Number(
+                x.duration_seconds || 0
+              ),
+
+            amount:
+              a.amount +
+              Number(
+                x.amount || 0
+              )
+          }),
+          {
+            count: 0,
+            seconds: 0,
+            amount: 0
+          }
+        );
+
+      res.json({
+        date,
+        summary,
+        rows: q.rows
+      });
+
+    } catch (e) {
+
+      console.error(e);
+
+      res.status(500).json({
+        error:
+          'Hisobotni olishda xatolik'
+      });
+    }
+  }
+);
+
+
+/* =========================
+   DASHBOARD
+========================= */
+
+app.get(
+  '/api/dashboard',
+  auth,
+  async (req, res) => {
+
+    try {
+
+      const q =
+        await pool.query(
+          `
+          SELECT
+
+            COUNT(*)
+              FILTER(
+                WHERE status='active'
+              )::int active,
+
+            COUNT(*)
+              FILTER(
+                WHERE
+                  status='completed'
+                  AND started_at::date=CURRENT_DATE
+              )::int today_count,
+
+            COALESCE(
+              SUM(duration_seconds)
+                FILTER(
+                  WHERE
+                    status='completed'
+                    AND started_at::date=CURRENT_DATE
+                ),
+              0
+            )::bigint today_seconds,
+
+            COALESCE(
+              SUM(amount)
+                FILTER(
+                  WHERE
+                    status='completed'
+                    AND started_at::date=CURRENT_DATE
+                ),
+              0
+            )::numeric today_amount
+
+          FROM sessions
+
+          WHERE user_id=$1
+          `,
+          [req.user.sub]
+        );
+
+      const r = q.rows[0];
+
+      res.json({
+        active:
+          r.active,
+
+        todayCount:
+          r.today_count,
+
+        todaySeconds:
+          Number(r.today_seconds),
+
+        todayAmount:
+          Number(r.today_amount)
+      });
+
+    } catch (e) {
+
+      console.error(e);
+
+      res.status(500).json({
+        error:
+          'Dashboardni olishda xatolik'
+      });
+    }
+  }
+);
+
+
+/* =========================
+   FRONTEND
+========================= */
+
+app.use(
+  express.static(frontendPath)
+);
+
+
+/*
+   Express 5 uchun to‘g‘ri wildcard
+*/
+app.get(
+  '/{*splat}',
+  (_req, res) => {
+    res.sendFile(
+      path.join(
+        frontendPath,
+        'index.html'
+      )
+    );
+  }
+);
+
+
+/* =========================
+   EXPORT
+========================= */
 
 export default app;
 
 
-// =========================
-// LOCAL SERVER
-// =========================
+/*
+   Faqat lokal kompyuterda
+   serverni ishga tushirish.
+   
+   Vercel'da app.listen ishlatilmaydi.
+*/
 
-if (process.env.VERCEL !== "1") {
-
-  const PORT =
-    Number(process.env.PORT || 3000);
+if (!process.env.VERCEL) {
 
   app.listen(
     PORT,
-    "0.0.0.0",
+    '0.0.0.0',
     () => {
       console.log(
         `AVTODROM running on :${PORT}`
