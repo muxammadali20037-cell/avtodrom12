@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="uz">
+<head><meta charset="utf-8"><title>Avtodrom API ulanish testi</title></head>
+<body>
+  <h1>Avtodrom API testi</h1>
+  <button id="health">Serverni tekshirish</button>
+  <button id="dashboard">Dashboardni olish</button>
+  <pre id="out">Tayyor</pre>
+  <script>window.AVTODROM_API='http://localhost:3000/api';</script>
+  <script type="module">
+    import { api } from './api.js';
+    const out=document.querySelector('#out');
+    document.querySelector('#health').onclick=async()=>{try{out.textContent=JSON.stringify(await api('/health'),null,2)}catch(e){out.textContent=e.message}};
+    document.querySelector('#dashboard').onclick=async()=>{try{out.textContent=JSON.stringify(await api('/dashboard'),null,2)}catch(e){out.textContent=e.message}};
+  </script>
+</body></html>
