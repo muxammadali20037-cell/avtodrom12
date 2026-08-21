@@ -23,6 +23,7 @@ input,select{width:100%;height:44px;border:1px solid var(--b);border-radius:10px
 @media(max-width:720px){.side{transform:translateX(-100%);transition:.2s}.side.open{transform:translateX(0)}.main{margin-left:0}.hamb{display:block}.top{padding:0 14px}.content{padding:15px}.formGrid{grid-template-columns:1fr}.span2{grid-column:auto}.plate{grid-template-columns:70px 58px 1fr 68px}.finishGrid{grid-template-columns:1fr}.kv{grid-template-columns:1fr 1fr}.studentRow{grid-template-columns:1fr}.cards{grid-template-columns:1fr}}
 @media(max-width:480px){.stats{grid-template-columns:1fr}.vehicleTop,.frozen{flex-direction:column;align-items:flex-start}.payments{grid-template-columns:1fr}.user .muted{display:none}}
 </style>
+<!-- OPERATOR_ADMIN_SPLIT_FINAL -->
 </head>
 <body>
 
@@ -46,15 +47,11 @@ input,select{width:100%;height:44px;border:1px solid var(--b);border-radius:10px
 <aside id="side" class="side">
 <div class="logo"><div class="logoA">A</div><div><div class="logoT">AVTODROM</div><div class="logoS">BOSHQARUV TIZIMI</div></div></div>
 <div class="navTitle">ASOSIY</div>
-<button class="nav active" data-p="dashboard">▣ &nbsp; Dashboard</button>
 <button class="nav" data-p="add">＋ &nbsp; Yangi avtomobil</button>
 <button class="nav" data-p="active">◉ &nbsp; Jarayonda</button>
 <button class="nav" data-p="finish">✓ &nbsp; Tugatish</button>
 <button class="nav" data-p="frozen">❄ &nbsp; Muzlatilgan <span id="frozenCount"></span></button>
 <div class="navTitle">HISOBOT</div><button class="nav" data-p="daily">▤ &nbsp; Kunlik hisobot</button><button class="nav" data-p="history">⌕ &nbsp; Avtomobil tarixi</button>
-<div class="navTitle">AVTOSHKOLA</div><button class="nav" data-p="schools">▦ &nbsp; Avtoshkolalar</button><button class="nav" data-p="students">♟ &nbsp; O‘quvchilar</button>
-<div class="navTitle">TIZIM</div><button class="nav" data-p="settings">⚙ &nbsp; Sozlamalar</button>
-<div class="adminNav"><button class="nav" onclick="openAdminGate()">🔐 &nbsp; Admin panel</button></div>
 </aside>
 
 <main class="main">
@@ -91,7 +88,7 @@ input,select{width:100%;height:44px;border:1px solid var(--b);border-radius:10px
 </div></main></div>
 
 <div id="adminGate" class="adminGate hidden"><div class="adminCard adminLogin"><div class="modalHead"><div><h2 style="margin:0">Admin panel</h2><div class="muted">Operator panelidan alohida kirish</div></div><button class="btn light" onclick="closeAdminGate()">Yopish</button></div>
-<form id="adminLoginForm" style="margin-top:16px"><div class="fg"><label>Admin login</label><input id="adminUser" value="admin" autocomplete="username" required></div><div class="fg"><label>Admin parol</label><input id="adminPass" type="password" autocomplete="current-password" placeholder="Admin@2026" required></div><button class="btn green" style="width:100%">Admin panelga kirish</button><div id="adminErr" class="err"></div></form></div></div>
+<form id="adminLoginForm" style="margin-top:16px"><div class="fg"><label>Admin login</label><input id="adminUser" autocomplete="username" required></div><div class="fg"><label>Admin parol</label><input id="adminPass" type="password" autocomplete="current-password" required></div><button class="btn green" style="width:100%">Admin panelga kirish</button><div id="adminErr" class="err"></div></form></div></div>
 
 <div id="adminPanel" class="hidden"><div class="adminGate"><div class="adminCard">
 <div class="adminBar"><div><b>AVTODROM — ADMIN PANEL</b><br><small>Avtoshkola • Guruh • O‘quvchi</small></div><button class="btn light" onclick="closeAdminPanel()">Operator paneliga qaytish</button></div>
@@ -112,14 +109,30 @@ function loginMode(){$('loginBox').classList.remove('hidden');$('registerBox').c
 $('loginForm').onsubmit=async e=>{e.preventDefault();$('loginErr').textContent='';try{let x=await api('/auth/login',{method:'POST',body:JSON.stringify({username:$('loginUser').value.trim(),password:$('loginPass').value})});saveLogin(x)}catch(x){$('loginErr').textContent=x.message}}
 $('registerForm').onsubmit=async e=>{e.preventDefault();$('regErr').textContent='';try{let x=await api('/auth/register',{method:'POST',body:JSON.stringify({fullName:$('regName').value.trim(),username:$('regUser').value.trim(),password:$('regPass').value})});saveLogin(x)}catch(x){$('regErr').textContent=x.message}}
 function saveLogin(x){token=x.token;me=x.user;localStorage.setItem('avtodrom_token',token);localStorage.setItem('avtodrom_user',JSON.stringify(me));boot()}
-function logout(){localStorage.removeItem('avtodrom_token');localStorage.removeItem('avtodrom_user');location.reload()}
-function boot(){$('login').classList.add('hidden');$('app').classList.remove('hidden');$('who').textContent=me?.username||me?.full_name||'Operator';$('avatar').textContent=(me?.full_name||me?.username||'A')[0].toUpperCase();go('dashboard')}
+function logout(){sessionStorage.removeItem('avtodrom_admin');localStorage.removeItem('avtodrom_token');localStorage.removeItem('avtodrom_user');location.reload()}
+function boot(){
+  $('login').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  $('who').textContent=me?.username||me?.full_name||'Operator';
+  $('avatar').textContent=(me?.full_name||me?.username||'A')[0].toUpperCase();
+  go('add');
+}
 setInterval(()=>{$('clock').textContent=new Date().toLocaleString('uz-UZ',{timeZone:'Asia/Tashkent',hour12:false})},1000);
+if(ADMIN_ROUTE)setTimeout(openAdminGate,100);
 setInterval(()=>document.querySelectorAll('[data-start]').forEach(x=>{let a=new Date(x.dataset.start).getTime();if(Number.isFinite(a))x.textContent=dur((Date.now()-a)/1000)}),1000);
 setInterval(()=>{if(token){loadDashboard(1);loadActive(1);loadFrozen(1)}},15000);
 document.querySelectorAll('.nav[data-p]').forEach(x=>x.onclick=()=>go(x.dataset.p));
+const OPERATOR_PAGES=new Set(['add','active','finish','frozen','daily','history']);
+const ADMIN_PAGES=new Set(['dashboard','add','active','finish','frozen','daily','history','schools','students','settings']);
+const ADMIN_ROUTE=new URLSearchParams(location.search).get('panel')==='admin';
 const names={dashboard:'Dashboard',add:'Yangi avtomobil',active:'Jarayonda',finish:'Tugatish',frozen:'Muzlatilgan',daily:'Kunlik hisobot',history:'Avtomobil tarixi',schools:'Avtoshkolalar',students:'O‘quvchilar',settings:'Sozlamalar'};
-function go(p){document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));$('p-'+p).classList.remove('hidden');document.querySelectorAll('.nav[data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===p));$('pageTitle').textContent=names[p];$('side').classList.remove('open');if(p==='dashboard')loadDashboard();if(p==='add')loadSchoolSelect();if(p==='active'||p==='finish')loadActive();if(p==='frozen')loadFrozen();if(p==='daily')loadDaily();if(p==='schools')loadSchools();if(p==='students')loadStudents();if(p==='settings')loadSettings()}
+function go(p){
+  // Operator hech qachon Admin bo'limlarini ocholmaydi.
+  const isAdminSession=sessionStorage.getItem('avtodrom_admin')==='1';
+  if(!isAdminSession && !OPERATOR_PAGES.has(p)){
+    p='add';
+  }
+  document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));$('p-'+p).classList.remove('hidden');document.querySelectorAll('.nav[data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===p));$('pageTitle').textContent=names[p];$('side').classList.remove('open');if(p==='dashboard')loadDashboard();if(p==='add')loadSchoolSelect();if(p==='active'||p==='finish')loadActive();if(p==='frozen')loadFrozen();if(p==='daily')loadDaily();if(p==='schools')loadSchools();if(p==='students')loadStudents();if(p==='settings')loadSettings()}
 async function loadDashboard(silent){try{let d=await api('/dashboard');$('dc').textContent=d.todayCount||0;$('da').textContent=d.active||0;$('dm').textContent=money(d.todayAmount);$('dp').textContent=money(d.todayCash).replace(' so‘m','')+' / '+money(d.todayTerminal).replace(' so‘m','');await loadActive(1);await loadFrozen(1);let x=await api('/reports/daily');daily=x;renderDash(x)}catch(e){if(!silent)toast(e.message,true)}}
 function renderDash(x){$('dashActive').innerHTML=active.length?active.slice(0,7).map(v=>vehicle(v,true)).join(''):'<div class="empty">Hozir avtomobil yo‘q</div>';let s=x.summary||{};$('dashPay').innerHTML='<div class="kv"><div><b>'+money(s.cash)+'</b><span>naqd</span></div><div><b>'+money(s.terminal)+'</b><span>terminal</span></div><div><b>'+money(s.amount)+'</b><span>jami</span></div><div><b>'+Number(s.count||0)+'</b><span>avtomobil</span></div></div>';$('dashTable').innerHTML=table(x.rows||[])}
 function table(a){if(!a.length)return'<div class="empty">Ma’lumot yo‘q</div>';return'<div class="tableWrap"><table class="table"><thead><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>Vaqt</th><th>O‘quvchi</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr></thead><tbody>'+a.map(x=>'<tr><td><b>'+esc(x.plate)+'</b></td><td>'+dt(x.started_at)+'</td><td>'+dt(x.finished_at)+'</td><td>'+dur(x.duration_seconds)+'</td><td>'+esc(x.student_name||'—')+'</td><td>'+money(x.cash_amount)+'</td><td>'+money(x.terminal_amount)+'</td><td><b>'+money(x.amount)+'</b></td></tr>').join('')+'</tbody></table></div>'}
@@ -215,12 +228,13 @@ async function saveSettings(){try{await api('/settings',{method:'PUT',body:JSON.
 function modal(x){$('modal').innerHTML='<div class="modalBg" onclick="if(event.target===this)closeModal()"><div class="modal">'+x+'</div></div>'}function closeModal(){$('modal').innerHTML=''}
 
 function openAdminGate(){
+  if(new URLSearchParams(location.search).get('panel')!=='admin') return;
   if(sessionStorage.getItem('avtodrom_admin')==='1'){
     $('adminPanel').classList.remove('hidden');
     adminLoad();
     return;
   }
-  $('adminUser').value=ADMIN_LOGIN;
+  $('adminUser').value='';
   $('adminPass').value='';
   $('adminGate').classList.remove('hidden');
   $('adminErr').textContent='';
