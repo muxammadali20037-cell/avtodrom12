@@ -14,9 +14,12 @@ let schemaPromise;
 function ensureFreezeSchema() {
   if (schemaPromise) return schemaPromise;
   schemaPromise = (async () => {
+    // Original schema uses sessions_status. Older freeze code used
+    // sessions_status_check, which left the original constraint in place.
     await pool.query(`
+      ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_status;
       ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_status_check;
-      ALTER TABLE sessions ADD CONSTRAINT sessions_status_check
+      ALTER TABLE sessions ADD CONSTRAINT sessions_status
         CHECK (status IN ('active','frozen','completed'));
       ALTER TABLE sessions ADD COLUMN IF NOT EXISTS frozen_at TIMESTAMPTZ;
       ALTER TABLE sessions ADD COLUMN IF NOT EXISTS frozen_seconds BIGINT NOT NULL DEFAULT 0;
