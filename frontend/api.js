@@ -14,8 +14,12 @@ export const register=(fullName,username,password)=>api('/auth/register',{method
 export const getSettings=()=>cached('/settings');
 export const saveSettings=async body=>{const d=await api('/settings',{method:'PUT',body:JSON.stringify(body)});invalidate('/settings');return d};
 export const activeSessions=()=>api('/sessions/active');
+export const frozenSessions=()=>api('/sessions/frozen');
+export const freezeSession=async id=>{const d=await api(`/sessions/${id}/freeze`,{method:'POST'});invalidate('/dashboard');return d};
+export const resumeSession=async id=>{const d=await api(`/sessions/${id}/resume`,{method:'POST'});invalidate('/dashboard');return d};
 export const startSession=async body=>{const d=await api('/sessions/start',{method:'POST',body:JSON.stringify(body)});invalidate('/dashboard');invalidate('/schools');invalidate('/groups');invalidate('/students');return d};
 export const finishSession=async(id,body)=>{const d=await api(`/sessions/${id}/finish`,{method:'POST',body:JSON.stringify(body)});invalidate('/dashboard');return d};
+export const finishFrozenSession=async(id,body)=>{const d=await api(`/sessions/${id}/finish-frozen`,{method:'POST',body:JSON.stringify(body)});invalidate('/dashboard');return d};
 export const dashboard=()=>cached('/dashboard');
 export const dailyReport=date=>api(`/reports/daily?date=${encodeURIComponent(date)}`);
 export const schools=()=>cached('/schools');
