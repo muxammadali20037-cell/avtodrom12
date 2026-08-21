@@ -10,12 +10,15 @@ function authUser(req) {
   try { return jwt.verify(h.slice(7), JWT_SECRET); } catch { return null; }
 }
 
+function bodyOf(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  return {};
+}
+
 let schemaPromise;
 function ensureFreezeSchema() {
   if (schemaPromise) return schemaPromise;
   schemaPromise = (async () => {
-    // Original schema uses sessions_status. Older freeze code used
-    // sessions_status_check, which left the original constraint in place.
     await pool.query(`
       ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_status;
       ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_status_check;
@@ -23,6 +26,10 @@ function ensureFreezeSchema() {
         CHECK (status IN ('active','frozen','completed'));
       ALTER TABLE sessions ADD COLUMN IF NOT EXISTS frozen_at TIMESTAMPTZ;
       ALTER TABLE sessions ADD COLUMN IF NOT EXISTS frozen_seconds BIGINT NOT NULL DEFAULT 0;
+      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20) NOT NULL DEFAULT 'cash';
+      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS cash_amount NUMERIC(12,2) NOT NULL DEFAULT 0;
+      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS terminal_amount NUMERIC(12,2) NOT NULL DEFAULT 0;
+      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS manual_price BOOLEAN NOT NULL DEFAULT TRUE;
       CREATE INDEX IF NOT EXISTS idx_sessions_user_frozen ON sessions(user_id,status,frozen_at DESC);
     `);
   })().catch(error => { schemaPromise = null; throw error; });
@@ -42,16 +49,16 @@ async function freeze(req, res, id) {
         WHERE s.id=$1 AND s.user_id=$2 AND s.status='active' FOR UPDATE OF s
       `, [id, String(user.sub)]);
       if (!r.rows[0]) { await c.query('ROLLBACK'); return res.status(404).json({error:'Faol sessiya topilmadi'}); }
-      const s=r.rows[0], now=new Date();
-      const activeSeconds=Math.max(0,Math.floor((now-new Date(s.started_at))/1000)-Number(s.frozen_seconds||0));
-      const u=await c.query(`UPDATE sessions SET status='frozen',frozen_at=$1,duration_seconds=$2 WHERE id=$3 AND user_id=$4 RETURNING id,started_at,frozen_at,duration_seconds,status`,[now,activeSeconds,id,String(user.sub)]);
+      const s = r.rows[0], now = new Date();
+      const activeSeconds = Math.max(0, Math.floor((now - new Date(s.started_at))/1000) - Number(s.frozen_seconds||0));
+      const u = await c.query(`UPDATE sessions SET status='frozen',frozen_at=$1,duration_seconds=$2 WHERE id=$3 AND user_id=$4 RETURNING id,started_at,frozen_at,duration_seconds,status`, [now,activeSeconds,id,String(user.sub)]);
       await c.query('COMMIT');
       return res.json({...u.rows[0],plate:s.plate});
-    } catch(e){ await c.query('ROLLBACK'); throw e; } finally { c.release(); }
-  } catch(e){ return res.status(500).json({error:e.message||'Muzlatishda server xatosi'}); }
+    } catch(e) { await c.query('ROLLBACK'); throw e; } finally { c.release(); }
+  } catch(e) { return res.status(500).json({error:e.message||'Muzlatishda server xatosi'}); }
 }
 
-async function resume(req,res,id){
+async function resume(req,res,id) {
   const user=authUser(req);
   if(!user)return res.status(401).json({error:'Kirish talab qilinadi'});
   try{
@@ -90,17 +97,25 @@ async function finishFrozen(req,res,id){
       await c.query('BEGIN');
       const r=await c.query(`SELECT s.*,v.plate,ds.name school_name,g.name group_name,st.full_name student_name FROM sessions s JOIN vehicles v ON v.id=s.vehicle_id LEFT JOIN driving_schools ds ON ds.id=s.school_id LEFT JOIN school_groups g ON g.id=s.group_id LEFT JOIN students st ON st.id=s.student_id WHERE s.id=$1 AND s.user_id=$2 AND s.status='frozen' FOR UPDATE OF s`,[id,String(user.sub)]);
       if(!r.rows[0]){await c.query('ROLLBACK');return res.status(404).json({error:'Muzlatilgan sessiya topilmadi'});}
-      const s=r.rows[0],amount=num(req.body?.amount); if(amount<0)return res.status(400).json({error:'Narx noto‘g‘ri'});
-      let cash=num(req.body?.cashAmount),terminal=num(req.body?.terminalAmount); const method=['cash','terminal','mixed'].includes(req.body?.paymentMethod)?req.body.paymentMethod:'cash';
-      if(s.student_id){if(amount!==0)return res.status(400).json({error:'Avtoshkola o‘quvchisi uchun to‘lov 0 bo‘lishi kerak'});cash=0;terminal=0;}
-      else if(method==='cash'){cash=amount;terminal=0;} else if(method==='terminal'){cash=0;terminal=amount;} else if(Math.abs(cash+terminal-amount)>0.01)return res.status(400).json({error:'Naqd + terminal summasi umumiy narxga teng bo‘lishi kerak'});
+      const s=r.rows[0], body=bodyOf(req), amount=num(body.amount);
+      if(amount<0)return res.status(400).json({error:'Narx noto‘g‘ri'});
+      let cash=num(body.cashAmount),terminal=num(body.terminalAmount);
+      const method=['cash','terminal','mixed'].includes(body.paymentMethod)?body.paymentMethod:'cash';
+      if(s.student_id){
+        if(amount!==0)return res.status(400).json({error:'Avtoshkola o‘quvchisi uchun to‘lov 0 bo‘lishi kerak'});
+        cash=0; terminal=0;
+      } else if(method==='cash'){cash=amount;terminal=0;}
+      else if(method==='terminal'){cash=0;terminal=amount;}
+      else if(Math.abs(cash+terminal-amount)>0.01)return res.status(400).json({error:'Naqd + terminal summasi umumiy narxga teng bo‘lishi kerak'});
       const end=new Date();
-      const seconds=Math.max(0,Math.floor((end-new Date(s.started_at))/1000)-Number(s.frozen_seconds||0)-Math.max(0,Math.floor((end-new Date(s.frozen_at))/1000)));
-      const u=await c.query(`UPDATE sessions SET finished_at=$1,duration_seconds=$2,amount=$3,cash_amount=$4,terminal_amount=$5,payment_method=$6,status='completed',frozen_at=NULL WHERE id=$7 AND user_id=$8 RETURNING *`,[end,seconds,amount,cash,terminal,method,id,String(user.sub)]);
+      const frozenNow=Math.max(0,Math.floor((end-new Date(s.frozen_at))/1000));
+      const seconds=Math.max(0,Math.floor((end-new Date(s.started_at))/1000)-Number(s.frozen_seconds||0)-frozenNow);
+      const u=await c.query(`UPDATE sessions SET finished_at=$1,duration_seconds=$2,amount=$3,cash_amount=$4,terminal_amount=$5,payment_method=$6,status='completed',frozen_at=NULL WHERE id=$7 AND user_id=$8 AND status='frozen' RETURNING *`,[end,seconds,amount,cash,terminal,method,id,String(user.sub)]);
+      if(!u.rows[0]){await c.query('ROLLBACK');return res.status(409).json({error:'Sessiya allaqachon tugatilgan yoki davom ettirilgan'});}
       await c.query('COMMIT');
       return res.json({...u.rows[0],plate:s.plate,amount:Number(amount),cash_amount:Number(cash),terminal_amount:Number(terminal),school_name:s.school_name,group_name:s.group_name,student_name:s.student_name});
     }catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}
-  }catch(e){return res.status(400).json({error:e.message||'FINISH bajarilmadi'});}
+  }catch(e){return res.status(400).json({error:e.message||'Muzlatilgan avtomobilni tugatishda server xatosi'});}
 }
 
 export async function handleFreezeRequest(req,res){
@@ -110,11 +125,13 @@ export async function handleFreezeRequest(req,res){
   if(req.method==='POST' && /^\/api\/sessions\/[^/]+\/freeze$/.test(path)) return freeze(req,res,id);
   if(req.method==='POST' && /^\/api\/sessions\/[^/]+\/resume$/.test(path)) return resume(req,res,id);
   if(req.method==='GET' && path==='/api/sessions/frozen') return frozen(req,res);
-  if(req.method==='POST' && /^\/api\/sessions\/[^/]+\/finish$/.test(path)){
-    const user=authUser(req); if(!user)return res.status(401).json({error:'Kirish talab qilinadi'});
+  if(req.method==='POST' && /^\/api\/sessions\/[^/]+\/finish(?:-frozen)?$/.test(path)){
+    const user=authUser(req);
+    if(!user)return res.status(401).json({error:'Kirish talab qilinadi'});
     await ensureFreezeSchema();
     const check=await pool.query(`SELECT 1 FROM sessions WHERE id=$1 AND user_id=$2 AND status='frozen'`,[id,String(user.sub)]);
     if(check.rows[0])return finishFrozen(req,res,id);
+    if(path.endsWith('-frozen'))return res.status(404).json({error:'Muzlatilgan sessiya topilmadi'});
   }
   return null;
 }
