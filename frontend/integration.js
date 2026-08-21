@@ -1,16 +1,2 @@
-import { api, saveAuth, logout, getSettings, saveSettings, activeSessions, startSession, finishSession, dashboard, dailyReport } from './api.js';
-
-export const Avtodrom = {
-  login: async (username, password) => { const data = await api('/auth/login', { method:'POST', body:JSON.stringify({username,password}) }); saveAuth(data); return data; },
-  register: async (fullName, username, password) => { const data = await api('/auth/register', { method:'POST', body:JSON.stringify({fullName,username,password}) }); saveAuth(data); return data; },
-  logout,
-  settings: getSettings,
-  updateSettings: saveSettings,
-  active: activeSessions,
-  start: startSession,
-  finish: finishSession,
-  dashboard,
-  report: dailyReport
-};
-
-window.Avtodrom = Avtodrom;
+import {api,saveAuth,logout,getSettings,saveSettings,activeSessions,startSession,finishSession,dashboard,dailyReport,schools,createSchool,groups,createGroup,students,createStudent,history} from './api.js';
+export const Avtodrom={login:async(u,p)=>{const d=await api('/auth/login',{method:'POST',body:JSON.stringify({username:u,password:p})});saveAuth(d);return d},register:async(f,u,p)=>{const d=await api('/auth/register',{method:'POST',body:JSON.stringify({fullName:f,username:u,password:p})});saveAuth(d);return d},logout,settings:getSettings,updateSettings:saveSettings,active:activeSessions,start:startSession,finish:finishSession,dashboard,report:dailyReport,schools,createSchool,groups,createGroup,students,createStudent,history};window.Avtodrom=Avtodrom;
