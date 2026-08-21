@@ -144,6 +144,20 @@ async function api(path,opt={}){
   if(!r.ok) throw Error(d.error||d.message||('Server xatosi: '+r.status));
   return d;
 }
+function loginMode(){$('loginBox').classList.remove('hidden');$('registerBox').classList.add('hidden')}function registerMode(){$('loginBox').classList.add('hidden');$('registerBox').classList.remove('hidden')}
+$('loginForm').onsubmit=async e=>{e.preventDefault();$('loginErr').textContent='';try{let x=await api('/auth/login',{method:'POST',body:JSON.stringify({username:$('loginUser').value.trim(),password:$('loginPass').value})});saveLogin(x)}catch(x){$('loginErr').textContent=x.message}}
+$('registerForm').onsubmit=async e=>{e.preventDefault();$('regErr').textContent='';try{let x=await api('/auth/register',{method:'POST',body:JSON.stringify({fullName:$('regName').value.trim(),username:$('regUser').value.trim(),password:$('regPass').value})});saveLogin(x)}catch(x){$('regErr').textContent=x.message}}
+function saveLogin(x){token=x.token;me=x.user;localStorage.setItem('avtodrom_token',token);localStorage.setItem('avtodrom_user',JSON.stringify(me));boot()}
+function logout(){localStorage.removeItem('avtodrom_token');localStorage.removeItem('avtodrom_user');location.reload()}
+function boot(){
+  $('login').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  $('who').textContent=me?.username||me?.full_name||'Operator';
+  $('avatar').textContent=(me?.full_name||me?.username||'A')[0].toUpperCase();
+  go('add');
+  if(ADMIN_ROUTE)setTimeout(openAdminGate,150);
+}
+
 setInterval(()=>{$('clock').textContent=new Date().toLocaleString('uz-UZ',{timeZone:'Asia/Tashkent',hour12:false})},1000);
 setInterval(()=>document.querySelectorAll('[data-start]').forEach(x=>{let a=new Date(x.dataset.start).getTime();if(Number.isFinite(a))x.textContent=dur((Date.now()-a)/1000)}),1000);
 setInterval(()=>{if(token){loadDashboard(1);loadActive(1);loadFrozen(1)}},15000);
