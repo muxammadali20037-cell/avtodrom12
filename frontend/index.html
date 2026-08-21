@@ -319,7 +319,12 @@ async function loadActive(silent=false){
     active=await api('/sessions/active')||[];
     $('activeList').innerHTML=active.length?active.map(v=>vehicle(v,true)).join(''):'<div class="muted">Jarayonda avtomobil yo‘q</div>';
     $('frozenCount').textContent=frozen.length?' ('+frozen.length+')':'';
-    renderFinish();
+
+    // MUHIM: "Tugatish" formasida operator summa/to‘lov kiritayotgan
+    // paytda 15 soniyalik realtime yangilanish forma DOMini qayta chizmasin.
+    // Aks holda inputlar yo‘qolib, "Tugatish" oynasi yopilib qoladi.
+    const finishFormOpen = !!document.querySelector('#finishList .finish');
+    if(!finishFormOpen) renderFinish();
   }catch(e){if(!silent)showToast(e.message,true)}
 }
 function renderFinish(){
@@ -520,7 +525,13 @@ function closeModal(){$('modal').innerHTML=''}
 
 setInterval(()=>{$('clock').textContent=new Date().toLocaleString('uz-UZ',{timeZone:'Asia/Tashkent',hour12:false})},1000);
 setInterval(()=>{document.querySelectorAll('.timer[data-start]').forEach(el=>{const start=new Date(el.dataset.start).getTime();if(Number.isFinite(start))el.textContent=dur((Date.now()-start)/1000)})},1000);
-setInterval(()=>{if(token){loadActive(true);if(!$('p-daily').classList.contains('hidden'))loadDaily();if(sessionStorage.getItem('avtodrom_admin')==='1')adminRealtime()}},15000);
+setInterval(()=>{if(token){
+  // Payment form ochiq bo‘lsa, loadActive faqat ma’lumotni yangilaydi;
+  // finish formasini qayta render qilmaydi.
+  loadActive(true);
+  if(!$('p-daily').classList.contains('hidden'))loadDaily();
+  if(sessionStorage.getItem('avtodrom_admin')==='1')adminRealtime();
+}},15000);
 document.querySelectorAll('.nav[data-p]').forEach(x=>x.addEventListener('click',()=>go(x.dataset.p)));
 
 if(token&&me)boot();
