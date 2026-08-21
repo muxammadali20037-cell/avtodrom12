@@ -1,78 +1,4278 @@
 <!doctype html>
 <html lang="uz">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AVTODROM — Boshqaruv tizimi</title>
+
 <style>
-:root{--g:#087443;--g2:#0b8b52;--bg:#f4f9f6;--b:#dcebe4;--t:#10231a;--m:#718078;--w:#fff;--r:#d83b3b;--p:#e6f6ee}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:14px Arial,sans-serif}button,input,select{font:inherit}button{cursor:pointer}input,select{width:100%;height:44px;border:1px solid var(--b);border-radius:10px;padding:0 12px;background:#fff;outline:0}input:focus,select:focus{border-color:var(--g2);box-shadow:0 0 0 3px #08744312}.hidden{display:none!important}.btn{border:0;border-radius:10px;min-height:42px;padding:0 16px;font-weight:700}.green{background:var(--g);color:#fff}.light{background:var(--p);color:var(--g)}.danger{background:#fff0f0;color:var(--r)}.outline{background:#fff;color:var(--g);border:1px solid var(--b)}.muted{color:var(--m);font-size:12px}.err{color:var(--r);font-size:12px;margin-top:8px}.ok{color:var(--g);font-size:12px;margin-top:8px}
-#login{min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(circle at top left,#dff6e9,transparent 36%),var(--bg)}.login{width:430px;max-width:100%;background:#fff;border:1px solid var(--b);border-radius:22px;padding:32px;box-shadow:0 20px 60px #0874431a}.logo{display:flex;gap:12px;align-items:center}.logoA{width:48px;height:48px;border-radius:14px;background:var(--g);color:#fff;display:grid;place-items:center;font-weight:900;font-size:22px}.logoT{font-weight:900;font-size:21px}.logoS{font-size:10px;color:var(--m);margin-top:3px}.login h1{font-size:27px;margin:27px 0 6px}.fg{margin:0 0 13px}.fg label{display:block;font-size:12px;font-weight:700;margin-bottom:6px}.divider{height:1px;background:var(--b);margin:22px 0}
-#app{min-height:100vh;display:grid;grid-template-columns:235px 1fr}.side{position:fixed;inset:0 auto 0 0;width:235px;background:#fff;border-right:1px solid var(--b);padding:20px 13px;z-index:50}.side .logo{padding:4px 8px 22px}.navTitle{font-size:10px;color:#9aa69f;font-weight:800;margin:14px 11px 7px}.nav{width:100%;border:0;background:transparent;text-align:left;padding:11px 12px;border-radius:10px;color:#41534a;font-weight:700;margin:2px 0}.nav.active,.nav:hover{background:var(--p);color:var(--g)}.main{grid-column:2;min-width:0}.top{height:74px;background:#fff;border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between;padding:0 27px;position:sticky;top:0;z-index:30}.topLeft{display:flex;gap:12px;align-items:center}.hamb{display:none;border:0;background:var(--p);color:var(--g);width:40px;height:40px;border-radius:10px}.title{font-size:20px;font-weight:850}.clock{font-size:12px;color:var(--m)}.user{display:flex;align-items:center;gap:9px}.avatar{width:36px;height:36px;border-radius:50%;background:#dff4e9;color:var(--g);display:grid;place-items:center;font-weight:800}.content{max-width:1500px;margin:auto;padding:27px}.head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:18px}.head h1{margin:0;font-size:27px}.head p{margin:5px 0 0;color:var(--m);font-size:13px}.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:13px;margin-bottom:18px}.stat,.panel,.card{background:#fff;border:1px solid var(--b);border-radius:15px;box-shadow:0 7px 25px #0874430c}.stat{padding:17px}.stat small{display:block;color:var(--m);font-size:11px;margin-bottom:9px}.stat b{font-size:23px}.greenText{color:var(--g)}.grid2{display:grid;grid-template-columns:1.35fr 1fr;gap:16px}.panel{padding:18px;margin-bottom:17px}.panel h3{margin:0 0 14px;font-size:16px}.empty{text-align:center;color:var(--m);padding:25px}.formGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.span2{grid-column:1/-1}.plate{display:grid;grid-template-columns:80px 65px 1fr 80px;gap:7px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:17px}.vehicle{border:1px solid var(--b);border-radius:13px;padding:14px;margin-bottom:9px}.vehicleTop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.plateText{font-size:17px;font-weight:900}.timer{font-size:18px;font-weight:900;color:var(--g);margin-top:5px}.vActions{display:flex;gap:7px;flex-wrap:wrap}.badge{display:inline-block;border-radius:20px;padding:5px 9px;font-size:10px;font-weight:800;background:var(--p);color:var(--g)}.freezeBadge{background:#eef2f0;color:#596a61}.finish{background:#fbfefc;border:1px solid var(--b);border-radius:13px;padding:15px;margin-top:12px}.payments{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.payButtons{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}.payButtons button{border:1px solid var(--b);background:#fff;border-radius:9px;padding:10px;font-weight:700}.payButtons .selected{border-color:var(--g);background:var(--p);color:var(--g)}.total{font-size:24px;font-weight:900;color:var(--g)}.search{display:flex;gap:8px;margin-bottom:14px}.search input{max-width:460px}.frozen{display:flex;justify-content:space-between;gap:12px;align-items:center;border:1px solid var(--b);border-radius:12px;padding:13px;margin-bottom:8px}.table{overflow:auto}.table table{width:100%;border-collapse:collapse}.table th{font-size:10px;color:var(--m);text-align:left;padding:10px 8px;border-bottom:1px solid var(--b);white-space:nowrap}.table td{font-size:12px;padding:11px 8px;border-bottom:1px solid #edf3f0;white-space:nowrap}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}.card{padding:14px}.card h3{margin:0 0 6px;font-size:15px}.click{cursor:pointer}.kv{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.kv div{background:#fff;border:1px solid var(--b);border-radius:10px;padding:11px}.kv b{display:block;color:var(--g);font-size:17px}.kv span{font-size:10px;color:var(--m)}.modalBg{position:fixed;inset:0;background:#0a191263;z-index:100;display:grid;place-items:center;padding:18px}.modal{width:720px;max-width:100%;max-height:90vh;overflow:auto;background:#fff;border-radius:18px;padding:20px}.modalHead{display:flex;justify-content:space-between;align-items:center}.modalHead h2{margin:0}.toast{position:fixed;right:18px;bottom:18px;z-index:200;background:#10231a;color:#fff;padding:13px 16px;border-radius:11px;box-shadow:0 10px 30px #0003}.toast.err{background:#a51f1f}@media(max-width:1100px){.stats{grid-template-columns:repeat(3,1fr)}.grid2{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}@media(max-width:760px){#app{display:block}.side{transform:translateX(-100%);transition:.2s}.side.open{transform:none}.main{width:100%}.hamb{display:block}.top{padding:0 14px}.content{padding:17px 13px}.stats{grid-template-columns:1fr 1fr}.formGrid{grid-template-columns:1fr}.span2{grid-column:auto}.payments,.payButtons,.cards{grid-template-columns:1fr}.kv{grid-template-columns:1fr 1fr}.vehicleTop,.frozen{flex-direction:column;align-items:flex-start}.user .btn{display:none}}@media(max-width:480px){.stats{grid-template-columns:1fr}.plate{grid-template-columns:65px 58px 1fr 68px}.search{flex-direction:column}.login{padding:25px}}
-</style></head><body>
-<section id="login"><div class="login"><div class="logo"><div class="logoA">A</div><div><div class="logoT">AVTODROM</div><div class="logoS">BOSHQARUV TIZIMI</div></div></div><div id="loginBox"><h1>Kirish</h1><p class="muted">Avtodrom boshqaruv paneliga kiring</p><form id="loginForm"><div class="fg"><label>Login</label><input id="loginUser" required></div><div class="fg"><label>Parol</label><input id="loginPass" type="password" required></div><button class="btn green" style="width:100%">Kirish</button></form><div id="loginErr" class="err"></div><div class="divider"></div><button type="button" class="btn light" style="width:100%" onclick="registerMode()">Yangi foydalanuvchi</button></div><div id="registerBox" class="hidden"><h1>Ro‘yxatdan o‘tish</h1><p class="muted">Yangi operator hisobini yarating</p><form id="registerForm"><div class="fg"><label>To‘liq ism</label><input id="regName" required></div><div class="fg"><label>Login</label><input id="regUser" required></div><div class="fg"><label>Parol</label><input id="regPass" type="password" minlength="6" required></div><button class="btn green" style="width:100%">Ro‘yxatdan o‘tish</button></form><div id="regErr" class="err"></div><div class="divider"></div><button type="button" class="btn light" style="width:100%" onclick="loginMode()">Kirishga qaytish</button></div></div></section>
-<div id="app" class="hidden"><aside id="side" class="side"><div class="logo"><div class="logoA">A</div><div><div class="logoT">AVTODROM</div><div class="logoS">BOSHQARUV TIZIMI</div></div></div><div class="navTitle">ASOSIY</div><button class="nav active" data-p="dashboard">▣ &nbsp; Dashboard</button><button class="nav" data-p="add">＋ &nbsp; Yangi avtomobil</button><button class="nav" data-p="active">◉ &nbsp; Jarayonda</button><button class="nav" data-p="finish">✓ &nbsp; Tugatish</button><button class="nav" data-p="frozen">❄ &nbsp; Muzlatilgan <span id="frozenCount"></span></button><div class="navTitle">HISOBOT</div><button class="nav" data-p="daily">▤ &nbsp; Kunlik hisobot</button><button class="nav" data-p="history">⌕ &nbsp; Avtomobil tarixi</button><div class="navTitle">AVTOSHKOLA</div><button class="nav" data-p="schools">▦ &nbsp; Avtoshkolalar</button><button class="nav" data-p="students">♟ &nbsp; O‘quvchilar</button><div class="navTitle">TIZIM</div><button class="nav" data-p="settings">⚙ &nbsp; Sozlamalar</button></aside><main class="main"><header class="top"><div class="topLeft"><button class="hamb" onclick="side.classList.toggle('open')">☰</button><div><div class="title" id="pageTitle">Dashboard</div><div class="clock" id="clock"></div></div></div><div class="user"><div class="avatar" id="avatar">A</div><span id="who" class="muted"></span><button class="btn light" onclick="logout()">Chiqish</button></div></header><div class="content">
-<section id="p-dashboard" class="page"><div class="head"><div><h1>Dashboard</h1><p>Real-time avtodrom nazorati</p></div><button class="btn green" onclick="go('add')">＋ Yangi avtomobil</button></div><div class="stats"><div class="stat"><small>Bugun kirgan</small><b id="dc">0</b></div><div class="stat"><small>Hozir jarayonda</small><b id="da">0</b></div><div class="stat"><small>Muzlatilgan</small><b id="df">0</b></div><div class="stat"><small>Bugungi tushum</small><b class="greenText" id="dm">0 so‘m</b></div><div class="stat"><small>Naqd / Terminal</small><b class="greenText" id="dp">0 / 0</b></div></div><div class="grid2"><div class="panel"><h3>Hozir avtodromda</h3><div id="dashActive"></div></div><div class="panel"><h3>Bugungi to‘lovlar</h3><div id="dashPay"></div></div></div><div class="panel"><h3>Bugungi kirishlar</h3><div id="dashTable"></div></div></section>
-<section id="p-add" class="page hidden"><div class="head"><div><h1>Yangi avtomobil</h1><p>Oddiy mijoz yoki avtoshkola o‘quvchisi</p></div></div><div class="panel"><form id="startForm"><div class="formGrid"><div class="span2"><label class="muted">Avtomobil raqami</label><div class="plate"><select id="region"><option>01</option><option>10</option><option>20</option><option>25</option><option>30</option><option>40</option><option>50</option><option>60</option><option>70</option><option>75</option><option>80</option><option>85</option><option>90</option><option>95</option></select><input id="fl" maxlength="1" placeholder="A" required><input id="num" maxlength="3" inputmode="numeric" placeholder="123" required><input id="ll" maxlength="2" placeholder="BC" required></div></div><div><label class="muted">Avtomobil rusumi</label><input id="model" placeholder="Chevrolet Cobalt"></div><div><label class="muted">Haydovchi</label><input id="driver"></div><div><label class="muted">Kirish turi</label><select id="type" onchange="schoolMode()"><option value="ordinary">Oddiy mijoz</option><option value="school">Avtoshkola o‘quvchisi — BEPUL</option></select></div><div><label class="muted">Avtoshkola</label><select id="school" disabled onchange="groupsForSchool()"><option value="">Tanlang</option></select></div><div><label class="muted">Guruh</label><select id="group" disabled onchange="studentsForGroup()"><option value="">Tanlang</option></select></div><div><label class="muted">O‘quvchi</label><select id="student" disabled onchange="studentInfo()"><option value="">Tanlang</option></select></div></div><div id="studentBox"></div><div class="actions"><button class="btn green">▶ Vaqt ochish</button><button type="button" class="btn light" onclick="go('dashboard')">Bekor</button></div><div id="startErr" class="err"></div></form></div></section>
-<section id="p-active" class="page hidden"><div class="head"><div><h1>Jarayonda</h1><p>Faol avtomobillar</p></div><button class="btn green" onclick="go('add')">＋ Vaqt ochish</button></div><div class="panel" id="activeList"></div></section>
-<section id="p-finish" class="page hidden"><div class="head"><div><h1>Tugatish</h1><p>Avtomobilni tugatish yoki muzlatish</p></div></div><div class="panel"><div class="search"><input id="finishQ" placeholder="Avtomobil raqami..." oninput="renderFinish()"></div><div id="finishList"></div></div></section>
-<section id="p-frozen" class="page hidden"><div class="head"><div><h1>Muzlatilgan</h1><p>Muzlatilgan vaqtlar saqlanadi va keyin yana davom ettiriladi</p></div></div><div class="panel"><div class="search"><input id="frozenQ" placeholder="Muzlatilgan raqam..." oninput="renderFrozen()"></div><div id="frozenList"></div></div></section>
-<section id="p-daily" class="page hidden"><div class="head"><div><h1>Kunlik hisobot</h1><p>Naqd, terminal, umumiy tushum va barcha avtomobillar</p></div><button class="btn green" onclick="exportCSV()">Excel / CSV</button></div><div class="stats"><div class="stat"><small>Avtomobillar</small><b id="rdc">0</b></div><div class="stat"><small>Umumiy</small><b class="greenText" id="rdm">0</b></div><div class="stat"><small>Naqd</small><b class="greenText" id="rdcash">0</b></div><div class="stat"><small>Terminal</small><b class="greenText" id="rdterm">0</b></div><div class="stat"><small>Jami vaqt</small><b id="rdtime">0</b></div></div><div class="panel"><div class="table" id="dailyTable"></div></div></section>
-<section id="p-history" class="page hidden"><div class="head"><div><h1>Avtomobil tarixi</h1><p>Bir raqamning barcha kirishlari birma-bir ko‘rinadi</p></div></div><div class="panel"><div class="search"><input id="histQ" placeholder="01 A 123 BC" onkeydown="if(event.key==='Enter')historySearch()"><button class="btn green" onclick="historySearch()">Qidirish</button></div><div id="histOut"></div></div></section>
-<section id="p-schools" class="page hidden"><div class="head"><div><h1>Avtoshkolalar</h1><p>Avtoshkola va guruhlar</p></div><button class="btn green" onclick="schoolModal()">＋ Avtoshkola</button></div><div id="schoolCards" class="cards"></div><div class="panel"><h3>Guruhlar</h3><div id="groupTable"></div></div></section>
-<section id="p-students" class="page hidden"><div class="head"><div><h1>O‘quvchilar</h1><p>Qatnashuv soni va dars tarixi</p></div><button class="btn green" onclick="studentModal()">＋ O‘quvchi</button></div><div class="panel"><div class="search"><input id="studentQ" placeholder="O‘quvchi yoki raqam..." oninput="renderStudents()"></div><div id="studentCards" class="cards"></div></div><div id="studentDetail"></div></section>
-<section id="p-settings" class="page hidden"><div class="head"><div><h1>Sozlamalar</h1><p>Oddiy avtomobil uchun yakuniy narx operator tomonidan Tugatish vaqtida kiritiladi</p></div></div><div class="panel"><div class="formGrid"><div><label class="muted">Standart narx</label><input id="sr" type="number"></div><div><label class="muted">Minimal to‘lov</label><input id="sm" type="number"></div><div><label class="muted">Rejim</label><select id="mode"><option value="manual">Qo‘lda narx</option><option value="hour">Soat</option><option value="minute">Daqiqa</option></select></div></div><div class="actions"><button class="btn green" onclick="saveSettings()">Saqlash</button></div><div id="setMsg"></div></div></section>
-</div></main></div><div id="modal"></div><div id="toast"></div>
+*{box-sizing:border-box}
+:root{
+  --green:#087f4f;
+  --green2:#0b9a61;
+  --light:#e8f6f0;
+  --bg:#f4faf7;
+  --white:#fff;
+  --text:#10231c;
+  --muted:#71827b;
+  --border:#dcece5;
+  --danger:#d92d20;
+  --shadow:0 8px 25px rgba(10,70,45,.06)
+}
+
+html,body{
+  margin:0;
+  min-height:100%;
+  font-family:Inter,Arial,sans-serif;
+  background:var(--bg);
+  color:var(--text)
+}
+
+button,input,select{
+  font:inherit
+}
+
+button{
+  cursor:pointer
+}
+
+.hidden{
+  display:none!important
+}
+
+.muted{
+  color:var(--muted);
+  font-size:13px
+}
+
+.greenText{
+  color:var(--green)
+}
+
+/* LOGIN */
+
+#login{
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px
+}
+
+.login{
+  width:430px;
+  max-width:100%;
+  background:white;
+  border:1px solid var(--border);
+  border-radius:22px;
+  padding:35px;
+  box-shadow:var(--shadow)
+}
+
+.logo{
+  display:flex;
+  align-items:center;
+  gap:12px
+}
+
+.logoA{
+  width:44px;
+  height:44px;
+  border-radius:12px;
+  background:var(--green);
+  color:white;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:900;
+  font-size:22px
+}
+
+.logoT{
+  font-size:20px;
+  font-weight:900
+}
+
+.logoS{
+  font-size:10px;
+  color:var(--muted);
+  margin-top:2px
+}
+
+.login h1{
+  margin:30px 0 5px
+}
+
+/* APP */
+
+.side{
+  position:fixed;
+  left:0;
+  top:0;
+  bottom:0;
+  width:205px;
+  background:#fff;
+  border-right:1px solid var(--border);
+  padding:20px 12px;
+  z-index:30;
+  overflow:auto
+}
+
+.side .logo{
+  padding:0 6px 25px
+}
+
+.navTitle{
+  color:#8b9993;
+  font-size:10px;
+  font-weight:800;
+  margin:16px 8px 7px
+}
+
+.nav{
+  width:100%;
+  border:0;
+  background:transparent;
+  text-align:left;
+  padding:11px 12px;
+  border-radius:11px;
+  color:#263a32;
+  font-weight:700;
+  margin-bottom:3px
+}
+
+.nav:hover{
+  background:#f1f8f5
+}
+
+.nav.active{
+  background:#e0f4ec;
+  color:var(--green)
+}
+
+.main{
+  margin-left:205px;
+  min-height:100vh
+}
+
+.top{
+  height:74px;
+  background:white;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 24px;
+  position:sticky;
+  top:0;
+  z-index:20
+}
+
+.topLeft{
+  display:flex;
+  align-items:center;
+  gap:12px
+}
+
+.hamb{
+  display:none;
+  border:0;
+  background:#edf7f3;
+  border-radius:9px;
+  padding:8px 10px
+}
+
+.title{
+  font-size:18px;
+  font-weight:900
+}
+
+.clock{
+  font-size:11px;
+  color:var(--muted);
+  margin-top:2px
+}
+
+.user{
+  display:flex;
+  align-items:center;
+  gap:10px
+}
+
+.avatar{
+  width:35px;
+  height:35px;
+  background:#e3f5ee;
+  color:var(--green);
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:900
+}
+
+.content{
+  padding:28px
+}
+
+.head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:20px;
+  margin-bottom:22px
+}
+
+.head h1{
+  margin:0 0 5px;
+  font-size:27px
+}
+
+.head p{
+  margin:0;
+  color:var(--muted);
+  font-size:13px
+}
+
+/* BUTTONS */
+
+.btn{
+  border:0;
+  border-radius:10px;
+  padding:10px 15px;
+  font-weight:800;
+  transition:.15s
+}
+
+.btn:hover{
+  transform:translateY(-1px)
+}
+
+.btn.green{
+  background:var(--green);
+  color:white
+}
+
+.btn.green:hover{
+  background:#066d44
+}
+
+.btn.light{
+  background:#e6f5ef;
+  color:var(--green)
+}
+
+.btn.danger{
+  background:#fff0ef;
+  color:var(--danger)
+}
+
+.btn:disabled{
+  opacity:.5;
+  cursor:not-allowed
+}
+
+/* FORMS */
+
+.panel{
+  background:white;
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:18px;
+  box-shadow:var(--shadow)
+}
+
+.fg{
+  margin-bottom:14px
+}
+
+.fg label{
+  display:block;
+  font-size:12px;
+  font-weight:800;
+  margin-bottom:6px
+}
+
+input,select{
+  width:100%;
+  padding:12px 13px;
+  border:1px solid #d5e6df;
+  border-radius:10px;
+  background:#fff;
+  outline:none
+}
+
+input:focus,select:focus{
+  border-color:#7ac8a9;
+  box-shadow:0 0 0 3px #e7f7f0
+}
+
+.formGrid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:15px
+}
+
+.actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  align-items:center
+}
+
+.err{
+  color:var(--danger);
+  font-size:12px;
+  margin-top:8px
+}
+
+.ok{
+  color:var(--green);
+  font-size:13px;
+  margin-top:10px
+}
+
+/* STATS */
+
+.stats{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:12px;
+  margin-bottom:18px
+}
+
+.stat{
+  background:white;
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:16px;
+  box-shadow:var(--shadow)
+}
+
+.stat small{
+  color:var(--muted);
+  display:block;
+  margin-bottom:8px;
+  font-size:11px
+}
+
+.stat b{
+  font-size:21px
+}
+
+/* VEHICLES */
+
+.vehicle{
+  background:white;
+  border:1px solid var(--border);
+  border-radius:15px;
+  padding:16px;
+  margin-bottom:10px
+}
+
+.vehicleTop{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:15px
+}
+
+.plateText{
+  font-weight:950;
+  font-size:18px;
+  letter-spacing:.4px
+}
+
+.timer{
+  color:var(--green);
+  font-weight:900;
+  font-size:17px;
+  margin-top:7px
+}
+
+.vActions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end
+}
+
+.finish{
+  background:#f4faf7;
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:16px;
+  margin:10px 0
+}
+
+.payButtons{
+  display:flex;
+  gap:8px;
+  margin:10px 0
+}
+
+.payButtons button{
+  flex:1;
+  padding:10px;
+  border:1px solid var(--border);
+  background:white;
+  border-radius:9px;
+  font-weight:800
+}
+
+.payButtons button.selected{
+  background:var(--green);
+  color:white;
+  border-color:var(--green)
+}
+
+.payments{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:8px;
+  align-items:center;
+  margin-bottom:10px
+}
+
+.total{
+  font-weight:900;
+  color:var(--green)
+}
+
+/* SEARCH */
+
+.search{
+  display:flex;
+  gap:10px;
+  margin-bottom:15px
+}
+
+.search input{
+  max-width:400px
+}
+
+/* TABLE */
+
+.table{
+  overflow:auto
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:12px
+}
+
+th{
+  text-align:left;
+  color:var(--muted);
+  font-size:10px;
+  padding:11px 8px;
+  border-bottom:1px solid var(--border)
+}
+
+td{
+  padding:12px 8px;
+  border-bottom:1px solid #edf3f0;
+  white-space:nowrap
+}
+
+/* DASHBOARD */
+
+.grid2{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:18px
+}
+
+.kv{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:10px
+}
+
+.kv>div{
+  background:#f4faf7;
+  border-radius:12px;
+  padding:13px
+}
+
+.kv b{
+  display:block;
+  font-size:18px
+}
+
+.kv span{
+  color:var(--muted);
+  font-size:11px
+}
+
+/* CARDS */
+
+.cards{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px
+}
+
+.card{
+  background:white;
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:17px;
+  box-shadow:var(--shadow)
+}
+
+.card.click{
+  cursor:pointer
+}
+
+.card.click:hover{
+  border-color:#8fd1b5;
+  transform:translateY(-1px)
+}
+
+.card h3{
+  margin:0 0 7px
+}
+
+.badge{
+  display:inline-flex;
+  align-items:center;
+  padding:7px 10px;
+  background:#e6f6f0;
+  color:var(--green);
+  border-radius:30px;
+  font-size:11px;
+  font-weight:800
+}
+
+/* SCHOOL */
+
+.schoolCard{
+  background:white;
+  border:1px solid var(--border);
+  border-radius:17px;
+  overflow:hidden;
+  box-shadow:var(--shadow);
+  margin-bottom:12px
+}
+
+.schoolHeader{
+  padding:17px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  cursor:pointer
+}
+
+.schoolHeader:hover{
+  background:#fbfefd
+}
+
+.schoolBody{
+  border-top:1px solid var(--border);
+  padding:15px;
+  background:#fbfefd
+}
+
+.groupItem{
+  border:1px solid var(--border);
+  background:white;
+  border-radius:13px;
+  margin-bottom:9px;
+  overflow:hidden
+}
+
+.groupHeader{
+  padding:13px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  cursor:pointer
+}
+
+.groupHeader:hover{
+  background:#f5faf8
+}
+
+.groupBody{
+  border-top:1px solid var(--border);
+  padding:12px;
+  background:#fbfefd
+}
+
+.studentRow{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  padding:11px;
+  border-bottom:1px solid #edf3f0
+}
+
+.studentRow:last-child{
+  border-bottom:0
+}
+
+.studentName{
+  font-weight:800
+}
+
+/* MODAL */
+
+.modalBg{
+  position:fixed;
+  inset:0;
+  background:rgba(10,30,22,.35);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:100;
+  padding:18px
+}
+
+.modal{
+  width:520px;
+  max-width:100%;
+  max-height:90vh;
+  overflow:auto;
+  background:white;
+  border-radius:20px;
+  padding:22px;
+  box-shadow:0 20px 60px rgba(0,0,0,.15)
+}
+
+.modalHead{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px
+}
+
+.modal h2{
+  margin-top:0
+}
+
+/* TOAST */
+
+#toast{
+  position:fixed;
+  right:20px;
+  bottom:20px;
+  z-index:200;
+  display:flex;
+  flex-direction:column;
+  gap:8px
+}
+
+.toast{
+  background:#087f4f;
+  color:white;
+  padding:12px 16px;
+  border-radius:10px;
+  font-size:13px;
+  box-shadow:var(--shadow)
+}
+
+.toast.err{
+  background:#c92b20
+}
+
+.empty{
+  text-align:center;
+  padding:30px;
+  color:var(--muted);
+  font-size:13px
+}
+
+/* MOBILE */
+
+@media(max-width:1000px){
+  .stats{
+    grid-template-columns:repeat(2,1fr)
+  }
+
+  .cards{
+    grid-template-columns:1fr 1fr
+  }
+
+  .grid2{
+    grid-template-columns:1fr
+  }
+}
+
+@media(max-width:750px){
+  .side{
+    transform:translateX(-100%);
+    transition:.2s
+  }
+
+  .side.open{
+    transform:translateX(0)
+  }
+
+  .main{
+    margin-left:0
+  }
+
+  .hamb{
+    display:block
+  }
+
+  .content{
+    padding:15px
+  }
+
+  .top{
+    padding:0 15px
+  }
+
+  .head{
+    align-items:flex-start;
+    flex-direction:column
+  }
+
+  .formGrid{
+    grid-template-columns:1fr
+  }
+
+  .stats{
+    grid-template-columns:1fr 1fr
+  }
+
+  .cards{
+    grid-template-columns:1fr
+  }
+
+  .vehicleTop{
+    align-items:flex-start;
+    flex-direction:column
+  }
+
+  .vActions{
+    justify-content:flex-start;
+    width:100%
+  }
+
+  .payments{
+    grid-template-columns:1fr
+  }
+
+  .kv{
+    grid-template-columns:1fr 1fr
+  }
+
+  .search{
+    flex-direction:column
+  }
+
+  .search input{
+    max-width:none
+  }
+}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<section id="login">
+  <div class="login">
+
+    <div class="logo">
+      <div class="logoA">A</div>
+      <div>
+        <div class="logoT">AVTODROM</div>
+        <div class="logoS">BOSHQARUV TIZIMI</div>
+      </div>
+    </div>
+
+    <div id="loginBox">
+      <h1>Kirish</h1>
+      <p class="muted">Avtodrom boshqaruv paneliga kiring</p>
+
+      <form id="loginForm">
+        <div class="fg">
+          <label>Login</label>
+          <input id="loginUser" required>
+        </div>
+
+        <div class="fg">
+          <label>Parol</label>
+          <input id="loginPass" type="password" required>
+        </div>
+
+        <button class="btn green" style="width:100%">
+          Kirish
+        </button>
+      </form>
+
+      <div id="loginErr" class="err"></div>
+
+      <div style="height:15px"></div>
+
+      <button class="btn light" style="width:100%" onclick="registerMode()">
+        Yangi foydalanuvchi
+      </button>
+    </div>
+
+    <div id="registerBox" class="hidden">
+      <h1>Ro‘yxatdan o‘tish</h1>
+      <p class="muted">Yangi operator hisobini yarating</p>
+
+      <form id="registerForm">
+        <div class="fg">
+          <label>To‘liq ism</label>
+          <input id="regName" required>
+        </div>
+
+        <div class="fg">
+          <label>Login</label>
+          <input id="regUser" required>
+        </div>
+
+        <div class="fg">
+          <label>Parol</label>
+          <input id="regPass" type="password" minlength="6" required>
+        </div>
+
+        <button class="btn green" style="width:100%">
+          Ro‘yxatdan o‘tish
+        </button>
+      </form>
+
+      <div id="regErr" class="err"></div>
+
+      <div style="height:15px"></div>
+
+      <button class="btn light" style="width:100%" onclick="loginMode()">
+        Kirishga qaytish
+      </button>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- APP -->
+<div id="app" class="hidden">
+
+  <aside id="side" class="side">
+
+    <div class="logo">
+      <div class="logoA">A</div>
+      <div>
+        <div class="logoT">AVTODROM</div>
+        <div class="logoS">BOSHQARUV TIZIMI</div>
+      </div>
+    </div>
+
+    <div class="navTitle">ASOSIY</div>
+
+    <button class="nav active" data-p="dashboard">
+      ▣ &nbsp; Dashboard
+    </button>
+
+    <button class="nav" data-p="add">
+      ＋ &nbsp; Yangi avtomobil
+    </button>
+
+    <button class="nav" data-p="active">
+      ◉ &nbsp; Jarayonda
+    </button>
+
+    <button class="nav" data-p="finish">
+      ✓ &nbsp; Tugatish
+    </button>
+
+    <button class="nav" data-p="frozen">
+      ❄ &nbsp; Muzlatilgan
+      <span id="frozenCount"></span>
+    </button>
+
+    <div class="navTitle">HISOBOT</div>
+
+    <button class="nav" data-p="daily">
+      ▤ &nbsp; Kunlik hisobot
+    </button>
+
+    <button class="nav" data-p="history">
+      ⌕ &nbsp; Avtomobil tarixi
+    </button>
+
+    <div class="navTitle">AVTOSHKOLA</div>
+
+    <button class="nav" data-p="schools">
+      ▦ &nbsp; Avtoshkolalar
+    </button>
+
+    <button class="nav" data-p="students">
+      ♟ &nbsp; O‘quvchilar
+    </button>
+
+    <div class="navTitle">TIZIM</div>
+
+    <button class="nav" data-p="settings">
+      ⚙ &nbsp; Sozlamalar
+    </button>
+
+  </aside>
+
+
+  <main class="main">
+
+    <header class="top">
+
+      <div class="topLeft">
+        <button class="hamb" onclick="side.classList.toggle('open')">
+          ☰
+        </button>
+
+        <div>
+          <div class="title" id="pageTitle">Dashboard</div>
+          <div class="clock" id="clock"></div>
+        </div>
+      </div>
+
+      <div class="user">
+        <div class="avatar" id="avatar">A</div>
+        <span id="who" class="muted"></span>
+        <button class="btn light" onclick="logout()">
+          Chiqish
+        </button>
+      </div>
+
+    </header>
+
+
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <section id="p-dashboard" class="page">
+
+        <div class="head">
+          <div>
+            <h1>Dashboard</h1>
+            <p>Real-time avtodrom nazorati</p>
+          </div>
+
+          <button class="btn green" onclick="go('add')">
+            ＋ Yangi avtomobil
+          </button>
+        </div>
+
+        <div class="stats">
+
+          <div class="stat">
+            <small>Bugun kirgan</small>
+            <b id="dc">0</b>
+          </div>
+
+          <div class="stat">
+            <small>Hozir jarayonda</small>
+            <b id="da">0</b>
+          </div>
+
+          <div class="stat">
+            <small>Muzlatilgan</small>
+            <b id="df">0</b>
+          </div>
+
+          <div class="stat">
+            <small>Bugungi tushum</small>
+            <b class="greenText" id="dm">0 so‘m</b>
+          </div>
+
+          <div class="stat">
+            <small>Naqd / Terminal</small>
+            <b class="greenText" id="dp">0 / 0</b>
+          </div>
+
+        </div>
+
+        <div class="grid2">
+
+          <div class="panel">
+            <h3>Hozir jarayonda</h3>
+            <div id="dashActive"></div>
+          </div>
+
+          <div class="panel">
+            <h3>Bugungi to‘lovlar</h3>
+            <div id="dashPay"></div>
+          </div>
+
+        </div>
+
+        <div style="height:18px"></div>
+
+        <div class="panel">
+          <h3>Bugungi avtomobillar</h3>
+          <div id="dashTable"></div>
+        </div>
+
+      </section>
+
+
+      <!-- ADD -->
+      <section id="p-add" class="page hidden">
+
+        <div class="head">
+          <div>
+            <h1>Yangi avtomobil</h1>
+            <p>Avtomobilga vaqt ochish</p>
+          </div>
+        </div>
+
+        <div class="panel">
+
+          <form id="startForm">
+
+            <div class="formGrid">
+
+              <div class="fg">
+                <label>Hudud kodi</label>
+                <select id="region">
+                  <option>01</option>
+                  <option>10</option>
+                  <option>20</option>
+                  <option>25</option>
+                  <option>30</option>
+                  <option>40</option>
+                  <option>50</option>
+                  <option>60</option>
+                  <option>70</option>
+                  <option>75</option>
+                  <option>80</option>
+                  <option>85</option>
+                  <option>90</option>
+                  <option>95</option>
+                </select>
+              </div>
+
+              <div class="fg">
+                <label>Birinchi harf</label>
+                <input id="fl" maxlength="1" required>
+              </div>
+
+              <div class="fg">
+                <label>3 xonali raqam</label>
+                <input id="num" maxlength="3" inputmode="numeric" required>
+              </div>
+
+            </div>
+
+            <div class="formGrid">
+
+              <div class="fg">
+                <label>Oxirgi 2 harf</label>
+                <input id="ll" maxlength="2" required>
+              </div>
+
+              <div class="fg">
+                <label>Avtomobil rusumi</label>
+                <input id="model" placeholder="Cobalt">
+              </div>
+
+              <div class="fg">
+                <label>Haydovchi</label>
+                <input id="driver">
+              </div>
+
+            </div>
+
+            <div class="fg">
+              <label>Mijoz turi</label>
+
+              <select id="type" onchange="schoolMode()">
+                <option value="normal">Oddiy mijoz</option>
+                <option value="school">Avtoshkola o‘quvchisi</option>
+              </select>
+            </div>
+
+            <div id="schoolBox" class="hidden">
+
+              <div class="formGrid">
+
+                <div class="fg">
+                  <label>Avtoshkola</label>
+                  <select id="school" onchange="groupsForSchool()">
+                    <option value="">Tanlang</option>
+                  </select>
+                </div>
+
+                <div class="fg">
+                  <label>Guruh</label>
+                  <select id="group" onchange="studentsForGroup()" disabled>
+                    <option value="">Avval avtoshkola</option>
+                  </select>
+                </div>
+
+                <div class="fg">
+                  <label>O‘quvchi</label>
+                  <select id="student" onchange="studentInfo()" disabled>
+                    <option value="">Avval guruh</option>
+                  </select>
+                </div>
+
+              </div>
+
+              <div id="studentBox"></div>
+
+            </div>
+
+            <button class="btn green">
+              ▶ Vaqt ochish
+            </button>
+
+            <div id="startErr" class="err"></div>
+
+          </form>
+
+        </div>
+
+      </section>
+
+
+      <!-- ACTIVE -->
+      <section id="p-active" class="page hidden">
+
+        <div class="head">
+          <div>
+            <h1>Jarayonda</h1>
+            <p>Hozir avtodrom ichidagi avtomobillar</p>
+          </div>
+
+          <button class="btn green" onclick="go('add')">
+            ＋ Vaqt ochish
+          </button>
+        </div>
+
+        <div class="panel">
+          <div id="activeList"></div>
+        </div>
+
+      </section>
+
+
+      <!-- FINISH -->
+      <section id="p-finish" class="page hidden">
+
+        <div class="head">
+          <div>
+            <h1>Tugatish</h1>
+            <p>Avtomobilni yakunlash va to‘lovni kiritish</p>
+          </div>
+        </div>
+
+        <div class="panel">
+
+          <div class="search">
+            <input
+              id="finishQ"
+              placeholder="Avtomobil raqami..."
+              oninput="renderFinish()"
+            >
+          </div>
+
+          <div id="finishList"></div>
+
+        </div>
+
+      </section>
+
+
+      <!-- FROZEN -->
+      <section id="p-frozen" class="page hidden">
+
+        <div class="head">
+          <div>
+            <h1>Muzlatilgan</h1>
+            <p>Muzlatilgan vaqtlar saqlanadi va keyin davom ettiriladi</p>
+          </div>
+        </div>
+
+        <div class="panel">
+
+          <div class="search">
+            <input
+              id="frozenQ"
+              placeholder="Muzlatilgan raqam..."
+              oninput="renderFrozen()"
+            >
+          </div>
+
+          <div id="frozenList"></div>
+
+        </div>
+
+      </section>
+
+
+      <!-- DAILY -->
+      <section id="p-daily" class="page hidden">
+
+        <div class="head">
+          <div>
+            <h1>Kunlik hisobot</h1>
+            <p>Bugungi barcha yakunlangan avtomobillar</p>
+          </div>
+
+          <button class="btn green" onclick="exportCSV()">
+            Excel / CSV
+          </button>
+        </div>
+
+        <div class="stats">
+
+          <div class="stat">
+            <small>Avtomobillar</small>
+            <b id="rdc">0</b>
+          </div>
+
+          <div class="stat">
+            <small>Umumiy</small>
+            <b id="rdm" class="greenText">0 so‘m</b>
+          </div>
+
+          <div class="stat">
+            <small>Naqd</small>
+            <b id="rdcash" class="greenText">0 so‘m</b>
+          </div>
+
+          <div class="stat">
+            <small>Terminal</small>
+            <b id="rdterm" class="greenText">0 so‘m</b>
+          </div>
+
+          <div class="stat">
+            <small>Jami vaqt</small>
+            <b id="rdtime">00:00:00</b>
+          </div>
+
+        </div>
+
+        <div class="panel">
+          <div id="dailyTable"></div>
+        </div>
+
+      </section>
+
+
+      <!-- HISTORY -->
+      <section id="p-history" class="page hidden">
+
+        <div class="head">
+          <div>
+            <h1>Avtomobil tarixi</h1>
+            <p>Bir avtomobilning barcha kirishlari</p>
+          </div>
+        </div>
+
+        <div class="panel">
+
+          <div class="search">
+            <input
+              id="histQ"
+              placeholder="01 A 123 BC"
+              onkeydown="if(event.key==='Enter')historySearch()"
+            >
+
+            <button class="btn green" onclick="historySearch()">
+              Qidirish
+            </button>
+          </div>
+
+          <div id="histOut"></div>
+
+        </div>
+
+      </section>
+
+
+      <!-- SCHOOLS -->
+      <section id="p-schools" class="page hidden">
+
+        <div class="head">
+          <div>
+            <h1>Avtoshkolalar</h1>
+            <p>Avtoshola → Guruh → O‘quvchi</p>
+          </div>
+
+          <button class="btn green" onclick="schoolModal()">
+            ＋ Avtoshkola
+          </button>
+        </div>
+
+        <div id="schoolCards"></div>
+
+      </section>
+
+
+      <!-- STUDENTS -->
+      <section id="p-students" class="page hidden">
+
+        <div class="head">
+          <div>
+            <h1>O‘quvchilar</h1>
+            <p>Qatnashuv soni va dars tarixi</p>
+          </div>
+
+          <button class="btn green" onclick="studentModal()">
+            ＋ O‘quvchi
+          </button>
+        </div>
+
+        <div class="panel">
+
+          <div class="search">
+            <input
+              id="studentQ"
+              placeholder="O‘quvchi yoki avtomobil..."
+              oninput="renderStudents()"
+            >
+          </div>
+
+          <div id="studentCards" class="cards"></div>
+
+        </div>
+
+        <div id="studentDetail"></div>
+
+      </section>
+
+
+      <!-- SETTINGS -->
+      <section id="p-settings" class="page hidden">
+
+        <div class="head">
+          <div>
+            <h1>Sozlamalar</h1>
+            <p>Avtomobil narxlash sozlamalari</p>
+          </div>
+        </div>
+
+        <div class="panel">
+
+          <div class="formGrid">
+
+            <div>
+              <label class="muted">Standart narx</label>
+              <input id="sr" type="number">
+            </div>
+
+            <div>
+              <label class="muted">Minimal to‘lov</label>
+              <input id="sm" type="number">
+            </div>
+
+            <div>
+              <label class="muted">Rejim</label>
+              <select id="mode">
+                <option value="manual">Qo‘lda narx</option>
+                <option value="hour">Soat</option>
+                <option value="minute">Daqiqa</option>
+              </select>
+            </div>
+
+          </div>
+
+          <div style="height:15px"></div>
+
+          <button class="btn green" onclick="saveSettings()">
+            Saqlash
+          </button>
+
+          <div id="setMsg"></div>
+
+        </div>
+
+      </section>
+
+    </div>
+
+  </main>
+
+</div>
+
+
+<div id="modal"></div>
+<div id="toast"></div>
+
+
 <script>
-const API='/api';let token=localStorage.getItem('avtodrom_token')||'',me=JSON.parse(localStorage.getItem('avtodrom_user')||'null'),active=[],frozen=[],schools=[],groups=[],students=[],daily=null,pay={};
-const $=id=>document.getElementById(id),money=n=>Number(n||0).toLocaleString('uz-UZ')+' so‘m',esc=s=>String(s??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x])),dt=s=>s?new Date(s).toLocaleString('uz-UZ',{timeZone:'Asia/Tashkent',hour12:false}):'—',dur=n=>{n=Math.max(0,Math.floor(n||0));let h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')};
-async function api(p,o={}){let r=await fetch(API+p,{...o,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{}),...(o.headers||{})}}),t=await r.text(),d;try{d=JSON.parse(t)}catch{d={error:t}}if(!r.ok)throw Error(d.error||'Server xatosi');return d}
-function toast(s,e=false){let x=document.createElement('div');x.className='toast'+(e?' err':'');x.textContent=s;$('toast').appendChild(x);setTimeout(()=>x.remove(),3000)}
-function loginMode(){$('loginBox').classList.remove('hidden');$('registerBox').classList.add('hidden')}function registerMode(){$('loginBox').classList.add('hidden');$('registerBox').classList.remove('hidden')}
-$('loginForm').onsubmit=async e=>{e.preventDefault();try{let x=await api('/auth/login',{method:'POST',body:JSON.stringify({username:$('loginUser').value.trim(),password:$('loginPass').value})});saveLogin(x)}catch(x){$('loginErr').textContent=x.message}}
-$('registerForm').onsubmit=async e=>{e.preventDefault();try{let x=await api('/auth/register',{method:'POST',body:JSON.stringify({fullName:$('regName').value.trim(),username:$('regUser').value.trim(),password:$('regPass').value})});saveLogin(x)}catch(x){$('regErr').textContent=x.message}}
-function saveLogin(x){token=x.token;me=x.user;localStorage.setItem('avtodrom_token',token);localStorage.setItem('avtodrom_user',JSON.stringify(me));boot()}function logout(){localStorage.clear();location.reload()}
-function boot(){$('login').classList.add('hidden');$('app').classList.remove('hidden');$('who').textContent=me.username||me.full_name;$('avatar').textContent=(me.full_name||me.username||'A')[0].toUpperCase();go('dashboard');setInterval(()=>{$('clock').textContent=new Date().toLocaleString('uz-UZ',{timeZone:'Asia/Tashkent',hour12:false})},1000);setInterval(()=>{if(token){loadDashboard(1);loadActive(1);loadFrozen(1)}},15000)}
-document.querySelectorAll('.nav').forEach(x=>x.onclick=()=>go(x.dataset.p));const names={dashboard:'Dashboard',add:'Yangi avtomobil',active:'Jarayonda',finish:'Tugatish',frozen:'Muzlatilgan',daily:'Kunlik hisobot',history:'Avtomobil tarixi',schools:'Avtoshkolalar',students:'O‘quvchilar',settings:'Sozlamalar'};
-function go(p){document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));$('p-'+p).classList.remove('hidden');document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.p===p));$('pageTitle').textContent=names[p];$('side').classList.remove('open');if(p==='dashboard')loadDashboard();if(p==='add')loadSchoolSelect();if(p==='active'||p==='finish')loadActive();if(p==='frozen')loadFrozen();if(p==='daily')loadDaily();if(p==='schools')loadSchools();if(p==='students')loadStudents();if(p==='settings')loadSettings()}
-async function loadDashboard(silent){try{let d=await api('/dashboard');$('dc').textContent=d.todayCount||0;$('da').textContent=d.active||0;$('dm').textContent=money(d.todayAmount);$('dp').textContent=money(d.todayCash).replace(' so‘m','')+' / '+money(d.todayTerminal).replace(' so‘m','');await loadActive(1);await loadFrozen(1);let x=await api('/reports/daily');daily=x;renderDash(x)}catch(e){if(!silent)toast(e.message,true)}}
-function renderDash(x){$('dashActive').innerHTML=active.length?active.slice(0,7).map(v=>vehicle(v,true)).join(''):'<div class="empty">Hozir avtomobil yo‘q</div>';let s=x.summary||{};$('dashPay').innerHTML='<div class="kv"><div><b>'+money(s.cash)+'</b><span>naqd</span></div><div><b>'+money(s.terminal)+'</b><span>terminal</span></div><div><b>'+money(s.amount)+'</b><span>jami</span></div><div><b>'+s.count+'</b><span>avtomobil</span></div></div>';$('dashTable').innerHTML=table(x.rows||[])}
-function table(a){if(!a.length)return'<div class="empty">Ma’lumot yo‘q</div>';return'<div class="table"><table><thead><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>Vaqt</th><th>O‘quvchi</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr></thead><tbody>'+a.map(x=>'<tr><td><b>'+esc(x.plate)+'</b></td><td>'+dt(x.started_at)+'</td><td>'+dt(x.finished_at)+'</td><td>'+dur(x.duration_seconds)+'</td><td>'+esc(x.student_name||'—')+'</td><td>'+money(x.cash_amount)+'</td><td>'+money(x.terminal_amount)+'</td><td><b>'+money(x.amount)+'</b></td></tr>').join('')+'</tbody></table></div>'}
-async function loadActive(silent){try{active=await api('/sessions/active');$('da').textContent=active.length;renderActive();renderFinish()}catch(e){if(!silent)toast(e.message,true)}}
-function vehicle(v,buttons){return'<div class="vehicle"><div class="vehicleTop"><div><div class="plateText">'+esc(v.plate)+'</div><div class="muted">'+esc(v.model||'')+' '+(v.driver_name?'• '+esc(v.driver_name):'')+'</div><div class="muted">'+(v.school_name?esc(v.school_name)+' • '+esc(v.group_name||''):'Oddiy mijoz')+(v.student_name?' • '+esc(v.student_name):'')+'</div><div class="timer" data-start="'+v.started_at+'">'+dur((Date.now()-new Date(v.started_at))/1000)+'</div></div><div class="vActions">'+(buttons?'<button class="btn green" onclick="openFinish(\''+v.id+'\')">Tugatish</button><button class="btn light" onclick="freeze(\''+v.id+'\')">❄ Muzlatish</button>':'')+'</div></div></div>'}
-function renderActive(){$('activeList').innerHTML=active.length?active.map(v=>vehicle(v,true)).join(''):'<div class="empty">Jarayonda avtomobil yo‘q</div>'}
-function renderFinish(){let q=($('finishQ').value||'').toUpperCase();let a=active.filter(x=>x.plate.includes(q));$('finishList').innerHTML=a.length?a.map(v=>vehicle(v,true)+'<div id="f'+v.id+'"></div>').join(''):'<div class="empty">Avtomobil topilmadi</div>'}
-function finishFormHTML(v,id,frozenMode=false){return '<div class="finish"><div class="plateText">'+esc(v.plate)+' — Yakunlash</div><div class="muted">Kirish: '+dt(v.started_at)+'</div>'+(v.frozen_at?'<div class="muted">Muzlatilgan: '+dt(v.frozen_at)+'</div>':'')+'<div class="timer">Faol vaqt: '+dur(v.duration_seconds||((Date.now()-new Date(v.started_at))/1000))+'</div>'+(v.student_id?'<div class="badge" style="margin-top:9px">AVTOSHKOLA O‘QUVCHISI — BEPUL</div>':'<div class="fg" style="margin-top:12px"><label>Yakuniy summa — qo‘lda</label><input id="a'+id+'" type="number" min="0" placeholder="50000"></div><div class="payButtons"><button type="button" onclick="choosePay(\''+id+'\',\'cash\')">Naqd</button><button type="button" onclick="choosePay(\''+id+'\',\'terminal\')">Terminal</button><button type="button" onclick="choosePay(\''+id+'\',\'mixed\')">Aralash</button></div><div id="split'+id+'" class="payments hidden"><input id="c'+id+'" type="number" placeholder="Naqd"><input id="t'+id+'" type="number" placeholder="Terminal"><div class="total" id="tot'+id+'">0 so‘m</div></div>')+'<div class="actions"><button type="button" class="btn green" onclick="finish(\''+id+'\', '+(frozenMode?'true':'false')+')">✓ Tugatish</button><button type="button" class="btn light" onclick="'+(frozenMode?'cancelFrozenFinish(\''+id+'\')':'cancelFinish(\''+id+'\')')+'">Bekor</button></div><div id="fe'+id+'" class="err"></div></div>'}
-function openFinish(id){let v=active.find(x=>x.id===id),host=$('f'+id);if(!v||!host)return;host.innerHTML=finishFormHTML(v,id,false)}
-function cancelFinish(id){let x=$('f'+id);if(x)x.innerHTML=''}
-function cancelFrozenFinish(id){let x=$('ff'+id);if(x)x.innerHTML=''}
-function choosePay(id,m){pay[id]=m;['cash','terminal','mixed'].forEach(x=>{let b=document.querySelector('#'+(document.getElementById('f'+id)?'f':'ff')+id+' .payButtons button:nth-child('+(['cash','terminal','mixed'].indexOf(x)+1)+')');if(b)b.classList.toggle('selected',x===m)});let s=$('split'+id);if(s)s.classList.toggle('hidden',m!=='mixed')}
-async function finish(id,fromFrozen=false){let v=(fromFrozen?frozen:active).find(x=>x.id===id);if(!v)return;let amount=v.student_id?0:Number($('a'+id)?.value||0),m=v.student_id?'cash':(pay[id]||'cash'),cash=m==='cash'?amount:0,term=m==='terminal'?amount:0;if(m==='mixed'){cash=Number($('c'+id)?.value||0);term=Number($('t'+id)?.value||0);if(cash+term!==amount){let e=$('fe'+id);if(e)e.textContent='Naqd + terminal umumiy summaga teng bo‘lishi kerak';return}}try{await api('/sessions/'+id+'/finish',{method:'POST',body:JSON.stringify({amount,paymentMethod:m,cashAmount:cash,terminalAmount:term})});delete pay[id];toast('Tugadi va kunlik bazaga yozildi');await loadActive(1);await loadFrozen(1);await loadDashboard(1);go('finish')}catch(e){let er=$('fe'+id);if(er)er.textContent=e.message;else toast(e.message,true)}}
-async function freeze(id){try{await api('/sessions/'+id+'/freeze',{method:'POST',body:'{}'});toast('Vaqt muzlatildi');await loadActive();await loadFrozen()}catch(e){toast(e.message,true)}}
-async function loadFrozen(silent){try{frozen=await api('/sessions/frozen');$('frozenCount').textContent=frozen.length?' ('+frozen.length+')':'';$('df').textContent=frozen.length;renderFrozen()}catch(e){if(!silent)toast(e.message,true)}}
-function renderFrozen(){let q=($('frozenQ').value||'').toUpperCase(),a=frozen.filter(x=>x.plate.includes(q));$('frozenList').innerHTML=a.length?a.map(v=>'<div class="frozen"><div><div class="plateText">'+esc(v.plate)+'</div><div class="muted">Muzlatilgan: '+dt(v.frozen_at||v.updated_at)+' • Saqlangan vaqt: '+dur(v.duration_seconds)+'</div><div class="muted">'+esc(v.school_name||'')+' '+esc(v.group_name||'')+' '+esc(v.student_name||'')+'</div></div><div class="vActions"><button type="button" class="btn light" onclick="resume(\''+v.id+'\')">▶ Davom ettirish</button><button type="button" class="btn green" onclick="frozenFinish(\''+v.id+'\')">Tugatish</button></div></div><div id="ff'+v.id+'"></div>').join(''):'<div class="empty">Muzlatilgan avtomobil yo‘q</div>'}
-function frozenFinish(id){let v=frozen.find(x=>x.id===id),host=$('ff'+id);if(!v||!host)return;host.innerHTML=finishFormHTML(v,id,true);host.scrollIntoView({behavior:'smooth',block:'center'})}
-async function resume(id){try{await api('/sessions/'+id+'/resume',{method:'POST',body:'{}'});toast('Vaqt davom ettirildi');await loadFrozen();await loadActive();go('active')}catch(e){toast(e.message,true)}}
-$('startForm').onsubmit=async e=>{e.preventDefault();$('startErr').textContent='';let b={regionCode:$('region').value,firstLetter:$('fl').value,number:$('num').value,lastLetters:$('ll').value,model:$('model').value,driverName:$('driver').value};if($('type').value==='school'){if(!$('school').value||!$('student').value){$('startErr').textContent='Avtoshkola va o‘quvchini tanlang';return}b.schoolId=$('school').value;b.groupId=$('group').value||null;b.studentId=$('student').value}try{let x=await api('/sessions/start',{method:'POST',body:JSON.stringify(b)});toast(x.plate+' uchun vaqt ochildi');e.target.reset();schoolMode();go('active')}catch(x){$('startErr').textContent=x.message}}
-async function loadSchoolSelect(){try{if(!schools.length)schools=await api('/schools');$('school').innerHTML='<option value="">Tanlang</option>'+schools.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')}catch(e){}}
-function schoolMode(){let on=$('type').value==='school';$('school').disabled=$('group').disabled=$('student').disabled=!on;if(on)loadSchoolSelect();else $('studentBox').innerHTML=''}
-async function groupsForSchool(){let id=$('school').value;if(!id)return;$('group').disabled=false;groups=await api('/groups?schoolId='+id);$('group').innerHTML='<option value="">Guruhsiz</option>'+groups.map(x=>'<option value="'+x.id+'">'+esc(x.name)+' ('+(x.student_count||0)+')</option>').join('');$('student').innerHTML='<option value="">Tanlang</option>';$('student').disabled=false}
-async function studentsForGroup(){let id=$('school').value,g=$('group').value;students=await api('/students?schoolId='+id+(g?'&groupId='+g:''));$('student').innerHTML='<option value="">Tanlang</option>'+students.map(x=>'<option value="'+x.id+'">'+esc(x.full_name)+' — '+(x.attendance_count||0)+' marta</option>').join('')}
-function studentInfo(){let s=students.find(x=>x.id===$('student').value);$('studentBox').innerHTML=s?'<div class="finish" style="margin-top:12px"><b>'+esc(s.full_name)+'</b> — avval <b>'+s.attendance_count+'</b> marta qatnashgan<br><span class="muted">'+esc(s.school_name)+' • '+esc(s.group_name||'Guruhsiz')+' • '+esc(s.plate||'Avtomobil yo‘q')+'</span></div>':''}
-async function loadDaily(){try{daily=await api('/reports/daily');let s=daily.summary||{};$('rdc').textContent=s.count||0;$('rdm').textContent=money(s.amount);$('rdcash').textContent=money(s.cash);$('rdterm').textContent=money(s.terminal);$('rdtime').textContent=dur(s.seconds);$('dailyTable').innerHTML=table(daily.rows||[])}catch(e){toast(e.message,true)}}
-function exportCSV(){let a=daily?.rows||[],h=['Raqam','Kirish','Chiqish','Vaqt','Avtoshkola','Guruh','Oquvchi','Naqd','Terminal','Jami'];let c=[h,...a.map(x=>[x.plate,dt(x.started_at),dt(x.finished_at),dur(x.duration_seconds),x.school_name||'',x.group_name||'',x.student_name||'',x.cash_amount||0,x.terminal_amount||0,x.amount||0])].map(r=>r.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\n');let z=new Blob(['\ufeff'+c],{type:'text/csv'}),a1=document.createElement('a');a1.href=URL.createObjectURL(z);a1.download='avtodrom-'+new Date().toISOString().slice(0,10)+'.csv';a1.click()}
-async function historySearch(){let q=$('histQ').value.trim();if(!q)return;try{let x=await api('/history?plate='+encodeURIComponent(q));$('histOut').innerHTML='<div class="kv" style="margin-bottom:14px"><div><b>'+x.rows.length+'</b><span>jami kirish</span></div><div><b>'+money(x.rows.reduce((a,r)=>a+Number(r.amount||0),0))+'</b><span>jami summa</span></div><div><b>'+x.rows.filter(r=>Number(r.cash_amount)>0).length+'</b><span>naqd</span></div><div><b>'+x.rows.filter(r=>Number(r.terminal_amount)>0).length+'</b><span>terminal</span></div></div>'+table(x.rows)}catch(e){toast(e.message,true)}}
-async function loadSchools(){try{schools=await api('/schools');groups=await api('/groups');$('schoolCards').innerHTML=schools.length?schools.map(s=>'<div class="card"><h3>'+esc(s.name)+'</h3><div class="muted">'+esc(s.phone||'Telefon yo‘q')+'</div><div class="actions"><span class="badge">'+(s.group_count||0)+' guruh</span><span class="badge">'+(s.student_count||0)+' o‘quvchi</span><button class="btn light" onclick="groupModal(\''+s.id+'\')">＋ Guruh</button></div></div>').join(''):'<div class="empty">Avtoshkola yo‘q</div>';$('groupTable').innerHTML=groups.length?table(groups.map(x=>({plate:x.school_name,started_at:null,finished_at:null,duration_seconds:0,student_name:x.name,amount:x.student_count||0,cash_amount:0,terminal_amount:0}))):'<div class="empty">Guruh yo‘q</div>'}catch(e){toast(e.message,true)}}
-function schoolModal(){modal('<h2>Yangi avtoshkola</h2><div class="fg"><label>Nomi</label><input id="mn"></div><div class="fg"><label>Telefon</label><input id="mp"></div><div class="actions"><button class="btn green" onclick="createSchool()">Saqlash</button><button class="btn light" onclick="closeModal()">Bekor</button></div>')}
-async function createSchool(){try{await api('/schools',{method:'POST',body:JSON.stringify({name:$('mn').value.trim(),phone:$('mp').value.trim()})});closeModal();loadSchools();toast('Avtoshkola qo‘shildi')}catch(e){toast(e.message,true)}}
-function groupModal(id){modal('<h2>Yangi guruh</h2><div class="fg"><label>Guruh nomi</label><input id="gn" placeholder="A-1"></div><div class="actions"><button class="btn green" onclick="createGroup(\''+id+'\')">Saqlash</button><button class="btn light" onclick="closeModal()">Bekor</button></div>')}
-async function createGroup(id){try{await api('/groups',{method:'POST',body:JSON.stringify({schoolId:id,name:$('gn').value.trim()})});closeModal();loadSchools();toast('Guruh qo‘shildi')}catch(e){toast(e.message,true)}}
-async function loadStudents(){try{students=await api('/students');renderStudents()}catch(e){toast(e.message,true)}}
-function renderStudents(){let q=($('studentQ').value||'').toLowerCase(),a=students.filter(s=>!q||s.full_name.toLowerCase().includes(q)||(s.plate||'').toLowerCase().includes(q));$('studentCards').innerHTML=a.length?a.map(s=>'<div class="card click" onclick="studentDetail(\''+s.id+'\')"><h3>'+esc(s.full_name)+'</h3><div class="muted">'+esc(s.school_name)+' • '+esc(s.group_name||'Guruhsiz')+'</div><div style="margin-top:9px"><span class="badge">'+(s.attendance_count||0)+' marta qatnashgan</span></div><div class="muted" style="margin-top:7px">'+esc(s.plate||'Avtomobil biriktirilmagan')+'</div></div>').join(''):'<div class="empty">O‘quvchi topilmadi</div>'}
-async function studentDetail(id){let s=students.find(x=>x.id===id);if(!s)return;let h=s.plate?await api('/history?plate='+encodeURIComponent(s.plate)):null;$('studentDetail').innerHTML='<div class="panel"><div class="modalHead"><h3>'+esc(s.full_name)+'</h3><button class="btn light" onclick="$(\'studentDetail\').innerHTML=\'\'">Yopish</button></div><div class="kv" style="margin:14px 0"><div><b>'+s.attendance_count+'</b><span>qatnashuv</span></div><div><b>'+esc(s.school_name)+'</b><span>avtoshkola</span></div><div><b>'+esc(s.group_name||'—')+'</b><span>guruh</span></div><div><b>'+esc(s.plate||'—')+'</b><span>avtomobil</span></div></div>'+table((h?.rows||[]).filter(x=>x.student_name===s.full_name))+'</div>'}
-function studentModal(){if(!schools.length)loadSchools();setTimeout(()=>modal('<h2>Yangi o‘quvchi</h2><div class="fg"><label>F.I.Sh.</label><input id="sn"></div><div class="fg"><label>Telefon</label><input id="sp"></div><div class="fg"><label>Avtoshkola</label><select id="ss" onchange="modalGroups()"><option value="">Tanlang</option>'+schools.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')+'</select></div><div class="fg"><label>Guruh</label><select id="sg"><option value="">Avval avtoshkola</option></select></div><div class="fg"><label>Avtomobil raqami</label><input id="spl"></div><div class="actions"><button class="btn green" onclick="createStudent()">Saqlash</button><button class="btn light" onclick="closeModal()">Bekor</button></div>'),100)}
-async function modalGroups(){let id=$('ss').value;if(!id)return;let g=await api('/groups?schoolId='+id);$('sg').innerHTML='<option value="">Guruhsiz</option>'+g.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')}
-async function createStudent(){try{await api('/students',{method:'POST',body:JSON.stringify({fullName:$('sn').value.trim(),phone:$('sp').value.trim(),schoolId:$('ss').value,groupId:$('sg').value||null,plate:$('spl').value.trim()})});closeModal();loadStudents();toast('O‘quvchi qo‘shildi')}catch(e){toast(e.message,true)}}
-async function loadSettings(){try{let x=await api('/settings');$('sr').value=x.hourlyRate;$('sm').value=x.minimumPayment;$('mode').value=x.calculationMode==='minute'?'minute':x.calculationMode==='hour'?'hour':'manual'}catch(e){}}
-async function saveSettings(){try{await api('/settings',{method:'PUT',body:JSON.stringify({hourlyRate:Number($('sr').value||0),minimumPayment:Number($('sm').value||0),calculationMode:$('mode').value})});$('setMsg').className='ok';$('setMsg').textContent='Saqlandi'}catch(e){$('setMsg').className='err';$('setMsg').textContent=e.message}}
-function modal(x){$('modal').innerHTML='<div class="modalBg" onclick="if(event.target===this)closeModal()"><div class="modal">'+x+'</div></div>'}function closeModal(){$('modal').innerHTML=''}
-setInterval(()=>document.querySelectorAll('[data-start]').forEach(x=>x.textContent=dur((Date.now()-new Date(x.dataset.start))/1000)),1000);if(token&&me)boot();
-</script></body></html>
+
+/* =========================================================
+   API / STATE
+========================================================= */
+
+const API='/api';
+
+let token=localStorage.getItem('avtodrom_token')||'';
+
+let me=null;
+
+try{
+  me=JSON.parse(localStorage.getItem('avtodrom_user')||'null');
+}catch{
+  me=null;
+}
+
+let active=[];
+let frozen=[];
+let schools=[];
+let groups=[];
+let students=[];
+let daily=null;
+let pay={};
+let expandedSchools=new Set();
+let expandedGroups=new Set();
+
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+const $=id=>document.getElementById(id);
+
+const money=n=>
+  Number(n||0).toLocaleString('uz-UZ')+' so‘m';
+
+const esc=s=>
+  String(s??'').replace(/[&<>"']/g,x=>({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#39;'
+  }[x]));
+
+const dt=s=>
+  s
+  ?new Date(s).toLocaleString('uz-UZ',{
+      timeZone:'Asia/Tashkent',
+      hour12:false
+    })
+  :'—';
+
+const dur=n=>{
+  n=Math.max(0,Math.floor(Number(n)||0));
+
+  let h=Math.floor(n/3600);
+  let m=Math.floor((n%3600)/60);
+  let s=n%60;
+
+  return String(h).padStart(2,'0')+':'+
+         String(m).padStart(2,'0')+':'+
+         String(s).padStart(2,'0');
+};
+
+
+/* =========================================================
+   API
+========================================================= */
+
+async function api(path,options={}){
+
+  const headers={
+    'Content-Type':'application/json',
+    ...(token?{Authorization:'Bearer '+token}:{}),
+    ...(options.headers||{})
+  };
+
+  const response=await fetch(API+path,{
+    ...options,
+    headers
+  });
+
+  const text=await response.text();
+
+  let data;
+
+  try{
+    data=JSON.parse(text);
+  }catch{
+    data={error:text};
+  }
+
+  if(!response.ok){
+    throw new Error(data.error||'Server xatosi');
+  }
+
+  return data;
+}
+
+
+/* =========================================================
+   TOAST
+========================================================= */
+
+function toast(message,error=false){
+
+  const box=document.createElement('div');
+
+  box.className='toast'+(error?' err':'');
+
+  box.textContent=message;
+
+  $('toast').appendChild(box);
+
+  setTimeout(()=>{
+    box.remove();
+  },3500);
+}
+
+
+/* =========================================================
+   LOGIN
+========================================================= */
+
+function loginMode(){
+
+  $('loginBox').classList.remove('hidden');
+  $('registerBox').classList.add('hidden');
+
+}
+
+function registerMode(){
+
+  $('loginBox').classList.add('hidden');
+  $('registerBox').classList.remove('hidden');
+
+}
+
+
+$('loginForm').onsubmit=async e=>{
+
+  e.preventDefault();
+
+  $('loginErr').textContent='';
+
+  try{
+
+    const result=await api('/auth/login',{
+      method:'POST',
+      body:JSON.stringify({
+        username:$('loginUser').value.trim(),
+        password:$('loginPass').value
+      })
+    });
+
+    saveLogin(result);
+
+  }catch(error){
+
+    $('loginErr').textContent=error.message;
+
+  }
+
+};
+
+
+$('registerForm').onsubmit=async e=>{
+
+  e.preventDefault();
+
+  $('regErr').textContent='';
+
+  try{
+
+    const result=await api('/auth/register',{
+      method:'POST',
+      body:JSON.stringify({
+        fullName:$('regName').value.trim(),
+        username:$('regUser').value.trim(),
+        password:$('regPass').value
+      })
+    });
+
+    saveLogin(result);
+
+  }catch(error){
+
+    $('regErr').textContent=error.message;
+
+  }
+
+};
+
+
+function saveLogin(result){
+
+  token=result.token;
+  me=result.user;
+
+  localStorage.setItem(
+    'avtodrom_token',
+    token
+  );
+
+  localStorage.setItem(
+    'avtodrom_user',
+    JSON.stringify(me)
+  );
+
+  boot();
+
+}
+
+
+function logout(){
+
+  localStorage.removeItem('avtodrom_token');
+  localStorage.removeItem('avtodrom_user');
+
+  location.reload();
+
+}
+
+
+/* =========================================================
+   NAVIGATION
+========================================================= */
+
+const names={
+  dashboard:'Dashboard',
+  add:'Yangi avtomobil',
+  active:'Jarayonda',
+  finish:'Tugatish',
+  frozen:'Muzlatilgan',
+  daily:'Kunlik hisobot',
+  history:'Avtomobil tarixi',
+  schools:'Avtoshkolalar',
+  students:'O‘quvchilar',
+  settings:'Sozlamalar'
+};
+
+
+document.querySelectorAll('.nav').forEach(button=>{
+
+  button.onclick=()=>{
+    go(button.dataset.p);
+  };
+
+});
+
+
+function go(page){
+
+  document
+    .querySelectorAll('.page')
+    .forEach(x=>x.classList.add('hidden'));
+
+  const target=$('p-'+page);
+
+  if(target){
+    target.classList.remove('hidden');
+  }
+
+  document
+    .querySelectorAll('.nav')
+    .forEach(x=>{
+      x.classList.toggle(
+        'active',
+        x.dataset.p===page
+      );
+    });
+
+  $('pageTitle').textContent=
+    names[page]||page;
+
+  $('side').classList.remove('open');
+
+  if(page==='dashboard'){
+    loadDashboard();
+  }
+
+  if(page==='add'){
+    loadSchoolSelect();
+  }
+
+  if(page==='active'||page==='finish'){
+    loadActive();
+  }
+
+  if(page==='frozen'){
+    loadFrozen();
+  }
+
+  if(page==='daily'){
+    loadDaily();
+  }
+
+  if(page==='history'){
+    // nothing
+  }
+
+  if(page==='schools'){
+    loadSchools();
+  }
+
+  if(page==='students'){
+    loadStudents();
+  }
+
+  if(page==='settings'){
+    loadSettings();
+  }
+
+}
+
+
+/* =========================================================
+   BOOT
+========================================================= */
+
+function boot(){
+
+  if(!me){
+    $('login').classList.remove('hidden');
+    $('app').classList.add('hidden');
+    return;
+  }
+
+  $('login').classList.add('hidden');
+  $('app').classList.remove('hidden');
+
+  $('who').textContent=
+    me.username||me.full_name||'';
+
+  $('avatar').textContent=
+    (me.full_name||me.username||'A')
+    .charAt(0)
+    .toUpperCase();
+
+  go('dashboard');
+
+}
+
+
+setInterval(()=>{
+
+  $('clock').textContent=
+    new Date().toLocaleString('uz-UZ',{
+      timeZone:'Asia/Tashkent',
+      hour12:false
+    });
+
+},1000);
+
+
+/* =========================================================
+   DASHBOARD
+========================================================= */
+
+async function loadDashboard(silent=false){
+
+  try{
+
+    const d=await api('/dashboard');
+
+    $('dc').textContent=d.todayCount||0;
+    $('da').textContent=d.active||0;
+    $('dm').textContent=money(d.todayAmount);
+
+    $('dp').textContent=
+      money(d.todayCash)
+        .replace(' so‘m','')
+      +' / '+
+      money(d.todayTerminal)
+        .replace(' so‘m','');
+
+    await loadActive(true);
+    await loadFrozen(true);
+
+    daily=await api('/reports/daily');
+
+    renderDash(daily);
+
+  }catch(error){
+
+    if(!silent){
+      toast(error.message,true);
+    }
+
+  }
+
+}
+
+
+function renderDash(report){
+
+  $('dashActive').innerHTML=
+    active.length
+    ?active.slice(0,7)
+      .map(v=>vehicle(v,true))
+      .join('')
+    :'<div class="empty">Hozir avtomobil yo‘q</div>';
+
+  const summary=report.summary||{};
+
+  $('dashPay').innerHTML=`
+
+    <div class="kv">
+
+      <div>
+        <b>${money(summary.cash)}</b>
+        <span>Naqd</span>
+      </div>
+
+      <div>
+        <b>${money(summary.terminal)}</b>
+        <span>Terminal</span>
+      </div>
+
+      <div>
+        <b>${money(summary.amount)}</b>
+        <span>Jami</span>
+      </div>
+
+      <div>
+        <b>${summary.count||0}</b>
+        <span>Avtomobil</span>
+      </div>
+
+    </div>
+
+  `;
+
+  $('dashTable').innerHTML=
+    table(report.rows||[]);
+
+}
+
+
+function table(rows){
+
+  if(!rows.length){
+    return '<div class="empty">Ma’lumot yo‘q</div>';
+  }
+
+  return `
+
+    <div class="table">
+
+      <table>
+
+        <thead>
+          <tr>
+            <th>Raqam</th>
+            <th>Kirish</th>
+            <th>Chiqish</th>
+            <th>Vaqt</th>
+            <th>O‘quvchi</th>
+            <th>Naqd</th>
+            <th>Terminal</th>
+            <th>Jami</th>
+          </tr>
+        </thead>
+
+        <tbody>
+
+          ${rows.map(x=>`
+
+            <tr>
+
+              <td>
+                <b>${esc(x.plate)}</b>
+              </td>
+
+              <td>${dt(x.started_at)}</td>
+
+              <td>${dt(x.finished_at)}</td>
+
+              <td>${dur(x.duration_seconds)}</td>
+
+              <td>${esc(x.student_name||'—')}</td>
+
+              <td>${money(x.cash_amount)}</td>
+
+              <td>${money(x.terminal_amount)}</td>
+
+              <td>
+                <b>${money(x.amount)}</b>
+              </td>
+
+            </tr>
+
+          `).join('')}
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  `;
+
+}
+
+
+/* =========================================================
+   VEHICLE
+========================================================= */
+
+function vehicle(v,buttons=true){
+
+  return `
+
+    <div class="vehicle">
+
+      <div class="vehicleTop">
+
+        <div>
+
+          <div class="plateText">
+            ${esc(v.plate)}
+          </div>
+
+          <div class="muted">
+            ${esc(v.model||'')}
+            ${v.driver_name?' • '+esc(v.driver_name):''}
+          </div>
+
+          <div class="muted">
+            ${
+              v.school_name
+              ?esc(v.school_name)
+               +' • '
+               +esc(v.group_name||'')
+              :'Oddiy mijoz'
+            }
+
+            ${
+              v.student_name
+              ?' • '+esc(v.student_name)
+              :''
+            }
+          </div>
+
+          <div
+            class="timer"
+            data-start="${esc(v.started_at||'')}"
+          >
+            ${dur(
+              v.duration_seconds||
+              ((Date.now()-new Date(v.started_at))/1000)
+            )}
+          </div>
+
+        </div>
+
+        ${
+          buttons
+          ?`
+
+            <div class="vActions">
+
+              <button
+                class="btn green"
+                onclick="openFinish('${v.id}')"
+              >
+                Tugatish
+              </button>
+
+              <button
+                class="btn light"
+                onclick="freeze('${v.id}')"
+              >
+                ❄ Muzlatish
+              </button>
+
+            </div>
+
+          `
+          :''
+        }
+
+      </div>
+
+    </div>
+
+  `;
+
+}
+
+
+/* =========================================================
+   ACTIVE
+========================================================= */
+
+async function loadActive(silent=false){
+
+  try{
+
+    active=await api('/sessions/active');
+
+    $('da').textContent=active.length;
+
+    renderActive();
+    renderFinish();
+
+  }catch(error){
+
+    if(!silent){
+      toast(error.message,true);
+    }
+
+  }
+
+}
+
+
+function renderActive(){
+
+  $('activeList').innerHTML=
+
+    active.length
+    ?active.map(v=>vehicle(v,true)).join('')
+    :'<div class="empty">Jarayonda avtomobil yo‘q</div>';
+
+}
+
+
+function renderFinish(){
+
+  const query=
+    ($('finishQ').value||'')
+      .toUpperCase()
+      .trim();
+
+  const rows=
+    active.filter(x=>
+      String(x.plate||'')
+        .toUpperCase()
+        .includes(query)
+    );
+
+  $('finishList').innerHTML=
+
+    rows.length
+    ?rows.map(v=>
+      vehicle(v,true)+
+      `<div id="f${v.id}"></div>`
+    ).join('')
+    :'<div class="empty">Avtomobil topilmadi</div>';
+
+}
+
+
+/* =========================================================
+   FINISH FORM
+========================================================= */
+
+function finishFormHTML(v,id,frozenMode=false){
+
+  const free=!!v.student_id;
+
+  return `
+
+    <div class="finish">
+
+      <div class="plateText">
+        ${esc(v.plate)} — Yakunlash
+      </div>
+
+      <div class="muted">
+        Kirish: ${dt(v.started_at)}
+      </div>
+
+      ${
+        v.frozen_at
+        ?`
+          <div class="muted">
+            Muzlatilgan: ${dt(v.frozen_at)}
+          </div>
+        `
+        :''
+      }
+
+      <div class="timer">
+        Faol vaqt:
+        ${dur(
+          v.duration_seconds||
+          ((Date.now()-new Date(v.started_at))/1000)
+        )}
+      </div>
+
+      ${
+        free
+        ?`
+
+          <div
+            class="badge"
+            style="margin-top:10px"
+          >
+            AVTOSHKOLA O‘QUVCHISI — BEPUL
+          </div>
+
+        `
+        :`
+
+          <div
+            class="fg"
+            style="margin-top:14px"
+          >
+
+            <label>
+              Yakuniy summa
+            </label>
+
+            <input
+              id="a${id}"
+              type="number"
+              min="0"
+              placeholder="50000"
+            >
+
+          </div>
+
+          <div class="payButtons">
+
+            <button
+              type="button"
+              onclick="choosePay('${id}','cash')"
+            >
+              Naqd
+            </button>
+
+            <button
+              type="button"
+              onclick="choosePay('${id}','terminal')"
+            >
+              Terminal
+            </button>
+
+            <button
+              type="button"
+              onclick="choosePay('${id}','mixed')"
+            >
+              Aralash
+            </button>
+
+          </div>
+
+          <div
+            id="split${id}"
+            class="payments hidden"
+          >
+
+            <input
+              id="c${id}"
+              type="number"
+              placeholder="Naqd"
+            >
+
+            <input
+              id="t${id}"
+              type="number"
+              placeholder="Terminal"
+            >
+
+            <div
+              class="total"
+              id="tot${id}"
+            >
+              0 so‘m
+            </div>
+
+          </div>
+
+        `
+      }
+
+      <div class="actions">
+
+        <button
+          type="button"
+          class="btn green"
+          onclick="finish('${id}',${frozenMode})"
+        >
+          ✓ Tugatish
+        </button>
+
+        <button
+          type="button"
+          class="btn light"
+          onclick="${
+            frozenMode
+            ?`cancelFrozenFinish('${id}')`
+            :`cancelFinish('${id}')`
+          }"
+        >
+          Bekor
+        </button>
+
+      </div>
+
+      <div
+        id="fe${id}"
+        class="err"
+      ></div>
+
+    </div>
+
+  `;
+
+}
+
+
+function openFinish(id){
+
+  const v=active.find(x=>x.id===id);
+
+  const host=$('f'+id);
+
+  if(!v||!host){
+    return;
+  }
+
+  host.innerHTML=
+    finishFormHTML(v,id,false);
+
+  host.scrollIntoView({
+    behavior:'smooth',
+    block:'center'
+  });
+
+}
+
+
+function cancelFinish(id){
+
+  const x=$('f'+id);
+
+  if(x){
+    x.innerHTML='';
+  }
+
+}
+
+
+function cancelFrozenFinish(id){
+
+  const x=$('ff'+id);
+
+  if(x){
+    x.innerHTML='';
+  }
+
+}
+
+
+function choosePay(id,method){
+
+  pay[id]=method;
+
+  const root=
+    document.getElementById('f'+id)||
+    document.getElementById('ff'+id);
+
+  if(!root){
+    return;
+  }
+
+  root
+    .querySelectorAll('.payButtons button')
+    .forEach((button,index)=>{
+
+      const values=[
+        'cash',
+        'terminal',
+        'mixed'
+      ];
+
+      button.classList.toggle(
+        'selected',
+        values[index]===method
+      );
+
+    });
+
+  const split=$('split'+id);
+
+  if(split){
+    split.classList.toggle(
+      'hidden',
+      method!=='mixed'
+    );
+  }
+
+}
+
+
+async function finish(id,fromFrozen=false){
+
+  const source=
+    fromFrozen
+    ?frozen
+    :active;
+
+  const v=source.find(x=>x.id===id);
+
+  if(!v){
+    toast('Avtomobil topilmadi',true);
+    return;
+  }
+
+  const free=!!v.student_id;
+
+  let amount=
+    free
+    ?0
+    :Number(
+      $('a'+id)?.value||0
+    );
+
+  let method=
+    free
+    ?'cash'
+    :(pay[id]||'cash');
+
+  let cash=
+    method==='cash'
+    ?amount
+    :0;
+
+  let terminal=
+    method==='terminal'
+    ?amount
+    :0;
+
+  if(method==='mixed'){
+
+    cash=Number(
+      $('c'+id)?.value||0
+    );
+
+    terminal=Number(
+      $('t'+id)?.value||0
+    );
+
+    if(cash+terminal!==amount){
+
+      const errorBox=
+        $('fe'+id);
+
+      if(errorBox){
+        errorBox.textContent=
+          'Naqd + terminal umumiy summaga teng bo‘lishi kerak';
+      }
+
+      return;
+
+    }
+
+  }
+
+  try{
+
+    await api(
+      '/sessions/'+id+'/finish',
+      {
+        method:'POST',
+        body:JSON.stringify({
+          amount,
+          paymentMethod:method,
+          cashAmount:cash,
+          terminalAmount:terminal
+        })
+      }
+    );
+
+    delete pay[id];
+
+    toast(
+      'Avtomobil tugatildi va kunlik bazaga yozildi'
+    );
+
+    await loadActive(true);
+    await loadFrozen(true);
+    await loadDashboard(true);
+
+    go('finish');
+
+  }catch(error){
+
+    const errorBox=$('fe'+id);
+
+    if(errorBox){
+      errorBox.textContent=
+        error.message;
+    }else{
+      toast(error.message,true);
+    }
+
+  }
+
+}
+
+
+/* =========================================================
+   FREEZE
+========================================================= */
+
+async function freeze(id){
+
+  try{
+
+    await api(
+      '/sessions/'+id+'/freeze',
+      {
+        method:'POST',
+        body:'{}'
+      }
+    );
+
+    toast('Vaqt muzlatildi');
+
+    await loadActive(true);
+    await loadFrozen(true);
+
+  }catch(error){
+
+    toast(error.message,true);
+
+  }
+
+}
+
+
+async function loadFrozen(silent=false){
+
+  try{
+
+    frozen=
+      await api('/sessions/frozen');
+
+    $('frozenCount').textContent=
+      frozen.length
+      ?' ('+frozen.length+')'
+      :'';
+
+    $('df').textContent=
+      frozen.length;
+
+    renderFrozen();
+
+  }catch(error){
+
+    if(!silent){
+      toast(error.message,true);
+    }
+
+  }
+
+}
+
+
+function renderFrozen(){
+
+  const query=
+    ($('frozenQ').value||'')
+      .toUpperCase()
+      .trim();
+
+  const rows=
+    frozen.filter(x=>
+      String(x.plate||'')
+        .toUpperCase()
+        .includes(query)
+    );
+
+  $('frozenList').innerHTML=
+
+    rows.length
+    ?rows.map(v=>`
+
+      <div class="frozenCard">
+
+        <div class="vehicle">
+
+          <div class="vehicleTop">
+
+            <div>
+
+              <div class="plateText">
+                ${esc(v.plate)}
+              </div>
+
+              <div class="muted">
+                Muzlatilgan:
+                ${dt(v.frozen_at||v.updated_at)}
+              </div>
+
+              <div class="muted">
+                Saqlangan faol vaqt:
+                <b>${dur(v.duration_seconds)}</b>
+              </div>
+
+              <div class="muted">
+                ${esc(v.school_name||'')}
+
+                ${
+                  v.group_name
+                  ?' • '+esc(v.group_name)
+                  :''
+                }
+
+                ${
+                  v.student_name
+                  ?' • '+esc(v.student_name)
+                  :''
+                }
+              </div>
+
+            </div>
+
+            <div class="vActions">
+
+              <button
+                class="btn light"
+                onclick="resume('${v.id}')"
+              >
+                ▶ Davom ettirish
+              </button>
+
+              <button
+                class="btn green"
+                onclick="frozenFinish('${v.id}')"
+              >
+                Tugatish
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <div id="ff${v.id}"></div>
+
+      </div>
+
+    `).join('')
+    :'<div class="empty">Muzlatilgan avtomobil yo‘q</div>';
+
+}
+
+
+function frozenFinish(id){
+
+  const v=frozen.find(x=>x.id===id);
+
+  const host=$('ff'+id);
+
+  if(!v||!host){
+    return;
+  }
+
+  host.innerHTML=
+    finishFormHTML(v,id,true);
+
+  host.scrollIntoView({
+    behavior:'smooth',
+    block:'center'
+  });
+
+}
+
+
+async function resume(id){
+
+  try{
+
+    await api(
+      '/sessions/'+id+'/resume',
+      {
+        method:'POST',
+        body:'{}'
+      }
+    );
+
+    toast('Vaqt davom ettirildi');
+
+    await loadFrozen(true);
+    await loadActive(true);
+
+    go('active');
+
+  }catch(error){
+
+    toast(error.message,true);
+
+  }
+
+}
+
+
+/* =========================================================
+   START VEHICLE
+========================================================= */
+
+$('startForm').onsubmit=async e=>{
+
+  e.preventDefault();
+
+  $('startErr').textContent='';
+
+  const number=
+    $('num').value
+      .replace(/\D/g,'')
+      .slice(0,3);
+
+  if(number.length!==3){
+
+    $('startErr').textContent=
+      'Avtomobil raqamidagi son aynan 3 xonali bo‘lishi kerak';
+
+    return;
+  }
+
+  const b={
+
+    regionCode:$('region').value,
+
+    firstLetter:
+      $('fl').value
+        .trim()
+        .toUpperCase(),
+
+    number,
+
+    lastLetters:
+      $('ll').value
+        .trim()
+        .toUpperCase(),
+
+    model:
+      $('model').value.trim(),
+
+    driverName:
+      $('driver').value.trim()
+
+  };
+
+  if($('type').value==='school'){
+
+    if(
+      !$('school').value||
+      !$('student').value
+    ){
+
+      $('startErr').textContent=
+        'Avtoshkola va o‘quvchini tanlang';
+
+      return;
+    }
+
+    b.schoolId=$('school').value;
+    b.groupId=$('group').value||null;
+    b.studentId=$('student').value;
+
+  }
+
+  try{
+
+    const result=
+      await api(
+        '/sessions/start',
+        {
+          method:'POST',
+          body:JSON.stringify(b)
+        }
+      );
+
+    toast(
+      result.plate+
+      ' uchun vaqt ochildi'
+    );
+
+    e.target.reset();
+
+    $('schoolBox').classList.add('hidden');
+
+    go('active');
+
+  }catch(error){
+
+    $('startErr').textContent=
+      error.message;
+
+  }
+
+};
+
+
+/* =========================================================
+   SCHOOL SELECT IN NEW VEHICLE
+========================================================= */
+
+async function loadSchoolSelect(){
+
+  try{
+
+    if(!schools.length){
+      schools=
+        await api('/schools');
+    }
+
+    $('school').innerHTML=
+      '<option value="">Tanlang</option>'+
+      schools
+        .map(x=>
+          `<option value="${x.id}">
+            ${esc(x.name)}
+          </option>`
+        )
+        .join('');
+
+  }catch(error){
+
+    toast(error.message,true);
+
+  }
+
+}
+
+
+function schoolMode(){
+
+  const schoolType=
+    $('type').value==='school';
+
+  $('schoolBox')
+    .classList.toggle(
+      'hidden',
+      !schoolType
+    );
+
+  if(schoolType){
+
+    loadSchoolSelect();
+
+  }else{
+
+    $('studentBox').innerHTML='';
+
+  }
+
+}
+
+
+async function groupsForSchool(){
+
+  const schoolId=$('school').value;
+
+  if(!schoolId){
+    return;
+  }
+
+  try{
+
+    groups=
+      await api(
+        '/groups?schoolId='+
+        encodeURIComponent(schoolId)
+      );
+
+    $('group').disabled=false;
+
+    $('group').innerHTML=
+      '<option value="">Guruhni tanlang</option>'+
+      groups
+        .map(g=>
+          `<option value="${g.id}">
+            ${esc(g.name)}
+            (${Number(g.student_count||0)} o‘quvchi)
+          </option>`
+        )
+        .join('');
+
+    $('student').innerHTML=
+      '<option value="">Avval guruhni tanlang</option>';
+
+    $('student').disabled=true;
+
+  }catch(error){
+
+    toast(error.message,true);
+
+  }
+
+}
+
+
+async function studentsForGroup(){
+
+  const schoolId=$('school').value;
+  const groupId=$('group').value;
+
+  if(!schoolId||!groupId){
+    return;
+  }
+
+  try{
+
+    students=
+      await api(
+        '/students?schoolId='+
+        encodeURIComponent(schoolId)+
+        '&groupId='+
+        encodeURIComponent(groupId)
+      );
+
+    $('student').disabled=false;
+
+    $('student').innerHTML=
+      '<option value="">O‘quvchini tanlang</option>'+
+      students
+        .map(s=>
+          `<option value="${s.id}">
+            ${esc(s.full_name)}
+            — ${Number(s.attendance_count||0)} marta
+          </option>`
+        )
+        .join('');
+
+  }catch(error){
+
+    toast(error.message,true);
+
+  }
+
+}
+
+
+function studentInfo(){
+
+  const student=
+    students.find(
+      x=>String(x.id)===
+         String($('student').value)
+    );
+
+  if(!student){
+
+    $('studentBox').innerHTML='';
+
+    return;
+  }
+
+  $('studentBox').innerHTML=`
+
+    <div
+      class="finish"
+      style="margin-top:10px"
+    >
+
+      <div class="plateText">
+        ${esc(student.full_name)}
+      </div>
+
+      <div style="margin-top:6px">
+
+        <span class="badge">
+          ${Number(student.attendance_count||0)}
+          marta qatnashgan
+        </span>
+
+      </div>
+
+      <div
+        class="muted"
+        style="margin-top:9px"
+      >
+        ${esc(student.school_name||'')}
+        •
+        ${esc(student.group_name||'Guruhsiz')}
+      </div>
+
+      <div
+        class="muted"
+        style="margin-top:4px"
+      >
+        Avtomobil:
+        ${esc(student.plate||'biriktirilmagan')}
+      </div>
+
+    </div>
+
+  `;
+
+}
+
+
+/* =========================================================
+   DAILY
+========================================================= */
+
+async function loadDaily(){
+
+  try{
+
+    daily=
+      await api('/reports/daily');
+
+    const s=
+      daily.summary||{};
+
+    $('rdc').textContent=
+      s.count||0;
+
+    $('rdm').textContent=
+      money(s.amount);
+
+    $('rdcash').textContent=
+      money(s.cash);
+
+    $('rdterm').textContent=
+      money(s.terminal);
+
+    $('rdtime').textContent=
+      dur(s.seconds);
+
+    $('dailyTable').innerHTML=
+      table(daily.rows||[]);
+
+  }catch(error){
+
+    toast(error.message,true);
+
+  }
+
+}
+
+
+function exportCSV(){
+
+  const rows=
+    daily?.rows||[];
+
+  const header=[
+    'Raqam',
+    'Kirish',
+    'Chiqish',
+    'Vaqt',
+    'Avtoshkola',
+    'Guruh',
+    'Oquvchi',
+    'Naqd',
+    'Terminal',
+    'Jami'
+  ];
+
+  const csv=[
+    header,
+
+    ...rows.map(x=>[
+      x.plate,
+      dt(x.started_at),
+      dt(x.finished_at),
+      dur(x.duration_seconds),
+      x.school_name||'',
+      x.group_name||'',
+      x.student_name||'',
+      x.cash_amount||0,
+      x.terminal_amount||0,
+      x.amount||0
+    ])
+
+  ]
+  .map(row=>
+    row
+      .map(v=>
+        '"'+
+        String(v)
+          .replaceAll('"','""')+
+        '"'
+      )
+      .join(',')
+  )
+  .join('\n');
+
+  const blob=
+    new Blob(
+      ['\ufeff'+csv],
+      {type:'text/csv'}
+    );
+
+  const link=
+    document.createElement('a');
+
+  link.href=
+    URL.createObjectURL(blob);
+
+  link.download=
+    'avtodrom-'+
+    new Date()
+      .toISOString()
+      .slice(0,10)+
+    '.csv';
+
+  link.click();
+
+}
+
+
+/* =========================================================
+   HISTORY
+========================================================= */
+
+async function historySearch(){
+
+  const query=
+    $('histQ').value.trim();
+
+  if(!query){
+    return;
+  }
+
+  try{
+
+    const result=
+      await api(
+        '/history?plate='+
+        encodeURIComponent(query)
+      );
+
+    const rows=
+      result.rows||[];
+
+    const total=
+      rows.reduce(
+        (sum,row)=>
+          sum+Number(row.amount||0),
+        0
+      );
+
+    $('histOut').innerHTML=`
+
+      <div
+        class="kv"
+        style="margin-bottom:15px"
+      >
+
+        <div>
+          <b>${rows.length}</b>
+          <span>Jami kirish</span>
+        </div>
+
+        <div>
+          <b>${money(total)}</b>
+          <span>Jami summa</span>
+        </div>
+
+        <div>
+          <b>
+            ${
+              rows.filter(
+                r=>Number(r.cash_amount)>0
+              ).length
+            }
+          </b>
+          <span>Naqd to‘lov</span>
+        </div>
+
+        <div>
+          <b>
+            ${
+              rows.filter(
+                r=>Number(r.terminal_amount)>0
+              ).length
+            }
+          </b>
+          <span>Terminal to‘lov</span>
+        </div>
+
+      </div>
+
+      ${table(rows)}
+
+    `;
+
+  }catch(error){
+
+    toast(error.message,true);
+
+  }
+
+}
+
+
+/* =========================================================
+   SCHOOLS
+   AVTOSHKOLA -> GURUHLAR -> O'QUVCHILAR
+========================================================= */
+
+async function loadSchools(){
+
+  try{
+
+    schools=
+      await api('/schools');
+
+    groups=
+      await api('/groups');
+
+    students=
+      await api('/students');
+
+    renderSchools();
+
+  }catch(error){
+
+    toast(error.message,true);
+
+  }
+
+}
+
+
+function renderSchools(){
+
+  if(!schools.length){
+
+    $('schoolCards').innerHTML=
+      '<div class="panel"><div class="empty">Avtoshkola yo‘q</div></div>';
+
+    return;
+  }
+
+  $('schoolCards').innerHTML=
+    schools
+      .map(s=>{
+
+        const schoolGroups=
+          groups.filter(
+            g=>String(g.school_id)===
+               String(s.id)
+          );
+
+        const opened=
+          expandedSchools.has(
+            String(s.id)
+          );
+
+        return `
+
+          <div class="schoolCard">
+
+            <div
+              class="schoolHeader"
+              onclick="toggleSchool('${s.id}')"
+            >
+
+              <div>
+
+                <div class="plateText">
+                  ${esc(s.name)}
+                </div>
+
+                <div
+                  class="muted"
+                  style="margin-top:4px"
+                >
+                  ${esc(s.phone||'Telefon yo‘q')}
+                </div>
+
+              </div>
+
+              <div class="actions">
+
+                <span class="badge">
+                  ${Number(s.group_count||schoolGroups.length||0)}
+                  guruh
+                </span>
+
+                <span class="badge">
+                  ${Number(s.student_count||0)}
+                  o‘quvchi
+                </span>
+
+                <span>
+                  ${opened?'▲':'▼'}
+                </span>
+
+              </div>
+
+            </div>
+
+            ${
+              opened
+              ?`
+
+                <div class="schoolBody">
+
+                  <div
+                    class="actions"
+                    style="margin-bottom:12px"
+                  >
+
+                    <button
+                      class="btn light"
+                      onclick="event.stopPropagation();groupModal('${s.id}')"
+                    >
+                      ＋ Guruh qo‘shish
+                    </button>
+
+                  </div>
+
+                  ${
+                    schoolGroups.length
+                    ?schoolGroups
+                      .map(g=>
+                        renderGroup(
+                          g,
+                          String(s.id)
+                        )
+                      )
+                      .join('')
+                    :'<div class="empty">Bu avtoshkolada guruh yo‘q</div>'
+                  }
+
+                </div>
+
+              `
+              :''
+            }
+
+          </div>
+
+        `;
+
+      })
+      .join('');
+
+}
+
+
+function toggleSchool(id){
+
+  id=String(id);
+
+  if(expandedSchools.has(id)){
+    expandedSchools.delete(id);
+  }else{
+    expandedSchools.add(id);
+  }
+
+  renderSchools();
+
+}
+
+
+function renderGroup(group,schoolId){
+
+  const groupId=
+    String(group.id);
+
+  const opened=
+    expandedGroups.has(groupId);
+
+  const groupStudents=
+    students.filter(
+      s=>String(s.group_id)===
+         groupId
+    );
+
+  return `
+
+    <div class="groupItem">
+
+      <div
+        class="groupHeader"
+        onclick="toggleGroup('${groupId}')"
+      >
+
+        <div>
+
+          <b>
+            ${esc(group.name)}
+          </b>
+
+          <div
+            class="muted"
+            style="margin-top:3px"
+          >
+            ${Number(
+              group.student_count||
+              groupStudents.length||
+              0
+            )}
+            o‘quvchi
+          </div>
+
+        </div>
+
+        <div class="actions">
+
+          <span class="badge">
+            ${Number(
+              group.student_count||
+              groupStudents.length||
+              0
+            )}
+            o‘quvchi
+          </span>
+
+          <span>
+            ${opened?'▲':'▼'}
+          </span>
+
+        </div>
+
+      </div>
+
+      ${
+        opened
+        ?`
+
+          <div class="groupBody">
+
+            <div
+              class="actions"
+              style="margin-bottom:10px"
+            >
+
+              <button
+                class="btn light"
+                onclick="event.stopPropagation();studentModal('${schoolId}','${groupId}')"
+              >
+                ＋ O‘quvchi qo‘shish
+              </button>
+
+            </div>
+
+            ${
+              groupStudents.length
+              ?groupStudents
+                .map(s=>`
+
+                  <div class="studentRow">
+
+                    <div>
+
+                      <div class="studentName">
+                        ${esc(s.full_name)}
+                      </div>
+
+                      <div class="muted">
+                        ${esc(s.phone||'Telefon yo‘q')}
+                      </div>
+
+                      <div class="muted">
+                        Avtomobil:
+                        ${esc(
+                          s.plate||
+                          'biriktirilmagan'
+                        )}
+                      </div>
+
+                    </div>
+
+                    <div
+                      class="actions"
+                      style="justify-content:flex-end"
+                    >
+
+                      <span class="badge">
+                        ${Number(
+                          s.attendance_count||0
+                        )}
+                        marta
+                      </span>
+
+                      <button
+                        class="btn light"
+                        onclick="studentDetail('${s.id}')"
+                      >
+                        Batafsil
+                      </button>
+
+                    </div>
+
+                  </div>
+
+                `)
+                .join('')
+              :'<div class="empty">Bu guruhda o‘quvchi yo‘q</div>'
+            }
+
+          </div>
+
+        `
+        :''
+      }
+
+    </div>
+
+  `;
+
+}
+
+
+function toggleGroup(id){
+
+  id=String(id);
+
+  if(expandedGroups.has(id)){
+    expandedGroups.delete(id);
+  }else{
+    expandedGroups.add(id);
+  }
+
+  renderSchools();
+
+}
+
+
+/* =========================================================
+   SCHOOL MODAL
+========================================================= */
+
+function schoolModal(){
+
+  modal(`
+
+    <h2>Yangi avtoshkola</h2>
+
+    <div class="fg">
+      <label>Avtoshkola nomi</label>
+      <input id="mn">
+    </div>
+
+    <div class="fg">
+      <label>Telefon</label>
+      <input id="mp">
+    </div>
+
+    <div class="actions">
+
+      <button
+        class="btn green"
+        onclick="createSchool()"
+      >
+        Saqlash
+      </button>
+
+      <button
+        class="btn light"
+        onclick="closeModal()"
+      >
+        Bekor
+      </button>
+
+    </div>
+
+  `);
+
+}
+
+
+async function createSchool(){
+
+  const name=
+    $('mn').value.trim();
+
+  if(!name){
+
+    toast(
+      'Avtoshkola nomini kiriting',
+      true
+    );
+
+    return;
+  }
+
+  try{
+
+    await api(
+      '/schools',
+      {
+        method:'POST',
+        body:JSON.stringify({
+          name,
+          phone:$('mp').value.trim()
+        })
+      }
+    );
+
+    closeModal();
+
+    toast('Avtoshkola qo‘shildi');
+
+    await loadSchools();
+
+  }catch(error){
+
+    toast(error.message,true);
+
+  }
+
+}
+
+
+/* =========================================================
+   GROUP MODAL
+========================================================= */
+
+function groupModal(schoolId){
+
+  modal(`
+
+    <h2>Yangi guruh</h2>
+
+    <div class="fg">
+
+      <label>
+        Guruh nomi
+      </label>
+
+      <input
+        id="gn"
+        placeholder="A-1"
+      >
+
+    </div>
+
+    <div class="actions">
+
+      <button
+        class="btn green"
+        onclick="createGroup('${schoolId}')"
+      >
+        Saqlash
+      </button>
+
+      <button
+        class="btn light"
+        onclick="closeModal()"
+      >
+        Bekor
+      </button>
+
+    </div>
+
+  `);
+
+}
+
+
+async function createGroup(schoolId){
+
+  const name=
+    $('gn').value.trim();
+
+  if(!name){
+
+    toast(
+      'Guruh nomini kiriting',
+      true
+    );
+
+    return;
+  }
+
+  try{
+
+    await api(
+      '/groups',
+      {
+        method:'POST',
+        body:JSON.stringify({
+          schoolId,
+          name
+        })
+      }
+    );
+
+    closeModal();
+
+    toast('Guruh qo‘shildi');
+
+    expandedSchools.add(
+      String(schoolId)
+    );
+
+    await loadSchools();
+
+  }catch(error){
+
+    toast(error.message,true);
+
+  }
+
+}
+
+
+/* =========================================================
+   STUDENTS
+========================================================= */
+
+async function loadStudents(){
+
+  try{
+
+    students=
+      await api('/students');
+
+    renderStudents();
+
+  }catch(error){
+
+    toast(error.message,true);
+
+  }
+
+}
+
+
+function renderStudents(){
+
+  const query=
+    ($('studentQ').value||'')
+      .toLowerCase()
+      .trim();
+
+  const rows=
+    students.filter(s=>{
+
+      const name=
+        String(s.full_name||'')
+          .toLowerCase();
+
+      const plate=
+        String(s.plate||'')
+          .toLowerCase();
+
+      return !query||
+        name.includes(query)||
+        plate.includes(query);
+
+    });
+
+  $('studentCards').innerHTML=
+
+    rows.length
+    ?rows.map(s=>`
+
+      <div
+        class="card click"
+        onclick="studentDetail('${s.id}')"
+      >
+
+        <h3>
+          ${esc(s.full_name)}
+        </h3>
+
+        <div class="muted">
+          ${esc(s.school_name||'')}
+          •
+          ${esc(s.group_name||'Guruhsiz')}
+        </div>
+
+        <div
+          style="margin-top:10px"
+        >
+
+          <span class="badge">
+            ${Number(s.attendance_count||0)}
+            marta qatnashgan
+          </span>
+
+        </div>
+
+        <div
+          class="muted"
+          style="margin-top:8px"
+        >
+          Avtomobil:
+          ${esc(
+            s.plate||
+            'biriktirilmagan'
+          )}
+        </div>
+
+      </div>
+
+    `).join('')
+    :'<div class="empty">O‘quvchi topilmadi</div>';
+
+}
+
+
+async function studentDetail(id){
+
+  const student=
+    students.find(
+      s=>String(s.id)===String(id)
+    );
+
+  if(!student){
+    return;
+  }
+
+  let history={
+    rows:[]
+  };
+
+  if(student.plate){
+
+    try{
+
+      history=
+        await api(
+          '/history?plate='+
+          encodeURIComponent(student.plate)
+        );
+
+    }catch(error){
+
+      toast(error.message,true);
+
+    }
+
+  }
+
+  const studentRows=
+    (history.rows||[])
+      .filter(row=>
+        !row.student_name||
+        row.student_name===
+        student.full_name
+      );
+
+  $('studentDetail').innerHTML=`
+
+    <div
+      class="panel"
+      style="margin-top:18px"
+    >
+
+      <div class="modalHead">
+
+        <div>
+
+          <h3 style="margin:0">
+            ${esc(student.full_name)}
+          </h3>
+
+          <div
+            class="muted"
+            style="margin-top:4px"
+          >
+            O‘quvchi ma’lumotlari
+          </div>
+
+        </div>
+
+        <button
+          class="btn light"
+          onclick="$('studentDetail').innerHTML=''"
+        >
+          Yopish
+        </button>
+
+      </div>
+
+      <div
+        class="kv"
+        style="margin:15px 0"
+      >
+
+        <div>
+          <b>
+            ${Number(
+              student.attendance_count||0
+            )}
+          </b>
+          <span>Qatnashuv</span>
+        </div>
+
+        <div>
+          <b>
+            ${esc(
+              student.school_name||'—'
+            )}
+          </b>
+          <span>Avtoshkola</span>
+        </div>
+
+        <div>
+          <b>
+            ${esc(
+              student.group_name||'—'
+            )}
+          </b>
+          <span>Guruh</span>
+        </div>
+
+        <div>
+          <b>
+            ${esc(
+              student.plate||'—'
+            )}
+          </b>
+          <span>Avtomobil</span>
+        </div>
+
+      </div>
+
+      <h3>
+        Qatnashuv tarixi
+      </h3>
+
+      ${
+        studentRows.length
+        ?table(studentRows)
+        :'<div class="empty">Hozircha qatnashuv tarixi yo‘q</div>'
+      }
+
+    </div>
+
+  `;
+
+}
+
+
+/* =========================================================
+   STUDENT MODAL
+========================================================= */
+
+async function studentModal(
+  presetSchoolId='',
+  presetGroupId=''
+){
+
+  if(!schools.length){
+
+    try{
+      schools=
+        await api('/schools');
+    }catch(error){
+      toast(error.message,true);
+      return;
+    }
+
+  }
+
+  let groupsHtml=
+    '<option value="">Avval avtoshkola</option>';
+
+  if(presetSchoolId){
+
+    try{
+
+      const gs=
+        await api(
+          '/groups?schoolId='+
+          encodeURIComponent(presetSchoolId)
+        );
+
+      groupsHtml=
+        '<option value="">Guruhni tanlang</option>'+
+        gs.map(g=>
+          `<option
+            value="${g.id}"
+            ${String(g.id)===String(presetGroupId)?'selected':''}
+          >
+            ${esc(g.name)}
+          </option>`
+        ).join('');
+
+    }catch(error){
+
+      groupsHtml=
+        '<option value="">Guruh yo‘q</option>';
+
+    }
+
+  }
+
+  modal(`
+
+    <h2>Yangi o‘quvchi</h2>
+
+    <div class="fg">
+
+      <label>F.I.Sh.</label>
+
+      <input
+        id="sn"
+        placeholder="Ali Valiyev"
+      >
+
+    </div>
+
+    <div class="fg">
+
+      <label>Telefon</label>
+
+      <input
+        id="sp"
+        placeholder="+998..."
+      >
+
+    </div>
+
+    <div class="fg">
+
+      <label>Avtoshkola</label>
+
+      <select
+        id="ss"
+        onchange="modalGroups()"
+      >
+
+        <option value="">
+          Tanlang
+        </option>
+
+        ${schools.map(x=>
+          `<option
+            value="${x.id}"
+            ${String(x.id)===String(presetSchoolId)?'selected':''}
+          >
+            ${esc(x.name)}
+          </option>`
+        ).join('')}
+
+      </select>
+
+    </div>
+
+    <div class="fg">
+
+      <label>Guruh</label>
+
+      <select id="sg">
+
+        ${groupsHtml}
+
+      </select>
+
+    </div>
+
+    <div class="fg">
+
+      <label>Avtomobil raqami</label>
+
+      <input
+        id="spl"
+        placeholder="01 A 123 BC"
+      >
+
+    </div>
+
+    <div class="actions">
+
+      <button
+        class="btn green"
+        onclick="createStudent()"
+      >
+        Saqlash
+      </button>
+
+      <button
+        class="btn light"
+        onclick="closeModal()"
+      >
+        Bekor
+      </button>
+
+    </div>
+
+  `);
+
+}
+
+
+async function modalGroups(){
+
+  const schoolId=
+    $('ss').value;
+
+  if(!schoolId){
+
+    $('sg').innerHTML=
+      '<option value="">Avval avtoshkola</option>';
+
+    return;
+  }
+
+  try{
+
+    const gs=
+      await api(
+        '/groups?schoolId='+
+        encodeURIComponent(schoolId)
+      );
+
+    $('sg').innerHTML=
+      '<option value="">Guruhsiz</option>'+
+      gs.map(g=>
+        `<option value="${g.id}">
+          ${esc(g.name)}
+        </option>`
+      ).join('');
+
+  }catch(error){
+
+    toast(error.message,true);
+
+  }
+
+}
+
+
+async function createStudent(){
+
+  const fullName=
+    $('sn').value.trim();
+
+  const schoolId=
+    $('ss').value;
+
+  if(!fullName){
+
+    toast(
+      'O‘quvchi F.I.Sh. ni kiriting',
+      true
+    );
+
+    return;
+  }
+
+  if(!schoolId){
+
+    toast(
+      'Avtoshkolani tanlang',
+      true
+    );
+
+    return;
+  }
+
+  try{
+
+    await api(
+      '/students',
+      {
+        method:'POST',
+        body:JSON.stringify({
+
+          fullName,
+
+          phone:
+            $('sp').value.trim(),
+
+          schoolId,
+
+          groupId:
+            $('sg').value||null,
+
+          plate:
+            $('spl').value.trim()
+
+        })
+      }
+    );
+
+    closeModal();
+
+    toast('O‘quvchi qo‘shildi');
+
+    await loadSchools();
+    await loadStudents();
+
+  }catch(error){
+
+    toast(error.message,true);
+
+  }
+
+}
+
+
+/* =========================================================
+   SETTINGS
+========================================================= */
+
+async function loadSettings(){
+
+  try{
+
+    const result=
+      await api('/settings');
+
+    $('sr').value=
+      result.hourlyRate||0;
+
+    $('sm').value=
+      result.minimumPayment||0;
+
+    $('mode').value=
+      result.calculationMode==='minute'
+      ?'minute'
+      :result.calculationMode==='hour'
+      ?'hour'
+      :'manual';
+
+  }catch(error){
+
+    // settings mavjud bo‘lmasa jim
+  }
+
+}
+
+
+async function saveSettings(){
+
+  try{
+
+    await api(
+      '/settings',
+      {
+        method:'PUT',
+        body:JSON.stringify({
+
+          hourlyRate:
+            Number(
+              $('sr').value||0
+            ),
+
+          minimumPayment:
+            Number(
+              $('sm').value||0
+            ),
+
+          calculationMode:
+            $('mode').value
+
+        })
+      }
+    );
+
+    $('setMsg').className='ok';
+
+    $('setMsg').textContent=
+      'Sozlamalar saqlandi';
+
+  }catch(error){
+
+    $('setMsg').className='err';
+
+    $('setMsg').textContent=
+      error.message;
+
+  }
+
+}
+
+
+/* =========================================================
+   MODAL
+========================================================= */
+
+function modal(html){
+
+  $('modal').innerHTML=`
+
+    <div
+      class="modalBg"
+      onclick="
+        if(event.target===this)
+        closeModal()
+      "
+    >
+
+      <div class="modal">
+        ${html}
+      </div>
+
+    </div>
+
+  `;
+
+}
+
+
+function closeModal(){
+
+  $('modal').innerHTML='';
+
+}
+
+
+/* =========================================================
+   LIVE TIMERS
+========================================================= */
+
+setInterval(()=>{
+
+  document
+    .querySelectorAll('[data-start]')
+    .forEach(element=>{
+
+      const started=
+        element.dataset.start;
+
+      if(!started){
+        return;
+      }
+
+      element.textContent=
+        dur(
+          (Date.now()-
+           new Date(started)
+          )/1000
+        );
+
+    });
+
+},1000);
+
+
+/* =========================================================
+   LIGHT AUTO REFRESH
+   Og‘ir qilib yubormaslik uchun 15 sekund
+========================================================= */
+
+setInterval(async()=>{
+
+  if(!token||!me){
+    return;
+  }
+
+  try{
+
+    await loadActive(true);
+    await loadFrozen(true);
+
+  }catch{}
+
+},15000);
+
+
+/* =========================================================
+   START
+========================================================= */
+
+if(token&&me){
+
+  boot();
+
+}else{
+
+  $('login').classList.remove('hidden');
+  $('app').classList.add('hidden');
+
+}
+
+</script>
+
+</body>
+</html>
