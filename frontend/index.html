@@ -346,9 +346,11 @@ $('startForm').onsubmit=async e=>{
     number=body.slice(1,4);
     lastLetters=body.slice(4,6);
   }else{
+    // 555AAA formati: backend uchun ham 1 ta birinchi harf + 2 ta oxirgi harf
+    // ko‘rinishida yuboramiz. Masalan 111SDA -> number=111, firstLetter=S, lastLetters=DA.
     number=body.slice(0,3);
-    firstLetter=body.slice(3,6);
-    lastLetters='';
+    firstLetter=body[3];
+    lastLetters=body.slice(4,6);
   }
 
   let b={
