@@ -1,4 +1,4 @@
-const API_BASE=window.AVTODROM_API||'http://localhost:3000/api';
+const API_BASE=window.AVTODROM_API||`${window.location.origin}/api`;
 export function setApiBase(url){window.AVTODROM_API=String(url).replace(/\/$/,'')}
 export function getToken(){return localStorage.getItem('avtodrom_token')||''}
 export function saveAuth(data){localStorage.setItem('avtodrom_token',data.token);localStorage.setItem('avtodrom_user',JSON.stringify(data.user))}
