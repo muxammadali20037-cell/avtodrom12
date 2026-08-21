@@ -45,8 +45,12 @@ ALTER TABLE sessions ADD COLUMN IF NOT EXISTS student_id UUID;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS manual_price BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS frozen_at TIMESTAMPTZ;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS frozen_seconds BIGINT NOT NULL DEFAULT 0;
+
+-- The original schema names this constraint sessions_status.
+-- Remove both possible names so old deployments are repaired safely.
+ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_status;
 ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_status_check;
-ALTER TABLE sessions ADD CONSTRAINT sessions_status_check CHECK (status IN ('active','frozen','completed'));
+ALTER TABLE sessions ADD CONSTRAINT sessions_status CHECK (status IN ('active','frozen','completed'));
 
 UPDATE sessions
 SET cash_amount = COALESCE(amount,0), payment_method = 'cash'
