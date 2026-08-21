@@ -80,18 +80,16 @@
   /* ============================================================
      KUNLIK HISOBOT -> EXCEL
      Avtoshkola o‘quvchisi bo‘lgan qatorlar SARIQ rangda chiqadi.
-     Oddiy mijozlar odatdagi rangda qoladi.
      ============================================================ */
   function isSchoolRow(r){
     return !!(r && (r.student_id || r.studentId || r.school_id || r.schoolId || r.school_name || r.student_name));
   }
-
   function excelSafe(v){
     return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   window.exportCSV = function(){
-    const rows = window.daily?.rows || [];
+    const rows = (typeof daily !== 'undefined' && daily && daily.rows) ? daily.rows : [];
     if(!rows.length){
       if(typeof toast==='function') toast('Eksport uchun ma’lumot yo‘q',true);
       return;
@@ -100,21 +98,12 @@
     const headers=['Raqam','Kirish','Chiqish','Davomiylik','Avtoshkola','Guruh','O‘quvchi','Jami','Naqd','Terminal','To‘lov turi'];
     const body=rows.map(r=>{
       const school=isSchoolRow(r);
-      const style=school
-        ? 'background-color:#fff2a8;mso-pattern:auto;color:#111111;'
-        : '';
+      const style=school?'background-color:#fff2a8;color:#111111;':'';
       return `<tr style="${style}">
-        <td>${excelSafe(r.plate)}</td>
-        <td>${excelSafe(dt(r.started_at))}</td>
-        <td>${excelSafe(dt(r.finished_at))}</td>
-        <td>${excelSafe(dur(r.duration_seconds))}</td>
-        <td>${excelSafe(r.school_name||'')}</td>
-        <td>${excelSafe(r.group_name||'')}</td>
-        <td>${excelSafe(r.student_name||'')}</td>
-        <td>${excelSafe(r.amount||0)}</td>
-        <td>${excelSafe(r.cash_amount||0)}</td>
-        <td>${excelSafe(r.terminal_amount||0)}</td>
-        <td>${excelSafe(r.payment_method||'')}</td>
+        <td>${excelSafe(r.plate)}</td><td>${excelSafe(dt(r.started_at))}</td><td>${excelSafe(dt(r.finished_at))}</td>
+        <td>${excelSafe(dur(r.duration_seconds))}</td><td>${excelSafe(r.school_name||'')}</td><td>${excelSafe(r.group_name||'')}</td>
+        <td>${excelSafe(r.student_name||'')}</td><td>${excelSafe(r.amount||0)}</td><td>${excelSafe(r.cash_amount||0)}</td>
+        <td>${excelSafe(r.terminal_amount||0)}</td><td>${excelSafe(r.payment_method||'')}</td>
       </tr>`;
     }).join('');
 
@@ -130,25 +119,19 @@
 
     const blob=new Blob(['\ufeff',html],{type:'application/vnd.ms-excel;charset=utf-8'});
     const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;
+    const a=document.createElement('a');a.href=url;
     a.download='avtodrom-kunlik-hisobot-'+new Date().toISOString().slice(0,10)+'.xls';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
     if(typeof toast==='function') toast('Excel tayyor. Avtoshkola o‘quvchilari sariq rangda belgilandi.');
   };
 
-  /* Kunlik hisobot jadvalining o‘zida ham avtoshkola o‘quvchilarini sariq ko‘rsatamiz. */
   window.renderDailySchoolRows = function(rows){
     if(!rows || !rows.length) return '<div class="empty">Ma’lumot yo‘q</div>';
-    return '<div class="tableWrap"><table class="table"><thead><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>Vaqt</th><th>O‘quvchi</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr></thead><tbody>'+
-      rows.map(r=>{
-        const school=isSchoolRow(r);
-        const style=school?'background:#fff2a8;':'';
-        return `<tr style="${style}"><td><b>${escx(r.plate)}</b></td><td>${dt(r.started_at)}</td><td>${dt(r.finished_at)}</td><td>${dur(r.duration_seconds)}</td><td>${escx(r.student_name||'—')}</td><td>${money(r.cash_amount)}</td><td>${money(r.terminal_amount)}</td><td><b>${money(r.amount)}</b></td></tr>`;
-      }).join('')+'</tbody></table></div>';
+    return '<div class="tableWrap"><table class="table"><thead><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>Vaqt</th><th>O‘quvchi</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr></thead><tbody>'+rows.map(r=>{
+      const style=isSchoolRow(r)?'background:#fff2a8;':'';
+      return `<tr style="${style}"><td><b>${escx(r.plate)}</b></td><td>${dt(r.started_at)}</td><td>${dt(r.finished_at)}</td><td>${dur(r.duration_seconds)}</td><td>${escx(r.student_name||'—')}</td><td>${money(r.cash_amount)}</td><td>${money(r.terminal_amount)}</td><td><b>${money(r.amount)}</b></td></tr>`;
+    }).join('')+'</tbody></table></div>';
   };
 
   const oldLoadDaily=window.loadDaily;
