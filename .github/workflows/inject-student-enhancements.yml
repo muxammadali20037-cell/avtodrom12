@@ -1,0 +1,33 @@
+name: Inject student enhancements
+on:
+  push:
+    branches: [main]
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, 'chore: inject student enhancements') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inject module
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('frontend/index.html')
+          s=p.read_text(encoding='utf-8')
+          tag='<script type="module" src="./students-enhance.js"></script>'
+          if tag not in s:
+              marker='</body>'
+              if marker not in s:
+                  raise SystemExit('index.html: </body> not found')
+              s=s.replace(marker, tag+'\n'+marker, 1)
+              p.write_text(s,encoding='utf-8')
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'chore: inject student enhancements'
+          git push
