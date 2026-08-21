@@ -20,149 +20,138 @@ button,input,select{font:inherit}button{cursor:pointer}input,select{width:100%;p
 .plate{display:grid;grid-template-columns:78px 1fr;gap:8px}.plateBody{text-transform:uppercase;font-weight:700;letter-spacing:1px}.plateHint{font-size:12px;color:var(--muted);margin-top:6px}
 .vehicle,.frozen,.finish{border:1px solid var(--line);border-radius:13px;padding:14px;margin-bottom:10px;background:#fff}.vehicleTop{display:flex;align-items:center;justify-content:space-between;gap:15px}.plateText{font-size:18px;font-weight:800}.timer{font-weight:800;color:var(--g);font-size:17px;margin-top:6px}.vActions{display:flex;gap:7px;flex-wrap:wrap}
 .search{display:flex;gap:8px;margin-bottom:12px}.search input{max-width:500px}
-.tableWrap{overflow:auto}.table{width:100%;border-collapse:collapse;min-width:850px}.table th,.table td{padding:10px 9px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}.table th{font-size:11px;color:var(--muted)}.schoolRow{background:var(--yellow)!important}.attendanceRed{background:var(--redbg)!important}.attendanceBlue{background:var(--blue)!important}
+.tableWrap{overflow:auto}.table{width:100%;border-collapse:collapse;min-width:900px}.table th,.table td{padding:10px 9px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}.table th{font-size:11px;color:var(--muted)}
+.schoolRow{background:var(--yellow)!important}.attendanceRed{background:var(--redbg)!important}.attendanceBlue{background:var(--blue)!important}
 .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px}.card h3{margin:0 0 7px}.click{cursor:pointer}.badge{display:inline-block;padding:6px 9px;border-radius:999px;background:var(--g2);color:var(--g);font-size:12px;font-weight:700}.badge.red{background:#ffe1df;color:#a21d16}.badge.blue{background:#dce9ff;color:#1b4d9b}.badge.yellow{background:#fff0a8;color:#765b00}
 .kv{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.kv>div{background:#f5faf7;border-radius:10px;padding:12px}.kv b{display:block;font-size:17px}.kv span{font-size:11px;color:var(--muted)}
-.modalBg{position:fixed;inset:0;background:#07191266;display:grid;place-items:center;padding:18px;z-index:100}.modal{width:min(620px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;padding:20px}.modalHead{display:flex;justify-content:space-between;align-items:center;gap:10px}.toastBox{position:fixed;right:18px;bottom:18px;z-index:300;display:grid;gap:8px}.toast{background:#10231a;color:#fff;padding:11px 14px;border-radius:10px;box-shadow:var(--shadow)}.toast.error{background:#8d211a}
-.adminGate{position:fixed;inset:0;background:#07191266;display:grid;place-items:center;padding:18px;z-index:90}.adminCard{width:min(1250px,96vw);max-height:94vh;overflow:auto;background:#fff;border-radius:18px;padding:20px}.adminLogin{width:min(430px,100%)}.adminBar{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#0b2b20;color:#fff;border-radius:13px;padding:14px 16px;margin-bottom:15px}.adminBar small{color:#c9ded5}.live{color:#0b8c50}
+.modalBg,.adminGate{position:fixed;inset:0;background:#07191266;display:grid;place-items:center;padding:18px;z-index:100}.modal{width:min(620px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;padding:20px}.modalHead{display:flex;justify-content:space-between;align-items:center;gap:10px}.toastBox{position:fixed;right:18px;bottom:18px;z-index:300;display:grid;gap:8px}.toast{background:#10231a;color:#fff;padding:11px 14px;border-radius:10px;box-shadow:var(--shadow)}.toast.error{background:#8d211a}
+.adminCard{width:min(1250px,96vw);max-height:94vh;overflow:auto;background:#fff;border-radius:18px;padding:20px}.adminLogin{width:min(430px,100%)}.adminBar{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#0b2b20;color:#fff;border-radius:13px;padding:14px 16px;margin-bottom:15px}.adminBar small{color:#c9ded5}.live{color:#0b8c50}
 @media(max-width:1050px){.stats{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:720px){.side{transform:translateX(-100%);transition:.2s}.side.open{transform:translateX(0)}.main{margin-left:0}.hamb{display:block}.top{padding:0 14px}.content{padding:15px}.formGrid{grid-template-columns:1fr}.span2{grid-column:auto}.kv{grid-template-columns:1fr 1fr}.cards{grid-template-columns:1fr}.vehicleTop,.frozen{flex-direction:column;align-items:flex-start}}
+@media(max-width:720px){.side{transform:translateX(-100%);transition:.2s}.side.open{transform:translateX(0)}.main{margin-left:0}.hamb{display:block}.top{padding:0 14px}.content{padding:15px}.formGrid{grid-template-columns:1fr}.span2{grid-column:auto}.kv{grid-template-columns:1fr 1fr}.cards{grid-template-columns:1fr}.vehicleTop{flex-direction:column;align-items:flex-start}}
 @media(max-width:480px){.stats{grid-template-columns:1fr}.plate{grid-template-columns:70px 1fr}.search{flex-direction:column}}
 </style>
 </head>
 <body>
 
 <section id="login">
-  <div class="loginCard">
-    <div class="logo"><div class="logoA">A</div><div><div class="logoT">AVTODROM</div><div class="logoS">BOSHQARUV TIZIMI</div></div></div>
-    <div id="loginBox">
-      <h1>Kirish</h1><p class="muted">Operator paneliga kiring.</p>
-      <form id="loginForm">
-        <div class="fg"><label>Login</label><input id="loginUser" autocomplete="username" required></div>
-        <div class="fg"><label>Parol</label><input id="loginPass" type="password" autocomplete="current-password" required></div>
-        <button class="btn green" style="width:100%">Kirish</button>
-      </form>
-      <div id="loginErr" class="err"></div>
-      <div class="divider"></div>
-      <button class="btn light" style="width:100%" onclick="registerMode()">Yangi operator</button>
-    </div>
-    <div id="registerBox" class="hidden">
-      <h1>Yangi operator</h1><p class="muted">Alohida operator hisobini yarating.</p>
-      <form id="registerForm">
-        <div class="fg"><label>To‘liq ism</label><input id="regName" required></div>
-        <div class="fg"><label>Login</label><input id="regUser" required></div>
-        <div class="fg"><label>Parol</label><input id="regPass" type="password" minlength="6" required></div>
-        <button class="btn green" style="width:100%">Ro‘yxatdan o‘tish</button>
-      </form>
-      <div id="regErr" class="err"></div><div class="divider"></div>
-      <button class="btn light" style="width:100%" onclick="loginMode()">Kirishga qaytish</button>
-    </div>
-  </div>
+<div class="loginCard">
+<div class="logo"><div class="logoA">A</div><div><div class="logoT">AVTODROM</div><div class="logoS">BOSHQARUV TIZIMI</div></div></div>
+<div id="loginBox">
+<h1>Kirish</h1><p class="muted">Operator paneliga kiring.</p>
+<form id="loginForm">
+<div class="fg"><label>Login</label><input id="loginUser" autocomplete="username" required></div>
+<div class="fg"><label>Parol</label><input id="loginPass" type="password" autocomplete="current-password" required></div>
+<button class="btn green" style="width:100%">Kirish</button>
+</form>
+<div id="loginErr" class="err"></div><div class="divider"></div>
+<button class="btn light" style="width:100%" type="button" onclick="registerMode()">Yangi operator</button>
+</div>
+<div id="registerBox" class="hidden">
+<h1>Yangi operator</h1><p class="muted">Alohida operator hisobini yarating.</p>
+<form id="registerForm">
+<div class="fg"><label>To‘liq ism</label><input id="regName" required></div>
+<div class="fg"><label>Login</label><input id="regUser" required></div>
+<div class="fg"><label>Parol</label><input id="regPass" type="password" minlength="6" required></div>
+<button class="btn green" style="width:100%">Ro‘yxatdan o‘tish</button>
+</form>
+<div id="regErr" class="err"></div><div class="divider"></div>
+<button class="btn light" style="width:100%" type="button" onclick="loginMode()">Kirishga qaytish</button>
+</div>
+</div>
 </section>
 
 <div id="app" class="hidden">
-  <aside id="side" class="side">
-    <div class="logo"><div class="logoA">A</div><div><div class="logoT">AVTODROM</div><div class="logoS">OPERATOR PANEL</div></div></div>
-    <div class="navTitle">ASOSIY</div>
-    <button class="nav" data-p="add">＋ &nbsp; Yangi avtomobil</button>
-    <button class="nav" data-p="active">◉ &nbsp; Jarayonda</button>
-    <button class="nav" data-p="finish">✓ &nbsp; Tugatish</button>
-    <button class="nav" data-p="frozen">❄ &nbsp; Muzlatilgan <span id="frozenCount"></span></button>
-    <div class="navTitle">HISOBOT</div>
-    <button class="nav" data-p="daily">▤ &nbsp; Kunlik hisobot</button>
-    <button class="nav" data-p="history">⌕ &nbsp; Avtomobil tarixi</button>
-    <div class="navTitle">ADMIN</div>
-    <button class="nav" id="adminOpenBtn" onclick="openAdminGate()">🔐 &nbsp; Admin panel</button>
-  </aside>
+<aside id="side" class="side">
+<div class="logo"><div class="logoA">A</div><div><div class="logoT">AVTODROM</div><div class="logoS">OPERATOR PANEL</div></div></div>
+<div class="navTitle">ASOSIY</div>
+<button class="nav" data-p="add">＋ &nbsp; Yangi avtomobil</button>
+<button class="nav" data-p="active">◉ &nbsp; Jarayonda</button>
+<button class="nav" data-p="finish">✓ &nbsp; Tugatish</button>
+<button class="nav" data-p="frozen">❄ &nbsp; Muzlatilgan <span id="frozenCount"></span></button>
+<div class="navTitle">HISOBOT</div>
+<button class="nav" data-p="daily">▤ &nbsp; Kunlik hisobot</button>
+<button class="nav" data-p="history">⌕ &nbsp; Avtomobil tarixi</button>
+<div class="navTitle">ADMIN</div>
+<button class="nav" type="button" onclick="openAdminGate()">🔐 &nbsp; Admin panel</button>
+</aside>
 
-  <main class="main">
-    <header class="top">
-      <div style="display:flex;align-items:center;gap:8px">
-        <button class="hamb" onclick="$('side').classList.toggle('open')">☰</button>
-        <div><div class="topTitle" id="pageTitle">Yangi avtomobil</div><div class="clock" id="clock"></div></div>
-      </div>
-      <div class="user"><div class="avatar" id="avatar">A</div><span class="muted" id="who"></span><button class="btn light" onclick="logout()">Chiqish</button></div>
-    </header>
+<main class="main">
+<header class="top">
+<div style="display:flex;align-items:center;gap:8px"><button class="hamb" type="button" onclick="$('side').classList.toggle('open')">☰</button><div><div class="topTitle" id="pageTitle">Yangi avtomobil</div><div class="clock" id="clock"></div></div></div>
+<div class="user"><div class="avatar" id="avatar">A</div><span class="muted" id="who"></span><button class="btn light" type="button" onclick="logout()">Chiqish</button></div>
+</header>
 
-    <div class="content">
-      <section id="p-add" class="page">
-        <div class="head"><div><h1>Yangi avtomobil</h1><p>Oddiy mijoz yoki avtoshkola o‘quvchisi</p></div></div>
-        <div class="panel">
-          <form id="startForm">
-            <div class="formGrid">
-              <div class="span2">
-                <label class="muted">Avtomobil raqami</label>
-                <div class="plate">
-                  <select id="region" aria-label="Hudud kodi"></select>
-                  <input id="plateBody" class="plateBody" maxlength="6" minlength="6" inputmode="text" autocomplete="off" placeholder="A555AA yoki 555AAA" required>
-                </div>
-                <div class="plateHint">Majburiy: <b>A555AA</b> yoki <b>555AAA</b>. Aynan 3 ta raqam + 3 ta harf.</div>
-                <div id="plateErr" class="err"></div>
-              </div>
-              <div><label class="muted">Avtomobil rusumi</label><input id="model" placeholder="Chevrolet Cobalt"></div>
-              <div><label class="muted">Haydovchi</label><input id="driver"></div>
-              <div><label class="muted">Kirish turi</label><select id="type" onchange="schoolMode()"><option value="ordinary">Oddiy mijoz</option><option value="school">Avtoshkola o‘quvchisi — BEPUL</option></select></div>
-              <div><label class="muted">Avtoshkola</label><select id="school" disabled onchange="groupsForSchool()"><option value="">Tanlang</option></select></div>
-              <div><label class="muted">Guruh</label><select id="group" disabled onchange="studentsForGroup()"><option value="">Avval avtoshkola</option></select></div>
-              <div><label class="muted">O‘quvchi</label><select id="student" disabled onchange="studentInfo()"><option value="">Avval guruh</option></select></div>
-            </div>
-            <div id="studentBox"></div>
-            <div class="actions"><button class="btn green" id="startBtn">▶ Vaqt ochish</button><button type="button" class="btn light" onclick="resetStart()">Bekor</button></div>
-            <div id="startErr" class="err"></div>
-          </form>
-        </div>
-      </section>
+<div class="content">
+<section id="p-add" class="page">
+<div class="head"><div><h1>Yangi avtomobil</h1><p>Oddiy mijoz yoki avtoshkola o‘quvchisi</p></div></div>
+<div class="panel">
+<form id="startForm">
+<div class="formGrid">
+<div class="span2">
+<label class="muted">Avtomobil raqami</label>
+<div class="plate"><select id="region" aria-label="Hudud kodi"></select><input id="plateBody" class="plateBody" maxlength="6" minlength="6" inputmode="text" autocomplete="off" placeholder="A555AA yoki 555AAA" required></div>
+<div class="plateHint">Majburiy: aynan 3 ta raqam + 3 ta harf. Masalan: <b>A555AA</b> yoki <b>555AAA</b>.</div>
+<div id="plateErr" class="err"></div>
+</div>
+<div><label class="muted">Avtomobil rusumi</label><input id="model" placeholder="Chevrolet Cobalt"></div>
+<div><label class="muted">Haydovchi</label><input id="driver"></div>
+<div><label class="muted">Kirish turi</label><select id="type"><option value="ordinary">Oddiy mijoz</option><option value="school">Avtoshkola o‘quvchisi — BEPUL</option></select></div>
+<div><label class="muted">Avtoshkola</label><select id="school" disabled><option value="">Tanlang</option></select></div>
+<div><label class="muted">Guruh</label><select id="group" disabled><option value="">Avval avtoshkola</option></select></div>
+<div><label class="muted">O‘quvchi</label><select id="student" disabled><option value="">Avval guruh</option></select></div>
+</div>
+<div id="studentBox"></div>
+<div class="actions"><button class="btn green" id="startBtn">▶ Vaqt ochish</button><button type="button" class="btn light" onclick="resetStart()">Bekor</button></div>
+<div id="startErr" class="err"></div>
+</form>
+</div>
+</section>
 
-      <section id="p-active" class="page hidden"><div class="head"><div><h1>Jarayonda</h1><p>Hozir avtodromdagi avtomobillar</p></div><button class="btn green" onclick="go('add')">＋ Vaqt ochish</button></div><div class="panel" id="activeList"></div></section>
+<section id="p-active" class="page hidden"><div class="head"><div><h1>Jarayonda</h1><p>Hozir avtodromdagi avtomobillar</p></div><button class="btn green" type="button" onclick="go('add')">＋ Vaqt ochish</button></div><div class="panel" id="activeList"></div></section>
 
-      <section id="p-finish" class="page hidden"><div class="head"><div><h1>Tugatish</h1><p>To‘lovni kiriting va yakunlang</p></div></div><div class="panel"><div class="search"><input id="finishQ" placeholder="Avtomobil raqami..." oninput="renderFinish()"></div><div id="finishList"></div></div></section>
+<section id="p-finish" class="page hidden"><div class="head"><div><h1>Tugatish</h1><p>To‘lovni kiriting va yakunlang</p></div></div><div class="panel"><div class="search"><input id="finishQ" placeholder="Avtomobil raqami..."></div><div id="finishList"></div></div></section>
 
-      <section id="p-frozen" class="page hidden"><div class="head"><div><h1>Muzlatilgan</h1><p>Keyin davom ettirish yoki yakunlash mumkin</p></div></div><div class="panel"><div class="search"><input id="frozenQ" placeholder="Muzlatilgan raqam..." oninput="renderFrozen()"></div><div id="frozenList"></div></div></section>
+<section id="p-frozen" class="page hidden"><div class="head"><div><h1>Muzlatilgan</h1><p>Keyin davom ettirish yoki yakunlash mumkin</p></div></div><div class="panel"><div class="search"><input id="frozenQ" placeholder="Muzlatilgan raqam..."></div><div id="frozenList"></div></div></section>
 
-      <section id="p-daily" class="page hidden">
-        <div class="head"><div><h1>Kunlik hisobot</h1><p>Naqd, terminal, avtomobillar va avtoshkola o‘quvchilari</p></div><button class="btn green" onclick="exportExcel()">Excel (.xls)</button></div>
-        <div class="stats"><div class="stat"><small>Avtomobillar</small><b id="rdc">0</b></div><div class="stat"><small>Umumiy</small><b class="greenText" id="rdm">0</b></div><div class="stat"><small>Naqd</small><b class="greenText" id="rdcash">0</b></div><div class="stat"><small>Terminal</small><b class="greenText" id="rdterm">0</b></div><div class="stat"><small>Jami vaqt</small><b id="rdtime">0</b></div></div>
-        <div class="panel"><div class="tableWrap"><table class="table" id="dailyTable"></table></div></div>
-      </section>
+<section id="p-daily" class="page hidden">
+<div class="head"><div><h1>Kunlik hisobot</h1><p>Naqd, terminal, avtomobillar va avtoshkola o‘quvchilari</p></div><button class="btn green" type="button" onclick="exportExcel()">Excel (.xls)</button></div>
+<div class="stats"><div class="stat"><small>Avtomobillar</small><b id="rdc">0</b></div><div class="stat"><small>Umumiy</small><b class="greenText" id="rdm">0</b></div><div class="stat"><small>Naqd</small><b class="greenText" id="rdcash">0</b></div><div class="stat"><small>Terminal</small><b class="greenText" id="rdterm">0</b></div><div class="stat"><small>Jami vaqt</small><b id="rdtime">0</b></div></div>
+<div class="panel"><div class="tableWrap" id="dailyTableWrap"><table class="table" id="dailyTable"></table></div></div>
+</section>
 
-      <section id="p-history" class="page hidden"><div class="head"><div><h1>Avtomobil tarixi</h1><p>Raqam orqali barcha tashriflar</p></div></div><div class="panel"><div class="search"><input id="histQ" placeholder="01 A555AA"><button class="btn green" onclick="historySearch()">Qidirish</button></div><div id="histOut"></div></div></section>
-    </div>
-  </main>
+<section id="p-history" class="page hidden"><div class="head"><div><h1>Avtomobil tarixi</h1><p>Raqam orqali barcha tashriflar</p></div></div><div class="panel"><div class="search"><input id="histQ" placeholder="01 A555AA"><button class="btn green" type="button" onclick="historySearch()">Qidirish</button></div><div id="histOut"></div></div></section>
+</div>
+</main>
 </div>
 
 <div id="adminGate" class="adminGate hidden">
-  <div class="adminCard adminLogin">
-    <div class="modalHead"><div><h2 style="margin:0">Admin panel</h2><div class="muted">Operator panelidan alohida kirish</div></div><button class="btn light" onclick="closeAdminGate()">Yopish</button></div>
-    <form id="adminLoginForm" style="margin-top:16px">
-      <div class="fg"><label>Admin login</label><input id="adminUser" autocomplete="username" required></div>
-      <div class="fg"><label>Admin parol</label><input id="adminPass" type="password" autocomplete="current-password" required></div>
-      <button class="btn green" style="width:100%">Admin panelga kirish</button><div id="adminErr" class="err"></div>
-    </form>
-  </div>
+<div class="adminCard adminLogin">
+<div class="modalHead"><div><h2 style="margin:0">Admin panel</h2><div class="muted">Operator panelidan alohida kirish</div></div><button class="btn light" type="button" onclick="closeAdminGate()">Yopish</button></div>
+<form id="adminLoginForm" style="margin-top:16px">
+<div class="fg"><label>Admin login</label><input id="adminUser" autocomplete="username" required></div>
+<div class="fg"><label>Admin parol</label><input id="adminPass" type="password" autocomplete="current-password" required></div>
+<button class="btn green" style="width:100%">Admin panelga kirish</button><div id="adminErr" class="err"></div>
+</form>
+</div>
 </div>
 
-<div id="adminPanel" class="hidden">
-  <div class="adminGate">
-    <div class="adminCard">
-      <div class="adminBar"><div><b>AVTODROM — ADMIN PANEL</b><br><small>Real-time nazorat • Avtoshkola • Guruh • O‘quvchi • To‘lovlar</small></div><button class="btn light" onclick="closeAdminPanel()">Operator paneliga qaytish</button></div>
-      <div class="stats">
-        <div class="stat"><small>Avtoshkolalar</small><b id="adSchools">0</b></div><div class="stat"><small>Guruhlar</small><b id="adGroups">0</b></div><div class="stat"><small>O‘quvchilar</small><b id="adStudents">0</b></div><div class="stat"><small>Bugun kirgan</small><b id="adToday">0</b></div><div class="stat"><small>Hozir avtodromda</small><b id="adActive">0</b></div>
-      </div>
-      <div class="actions" style="margin-bottom:15px"><button class="btn green" onclick="adminTab('dashboard')">Dashboard</button><button class="btn light" onclick="adminTab('schools')">Avtoshkolalar</button><button class="btn light" onclick="adminTab('students')">O‘quvchilar</button></div>
-      <div id="adminContent"></div>
-    </div>
-  </div>
-</div>
+<div id="adminPanel" class="hidden"><div class="adminGate"><div class="adminCard">
+<div class="adminBar"><div><b>AVTODROM — ADMIN PANEL</b><br><small>Real-time nazorat • Avtoshkola • Guruh • O‘quvchi • To‘lovlar</small></div><button class="btn light" type="button" onclick="closeAdminPanel()">Operator paneliga qaytish</button></div>
+<div class="stats"><div class="stat"><small>Avtoshkolalar</small><b id="adSchools">0</b></div><div class="stat"><small>Guruhlar</small><b id="adGroups">0</b></div><div class="stat"><small>O‘quvchilar</small><b id="adStudents">0</b></div><div class="stat"><small>Bugun kirgan</small><b id="adToday">0</b></div><div class="stat"><small>Hozir avtodromda</small><b id="adActive">0</b></div></div>
+<div class="actions" style="margin-bottom:15px"><button class="btn green" type="button" onclick="adminTab('dashboard')">Dashboard</button><button class="btn light" type="button" onclick="adminTab('schools')">Avtoshkolalar</button><button class="btn light" type="button" onclick="adminTab('students')">O‘quvchilar</button></div>
+<div id="adminContent"></div>
+</div></div></div>
 
-<div id="modal"></div>
-<div id="toastBox" class="toastBox"></div>
+<div id="modal"></div><div id="toastBox" class="toastBox"></div>
 
 <script>
+'use strict';
+
 const API='/api';
 const regions=['01','10','20','25','30','40','50','60','70','75','80','85','90','95'];
 let token=localStorage.getItem('avtodrom_token')||'';
 let me=JSON.parse(localStorage.getItem('avtodrom_user')||'null');
-let active=[],frozen=[],schools=[],groups=[],students=[],daily=null,pay={};
+let active=[],frozen=[],schools=[],groups=[],students=[],daily=null,pay={},finishTimers={};
 
 const $=id=>document.getElementById(id);
 const money=n=>Number(n||0).toLocaleString('uz-UZ')+' so‘m';
@@ -171,237 +160,368 @@ const dt=s=>s?new Date(s).toLocaleString('uz-UZ',{timeZone:'Asia/Tashkent',hour1
 const dur=n=>{n=Math.max(0,Math.floor(Number(n)||0));let h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')};
 
 function showToast(message,error=false){
-  const box=$('toastBox'); if(!box)return;
-  const el=document.createElement('div'); el.className='toast'+(error?' error':''); el.textContent=message;
-  box.appendChild(el); setTimeout(()=>el.remove(),3200);
+  const box=$('toastBox');if(!box)return;
+  const el=document.createElement('div');el.className='toast'+(error?' error':'');el.textContent=message;box.appendChild(el);
+  setTimeout(()=>el.remove(),3500);
 }
 
 async function api(path,opt={}){
-  const controller=new AbortController(), timeout=setTimeout(()=>controller.abort(),15000);
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),15000);
   try{
-    const r=await fetch(API+path,{...opt,signal:controller.signal,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{}),...(opt.headers||{})}});
-    const text=await r.text(); let data={}; try{data=text?JSON.parse(text):{}}catch{data={error:text}};
-    if(!r.ok){if(r.status===401){localStorage.removeItem('avtodrom_token');localStorage.removeItem('avtodrom_user');location.reload();return}throw Error(data.error||data.message||('Server xatosi: '+r.status))}
+    const headers={'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{}),...(opt.headers||{})};
+    const r=await fetch(API+path,{...opt,headers,signal:controller.signal});
+    const text=await r.text();let data={};
+    try{data=text?JSON.parse(text):{}}catch{data={error:text}};
+    if(!r.ok){
+      if(r.status===401){
+        localStorage.removeItem('avtodrom_token');localStorage.removeItem('avtodrom_user');
+        token='';me=null;location.reload();return;
+      }
+      throw Error(data.error||data.message||('Server xatosi: '+r.status));
+    }
     return data;
-  }catch(e){if(e.name==='AbortError')throw Error('Server 15 soniyada javob bermadi.');throw e}
-  finally{clearTimeout(timeout)}
+  }catch(e){
+    if(e.name==='AbortError')throw Error('Server 15 soniyada javob bermadi.');
+    throw e;
+  }finally{clearTimeout(timeout)}
 }
 
 function loginMode(){$('loginBox').classList.remove('hidden');$('registerBox').classList.add('hidden')}
 function registerMode(){$('loginBox').classList.add('hidden');$('registerBox').classList.remove('hidden')}
-function saveLogin(x){token=x.token;me=x.user;localStorage.setItem('avtodrom_token',token);localStorage.setItem('avtodrom_user',JSON.stringify(me));boot()}
-function logout(){localStorage.removeItem('avtodrom_token');localStorage.removeItem('avtodrom_user');location.reload()}
+function saveLogin(x){
+  if(!x||!x.token)throw Error('Server login uchun token qaytarmadi.');
+  token=x.token;me=x.user||null;localStorage.setItem('avtodrom_token',token);localStorage.setItem('avtodrom_user',JSON.stringify(me));boot();
+}
+function logout(){localStorage.removeItem('avtodrom_token');localStorage.removeItem('avtodrom_user');sessionStorage.removeItem('avtodrom_admin');location.reload()}
 function boot(){
   $('login').classList.add('hidden');$('app').classList.remove('hidden');
-  $('who').textContent=me?.username||me?.full_name||'Operator';$('avatar').textContent=(me?.full_name||me?.username||'A')[0].toUpperCase();
+  $('who').textContent=me?.username||me?.full_name||'Operator';
+  $('avatar').textContent=(me?.full_name||me?.username||'A')[0].toUpperCase();
   go('add');
 }
-$('loginForm').onsubmit=async e=>{e.preventDefault();$('loginErr').textContent='';try{saveLogin(await api('/auth/login',{method:'POST',body:JSON.stringify({username:$('loginUser').value.trim(),password:$('loginPass').value})}))}catch(x){$('loginErr').textContent=x.message}}
-$('registerForm').onsubmit=async e=>{e.preventDefault();$('regErr').textContent='';try{saveLogin(await api('/auth/register',{method:'POST',body:JSON.stringify({fullName:$('regName').value.trim(),username:$('regUser').value.trim(),password:$('regPass').value})}))}catch(x){$('regErr').textContent=x.message}}
+
+$('loginForm').addEventListener('submit',async e=>{
+  e.preventDefault();$('loginErr').textContent='';
+  try{saveLogin(await api('/auth/login',{method:'POST',body:JSON.stringify({username:$('loginUser').value.trim(),password:$('loginPass').value})}))}
+  catch(x){$('loginErr').textContent=x.message}
+});
+$('registerForm').addEventListener('submit',async e=>{
+  e.preventDefault();$('regErr').textContent='';
+  try{saveLogin(await api('/auth/register',{method:'POST',body:JSON.stringify({fullName:$('regName').value.trim(),username:$('regUser').value.trim(),password:$('regPass').value})}))}
+  catch(x){$('regErr').textContent=x.message}
+});
 
 function go(page){
   document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));
-  const el=$('p-'+page); if(!el)return;
+  const el=$('p-'+page);if(!el)return;
   el.classList.remove('hidden');
   const names={add:'Yangi avtomobil',active:'Jarayonda',finish:'Tugatish',frozen:'Muzlatilgan',daily:'Kunlik hisobot',history:'Avtomobil tarixi'};
   $('pageTitle').textContent=names[page]||'AVTODROM';
   document.querySelectorAll('.nav[data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===page));
   $('side').classList.remove('open');
-  if(page==='add')loadSchoolSelect(); if(page==='active')loadActive(); if(page==='finish')loadActive(); if(page==='frozen')loadFrozen(); if(page==='daily')loadDaily();
+  if(page==='add')loadSchoolSelect();
+  if(page==='active')loadActive();
+  if(page==='finish'){loadActive();renderFinish()}
+  if(page==='frozen')loadFrozen();
+  if(page==='daily')loadDaily();
 }
 
 regions.forEach(r=>$('region').insertAdjacentHTML('beforeend','<option value="'+r+'">'+r+'</option>'));
+
+$('type').addEventListener('change',schoolMode);
+$('school').addEventListener('change',groupsForSchool);
+$('group').addEventListener('change',studentsForGroup);
+$('student').addEventListener('change',studentInfo);
+$('finishQ').addEventListener('input',renderFinish);
+$('frozenQ').addEventListener('input',renderFrozen);
 
 $('plateBody').addEventListener('input',e=>{
   e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
   $('plateErr').textContent='';
 });
-$('plateBody').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();}});
+$('plateBody').addEventListener('keydown',e=>{if(e.key==='Enter')e.preventDefault()});
 
 function plateParts(body){
-  body=body.toUpperCase();
+  body=body.toUpperCase().replace(/\s/g,'');
   if(/^[A-Z]\d{3}[A-Z]{2}$/.test(body))return {firstLetter:body[0],number:body.slice(1,4),lastLetters:body.slice(4,6)};
   if(/^\d{3}[A-Z]{3}$/.test(body))return {firstLetter:body[3],number:body.slice(0,3),lastLetters:body.slice(4,6)};
   return null;
 }
 
-$('startForm').onsubmit=async e=>{
+$('startForm').addEventListener('submit',async e=>{
   e.preventDefault();$('startErr').textContent='';$('plateErr').textContent='';
-  const body=$('plateBody').value.trim().toUpperCase(), parts=plateParts(body);
-  if(!parts){$('plateErr').textContent='Raqam noto‘g‘ri. Faqat A555AA yoki 555AAA bo‘lishi mumkin.';$('plateBody').focus();return}
+  const body=$('plateBody').value.trim().toUpperCase(),parts=plateParts(body);
+  if(!parts){$('plateErr').textContent='Raqam noto‘g‘ri. Masalan A555AA yoki 555AAA — aynan 3 raqam + 3 harf.';$('plateBody').focus();return}
   const b={regionCode:$('region').value,plate:body,plateBody:body,...parts,model:$('model').value.trim(),driverName:$('driver').value.trim()};
   if($('type').value==='school'){
-    if(!$('school').value||!$('student').value){$('startErr').textContent='Avtoshkola va o‘quvchini tanlang';return}
+    if(!$('school').value||!$('student').value){$('startErr').textContent='Avtoshkola va o‘quvchini tanlang.';return}
     b.schoolId=$('school').value;b.groupId=$('group').value||null;b.studentId=$('student').value;
   }
   const btn=$('startBtn');btn.disabled=true;btn.textContent='Saqlanmoqda...';
-  try{const x=await api('/sessions/start',{method:'POST',body:JSON.stringify(b)});showToast((x.plate||$('region').value+' '+body)+' uchun vaqt ochildi');resetStart();go('active')}catch(x){$('startErr').textContent=x.message}finally{btn.disabled=false;btn.textContent='▶ Vaqt ochish'}
-};
-function resetStart(){$('startForm').reset();$('plateErr').textContent='';$('startErr').textContent='';$('plateBody').value='';schoolMode();$('studentBox').innerHTML=''}
+  try{
+    const x=await api('/sessions/start',{method:'POST',body:JSON.stringify(b)});
+    showToast((x?.plate||$('region').value+' '+body)+' uchun vaqt ochildi.');
+    resetStart();await loadActive(true);go('active');
+  }catch(x){$('startErr').textContent=x.message}
+  finally{btn.disabled=false;btn.textContent='▶ Vaqt ochish'}
+});
+
+function resetStart(){
+  $('startForm').reset();$('plateErr').textContent='';$('startErr').textContent='';$('studentBox').innerHTML='';
+  $('plateBody').value='';schoolMode();
+}
 
 async function loadSchoolSelect(){
-  try{if(!schools.length)schools=await api('/schools');$('school').innerHTML='<option value="">Tanlang</option>'+schools.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')}
-  catch(e){showToast(e.message,true)}
+  try{
+    if(!schools.length)schools=await api('/schools');
+    $('school').innerHTML='<option value="">Tanlang</option>'+schools.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join('');
+  }catch(e){showToast(e.message,true)}
 }
 function schoolMode(){
   const on=$('type').value==='school';
   $('school').disabled=!on;$('group').disabled=!on;$('student').disabled=!on;
-  if(on)loadSchoolSelect();else{$('school').value='';$('group').innerHTML='<option value="">Avval avtoshkola</option>';$('student').innerHTML='<option value="">Avval guruh</option>';$('studentBox').innerHTML=''}
+  if(on)loadSchoolSelect();
+  else{
+    $('school').value='';$('group').innerHTML='<option value="">Avval avtoshkola</option>';$('student').innerHTML='<option value="">Avval guruh</option>';$('studentBox').innerHTML='';
+  }
 }
 async function groupsForSchool(){
   const id=$('school').value;if(!id)return;
-  try{const g=await api('/groups?schoolId='+encodeURIComponent(id));groups=g||[];$('group').innerHTML='<option value="">Guruhni tanlang</option>'+groups.map(x=>'<option value="'+x.id+'">'+esc(x.name)+' ('+(x.student_count||0)+')</option>').join('');$('group').disabled=false;$('student').innerHTML='<option value="">Avval guruh</option>';$('student').disabled=true}
-  catch(e){showToast(e.message,true)}
+  try{
+    groups=await api('/groups?schoolId='+encodeURIComponent(id))||[];
+    $('group').innerHTML='<option value="">Guruhni tanlang</option>'+groups.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+' ('+(x.student_count||0)+')</option>').join('');
+    $('group').disabled=false;$('student').innerHTML='<option value="">Avval guruh</option>';$('student').disabled=true;
+  }catch(e){showToast(e.message,true)}
 }
 async function studentsForGroup(){
   const s=$('school').value,g=$('group').value;if(!s||!g)return;
-  try{students=await api('/students?schoolId='+encodeURIComponent(s)+'&groupId='+encodeURIComponent(g));$('student').innerHTML='<option value="">O‘quvchini tanlang</option>'+students.map(x=>'<option value="'+x.id+'">'+esc(x.full_name)+' — '+(x.attendance_count||0)+' dars</option>').join('');$('student').disabled=false}
-  catch(e){showToast(e.message,true)}
+  try{
+    students=await api('/students?schoolId='+encodeURIComponent(s)+'&groupId='+encodeURIComponent(g))||[];
+    $('student').innerHTML='<option value="">O‘quvchini tanlang</option>'+students.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.full_name)+' — '+(x.attendance_count||0)+' dars</option>').join('');
+    $('student').disabled=false;
+  }catch(e){showToast(e.message,true)}
 }
 function attendanceClass(n){return n>=6&&n<12?'red':n>=12?'blue':''}
 function studentInfo(){
-  const s=students.find(x=>x.id===$('student').value);if(!s){$('studentBox').innerHTML='';return}
-  const n=Number(s.attendance_count||0), cls=attendanceClass(n), label=n<6?'1–5 normal':n<12?'6–11 nazorat':'12+ yangi bosqich';
-  $('studentBox').innerHTML='<div class="panel" style="margin-top:12px;margin-bottom:0"><b>'+esc(s.full_name)+'</b><div class="muted">'+esc(s.school_name||'')+' • '+esc(s.group_name||'Guruhsiz')+'</div><div class="kv" style="margin-top:10px"><div><b>'+n+'</b><span>Kelgan dars</span></div><div><b><span class="badge '+cls+'">'+label+'</span></b><span>Holat</span></div><div><b>'+esc(s.plate||'—')+'</b><span>Avtomobil</span></div><div><b>BEPUL</b><span>Avtoshkola</span></div></div></div>'
+  const s=students.find(x=>String(x.id)===String($('student').value));if(!s){$('studentBox').innerHTML='';return}
+  const n=Number(s.attendance_count||0),cls=attendanceClass(n),label=n<6?'1–5 dars — normal':n<12?'6–11 dars — QIZIL': '12+ dars — yangi bosqich';
+  $('studentBox').innerHTML='<div class="panel" style="margin-top:12px;margin-bottom:0"><b>'+esc(s.full_name)+'</b><div class="muted">'+esc(s.school_name||'')+' • '+esc(s.group_name||'Guruhsiz')+'</div><div class="kv" style="margin-top:10px"><div><b>'+n+'</b><span>Kelgan dars</span></div><div><b><span class="badge '+cls+'">'+label+'</span></b><span>Holat</span></div><div><b>'+esc(s.plate||'—')+'</b><span>Avtomobil</span></div><div><b>BEPUL</b><span>Avtoshkola</span></div></div></div>';
 }
 
 function vehicle(v,buttons=true){
   const sec=Number(v.duration_seconds||0)||Math.max(0,(Date.now()-new Date(v.started_at).getTime())/1000);
-  return '<div class="vehicle"><div class="vehicleTop"><div><div class="plateText">'+esc(v.plate)+'</div><div class="muted">'+esc(v.model||'')+(v.driver_name?' • '+esc(v.driver_name):'')+'</div><div class="muted">'+(v.school_name?esc(v.school_name)+' • '+esc(v.group_name||'')+(v.student_name?' • '+esc(v.student_name):''):'Oddiy mijoz')+'</div><div class="timer" data-start="'+esc(v.started_at)+'" data-base="'+sec+'">'+dur(sec)+'</div></div>'+(buttons?'<div class="vActions"><button type="button" class="btn green" onclick="openFinish(\''+v.id+'\')">Tugatish</button><button type="button" class="btn light" onclick="freezeSession(\''+v.id+'\')">❄ Muzlatish</button></div>':'')+'</div></div>'
+  return '<div class="vehicle"><div class="vehicleTop"><div><div class="plateText">'+esc(v.plate)+'</div><div class="muted">'+esc(v.model||'')+(v.driver_name?' • '+esc(v.driver_name):'')+'</div><div class="muted">'+(v.school_name?esc(v.school_name)+' • '+esc(v.group_name||'')+(v.student_name?' • '+esc(v.student_name):''):'Oddiy mijoz')+'</div><div class="timer" data-start="'+esc(v.started_at)+'" data-base="'+sec+'">'+dur(sec)+'</div></div>'+(buttons?'<div class="vActions"><button type="button" class="btn green" onclick="openFinish(\''+esc(v.id)+'\')">Tugatish</button><button type="button" class="btn light" onclick="freezeSession(\''+esc(v.id)+'\')">❄ Muzlatish</button></div>':'')+'</div></div>';
 }
+
 async function loadActive(silent=false){
-  try{active=await api('/sessions/active');$('activeList').innerHTML=active.length?active.map(v=>vehicle(v,true)).join(''):'<div class="muted">Jarayonda avtomobil yo‘q</div>';$('frozenCount').textContent=frozen.length?' ('+frozen.length+')':'';if($('p-finish')&&!$('p-finish').classList.contains('hidden'))renderFinish()}
-  catch(e){if(!silent)showToast(e.message,true)}
+  try{
+    active=await api('/sessions/active')||[];
+    $('activeList').innerHTML=active.length?active.map(v=>vehicle(v,true)).join(''):'<div class="muted">Jarayonda avtomobil yo‘q</div>';
+    $('frozenCount').textContent=frozen.length?' ('+frozen.length+')':'';
+    renderFinish();
+  }catch(e){if(!silent)showToast(e.message,true)}
 }
 function renderFinish(){
-  const q=($('finishQ').value||'').toUpperCase(),arr=active.filter(x=>(x.plate||'').toUpperCase().includes(q));
-  $('finishList').innerHTML=arr.length?arr.map(v=>vehicle(v,true)+'<div id="finish-'+v.id+'"></div>').join(''):'<div class="muted">Avtomobil topilmadi</div>';
+  const q=($('finishQ')?.value||'').toUpperCase();
+  const arr=active.filter(x=>(x.plate||'').toUpperCase().includes(q));
+  $('finishList').innerHTML=arr.length?arr.map(v=>vehicle(v,true)+'<div id="finish-'+esc(v.id)+'"></div>').join(''):'<div class="muted">Avtomobil topilmadi</div>';
 }
 function paymentButtons(id){
-  return '<div class="actions"><button type="button" class="btn light" id="pay-cash-'+id+'" onclick="selectPay(\''+id+'\',\'cash\')">Naqd</button><button type="button" class="btn light" id="pay-terminal-'+id+'" onclick="selectPay(\''+id+'\',\'terminal\')">Terminal</button><button type="button" class="btn light" id="pay-mixed-'+id+'" onclick="selectPay(\''+id+'\',\'mixed\')">Aralash</button></div>'
+  return '<div class="actions"><button type="button" class="btn light" id="pay-cash-'+esc(id)+'" onclick="selectPay(\''+esc(id)+'\',\'cash\')">Naqd</button><button type="button" class="btn light" id="pay-terminal-'+esc(id)+'" onclick="selectPay(\''+esc(id)+'\',\'terminal\')">Terminal</button><button type="button" class="btn light" id="pay-mixed-'+esc(id)+'" onclick="selectPay(\''+esc(id)+'\',\'mixed\')">Aralash</button></div>';
 }
-function finishFormHTML(v){
-  const id=v.id, sec=Number(v.duration_seconds||0)||Math.max(0,(Date.now()-new Date(v.started_at).getTime())/1000);
-  return '<div class="finish"><div class="plateText">'+esc(v.plate)+' — Yakunlash</div><div class="muted">Kirish: '+dt(v.started_at)+'</div><div class="formGrid" style="margin-top:12px"><div><label class="muted">Yurilgan vaqt</label><div class="timer" id="finish-timer-'+id+'" data-sec="'+sec+'">'+dur(sec)+'</div></div><div><label class="muted">O‘quvchi</label><b>'+esc(v.student_name||'Oddiy mijoz')+'</b></div></div>'+(v.student_id?'<div class="badge" style="margin-top:12px">AVTOSHKOLA O‘QUVCHISI — BEPUL</div>':'<div class="fg" style="margin-top:12px"><label>Yakuniy summa</label><input id="amount-'+id+'" type="number" min="0" step="1000" placeholder="50000"></div>'+paymentButtons(id)+'<div id="split-'+id+'" class="formGrid hidden"><div><label>Naqd</label><input id="cash-'+id+'" type="number" min="0" value="0" oninput="updateTotal(\''+id+'\')"></div><div><label>Terminal</label><input id="terminal-'+id+'" type="number" min="0" value="0" oninput="updateTotal(\''+id+'\')"></div></div><div id="total-'+id+'" class="panel" style="margin-top:10px;margin-bottom:0">Jami to‘lov: 0 so‘m</div>')+'<div class="actions"><button type="button" class="btn green" id="finish-btn-'+id+'" onclick="finishSession(\''+id+'\')">✓ TUGATISH</button><button type="button" class="btn light" onclick="cancelFinish(\''+id+'\')">Bekor</button></div><div id="finish-error-'+id+'" class="err"></div></div>'
+function finishFormHTML(v,prefix='finish'){
+  const id=String(v.id),sec=Number(v.duration_seconds||0)||Math.max(0,(Date.now()-new Date(v.started_at).getTime())/1000);
+  const key=prefix+'-'+id;
+  const payment=v.student_id?'<div class="badge yellow" style="margin-top:12px">AVTOSHKOLA O‘QUVCHISI — BEPUL</div>':'<div class="fg" style="margin-top:12px"><label>Yakuniy summa</label><input id="amount-'+esc(key)+'" type="number" min="0" step="1000" placeholder="50000"></div>'+paymentButtons(key)+'<div id="split-'+esc(key)+'" class="formGrid hidden"><div><label>Naqd</label><input id="cash-'+esc(key)+'" type="number" min="0" value="0" oninput="updateTotal(\''+esc(key)+'\')"></div><div><label>Terminal</label><input id="terminal-'+esc(key)+'" type="number" min="0" value="0" oninput="updateTotal(\''+esc(key)+'\')"></div></div><div id="total-'+esc(key)+'" class="panel" style="margin-top:10px;margin-bottom:0">Jami to‘lov: 0 so‘m</div>';
+  return '<div class="finish"><div class="plateText">'+esc(v.plate)+' — Yakunlash</div><div class="muted">Kirish: '+dt(v.started_at)+'</div><div class="formGrid" style="margin-top:12px"><div><label class="muted">Yurilgan vaqt</label><div class="timer" id="timer-'+esc(key)+'">'+dur(sec)+'</div></div><div><label class="muted">O‘quvchi</label><b>'+esc(v.student_name||'Oddiy mijoz')+'</b></div></div>'+payment+'<div class="actions"><button type="button" class="btn green" id="finish-btn-'+esc(key)+'" onclick="finishSession(\''+esc(id)+'\',\''+esc(prefix)+'\')">✓ TUGATISH</button><button type="button" class="btn light" onclick="cancelFinish(\''+esc(key)+'\')">Bekor</button></div><div id="finish-error-'+esc(key)+'" class="err"></div></div>';
 }
 function openFinish(id){
-  const v=active.find(x=>x.id===id),host=$('finish-'+id);if(!v||!host)return;
-  host.innerHTML=finishFormHTML(v);host.scrollIntoView({behavior:'smooth',block:'center'});pay[id]='cash';updateTotal(id);startFinishTimer(id,Number(v.duration_seconds||0)||Math.max(0,(Date.now()-new Date(v.started_at).getTime())/1000));
+  const v=active.find(x=>String(x.id)===String(id)),host=$('finish-'+id);if(!v||!host)return;
+  cancelFinish('finish-'+id);
+  host.innerHTML=finishFormHTML(v,'finish');
+  host.scrollIntoView({behavior:'smooth',block:'center'});
+  pay['finish-'+id]='cash';updateTotal('finish-'+id);startFinishTimer('finish-'+id,Number(v.duration_seconds||0)||Math.max(0,(Date.now()-new Date(v.started_at).getTime())/1000));
 }
-function cancelFinish(id){const h=$('finish-'+id);if(h)h.innerHTML='';if(window['finishTimer'+id])clearInterval(window['finishTimer'+id])}
-function selectPay(id,method){pay[id]=method;['cash','terminal','mixed'].forEach(m=>{const b=$('pay-'+m+'-'+id);if(b)b.classList.toggle('green',m===method)});$('split-'+id)?.classList.toggle('hidden',method!=='mixed');updateTotal(id)}
-function updateTotal(id){const method=pay[id]||'cash',amount=Number($('amount-'+id)?.value||0),cash=Number($('cash-'+id)?.value||0),term=Number($('terminal-'+id)?.value||0),total=method==='mixed'?cash+term:amount;if($('total-'+id))$('total-'+id).textContent='Jami to‘lov: '+money(total)+(method==='mixed'&&total!==amount?' — mos emas':'')}
-function startFinishTimer(id,base){if(window['finishTimer'+id])clearInterval(window['finishTimer'+id]);const started=Date.now();window['finishTimer'+id]=setInterval(()=>{const el=$('finish-timer-'+id);if(!el){clearInterval(window['finishTimer'+id]);return}el.textContent=dur(base+(Date.now()-started)/1000)},1000)}
-async function finishSession(id){
-  const v=active.find(x=>x.id===id)||frozen.find(x=>x.id===id);if(!v)return;
-  let amount=v.student_id?0:Number($('amount-'+id)?.value||0),method=v.student_id?'cash':(pay[id]||'cash'),cash=method==='cash'?amount:0,term=method==='terminal'?amount:0;
-  if(!v.student_id&&amount<=0){$('finish-error-'+id).textContent='Yakuniy summani kiriting.';return}
-  if(method==='mixed'){cash=Number($('cash-'+id)?.value||0);term=Number($('terminal-'+id)?.value||0);if(cash+term!==amount){$('finish-error-'+id).textContent='Naqd + Terminal yakuniy summaga teng bo‘lishi kerak.';return}}
-  const btn=$('finish-btn-'+id);btn.disabled=true;btn.textContent='Saqlanmoqda...';
-  try{await api('/sessions/'+id+'/finish',{method:'POST',body:JSON.stringify({amount,paymentMethod:method,cashAmount:cash,terminalAmount:term})});cancelFinish(id);active=active.filter(x=>x.id!==id);showToast('Tugatildi. Ma’lumot bazaga saqlandi.');renderFinish();await loadActive(true);await loadDaily();}catch(e){$('finish-error-'+id).textContent=e.message;btn.disabled=false;btn.textContent='✓ TUGATISH'}
+function cancelFinish(key){
+  const h=$('finish-'+key.replace(/^finish-/,''));
+  if(h)h.innerHTML='';
+  if(finishTimers[key]){clearInterval(finishTimers[key]);delete finishTimers[key]}
 }
-async function freezeSession(id){try{await api('/sessions/'+id+'/freeze',{method:'POST',body:'{}'});showToast('Vaqt muzlatildi');await loadActive();await loadFrozen()}catch(e){showToast(e.message,true)}}
-async function loadFrozen(){try{frozen=await api('/sessions/frozen');$('frozenCount').textContent=frozen.length?' ('+frozen.length+')':'';renderFrozen()}catch(e){showToast(e.message,true)}}
-function renderFrozen(){const q=($('frozenQ').value||'').toUpperCase(),arr=frozen.filter(x=>(x.plate||'').toUpperCase().includes(q));$('frozenList').innerHTML=arr.length?arr.map(v=>'<div class="frozen"><div><div class="plateText">'+esc(v.plate)+'</div><div class="muted">Muzlatilgan: '+dt(v.frozen_at||v.updated_at)+'</div><div class="timer">'+dur(v.duration_seconds)+'</div><div class="muted">'+esc(v.school_name||'')+' '+esc(v.group_name||'')+' '+esc(v.student_name||'')+'</div></div><div class="vActions"><button class="btn light" onclick="resumeSession(\''+v.id+'\')">▶ Davom ettirish</button><button class="btn green" onclick="frozenFinish(\''+v.id+'\')">Tugatish</button></div></div><div id="frozen-finish-'+v.id+'"></div>').join(''):'<div class="muted">Muzlatilgan avtomobil yo‘q</div>'}
-async function resumeSession(id){try{await api('/sessions/'+id+'/resume',{method:'POST',body:'{}'});showToast('Vaqt davom ettirildi');await loadFrozen();await loadActive();go('active')}catch(e){showToast(e.message,true)}}
-function frozenFinish(id){const v=frozen.find(x=>x.id===id),host=$('frozen-finish-'+id);if(!v||!host)return;host.innerHTML=finishFormHTML(v).replaceAll('finish-'+id,'frozen-finish-'+id);host.scrollIntoView({behavior:'smooth',block:'center'})}
+function selectPay(key,method){
+  pay[key]=method;
+  ['cash','terminal','mixed'].forEach(m=>{const b=$('pay-'+m+'-'+key);if(b)b.classList.toggle('green',m===method)});
+  $('split-'+key)?.classList.toggle('hidden',method!=='mixed');updateTotal(key);
+}
+function updateTotal(key){
+  const method=pay[key]||'cash',amount=Number($('amount-'+key)?.value||0),cash=Number($('cash-'+key)?.value||0),term=Number($('terminal-'+key)?.value||0),total=method==='mixed'?cash+term:amount;
+  const el=$('total-'+key);if(el)el.textContent='Jami to‘lov: '+money(total)+(method==='mixed'&&total!==amount?' — mos emas':'');
+}
+function startFinishTimer(key,base){
+  if(finishTimers[key])clearInterval(finishTimers[key]);
+  const started=Date.now();
+  finishTimers[key]=setInterval(()=>{const el=$('timer-'+key);if(!el){clearInterval(finishTimers[key]);delete finishTimers[key];return}el.textContent=dur(base+(Date.now()-started)/1000)},1000);
+}
+async function finishSession(id,prefix='finish'){
+  const v=active.find(x=>String(x.id)===String(id))||frozen.find(x=>String(x.id)===String(id));if(!v)return;
+  const key=prefix+'-'+id;
+  let amount=v.student_id?0:Number($('amount-'+key)?.value||0),method=v.student_id?'cash':(pay[key]||'cash'),cash=method==='cash'?amount:0,term=method==='terminal'?amount:0;
+  const err=$('finish-error-'+key);
+  if(!v.student_id&&amount<=0){if(err)err.textContent='Yakuniy summani kiriting.';return}
+  if(method==='mixed'){
+    cash=Number($('cash-'+key)?.value||0);term=Number($('terminal-'+key)?.value||0);
+    if(cash+term!==amount){if(err)err.textContent='Naqd + Terminal yakuniy summaga teng bo‘lishi kerak.';return}
+  }
+  const btn=$('finish-btn-'+key);if(!btn)return;
+  btn.disabled=true;btn.textContent='Saqlanmoqda...';
+  try{
+    await api('/sessions/'+encodeURIComponent(id)+'/finish',{method:'POST',body:JSON.stringify({amount,paymentMethod:method,cashAmount:cash,terminalAmount:term})});
+    cancelFinish(key);
+    active=active.filter(x=>String(x.id)!==String(id));frozen=frozen.filter(x=>String(x.id)!==String(id));
+    showToast('Tugatildi. Ma’lumot bazaga saqlandi.');
+    renderFinish();renderFrozen();await loadActive(true);
+    if(!$('p-daily').classList.contains('hidden'))await loadDaily();
+  }catch(e){if(err)err.textContent=e.message;btn.disabled=false;btn.textContent='✓ TUGATISH'}
+}
+async function freezeSession(id){try{await api('/sessions/'+encodeURIComponent(id)+'/freeze',{method:'POST',body:'{}'});showToast('Vaqt muzlatildi');await loadActive();await loadFrozen()}catch(e){showToast(e.message,true)}}
+async function loadFrozen(){try{frozen=await api('/sessions/frozen')||[];$('frozenCount').textContent=frozen.length?' ('+frozen.length+')':'';renderFrozen()}catch(e){showToast(e.message,true)}}
+function renderFrozen(){
+  const q=($('frozenQ')?.value||'').toUpperCase(),arr=frozen.filter(x=>(x.plate||'').toUpperCase().includes(q));
+  $('frozenList').innerHTML=arr.length?arr.map(v=>'<div class="frozen"><div><div class="plateText">'+esc(v.plate)+'</div><div class="muted">Muzlatilgan: '+dt(v.frozen_at||v.updated_at)+'</div><div class="timer">'+dur(v.duration_seconds)+'</div><div class="muted">'+esc(v.school_name||'')+' '+esc(v.group_name||'')+' '+esc(v.student_name||'')+'</div></div><div class="vActions"><button class="btn light" type="button" onclick="resumeSession(\''+esc(v.id)+'\')">▶ Davom ettirish</button><button class="btn green" type="button" onclick="frozenFinish(\''+esc(v.id)+'\')">Tugatish</button></div></div><div id="frozen-finish-'+esc(v.id)+'"></div>').join(''):'<div class="muted">Muzlatilgan avtomobil yo‘q</div>';
+}
+async function resumeSession(id){try{await api('/sessions/'+encodeURIComponent(id)+'/resume',{method:'POST',body:'{}'});showToast('Vaqt davom ettirildi');await loadFrozen();await loadActive();go('active')}catch(e){showToast(e.message,true)}}
+function frozenFinish(id){
+  const v=frozen.find(x=>String(x.id)===String(id)),host=$('frozen-finish-'+id);if(!v||!host)return;
+  cancelFinish('frozen-'+id);host.innerHTML=finishFormHTML(v,'frozen');host.scrollIntoView({behavior:'smooth',block:'center'});pay['frozen-'+id]='cash';updateTotal('frozen-'+id);startFinishTimer('frozen-'+id,Number(v.duration_seconds||0));
+}
 
 function tableHTML(rows){
   if(!rows.length)return '<div class="muted">Ma’lumot yo‘q</div>';
-  return '<table class="table"><thead><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>Vaqt</th><th>Avtoshkola</th><th>Guruh</th><th>O‘quvchi</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr></thead><tbody>'+
-  rows.map(r=>{const school=!!r.school_name,cls=school?'schoolRow':'';return '<tr class="'+cls+'"><td><b>'+esc(r.plate||'')+'</b></td><td>'+dt(r.started_at)+'</td><td>'+dt(r.finished_at)+'</td><td>'+dur(r.duration_seconds)+'</td><td>'+esc(r.school_name||'—')+'</td><td>'+esc(r.group_name||'—')+'</td><td>'+esc(r.student_name||'—')+'</td><td>'+money(r.cash_amount||0)+'</td><td>'+money(r.terminal_amount||0)+'</td><td><b>'+money(r.amount||0)+'</b></td></tr>'}).join('')+'</tbody></table>'
+  return '<table class="table"><thead><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>Vaqt</th><th>Avtoshkola</th><th>Guruh</th><th>O‘quvchi</th><th>Kelgan dars</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr></thead><tbody>'+
+  rows.map(r=>{const att=Number(r.attendance_count||0),cls=att>=12?'attendanceBlue':att>=6?'attendanceRed':r.school_name?'schoolRow':'';return '<tr class="'+cls+'"><td><b>'+esc(r.plate||'')+'</b></td><td>'+dt(r.started_at)+'</td><td>'+dt(r.finished_at)+'</td><td>'+dur(r.duration_seconds)+'</td><td>'+esc(r.school_name||'—')+'</td><td>'+esc(r.group_name||'—')+'</td><td>'+esc(r.student_name||'—')+'</td><td>'+((r.student_name&&att)||'—')+'</td><td>'+money(r.cash_amount||0)+'</td><td>'+money(r.terminal_amount||0)+'</td><td><b>'+money(r.amount||0)+'</b></td></tr>'}).join('')+'</tbody></table>';
 }
+
 async function loadDaily(){
   try{
-    daily=await api('/reports/daily');
-    const s=daily.summary||{},rows=daily.rows||[];
-    $('rdc').textContent=s.count||rows.length;
+    daily=await api('/reports/daily')||{};
+    const s=daily.summary||{},rows=Array.isArray(daily.rows)?daily.rows:[];
+    $('rdc').textContent=s.count??rows.length;
     $('rdm').textContent=money(s.amount);
     $('rdcash').textContent=money(s.cash);
     $('rdterm').textContent=money(s.terminal);
     $('rdtime').textContent=dur(rows.reduce((a,x)=>a+Number(x.duration_seconds||0),0));
-    const host=$('dailyTable').parentElement;
-    host.innerHTML=tableHTML(rows);
+
+    /* MUHIM TUZATISH:
+       Oldingi kod dailyTable.parentElement.innerHTML ni almashtirib,
+       keyingi chaqiruvda dailyTable ni DOMdan o‘chirib yuborardi.
+       Endi doimiy dailyTableWrap konteyneri saqlanadi. */
+    const host=$('dailyTableWrap');
+    if(host)host.innerHTML=tableHTML(rows);
   }catch(e){showToast(e.message,true)}
 }
+
 function exportExcel(){
   const rows=daily?.rows||[];if(!rows.length){showToast('Eksport uchun ma’lumot yo‘q',true);return}
-  const body=rows.map(r=>{const school=!!r.school_name,att=Number(r.attendance_count||0);let cls=school?'schoolRow':'';if(att>=6&&att<12)cls='attendanceRed';if(att>=12)cls='attendanceBlue';return '<tr class="'+cls+'"><td>'+esc(r.plate||'')+'</td><td>'+dt(r.started_at)+'</td><td>'+dt(r.finished_at)+'</td><td>'+dur(r.duration_seconds)+'</td><td>'+esc(r.school_name||'')+'</td><td>'+esc(r.group_name||'')+'</td><td>'+esc(r.student_name||'')+'</td><td>'+(att||'')+'</td><td>'+Number(r.cash_amount||0)+'</td><td>'+Number(r.terminal_amount||0)+'</td><td>'+Number(r.amount||0)+'</td></tr>'}).join('');
+  const body=rows.map(r=>{
+    const att=Number(r.attendance_count||0),cls=att>=12?'attendanceBlue':att>=6?'attendanceRed':r.school_name?'schoolRow':'';
+    return '<tr class="'+cls+'"><td>'+esc(r.plate||'')+'</td><td>'+dt(r.started_at)+'</td><td>'+dt(r.finished_at)+'</td><td>'+dur(r.duration_seconds)+'</td><td>'+esc(r.school_name||'')+'</td><td>'+esc(r.group_name||'')+'</td><td>'+esc(r.student_name||'')+'</td><td>'+(r.student_name?att:'')+'</td><td>'+Number(r.cash_amount||0)+'</td><td>'+Number(r.terminal_amount||0)+'</td><td>'+Number(r.amount||0)+'</td></tr>'
+  }).join('');
   const xls='<html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:6px}.schoolRow{background:#fff4bf}.attendanceRed{background:#ffd9d6}.attendanceBlue{background:#dbe8ff}</style></head><body><table><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>Vaqt</th><th>Avtoshkola</th><th>Guruh</th><th>O‘quvchi</th><th>Kelgan dars</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr>'+body+'</table></body></html>';
-  const blob=new Blob(['\ufeff'+xls],{type:'application/vnd.ms-excel'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='avtodrom-'+new Date().toISOString().slice(0,10)+'.xls';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)
+  const blob=new Blob(['\ufeff'+xls],{type:'application/vnd.ms-excel'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='avtodrom-'+new Date().toISOString().slice(0,10)+'.xls';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
-async function historySearch(){const q=$('histQ').value.trim();if(!q)return;try{const x=await api('/history?plate='+encodeURIComponent(q));$('histOut').innerHTML=tableHTML(x.rows||[])}catch(e){showToast(e.message,true)}}
+async function historySearch(){
+  const q=$('histQ').value.trim();if(!q)return;
+  try{const x=await api('/history?plate='+encodeURIComponent(q));$('histOut').innerHTML=tableHTML(x.rows||[])}catch(e){showToast(e.message,true)}
+}
 
 function openAdminGate(){
   $('adminErr').textContent='';$('adminUser').value='';$('adminPass').value='';$('adminGate').classList.remove('hidden');setTimeout(()=>$('adminUser').focus(),50)
 }
 function closeAdminGate(){$('adminGate').classList.add('hidden')}
 const ADMIN_LOGIN='admin',ADMIN_PASSWORD='Admin@2026';
-$('adminLoginForm').onsubmit=async e=>{e.preventDefault();if($('adminUser').value.trim()!==ADMIN_LOGIN||$('adminPass').value!==ADMIN_PASSWORD){$('adminErr').textContent='Admin login yoki parol noto‘g‘ri.';return}sessionStorage.setItem('avtodrom_admin','1');closeAdminGate();$('adminPanel').classList.remove('hidden');await adminLoad()}
+$('adminLoginForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  if($('adminUser').value.trim()!==ADMIN_LOGIN||$('adminPass').value!==ADMIN_PASSWORD){$('adminErr').textContent='Admin login yoki parol noto‘g‘ri.';return}
+  sessionStorage.setItem('avtodrom_admin','1');closeAdminGate();$('adminPanel').classList.remove('hidden');await adminLoad();
+});
 function closeAdminPanel(){sessionStorage.removeItem('avtodrom_admin');$('adminPanel').classList.add('hidden')}
 
 async function adminLoad(){
-  try{schools=await api('/schools')}catch{schools=[]}
-  try{groups=await api('/groups')}catch{groups=[]}
-  try{students=await api('/students')}catch{students=[]}
-  $('adSchools').textContent=schools.length;$('adGroups').textContent=groups.length;$('adStudents').textContent=students.length;adminTab('dashboard');adminRealtime()
+  try{schools=await api('/schools')||[]}catch{schools=[]}
+  try{groups=await api('/groups')||[]}catch{groups=[]}
+  try{students=await api('/students')||[]}catch{students=[]}
+  $('adSchools').textContent=schools.length;$('adGroups').textContent=groups.length;$('adStudents').textContent=students.length;
+  adminTab('dashboard');adminRealtime();
 }
 function adminTab(t){
   const c=$('adminContent');
-  if(t==='dashboard'){c.innerHTML='<div class="head"><div><h2>Admin Dashboard</h2><p>Real-time avtodromdagi barcha amallar va analitika.</p></div><button class="btn light" onclick="adminRealtime()">↻ Yangilash</button></div><div class="stats"><div class="stat"><small>Bugun kirgan</small><b id="arToday">0</b></div><div class="stat"><small>Hozir avtodromda</small><b id="arActive">0</b></div><div class="stat"><small>Muzlatilgan</small><b id="arFrozen">0</b></div><div class="stat"><small>Bugungi tushum</small><b id="arAmount" class="greenText">0</b></div><div class="stat"><small>Naqd</small><b id="arCash" class="greenText">0</b></div><div class="stat"><small>Terminal</small><b id="arTerminal" class="greenText">0</b></div></div><div class="grid2"><div class="panel"><h3>Hozir avtodromda <span class="live">● LIVE</span></h3><div id="adminActiveRows"></div></div><div class="panel"><h3>Bugungi to‘lovlar</h3><div id="adminPaymentRows"></div></div></div><div class="panel"><h3>Bugungi barcha amallar</h3><div class="tableWrap"><table class="table" id="adminAllRows"></table></div></div>';return}
-  if(t==='schools'){c.innerHTML='<div class="head"><div><h2>Avtoshkolalar</h2><p>Ustiga bosing → guruhlar → guruhga bosing → o‘quvchilar.</p></div><button class="btn green" onclick="schoolModal()">＋ Avtoshkola</button></div><div id="adminSchoolCards" class="cards"></div><div id="adminSchoolDetail"></div>';renderAdminSchools();return}
-  if(t==='students'){c.innerHTML='<div class="head"><div><h2>O‘quvchilar</h2><p>6–11 dars qizil, 12+ yangi bosqich; avtoshkola o‘quvchilari sariq belgilanadi.</p></div><button class="btn green" onclick="studentModal()">＋ O‘quvchi</button></div><div class="panel"><div class="search"><input id="adminStudentQ" placeholder="O‘quvchi yoki raqam..." oninput="adminRenderStudents()"></div><div id="adminStudents"></div></div>';adminRenderStudents()}
+  if(t==='dashboard'){
+    c.innerHTML='<div class="head"><div><h2>Admin Dashboard</h2><p>Real-time avtodromdagi barcha amallar va analitika.</p></div><button class="btn light" type="button" onclick="adminRealtime()">↻ Yangilash</button></div><div class="stats"><div class="stat"><small>Bugun kirgan</small><b id="arToday">0</b></div><div class="stat"><small>Hozir avtodromda</small><b id="arActive">0</b></div><div class="stat"><small>Muzlatilgan</small><b id="arFrozen">0</b></div><div class="stat"><small>Bugungi tushum</small><b id="arAmount" class="greenText">0</b></div><div class="stat"><small>Naqd</small><b id="arCash" class="greenText">0</b></div><div class="stat"><small>Terminal</small><b id="arTerminal" class="greenText">0</b></div></div><div class="grid2"><div class="panel"><h3>Hozir avtodromda <span class="live">● LIVE</span></h3><div id="adminActiveRows"></div></div><div class="panel"><h3>Bugungi to‘lovlar</h3><div id="adminPaymentRows"></div></div></div><div class="panel"><h3>Bugungi barcha amallar</h3><div class="tableWrap"><table class="table" id="adminAllRows"></table></div></div>';
+    return;
+  }
+  if(t==='schools'){
+    c.innerHTML='<div class="head"><div><h2>Avtoshkolalar</h2><p>Avtoshkola → guruh → o‘quvchilar.</p></div><button class="btn green" type="button" onclick="schoolModal()">＋ Avtoshkola</button></div><div id="adminSchoolCards" class="cards"></div><div id="adminSchoolDetail"></div>';renderAdminSchools();return;
+  }
+  if(t==='students'){
+    c.innerHTML='<div class="head"><div><h2>O‘quvchilar</h2><p>6–11 dars qizil, 12+ ko‘k; avtoshkola o‘quvchilari sariq.</p></div><button class="btn green" type="button" onclick="studentModal()">＋ O‘quvchi</button></div><div class="panel"><div class="search"><input id="adminStudentQ" placeholder="O‘quvchi yoki raqam..." oninput="adminRenderStudents()"></div><div id="adminStudents"></div></div>';adminRenderStudents();
+  }
 }
 async function adminRealtime(){
   if(sessionStorage.getItem('avtodrom_admin')!=='1')return;
   try{
     const [d,r,a,f]=await Promise.all([api('/dashboard'),api('/reports/daily'),api('/sessions/active'),api('/sessions/frozen')]);
-    const s=d.summary||d||{},rs=r.summary||{};
-    const today=d.todayCount??d.today_count??s.todayCount??rs.count??(r.rows||[]).length;
-    const ac=d.active??d.activeCount??s.active??a.length,fr=d.frozen??s.frozen??f.length;
-    const amount=d.todayAmount??d.amount??d.revenue??s.amount??rs.amount??0,cash=d.cash??s.cash??rs.cash??0,term=d.terminal??s.terminal??rs.terminal??0;
+    const s=d?.summary||d||{},rs=r?.summary||{};
+    const today=d?.todayCount??d?.today_count??s.todayCount??rs.count??(r?.rows||[]).length;
+    const ac=d?.active??d?.activeCount??s.active??a.length,fr=d?.frozen??s.frozen??f.length;
+    const amount=d?.todayAmount??d?.amount??d?.revenue??s.amount??rs.amount??0,cash=d?.cash??s.cash??rs.cash??0,term=d?.terminal??s.terminal??rs.terminal??0;
     if($('arToday'))$('arToday').textContent=today;if($('arActive'))$('arActive').textContent=ac;if($('arFrozen'))$('arFrozen').textContent=fr;if($('arAmount'))$('arAmount').textContent=money(amount);if($('arCash'))$('arCash').textContent=money(cash);if($('arTerminal'))$('arTerminal').textContent=money(term);
     if($('adminActiveRows'))$('adminActiveRows').innerHTML=a.length?a.map(v=>vehicle(v,false)).join(''):'<div class="muted">Hozir avtodromda avtomobil yo‘q</div>';
-    const rows=r.rows||[];
+    const rows=r?.rows||[];
     if($('adminPaymentRows'))$('adminPaymentRows').innerHTML=rows.filter(x=>Number(x.amount||0)>0).map(x=>'<div class="card"><b>'+esc(x.plate)+'</b><div class="muted">'+esc(x.student_name||'Oddiy mijoz')+'</div><b>'+money(x.amount)+'</b><div>'+money(x.cash_amount||0)+' naqd • '+money(x.terminal_amount||0)+' terminal</div></div>').join('')||'<div class="muted">To‘lov yo‘q</div>';
-    if($('adminAllRows'))$('adminAllRows').innerHTML=(rows.length?'<thead><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>O‘quvchi</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr></thead><tbody>'+rows.map(x=>'<tr class="'+(x.school_name?'schoolRow':'')+'"><td>'+esc(x.plate)+'</td><td>'+dt(x.started_at)+'</td><td>'+dt(x.finished_at)+'</td><td>'+esc(x.student_name||'—')+'</td><td>'+money(x.cash_amount||0)+'</td><td>'+money(x.terminal_amount||0)+'</td><td>'+money(x.amount||0)+'</td></tr>').join('')+'</tbody>':'<tbody><tr><td>Ma’lumot yo‘q</td></tr></tbody>');
+    if($('adminAllRows'))$('adminAllRows').innerHTML=rows.length?'<thead><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>O‘quvchi</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr></thead><tbody>'+rows.map(x=>'<tr class="'+(x.school_name?'schoolRow':'')+'"><td>'+esc(x.plate)+'</td><td>'+dt(x.started_at)+'</td><td>'+dt(x.finished_at)+'</td><td>'+esc(x.student_name||'—')+'</td><td>'+money(x.cash_amount||0)+'</td><td>'+money(x.terminal_amount||0)+'</td><td>'+money(x.amount||0)+'</td></tr>').join('')+'</tbody>':'<tbody><tr><td>Ma’lumot yo‘q</td></tr></tbody>';
   }catch(e){showToast(e.message,true)}
 }
 function renderAdminSchools(){
   const box=$('adminSchoolCards');if(!box)return;
-  box.innerHTML=schools.length?schools.map(s=>'<div class="card click" onclick="adminShowGroups(\''+s.id+'\')"><h3>'+esc(s.name)+'</h3><div class="muted">'+esc(s.phone||'Telefon yo‘q')+'</div><div class="row"><span class="badge">'+(s.group_count||groups.filter(g=>g.school_id===s.id).length||0)+' guruh</span><span class="badge">'+(s.student_count||0)+' o‘quvchi</span></div></div>').join(''):'<div class="muted">Avtoshkola yo‘q</div>'
+  box.innerHTML=schools.length?schools.map(s=>'<div class="card click" onclick="adminShowGroups(\''+esc(s.id)+'\')"><h3>'+esc(s.name)+'</h3><div class="muted">'+esc(s.phone||'Telefon yo‘q')+'</div><div style="margin-top:8px"><span class="badge">'+(s.group_count||groups.filter(g=>String(g.school_id)===String(s.id)).length||0)+' guruh</span> <span class="badge">'+(s.student_count||0)+' o‘quvchi</span></div></div>').join(''):'<div class="muted">Avtoshkola yo‘q</div>';
 }
 async function adminShowGroups(id){
-  const s=schools.find(x=>x.id===id);let gs=[];try{gs=await api('/groups?schoolId='+encodeURIComponent(id))}catch{gs=groups.filter(x=>x.school_id===id)}
-  $('adminSchoolDetail').innerHTML='<div class="panel"><div class="modalHead"><div><h3>'+esc(s?.name||'Avtoshkola')+'</h3><div class="muted">Guruhni bosing → o‘quvchilar</div></div><button class="btn light" onclick="$('+"'adminSchoolDetail'"+').innerHTML=\'\'">Yopish</button></div><div class="cards">'+(gs.length?gs.map(g=>'<div class="card click" onclick="adminShowStudents(\''+g.id+'\')"><h3>'+esc(g.name)+'</h3><span class="badge">'+(g.student_count||0)+' o‘quvchi</span></div>').join(''):'<div class="muted">Guruh yo‘q</div>')+'</div></div>'
+  const s=schools.find(x=>String(x.id)===String(id));let gs=[];
+  try{gs=await api('/groups?schoolId='+encodeURIComponent(id))||[]}catch{gs=groups.filter(x=>String(x.school_id)===String(id))}
+  $('adminSchoolDetail').innerHTML='<div class="panel"><div class="modalHead"><div><h3>'+esc(s?.name||'Avtoshkola')+'</h3><div class="muted">Guruhni bosing → o‘quvchilar</div></div><button class="btn light" type="button" onclick="$(\'adminSchoolDetail\').innerHTML=\'\'">Yopish</button></div><div class="cards">'+(gs.length?gs.map(g=>'<div class="card click" onclick="adminShowStudents(\''+esc(g.id)+'\')"><h3>'+esc(g.name)+'</h3><span class="badge">'+(g.student_count||0)+' o‘quvchi</span></div>').join(''):'<div class="muted">Guruh yo‘q</div>')+'</div></div>';
 }
 async function adminShowStudents(gid){
-  let arr=[];try{arr=await api('/students?groupId='+encodeURIComponent(gid))}catch{arr=students.filter(x=>x.group_id===gid)}
-  $('adminSchoolDetail').innerHTML+='<div class="panel"><h3>Guruh o‘quvchilari</h3>'+(arr.length?arr.map(studentCardHTML).join(''):'<div class="muted">O‘quvchi yo‘q</div>')+'</div>'
+  let arr=[];try{arr=await api('/students?groupId='+encodeURIComponent(gid))||[]}catch{arr=students.filter(x=>String(x.group_id)===String(gid))}
+  $('adminSchoolDetail').innerHTML+='<div class="panel"><h3>Guruh o‘quvchilari</h3>'+(arr.length?arr.map(studentCardHTML).join(''):'<div class="muted">O‘quvchi yo‘q</div>')+'</div>';
 }
 function studentCardHTML(s){
   const n=Number(s.attendance_count||0),cls=attendanceClass(n),label=n<6?'1–5 normal':n<12?'6–11 qizil':'12+ yangi bosqich';
-  return '<div class="card" style="margin-bottom:8px;background:'+(n>=6&&n<12?'#fff0ef':n>=12?'#e9f1ff':'#fff')+'"><h3>'+esc(s.full_name)+'</h3><div class="muted">'+esc(s.school_name||'')+' • '+esc(s.group_name||'Guruhsiz')+'</div><div class="row"><span class="badge '+cls+'">'+n+' marta qatnashgan</span><span class="badge">'+esc(s.plate||'Avtomobil biriktirilmagan')+'</span></div><div class="muted" style="margin-top:7px">'+label+'</div></div>'
+  return '<div class="card" style="margin-bottom:8px;background:'+(n>=6&&n<12?'#fff0ef':n>=12?'#e9f1ff':'#fff')+'"><h3>'+esc(s.full_name)+'</h3><div class="muted">'+esc(s.school_name||'')+' • '+esc(s.group_name||'Guruhsiz')+'</div><div style="margin-top:8px"><span class="badge '+cls+'">'+n+' marta qatnashgan</span> <span class="badge">'+esc(s.plate||'Avtomobil biriktirilmagan')+'</span></div><div class="muted" style="margin-top:7px">'+label+'</div></div>';
 }
 function adminRenderStudents(){
   const box=$('adminStudents');if(!box)return;const q=($('adminStudentQ')?.value||'').toLowerCase();
   const arr=students.filter(s=>!q||String(s.full_name||'').toLowerCase().includes(q)||String(s.plate||'').toLowerCase().includes(q));
-  box.innerHTML=arr.length?arr.map(studentCardHTML).join(''):'<div class="muted">O‘quvchi topilmadi</div>'
+  box.innerHTML=arr.length?arr.map(studentCardHTML).join(''):'<div class="muted">O‘quvchi topilmadi</div>';
 }
-function schoolModal(){modal('<h2>Yangi avtoshkola</h2><div class="fg"><label>Avtoshkola nomi</label><input id="schoolName" required></div><div class="fg"><label>Telefon</label><input id="schoolPhone"></div><div class="actions"><button class="btn green" onclick="createSchool()">Saqlash</button><button class="btn light" onclick="closeModal()">Bekor</button></div>')}
+function schoolModal(){modal('<h2>Yangi avtoshkola</h2><div class="fg"><label>Avtoshkola nomi</label><input id="schoolName" required></div><div class="fg"><label>Telefon</label><input id="schoolPhone"></div><div class="actions"><button class="btn green" type="button" onclick="createSchool()">Saqlash</button><button class="btn light" type="button" onclick="closeModal()">Bekor</button></div>')}
 async function createSchool(){const name=$('schoolName').value.trim();if(!name)return showToast('Avtoshkola nomini kiriting',true);try{await api('/schools',{method:'POST',body:JSON.stringify({name,phone:$('schoolPhone').value.trim()})});closeModal();await adminLoad();showToast('Avtoshkola qo‘shildi')}catch(e){showToast(e.message,true)}}
-function groupModal(schoolId){modal('<h2>Yangi guruh</h2><div class="fg"><label>Guruh nomi</label><input id="groupName" placeholder="A-1" required></div><div class="actions"><button class="btn green" onclick="createGroup(\''+schoolId+'\')">Saqlash</button><button class="btn light" onclick="closeModal()">Bekor</button></div>')}
-async function createGroup(schoolId){const name=$('groupName').value.trim();if(!name)return showToast('Guruh nomini kiriting',true);try{await api('/groups',{method:'POST',body:JSON.stringify({schoolId,name})});closeModal();await adminLoad();adminTab('schools');showToast('Guruh qo‘shildi')}catch(e){showToast(e.message,true)}}
-function studentModal(){if(!schools.length){showToast('Avval avtoshkola yarating',true);return}modal('<h2>Yangi o‘quvchi</h2><div class="fg"><label>F.I.Sh.</label><input id="sn" required></div><div class="fg"><label>Telefon</label><input id="sp"></div><div class="fg"><label>Avtoshkola</label><select id="ss" onchange="modalGroups()"><option value="">Tanlang</option>'+schools.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')+'</select></div><div class="fg"><label>Guruh</label><select id="sg"><option value="">Avval avtoshkola</option></select></div><div class="fg"><label>Avtomobil raqami</label><input id="spl" placeholder="01 A555AA"></div><div class="actions"><button class="btn green" onclick="createStudent()">Saqlash</button><button class="btn light" onclick="closeModal()">Bekor</button></div>')}
-async function modalGroups(){const id=$('ss').value;if(!id)return;try{const g=await api('/groups?schoolId='+encodeURIComponent(id));$('sg').innerHTML='<option value="">Guruhsiz</option>'+g.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')}catch(e){showToast(e.message,true)}}
-async function createStudent(){const n=$('sn').value.trim(),schoolId=$('ss').value;if(!n||!schoolId)return showToast('F.I.Sh. va avtoshkolani kiriting',true);try{await api('/students',{method:'POST',body:JSON.stringify({fullName:n,phone:$('sp').value.trim(),schoolId,groupId:$('sg').value||null,plate:$('spl').value.trim()})});closeModal();await adminLoad();adminTab('students');showToast('O‘quvchi qo‘shildi')}catch(e){showToast(e.message,true)}}
+function studentModal(){
+  if(!schools.length){showToast('Avval avtoshkola yarating',true);return}
+  modal('<h2>Yangi o‘quvchi</h2><div class="fg"><label>F.I.Sh.</label><input id="sn" required></div><div class="fg"><label>Telefon</label><input id="sp"></div><div class="fg"><label>Avtoshkola</label><select id="ss" onchange="modalGroups()"><option value="">Tanlang</option>'+schools.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join('')+'</select></div><div class="fg"><label>Guruh</label><select id="sg"><option value="">Avval avtoshkola</option></select></div><div class="fg"><label>Avtomobil raqami</label><input id="spl" placeholder="01 A555AA"></div><div class="actions"><button class="btn green" type="button" onclick="createStudent()">Saqlash</button><button class="btn light" type="button" onclick="closeModal()">Bekor</button></div>');
+}
+async function modalGroups(){const id=$('ss').value;if(!id)return;try{const g=await api('/groups?schoolId='+encodeURIComponent(id))||[];$('sg').innerHTML='<option value="">Guruhsiz</option>'+g.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join('')}catch(e){showToast(e.message,true)}}
+async function createStudent(){
+  const n=$('sn').value.trim(),schoolId=$('ss').value;
+  if(!n||!schoolId)return showToast('F.I.Sh. va avtoshkolani kiriting',true);
+  try{await api('/students',{method:'POST',body:JSON.stringify({fullName:n,phone:$('sp').value.trim(),schoolId,groupId:$('sg').value||null,plate:$('spl').value.trim()})});closeModal();await adminLoad();adminTab('students');showToast('O‘quvchi qo‘shildi')}catch(e){showToast(e.message,true)}
+}
 function modal(content){$('modal').innerHTML='<div class="modalBg" onclick="if(event.target===this)closeModal()"><div class="modal">'+content+'</div></div>'}
 function closeModal(){$('modal').innerHTML=''}
 
 setInterval(()=>{$('clock').textContent=new Date().toLocaleString('uz-UZ',{timeZone:'Asia/Tashkent',hour12:false})},1000);
 setInterval(()=>{document.querySelectorAll('.timer[data-start]').forEach(el=>{const start=new Date(el.dataset.start).getTime();if(Number.isFinite(start))el.textContent=dur((Date.now()-start)/1000)})},1000);
 setInterval(()=>{if(token){loadActive(true);if(!$('p-daily').classList.contains('hidden'))loadDaily();if(sessionStorage.getItem('avtodrom_admin')==='1')adminRealtime()}},15000);
-document.querySelectorAll('.nav[data-p]').forEach(x=>x.onclick=()=>go(x.dataset.p));
+document.querySelectorAll('.nav[data-p]').forEach(x=>x.addEventListener('click',()=>go(x.dataset.p)));
 
 if(token&&me)boot();
 </script>
