@@ -1,14 +1,13 @@
 <!doctype html>
 <html lang="uz">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#087443">
-<title>AVTODROM — Boshqaruv tizimi</title>
-<style>html,body{margin:0;min-height:100%;background:#f5f8f6}body{font-family:Arial,system-ui,sans-serif}</style>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#087443"><title>AVTODROM — Boshqaruv tizimi</title>
+<style>
+:root{--g:#087443;--s:#eaf8f1;--bg:#f5f8f6;--ink:#10221a;--muted:#728079;--line:#e3ebe6;--red:#b42318}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:Arial,system-ui,sans-serif}button,input,select{font:inherit}button{cursor:pointer}
+.avto-app{min-height:100vh}.avto-view{min-height:100vh}.avto-view header{height:68px;background:#fff;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;padding:0 24px;position:sticky;top:0;z-index:5}.avto-view nav{position:fixed;left:0;top:0;bottom:0;width:225px;background:#fff;border-right:1px solid var(--line);padding:82px 12px 18px;display:grid;align-content:start;gap:5px}.avto-view nav button{border:0;background:transparent;text-align:left;padding:12px;border-radius:10px;color:#56635d;font-weight:700}.avto-view nav button:hover{background:var(--s);color:var(--g)}.avto-view main{margin-left:225px;padding:24px;max-width:1500px}.avto-view h1{font-size:27px;margin:0 0 6px}.avto-view h2{font-size:18px}.avto-view p{color:var(--muted)}.avto-view form{display:grid;gap:12px}.avto-view input,.avto-view select{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff;outline:none}.avto-view button{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 14px;font-weight:800}.avto-view form>button,.avto-view .primary{background:var(--g);border-color:var(--g);color:#fff}.avto-box{width:min(420px,calc(100% - 32px));margin:70px auto;background:#fff;border:1px solid var(--line);border-radius:20px;padding:25px;box-shadow:0 10px 35px #10221a0d}.avto-box h1{font-size:28px}.avto-box button{width:100%}.cards{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin:15px 0}.cards>div{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 4px 20px #10221a08}.cards strong{display:block;font-size:24px;margin-top:8px}.avto-view article,.avto-view .avto-box>div,.avto-view .table>div{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px;margin:8px 0}.avto-view article{display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:center}.avto-view table{width:100%;border-collapse:collapse;background:#fff}.avto-view th,.avto-view td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left;font-size:13px}.avto-view th{font-size:11px;color:var(--muted)}.avto-view .form{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px}.avto-view label{display:grid;gap:6px;font-size:12px;font-weight:800;color:#52605a}.avto-view hr{border:0;border-top:1px solid var(--line);margin:18px 0}.avto-error{background:#fff0ef;color:var(--red);border:1px solid #ffd4d0;border-radius:10px;padding:12px}.avto-view header span{color:var(--muted);font-size:13px;margin-left:12px}.avto-view small{color:var(--muted)}
+@media(max-width:1000px){.cards{grid-template-columns:repeat(3,1fr)}}@media(max-width:700px){.avto-view nav{width:68px;padding:82px 7px 12px}.avto-view nav button{font-size:0;text-align:center}.avto-view nav button:first-letter{font-size:18px}.avto-view main{margin-left:68px;padding:14px}.avto-view article{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}.avto-view header{padding:0 12px}.avto-view header span{display:none}}
+</style>
 </head>
-<body>
-<div id="avtodrom-root"></div>
-<script type="module" src="./app.js"></script>
-</body>
-</html>
+<body><div id="avtodrom-root"></div><script type="module" src="./app.js"></script></body></html>
