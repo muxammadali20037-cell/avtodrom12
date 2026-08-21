@@ -24,22 +24,29 @@ export default async function handler(req, res) {
   const handled = await handleFreezeRequest(req, jsonRes);
   if (handled !== null) return handled;
 
+  // Vercel gives us a native ServerResponse. Express adds its own sendFile
+  // helper only after the app starts handling the request, so calling
+  // res.sendFile.bind(res) here would crash the serverless function.
+  // Provide the small helper ourselves before handing the request to Express.
   if (req.method === "GET" && !req.url?.startsWith("/api/") && req.url !== "/favicon.ico") {
-    const originalSendFile = res.sendFile.bind(res);
     res.sendFile = async (filePath, options, callback) => {
-      if (String(filePath).endsWith("/frontend/index.html")) {
-        try {
+      try {
+        if (String(filePath).endsWith("/frontend/index.html")) {
           const html = await readFile(filePath, "utf8");
-          res.statusCode = 200;
-          res.setHeader("Content-Type", "text/html; charset=utf-8");
+          if (!res.headersSent) {
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "text/html; charset=utf-8");
+          }
           return res.end(html.replace("</body>", frozenFinishFix + "</body>"));
-        } catch (error) {
-          if (typeof callback === "function") return callback(error);
-          res.statusCode = 500;
-          return res.end("Frontend yuklanmadi");
         }
+        const data = await readFile(filePath);
+        if (!res.headersSent) res.statusCode = 200;
+        return res.end(data);
+      } catch (error) {
+        if (typeof callback === "function") return callback(error);
+        if (!res.headersSent) res.statusCode = 500;
+        return res.end("Frontend yuklanmadi");
       }
-      return originalSendFile(filePath, options, callback);
     };
   }
 
