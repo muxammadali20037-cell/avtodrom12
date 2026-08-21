@@ -229,7 +229,76 @@ function cancelFinish(id){if($('f'+id))$('f'+id).innerHTML='';clearInterval(wind
 function cancelFrozenFinish(id){if($('ff'+id))$('ff'+id).innerHTML='';clearInterval(window['ft'+id])}
 function choosePay(id,m){pay[id]=m;['cash','terminal','mixed'].forEach(x=>{let b=$('pay'+x+id);if(b)b.classList.toggle('selected',x===m)});if($('split'+id))$('split'+id).classList.toggle('hidden',m!=='mixed');updateSplit(id)}
 function updateSplit(id){let a=Number($('a'+id)?.value||0),c=Number($('c'+id)?.value||0),t=Number($('t'+id)?.value||0),m=pay[id]||'cash',total=m==='mixed'?c+t:a;if($('tot'+id))$('tot'+id).textContent='Jami to‘lov: '+money(total)+(m==='mixed'&&total!==a?' • mos emas':'')}
-async function finishSession(id,fromFrozen=false){let v=(fromFrozen?frozen:active).find(x=>x.id===id);if(!v)return;let amount=v.student_id?0:Number($('a'+id)?.value||0),m=v.student_id?'cash':(pay[id]||'cash'),cash=m==='cash'?amount:0,term=m==='terminal'?amount:0;if(m==='mixed'){cash=Number($('c'+id)?.value||0);term=Number($('t'+id)?.value||0);if(cash+term!==amount){$('fe'+id).textContent='Naqd + terminal yakuniy summaga teng bo‘lishi kerak.';return}}try{await api('/sessions/'+id+'/finish',{method:'POST',body:JSON.stringify({amount,paymentMethod:m,cashAmount:cash,terminalAmount:term})});delete pay[id];toast('Tugatildi. Ma’lumot bazaga yozildi.');await loadActive(1);await loadFrozen(1);await loadDashboard(1);go('finish')}catch(e){if($('fe'+id))$('fe'+id).textContent=e.message;else toast(e.message,true)}}
+async function finishSession(id,fromFrozen=false){
+  let v=(fromFrozen?frozen:active).find(x=>x.id===id);
+  if(!v)return;
+
+  let amount=v.student_id?0:Number($('a'+id)?.value||0);
+  let m=v.student_id?'cash':(pay[id]||'cash');
+  let cash=m==='cash'?amount:0;
+  let term=m==='terminal'?amount:0;
+
+  if(m==='mixed'){
+    cash=Number($('c'+id)?.value||0);
+    term=Number($('t'+id)?.value||0);
+    if(cash+term!==amount){
+      const err=$('fe'+id);
+      if(err)err.textContent='Naqd + terminal yakuniy summaga teng bo‘lishi kerak.';
+      return;
+    }
+  }
+
+  const btn=document.querySelector('#f'+id+' .btn.green, #ff'+id+' .btn.green');
+  if(btn){
+    btn.disabled=true;
+    btn.dataset.oldText=btn.textContent;
+    btn.textContent='Saqlanmoqda...';
+  }
+
+  try{
+    await api('/sessions/'+id+'/finish',{
+      method:'POST',
+      body:JSON.stringify({
+        amount,
+        paymentMethod:m,
+        cashAmount:cash,
+        terminalAmount:term
+      })
+    });
+
+    delete pay[id];
+    clearInterval(window['ft'+id]);
+
+    // Serverdan yangi holatni olamiz.
+    await loadActive(1);
+    await loadFrozen(1);
+    await loadDashboard(1);
+
+    // Eng muhim tuzatish:
+    // Tugatilgan avtomobilning ochiq formasi ekranda qolib ketmasin.
+    const open=$('f'+id);
+    if(open)open.innerHTML='';
+    const frozenOpen=$('ff'+id);
+    if(frozenOpen)frozenOpen.innerHTML='';
+
+    toast('Tugatildi. Ma’lumot bazaga yozildi.');
+
+    // Ro‘yxatni darhol qayta chizamiz — F5 shart emas.
+    go('finish');
+    renderFinish();
+    if(fromFrozen)renderFrozen();
+
+  }catch(e){
+    const err=$('fe'+id);
+    if(err)err.textContent=e.message;
+    else toast(e.message,true);
+
+    if(btn){
+      btn.disabled=false;
+      btn.textContent=btn.dataset.oldText||'✓ TUGATISH';
+    }
+  }
+}
 async function freeze(id){try{await api('/sessions/'+id+'/freeze',{method:'POST',body:'{}'});toast('Vaqt muzlatildi');await loadActive();await loadFrozen()}catch(e){toast(e.message,true)}}
 async function loadFrozen(silent){
   try{
