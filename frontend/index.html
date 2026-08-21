@@ -91,7 +91,7 @@ input,select{width:100%;height:44px;border:1px solid var(--b);border-radius:10px
 </div></main></div>
 
 <div id="adminGate" class="adminGate hidden"><div class="adminCard adminLogin"><div class="modalHead"><div><h2 style="margin:0">Admin panel</h2><div class="muted">Operator panelidan alohida kirish</div></div><button class="btn light" onclick="closeAdminGate()">Yopish</button></div>
-<form id="adminLoginForm" style="margin-top:16px"><div class="fg"><label>Admin login</label><input id="adminUser" value="admin" required></div><div class="fg"><label>Admin parol</label><input id="adminPass" type="password" required></div><button class="btn green" style="width:100%">Admin panelga kirish</button><div id="adminErr" class="err"></div></form></div></div>
+<form id="adminLoginForm" style="margin-top:16px"><div class="fg"><label>Admin login</label><input id="adminUser" value="admin" autocomplete="username" required></div><div class="fg"><label>Admin parol</label><input id="adminPass" type="password" autocomplete="current-password" placeholder="Admin@2026" required></div><button class="btn green" style="width:100%">Admin panelga kirish</button><div id="adminErr" class="err"></div></form></div></div>
 
 <div id="adminPanel" class="hidden"><div class="adminGate"><div class="adminCard">
 <div class="adminBar"><div><b>AVTODROM — ADMIN PANEL</b><br><small>Avtoshkola • Guruh • O‘quvchi</small></div><button class="btn light" onclick="closeAdminPanel()">Operator paneliga qaytish</button></div>
@@ -214,10 +214,46 @@ async function loadSettings(){try{let x=await api('/settings');$('sr').value=x.h
 async function saveSettings(){try{await api('/settings',{method:'PUT',body:JSON.stringify({hourlyRate:Number($('sr').value||0),minimumPayment:Number($('sm').value||0),calculationMode:$('mode').value})});$('setMsg').className='ok';$('setMsg').textContent='Saqlandi'}catch(e){$('setMsg').className='err';$('setMsg').textContent=e.message}}
 function modal(x){$('modal').innerHTML='<div class="modalBg" onclick="if(event.target===this)closeModal()"><div class="modal">'+x+'</div></div>'}function closeModal(){$('modal').innerHTML=''}
 
-function openAdminGate(){$('adminGate').classList.remove('hidden');$('adminErr').textContent=''}function closeAdminGate(){$('adminGate').classList.add('hidden')}
-$('adminLoginForm').onsubmit=async e=>{e.preventDefault();$('adminErr').textContent='';try{let x=await api('/auth/login',{method:'POST',body:JSON.stringify({username:$('adminUser').value.trim(),password:$('adminPass').value})});let role=String(x.user?.role||x.user?.user_role||'').toUpperCase();if(role&&role!=='ADMIN'&&role!=='ADMINISTRATOR')throw Error('Bu akkaunt ADMIN emas. Backenddagi admin akkauntidan foydalaning.');token=x.token;me=x.user;localStorage.setItem('avtodrom_token',token);localStorage.setItem('avtodrom_user',JSON.stringify(me));closeAdminGate();$('adminPanel').classList.remove('hidden');adminLoad()}catch(e){$('adminErr').textContent=e.message}}
+function openAdminGate(){
+  if(sessionStorage.getItem('avtodrom_admin')==='1'){
+    $('adminPanel').classList.remove('hidden');
+    adminLoad();
+    return;
+  }
+  $('adminUser').value=ADMIN_LOGIN;
+  $('adminPass').value='';
+  $('adminGate').classList.remove('hidden');
+  $('adminErr').textContent='';
+}function closeAdminGate(){$('adminGate').classList.add('hidden')}
+const ADMIN_LOGIN='admin';
+const ADMIN_PASSWORD='Admin@2026';
+
+$('adminLoginForm').onsubmit=async e=>{
+  e.preventDefault();
+  $('adminErr').textContent='';
+
+  const u=$('adminUser').value.trim();
+  const p=$('adminPass').value;
+
+  // Admin panel uchun alohida kirish.
+  // Bu frontend gate; haqiqiy production xavfsizlik uchun backenddagi
+  // ADMIN role ham albatta sozlanishi kerak.
+  if(u!==ADMIN_LOGIN || p!==ADMIN_PASSWORD){
+    $('adminErr').textContent='Admin login yoki parol noto‘g‘ri.';
+    return;
+  }
+
+  sessionStorage.setItem('avtodrom_admin','1');
+  closeAdminGate();
+  $('adminPanel').classList.remove('hidden');
+  adminLoad();
+}
 async function adminLoad(){try{schools=await api('/schools');groups=await api('/groups');students=await api('/students');let d=await api('/dashboard');$('adSchools').textContent=schools.length;$('adGroups').textContent=groups.length;$('adStudents').textContent=students.length;$('adToday').textContent=d.todayCount||0;$('adActive').textContent=d.active||0;adminTab('dashboard')}catch(e){toast(e.message,true)}}
-function closeAdminPanel(){$('adminPanel').classList.add('hidden');boot()}
+function closeAdminPanel(){
+  sessionStorage.removeItem('avtodrom_admin');
+  $('adminPanel').classList.add('hidden');
+  boot();
+}
 function adminTab(t){let c=$('adminContent');if(t==='dashboard'){c.innerHTML='<div class="grid2"><div class="panel"><h3>Avtoshkolalar</h3>'+schools.map(s=>'<div class="card" style="margin:7px 0"><b>'+esc(s.name)+'</b><div class="muted">'+(s.group_count||0)+' guruh • '+(s.student_count||0)+' o‘quvchi</div></div>').join('')+'</div><div class="panel"><h3>O‘quvchilar</h3>'+students.slice(0,12).map(studentMini).join('')+'</div></div>'}
 if(t==='schools'){c.innerHTML='<div class="head"><div><h2>Avtoshkolalar</h2><p class="muted">Alohida boshqaruv</p></div><button class="btn green" onclick="schoolModal()">＋ Avtoshkola</button></div><div class="cards">'+schools.map(s=>'<div class="card"><h3>'+esc(s.name)+'</h3><div class="muted">'+esc(s.phone||'Telefon yo‘q')+'</div><div class="row"><span class="badge">'+(s.group_count||0)+' guruh</span><span class="badge">'+(s.student_count||0)+' o‘quvchi</span><button class="btn light" onclick="groupModal(\''+s.id+'\')">＋ Guruh</button><button class="btn light" onclick="showSchool(\''+s.id+'\')">Ochish</button></div></div>').join('')+'</div>'}
 if(t==='students'){c.innerHTML='<div class="head"><div><h2>O‘quvchilar</h2><p class="muted">6–11 dars qizil, 12 dan keyin yangi bosqich.</p></div><button class="btn green" onclick="studentModal()">＋ O‘quvchi</button></div><div class="panel"><div class="search"><input id="adminStudentQ" placeholder="Qidirish..." oninput="adminRenderStudents()"></div><div id="adminStudents"></div></div>';adminRenderStudents()}}
