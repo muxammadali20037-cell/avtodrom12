@@ -119,20 +119,30 @@ const API='/api',regions=['01','10','20','25','30','40','50','60','70','75','80'
 let token=localStorage.getItem('avtodrom_token')||'',me=JSON.parse(localStorage.getItem('avtodrom_user')||'null'),active=[],frozen=[],schools=[],groups=[],students=[],daily=null,pay={};
 const $=id=>document.getElementById(id),money=n=>Number(n||0).toLocaleString('uz-UZ')+' so‘m',esc=s=>String(s??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x])),dt=s=>s?new Date(s).toLocaleString('uz-UZ',{timeZone:'Asia/Tashkent',hour12:false}):'—',dur=n=>{n=Math.max(0,Math.floor(Number(n)||0));let h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')};
 
-async function api(path,opt={}){let r;try{r=await fetch(API+path,{...opt,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{}),...(opt.headers||{})}})}catch(e){throw Error('Server bilan ulanishda xato.')}let t=await r.text(),d;try{d=JSON.parse(t)}catch{d={error:t}}if(!r.ok){throw Error(d.error||d.message||('Server xatosi: '+r.status))}return d}
-function toast(s,e=false){let x=document.createElement('div');x.className='toast'+(e?' err':'');x.textContent=s;$('toast').appendChild(x);setTimeout(()=>x.remove(),3500)}
-function loginMode(){$('loginBox').classList.remove('hidden');$('registerBox').classList.add('hidden')}function registerMode(){$('loginBox').classList.add('hidden');$('registerBox').classList.remove('hidden')}
-$('loginForm').onsubmit=async e=>{e.preventDefault();$('loginErr').textContent='';try{let x=await api('/auth/login',{method:'POST',body:JSON.stringify({username:$('loginUser').value.trim(),password:$('loginPass').value})});saveLogin(x)}catch(x){$('loginErr').textContent=x.message}}
-$('registerForm').onsubmit=async e=>{e.preventDefault();$('regErr').textContent='';try{let x=await api('/auth/register',{method:'POST',body:JSON.stringify({fullName:$('regName').value.trim(),username:$('regUser').value.trim(),password:$('regPass').value})});saveLogin(x)}catch(x){$('regErr').textContent=x.message}}
-function saveLogin(x){token=x.token;me=x.user;localStorage.setItem('avtodrom_token',token);localStorage.setItem('avtodrom_user',JSON.stringify(me));boot()}
-function logout(){localStorage.removeItem('avtodrom_token');localStorage.removeItem('avtodrom_user');location.reload()}
-function boot(){
-  $('login').classList.add('hidden');
-  $('app').classList.remove('hidden');
-  $('who').textContent=me?.username||me?.full_name||'Operator';
-  $('avatar').textContent=(me?.full_name||me?.username||'A')[0].toUpperCase();
-  go('add');
-  if(ADMIN_ROUTE)setTimeout(openAdminGate,150);
+async function api(path,opt={}){
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),12000);
+  let r;
+  try{
+    r=await fetch(API+path,{
+      ...opt,
+      signal:controller.signal,
+      headers:{
+        'Content-Type':'application/json',
+        ...(token?{Authorization:'Bearer '+token}:{}),
+        ...(opt.headers||{})
+      }
+    });
+  }catch(e){
+    if(e.name==='AbortError') throw Error('Server javobi 12 soniyada kelmadi. Internet yoki serverni tekshiring.');
+    throw Error('Server bilan ulanishda xato.');
+  }finally{
+    clearTimeout(timeout);
+  }
+  let t=await r.text(),d;
+  try{d=JSON.parse(t)}catch{d={error:t}}
+  if(!r.ok) throw Error(d.error||d.message||('Server xatosi: '+r.status));
+  return d;
 }
 setInterval(()=>{$('clock').textContent=new Date().toLocaleString('uz-UZ',{timeZone:'Asia/Tashkent',hour12:false})},1000);
 setInterval(()=>document.querySelectorAll('[data-start]').forEach(x=>{let a=new Date(x.dataset.start).getTime();if(Number.isFinite(a))x.textContent=dur((Date.now()-a)/1000)}),1000);
@@ -230,7 +240,8 @@ function cancelFrozenFinish(id){if($('ff'+id))$('ff'+id).innerHTML='';clearInter
 function choosePay(id,m){pay[id]=m;['cash','terminal','mixed'].forEach(x=>{let b=$('pay'+x+id);if(b)b.classList.toggle('selected',x===m)});if($('split'+id))$('split'+id).classList.toggle('hidden',m!=='mixed');updateSplit(id)}
 function updateSplit(id){let a=Number($('a'+id)?.value||0),c=Number($('c'+id)?.value||0),t=Number($('t'+id)?.value||0),m=pay[id]||'cash',total=m==='mixed'?c+t:a;if($('tot'+id))$('tot'+id).textContent='Jami to‘lov: '+money(total)+(m==='mixed'&&total!==a?' • mos emas':'')}
 async function finishSession(id,fromFrozen=false){
-  let v=(fromFrozen?frozen:active).find(x=>x.id===id);
+  const list=fromFrozen?frozen:active;
+  const v=list.find(x=>x.id===id);
   if(!v)return;
 
   let amount=v.student_id?0:Number($('a'+id)?.value||0);
@@ -255,6 +266,7 @@ async function finishSession(id,fromFrozen=false){
     btn.textContent='Saqlanmoqda...';
   }
 
+  // Serverga tugatish so‘rovini yuboramiz.
   try{
     await api('/sessions/'+id+'/finish',{
       method:'POST',
@@ -266,27 +278,32 @@ async function finishSession(id,fromFrozen=false){
       })
     });
 
+    // MUHIM: server javobi kelishi bilan kartani darhol yo‘qotamiz.
+    // Keyingi statistik refresh UI ni bloklamaydi.
     delete pay[id];
     clearInterval(window['ft'+id]);
 
-    // Serverdan yangi holatni olamiz.
-    await loadActive(1);
-    await loadFrozen(1);
-    await loadDashboard(1);
-
-    // Eng muhim tuzatish:
-    // Tugatilgan avtomobilning ochiq formasi ekranda qolib ketmasin.
     const open=$('f'+id);
-    if(open)open.innerHTML='';
+    if(open)open.remove();
     const frozenOpen=$('ff'+id);
-    if(frozenOpen)frozenOpen.innerHTML='';
+    if(frozenOpen)frozenOpen.remove();
+
+    // Local ro‘yxatdan ham darhol olib tashlash.
+    active=active.filter(x=>x.id!==id);
+    frozen=frozen.filter(x=>x.id!==id);
 
     toast('Tugatildi. Ma’lumot bazaga yozildi.');
 
-    // Ro‘yxatni darhol qayta chizamiz — F5 shart emas.
-    go('finish');
-    renderFinish();
-    if(fromFrozen)renderFrozen();
+    // F5 talab qilinmaydi.
+    if(typeof renderFinish==='function') renderFinish();
+    if(typeof renderFrozen==='function') renderFrozen();
+
+    // Statistikani fonda yangilaymiz. Bu UI ni ushlab turmaydi.
+    Promise.allSettled([
+      loadActive(1),
+      loadFrozen(1),
+      loadDashboard(1)
+    ]);
 
   }catch(e){
     const err=$('fe'+id);
@@ -297,20 +314,6 @@ async function finishSession(id,fromFrozen=false){
       btn.disabled=false;
       btn.textContent=btn.dataset.oldText||'✓ TUGATISH';
     }
-  }
-}
-async function freeze(id){try{await api('/sessions/'+id+'/freeze',{method:'POST',body:'{}'});toast('Vaqt muzlatildi');await loadActive();await loadFrozen()}catch(e){toast(e.message,true)}}
-async function loadFrozen(silent){
-  try{
-    frozen=await api('/sessions/frozen');
-    $('frozenCount').textContent=frozen.length?' ('+frozen.length+')':'';
-    $('df').textContent=frozen.length;
-
-    // Muzlatilgan TUGATISH formasi ochiq bo'lsa, polling uni o'chirmaydi.
-    const frozenFinishOpen = document.querySelector('#frozenList .finish');
-    if(!frozenFinishOpen) renderFrozen();
-  }catch(e){
-    if(!silent)toast(e.message,true);
   }
 }
 function renderFrozen(){let q=($('frozenQ').value||'').toUpperCase(),a=frozen.filter(x=>(x.plate||'').toUpperCase().includes(q));$('frozenList').innerHTML=a.length?a.map(v=>'<div class="frozen"><div><div class="plateText">'+esc(v.plate)+'</div><div class="muted">Muzlatilgan: '+dt(v.frozen_at||v.updated_at)+'</div><div class="timer">Saqlangan vaqt: '+dur(v.duration_seconds)+'</div><div class="muted">'+esc(v.school_name||'')+' '+esc(v.group_name||'')+' '+esc(v.student_name||'')+'</div></div><div class="vActions"><button class="btn light" onclick="resume(\''+v.id+'\')">▶ Davom ettirish</button><button class="btn green" onclick="frozenFinish(\''+v.id+'\')">Tugatish</button></div></div><div id="ff'+v.id+'"></div>').join(''):'<div class="empty">Muzlatilgan avtomobil yo‘q</div>'}
