@@ -3,9 +3,47 @@ import { handleFreezeRequest } from "../backend/src/freeze-routes.js";
 import { readFile } from "node:fs/promises";
 
 const frozenFinishFix = String.raw`<script>
-function frozenFinish(id){let v=frozen.find(x=>x.id===id);if(!v)return;let box=document.getElementById('ff'+id);if(!box)return;box.innerHTML='<div class="finish"><b>'+esc(v.plate)+' — Yakunlash</b><div class="muted">Kirish: '+dt(v.started_at)+'</div><div class="muted">Muzlatilgan vaqt: '+dur(v.duration_seconds)+'</div>'+(v.student_id?'<div class="badge" style="margin-top:9px">AVTOSHKOLA O‘QUVCHISI — BEPUL</div>':'<div class="fg" style="margin-top:12px"><label>Yakuniy summa — qo‘lda</label><input id="fa'+id+'" type="number" min="0" placeholder="50000"></div><div class="payButtons"><button onclick="chooseFrozenPay(\''+id+'\',\'cash\')">Naqd</button><button onclick="chooseFrozenPay(\''+id+'\',\'terminal\')">Terminal</button><button onclick="chooseFrozenPay(\''+id+'\',\'mixed\')">Aralash</button></div><div id="fsplit'+id+'" class="payments hidden"><input id="fc'+id+'" type="number" min="0" placeholder="Naqd"><input id="ft'+id+'" type="number" min="0" placeholder="Terminal"><div class="total" id="ftot'+id+'">0 so‘m</div></div>')+'<div class="actions"><button class="btn green" onclick="frozenFinishSubmit(\''+id+'\')">✓ Tugatish</button><button class="btn light" onclick="document.getElementById(\'ff'+id+'\').innerHTML=\'\'">Bekor</button></div><div id="ferr'+id+'" class="err"></div></div>';window.frozenPay=window.frozenPay||{};window.frozenPay[id]='cash'}
-function chooseFrozenPay(id,m){window.frozenPay=window.frozenPay||{};window.frozenPay[id]=m;document.querySelectorAll('#ff'+id+' .payButtons button').forEach((b,i)=>b.classList.toggle('selected',i===(['cash','terminal','mixed'].indexOf(m))));document.getElementById('fsplit'+id)?.classList.toggle('hidden',m!=='mixed')}
-async function frozenFinishSubmit(id){let v=frozen.find(x=>x.id===id);if(!v)return;let amount=v.student_id?0:Number(document.getElementById('fa'+id)?.value||0),m=v.student_id?'cash':((window.frozenPay||{})[id]||'cash'),cash=m==='cash'?amount:0,term=m==='terminal'?amount:0;if(m==='mixed'){cash=Number(document.getElementById('fc'+id)?.value||0);term=Number(document.getElementById('ft'+id)?.value||0);if(Math.abs(cash+term-amount)>0.01){document.getElementById('ferr'+id).textContent='Naqd + terminal umumiy summaga teng bo‘lishi kerak';return}}try{await api('/sessions/'+id+'/finish',{method:'POST',body:JSON.stringify({amount,paymentMethod:m,cashAmount:cash,terminalAmount:term})});toast('Muzlatilgan avtomobil tugatildi va kunlik bazaga yozildi');frozen=frozen.filter(x=>x.id!==id);await loadFrozen();await loadDashboard(1);go('finish')}catch(e){document.getElementById('ferr'+id).textContent=e.message||'Tugatishda xatolik'}}
+function frozenFinish(id){
+  const v=(window.frozen||[]).find(x=>String(x.id)===String(id));
+  const box=document.getElementById('ff'+id);
+  if(!v||!box)return;
+  const school=!!v.student_id;
+  box.innerHTML='<div class="finish" style="margin-top:10px"><div class="modalHead"><div><b style="font-size:18px">'+esc(v.plate)+' — Yakunlash</b><div class="muted">Kirish: '+dt(v.started_at)+'</div></div><span class="badge freezeBadge">MUZLATILGAN</span></div><div class="kv" style="margin:14px 0"><div><b>'+dur(v.duration_seconds)+'</b><span>Faol vaqt</span></div><div><b>'+Math.floor(Number(v.duration_seconds||0)/60)+'</b><span>Daqiqa</span></div><div><b>'+dt(v.frozen_at)+'</b><span>Muzlatilgan</span></div><div><b>'+(school?'BEPUL':'ODDIY')+'</b><span>Kirish turi</span></div></div><div class="muted" style="margin-bottom:10px">'+esc(v.model||'')+(v.driver_name?' • '+esc(v.driver_name):'')+(v.school_name?' • '+esc(v.school_name):'')+(v.group_name?' • '+esc(v.group_name):'')+(v.student_name?' • '+esc(v.student_name):'')+'</div>'+(school?'<div class="badge" style="margin:8px 0">AVTOSHKOLA O‘QUVCHISI — BEPUL</div><div class="finish" style="margin-top:10px;background:#f7fbf9"><div class="muted">Yakuniy summa</div><div class="total">0 so‘m</div><div class="muted">To‘lov talab qilinmaydi</div></div>':'<div class="fg" style="margin-top:12px"><label>Yakuniy summa — qo‘lda kiriting</label><input id="fa'+id+'" type="number" min="0" step="1000" placeholder="Masalan: 50000" inputmode="numeric"></div><div class="muted" style="margin-top:10px">To‘lov turi</div><div class="payButtons"><button type="button" onclick="chooseFrozenPay(\\''+id+'\\',\\'cash\\')">Naqd</button><button type="button" onclick="chooseFrozenPay(\\''+id+'\\',\\'terminal\\')">Terminal</button><button type="button" onclick="chooseFrozenPay(\\''+id+'\\',\\'mixed\\')">Aralash</button></div><div id="fsplit'+id+'" class="payments hidden"><div><label class="muted">Naqd</label><input id="fc'+id+'" type="number" min="0" step="1000" placeholder="Naqd summa"></div><div><label class="muted">Terminal</label><input id="ft'+id+'" type="number" min="0" step="1000" placeholder="Terminal summa"></div><div><label class="muted">Jami</label><div class="total" id="ftot'+id+'">0 so‘m</div></div></div>')+'<div class="actions"><button type="button" class="btn green" onclick="frozenFinishSubmit(\\''+id+'\\')">✓ Tugatish</button><button type="button" class="btn light" onclick="document.getElementById(\\'ff'+id+'\\').innerHTML=\\'\\'">Bekor</button></div><div id="ferr'+id+'" class="err"></div></div>';
+  window.frozenPay=window.frozenPay||{};
+  window.frozenPay[id]=school?'cash':'cash';
+  if(!school)chooseFrozenPay(id,'cash');
+}
+function chooseFrozenPay(id,m){
+  window.frozenPay=window.frozenPay||{};
+  window.frozenPay[id]=m;
+  const box=document.getElementById('ff'+id);
+  if(!box)return;
+  box.querySelectorAll('.payButtons button').forEach((b,i)=>b.classList.toggle('selected',i===(['cash','terminal','mixed'].indexOf(m))));
+  document.getElementById('fsplit'+id)?.classList.toggle('hidden',m!=='mixed');
+}
+function updateFrozenSplit(id){
+  const c=Number(document.getElementById('fc'+id)?.value||0),t=Number(document.getElementById('ft'+id)?.value||0),el=document.getElementById('ftot'+id);
+  if(el)el.textContent=money(c+t);
+}
+document.addEventListener('input',e=>{const id=e.target?.id||'';if(id.startsWith('fc')||id.startsWith('ft'))updateFrozenSplit(id.slice(2))});
+async function frozenFinishSubmit(id){
+  const v=(window.frozen||[]).find(x=>String(x.id)===String(id));
+  if(!v)return;
+  const err=document.getElementById('ferr'+id),school=!!v.student_id,amount=school?0:Number(document.getElementById('fa'+id)?.value||0),method=school?'cash':((window.frozenPay||{})[id]||'cash');
+  let cash=0,terminal=0;
+  if(!school){
+    if(!Number.isFinite(amount)||amount<0){if(err)err.textContent='Summani to‘g‘ri kiriting';return}
+    if(method==='cash')cash=amount;
+    else if(method==='terminal')terminal=amount;
+    else{cash=Number(document.getElementById('fc'+id)?.value||0);terminal=Number(document.getElementById('ft'+id)?.value||0);if(cash<0||terminal<0||Math.abs(cash+terminal-amount)>0.01){if(err)err.textContent='Naqd + terminal summasi umumiy summaga teng bo‘lishi kerak';return}}
+  }
+  try{
+    await api('/sessions/'+id+'/finish-frozen',{method:'POST',body:JSON.stringify({amount,paymentMethod:method,cashAmount:cash,terminalAmount:terminal})});
+    toast('Muzlatilgan avtomobil tugatildi va kunlik bazaga yozildi');
+    frozen=(window.frozen||[]).filter(x=>String(x.id)!==String(id));
+    await loadFrozen(1);await loadDashboard(1);await loadDaily();go('finish');
+  }catch(e){if(err)err.textContent=e.message||'Muzlatilgan avtomobilni tugatishda xatolik'}
+}
 </script>`;
 
 export default async function handler(req, res) {
@@ -24,10 +62,6 @@ export default async function handler(req, res) {
   const handled = await handleFreezeRequest(req, jsonRes);
   if (handled !== null) return handled;
 
-  // Vercel gives us a native ServerResponse. Express adds its own sendFile
-  // helper only after the app starts handling the request, so calling
-  // res.sendFile.bind(res) here would crash the serverless function.
-  // Provide the small helper ourselves before handing the request to Express.
   if (req.method === "GET" && !req.url?.startsWith("/api/") && req.url !== "/favicon.ico") {
     res.sendFile = async (filePath, options, callback) => {
       try {
