@@ -123,13 +123,44 @@ function go(p){document.querySelectorAll('.page').forEach(x=>x.classList.add('hi
 async function loadDashboard(silent){try{let d=await api('/dashboard');$('dc').textContent=d.todayCount||0;$('da').textContent=d.active||0;$('dm').textContent=money(d.todayAmount);$('dp').textContent=money(d.todayCash).replace(' so‘m','')+' / '+money(d.todayTerminal).replace(' so‘m','');await loadActive(1);await loadFrozen(1);let x=await api('/reports/daily');daily=x;renderDash(x)}catch(e){if(!silent)toast(e.message,true)}}
 function renderDash(x){$('dashActive').innerHTML=active.length?active.slice(0,7).map(v=>vehicle(v,true)).join(''):'<div class="empty">Hozir avtomobil yo‘q</div>';let s=x.summary||{};$('dashPay').innerHTML='<div class="kv"><div><b>'+money(s.cash)+'</b><span>naqd</span></div><div><b>'+money(s.terminal)+'</b><span>terminal</span></div><div><b>'+money(s.amount)+'</b><span>jami</span></div><div><b>'+Number(s.count||0)+'</b><span>avtomobil</span></div></div>';$('dashTable').innerHTML=table(x.rows||[])}
 function table(a){if(!a.length)return'<div class="empty">Ma’lumot yo‘q</div>';return'<div class="tableWrap"><table class="table"><thead><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>Vaqt</th><th>O‘quvchi</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr></thead><tbody>'+a.map(x=>'<tr><td><b>'+esc(x.plate)+'</b></td><td>'+dt(x.started_at)+'</td><td>'+dt(x.finished_at)+'</td><td>'+dur(x.duration_seconds)+'</td><td>'+esc(x.student_name||'—')+'</td><td>'+money(x.cash_amount)+'</td><td>'+money(x.terminal_amount)+'</td><td><b>'+money(x.amount)+'</b></td></tr>').join('')+'</tbody></table></div>'}
-async function loadActive(silent){try{active=await api('/sessions/active');$('da').textContent=active.length;renderActive();renderFinish()}catch(e){if(!silent)toast(e.message,true)}}
+async function loadActive(silent){
+  try{
+    active=await api('/sessions/active');
+    $('da').textContent=active.length;
+    renderActive();
+
+    // TUGATISH formasi ochiq bo'lsa, avtomatik yangilanish uni yopmaydi.
+    const finishOpen = document.querySelector('#finishList .finish');
+    if(!finishOpen) renderFinish();
+  }catch(e){
+    if(!silent)toast(e.message,true);
+  }
+}
 function vehicle(v,buttons){return'<div class="vehicle"><div class="vehicleTop"><div><div class="plateText">'+esc(v.plate)+'</div><div class="muted">'+esc(v.model||'')+(v.driver_name?' • '+esc(v.driver_name):'')+'</div><div class="muted">'+(v.school_name?esc(v.school_name)+' • '+esc(v.group_name||''):'Oddiy mijoz')+(v.student_name?' • '+esc(v.student_name):'')+'</div><div class="timer" data-start="'+esc(v.started_at)+'">'+dur(v.duration_seconds||((Date.now()-new Date(v.started_at))/1000))+'</div></div><div class="vActions">'+(buttons?'<button type="button" class="btn green" onclick="openFinish(\''+v.id+'\')">Tugatish</button><button type="button" class="btn light" onclick="freeze(\''+v.id+'\')">❄ Muzlatish</button>':'')+'</div></div></div>'}
 function renderActive(){$('activeList').innerHTML=active.length?active.map(v=>vehicle(v,true)).join(''):'<div class="empty">Jarayonda avtomobil yo‘q</div>'}
 function renderFinish(){let q=($('finishQ').value||'').toUpperCase(),a=active.filter(x=>(x.plate||'').toUpperCase().includes(q));$('finishList').innerHTML=a.length?a.map(v=>vehicle(v,true)+'<div id="f'+v.id+'"></div>').join(''):'<div class="empty">Avtomobil topilmadi</div>'}
 
 function finishFormHTML(v,id,frozenMode=false){let seconds=Number(v.duration_seconds||0)||Math.max(0,(Date.now()-new Date(v.started_at).getTime())/1000);return '<div class="finish"><div class="plateText">'+esc(v.plate)+' — Yakunlash</div><div class="muted">Kirish: '+dt(v.started_at)+(v.frozen_at?' • Muzlatilgan: '+dt(v.frozen_at):'')+'</div><div class="finishGrid"><div><small class="muted">Yurilgan vaqt</small><div class="timer" id="ftimer'+id+'">'+dur(seconds)+'</div></div><div><small class="muted">O‘quvchi</small><b>'+esc(v.student_name||'Oddiy mijoz')+'</b></div><div><small class="muted">Avtoshkola</small><b>'+esc(v.school_name||'—')+'</b></div></div>'+(v.student_id?'<div class="badge" style="margin-top:12px">AVTOSHKOLA O‘QUVCHISI — BEPUL</div>':'<div class="fg" style="margin-top:12px"><label>Yakuniy summa</label><input id="a'+id+'" type="number" min="0" placeholder="50000"></div><div class="payButtons"><button type="button" id="paycash'+id+'" onclick="choosePay(\''+id+'\',\'cash\')">Naqd</button><button type="button" id="payterminal'+id+'" onclick="choosePay(\''+id+'\',\'terminal\')">Terminal</button><button type="button" id="paymixed'+id+'" onclick="choosePay(\''+id+'\',\'mixed\')">Aralash</button></div><div id="split'+id+'" class="payments hidden"><div class="fg"><label>Naqd</label><input id="c'+id+'" type="number" value="0" oninput="updateSplit(\''+id+'\')"></div><div class="fg"><label>Terminal</label><input id="t'+id+'" type="number" value="0" oninput="updateSplit(\''+id+'\')"></div></div><div id="tot'+id+'" class="totalBox">Jami to‘lov: 0 so‘m</div>')+'<div class="actions" style="margin-top:13px"><button type="button" class="btn green" onclick="finishSession(\''+id+'\','+(frozenMode?'true':'false')+')">✓ TUGATISH</button><button type="button" class="btn light" onclick="'+(frozenMode?'cancelFrozenFinish(\''+id+'\')':'cancelFinish(\''+id+'\')')+'">Bekor</button></div><div id="fe'+id+'" class="err"></div></div>'}
-function startFinishTimer(v,id){let base=Number(v.duration_seconds||0)||Math.max(0,(Date.now()-new Date(v.started_at).getTime())/1000);clearInterval(window['ft'+id]);window['ft'+id]=setInterval(()=>{let e=$('ftimer'+id);if(e)e.textContent=dur(base);else clearInterval(window['ft'+id])},1000)}
+function startFinishTimer(v,id){
+  clearInterval(window['ft'+id]);
+
+  const stored=Number(v.duration_seconds||0);
+  const startedTime=new Date(v.started_at).getTime();
+  const base=stored>0 ? stored : Math.max(0,(Date.now()-startedTime)/1000);
+  const baseNow=Date.now();
+
+  const tick=()=>{
+    const e=$('ftimer'+id);
+    if(!e){
+      clearInterval(window['ft'+id]);
+      return;
+    }
+    e.textContent=dur(base+Math.max(0,(Date.now()-baseNow)/1000));
+  };
+
+  tick();
+  window['ft'+id]=setInterval(tick,1000);
+}
 function openFinish(id){let v=active.find(x=>x.id===id),h=$('f'+id);if(!v||!h)return;h.innerHTML=finishFormHTML(v,id,false);startFinishTimer(v,id);h.scrollIntoView({behavior:'smooth',block:'center'})}
 function cancelFinish(id){if($('f'+id))$('f'+id).innerHTML='';clearInterval(window['ft'+id])}
 function cancelFrozenFinish(id){if($('ff'+id))$('ff'+id).innerHTML='';clearInterval(window['ft'+id])}
@@ -137,7 +168,19 @@ function choosePay(id,m){pay[id]=m;['cash','terminal','mixed'].forEach(x=>{let b
 function updateSplit(id){let a=Number($('a'+id)?.value||0),c=Number($('c'+id)?.value||0),t=Number($('t'+id)?.value||0),m=pay[id]||'cash',total=m==='mixed'?c+t:a;if($('tot'+id))$('tot'+id).textContent='Jami to‘lov: '+money(total)+(m==='mixed'&&total!==a?' • mos emas':'')}
 async function finishSession(id,fromFrozen=false){let v=(fromFrozen?frozen:active).find(x=>x.id===id);if(!v)return;let amount=v.student_id?0:Number($('a'+id)?.value||0),m=v.student_id?'cash':(pay[id]||'cash'),cash=m==='cash'?amount:0,term=m==='terminal'?amount:0;if(m==='mixed'){cash=Number($('c'+id)?.value||0);term=Number($('t'+id)?.value||0);if(cash+term!==amount){$('fe'+id).textContent='Naqd + terminal yakuniy summaga teng bo‘lishi kerak.';return}}try{await api('/sessions/'+id+'/finish',{method:'POST',body:JSON.stringify({amount,paymentMethod:m,cashAmount:cash,terminalAmount:term})});delete pay[id];toast('Tugatildi. Ma’lumot bazaga yozildi.');await loadActive(1);await loadFrozen(1);await loadDashboard(1);go('finish')}catch(e){if($('fe'+id))$('fe'+id).textContent=e.message;else toast(e.message,true)}}
 async function freeze(id){try{await api('/sessions/'+id+'/freeze',{method:'POST',body:'{}'});toast('Vaqt muzlatildi');await loadActive();await loadFrozen()}catch(e){toast(e.message,true)}}
-async function loadFrozen(silent){try{frozen=await api('/sessions/frozen');$('frozenCount').textContent=frozen.length?' ('+frozen.length+')':'';$('df').textContent=frozen.length;renderFrozen()}catch(e){if(!silent)toast(e.message,true)}}
+async function loadFrozen(silent){
+  try{
+    frozen=await api('/sessions/frozen');
+    $('frozenCount').textContent=frozen.length?' ('+frozen.length+')':'';
+    $('df').textContent=frozen.length;
+
+    // Muzlatilgan TUGATISH formasi ochiq bo'lsa, polling uni o'chirmaydi.
+    const frozenFinishOpen = document.querySelector('#frozenList .finish');
+    if(!frozenFinishOpen) renderFrozen();
+  }catch(e){
+    if(!silent)toast(e.message,true);
+  }
+}
 function renderFrozen(){let q=($('frozenQ').value||'').toUpperCase(),a=frozen.filter(x=>(x.plate||'').toUpperCase().includes(q));$('frozenList').innerHTML=a.length?a.map(v=>'<div class="frozen"><div><div class="plateText">'+esc(v.plate)+'</div><div class="muted">Muzlatilgan: '+dt(v.frozen_at||v.updated_at)+'</div><div class="timer">Saqlangan vaqt: '+dur(v.duration_seconds)+'</div><div class="muted">'+esc(v.school_name||'')+' '+esc(v.group_name||'')+' '+esc(v.student_name||'')+'</div></div><div class="vActions"><button class="btn light" onclick="resume(\''+v.id+'\')">▶ Davom ettirish</button><button class="btn green" onclick="frozenFinish(\''+v.id+'\')">Tugatish</button></div></div><div id="ff'+v.id+'"></div>').join(''):'<div class="empty">Muzlatilgan avtomobil yo‘q</div>'}
 function frozenFinish(id){let v=frozen.find(x=>x.id===id),h=$('ff'+id);if(!v||!h)return;h.innerHTML=finishFormHTML(v,id,true);startFinishTimer(v,id);h.scrollIntoView({behavior:'smooth',block:'center'})}
 async function resume(id){try{await api('/sessions/'+id+'/resume',{method:'POST',body:'{}'});toast('Vaqt davom ettirildi');await loadFrozen();await loadActive();go('active')}catch(e){toast(e.message,true)}}
