@@ -43,6 +43,10 @@ ALTER TABLE sessions ADD COLUMN IF NOT EXISTS school_id UUID;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS group_id UUID;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS student_id UUID;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS manual_price BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS frozen_at TIMESTAMPTZ;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS frozen_seconds BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_status_check;
+ALTER TABLE sessions ADD CONSTRAINT sessions_status_check CHECK (status IN ('active','frozen','completed'));
 
 UPDATE sessions
 SET cash_amount = COALESCE(amount,0), payment_method = 'cash'
@@ -53,6 +57,7 @@ WHERE status='completed'
 
 CREATE INDEX IF NOT EXISTS idx_sessions_plate_time ON sessions(vehicle_id,started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_payment ON sessions(payment_method);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_frozen ON sessions(user_id,status,frozen_at DESC);
 CREATE INDEX IF NOT EXISTS idx_students_owner ON students(owner_key);
 CREATE INDEX IF NOT EXISTS idx_school_groups_owner ON school_groups(owner_key);
 CREATE INDEX IF NOT EXISTS idx_schools_owner ON driving_schools(owner_key);
