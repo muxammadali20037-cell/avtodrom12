@@ -311,9 +311,27 @@ async function studentsForGroup(){
 }
 function attendanceClass(n){return n>=6&&n<12?'red':n>=12?'blue':''}
 function studentInfo(){
-  const s=students.find(x=>String(x.id)===String($('student').value));if(!s){$('studentBox').innerHTML='';return}
-  const n=Number(s.attendance_count||0),cls=attendanceClass(n),label=n<6?'1–5 dars — normal':n<12?'6–11 dars — QIZIL': '12+ dars — yangi bosqich';
-  $('studentBox').innerHTML='<div class="panel" style="margin-top:12px;margin-bottom:0"><b>'+esc(s.full_name)+'</b><div class="muted">'+esc(s.school_name||'')+' • '+esc(s.group_name||'Guruhsiz')+'</div><div class="kv" style="margin-top:10px"><div><b>'+n+'</b><span>Kelgan dars</span></div><div><b><span class="badge '+cls+'">'+label+'</span></b><span>Holat</span></div><div><b>'+esc(s.plate||'—')+'</b><span>Avtomobil</span></div><div><b>BEPUL</b><span>Avtoshkola</span></div></div></div>';
+  const s=students.find(x=>x.id===$('student').value);
+  if(!s){$('studentBox').innerHTML='';return}
+
+  const n=Number(s.attendance_count||0);
+  const cls=n>=6&&n<12?'red':n>=12?'blue':'';
+  const label=n<6?'1–5 normal':n<12?'6–11 nazorat':'12+ yangi bosqich';
+
+  $('studentBox').innerHTML=
+    '<div class="attendance">'+
+      '<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">'+
+        '<div><b style="font-size:19px">'+esc(s.full_name)+'</b>'+
+        '<div class="muted">'+esc(s.phone||'Telefon yo‘q')+'</div></div>'+
+        '<span class="badge '+cls+'">'+n+' marta qatnashgan</span>'+
+      '</div>'+
+      '<div class="attGrid">'+
+        '<div class="att"><b>'+n+'</b><span class="muted">Kelgan dars</span></div>'+
+        '<div class="att"><b>'+label+'</b><span class="muted">Holat</span></div>'+
+        '<div class="att"><b>'+esc(s.plate||'—')+'</b><span class="muted">Avtomobil</span></div>'+
+        '<div class="att"><b>BEPUL</b><span class="muted">Avtoshkola</span></div>'+
+      '</div>'+
+    '</div>';
 }
 
 function vehicle(v,buttons=true){
@@ -723,37 +741,31 @@ async function modalGroups(){
 }
 
 async function createStudent(){
-  const n=$('sn')?.value.trim();
-  const phone=$('sp')?.value.trim();
-  const schoolId=$('ss')?.value;
-  const groupId=$('sg')?.value;
-  const plate=$('spl')?.value.trim();
-  const attendance_count=Math.max(0, Math.floor(Number($('sLessons')?.value || 0)));
+  const n=$('sn').value.trim();
+  const schoolId=$('ss').value;
+  const attendanceCount=Math.max(0,Math.floor(Number($('sattendance')?.value||0)));
 
-  if(!n)return showToast('F.I.Sh. ni kiriting.',true);
-  if(!phone)return showToast('O‘quvchining telefon raqamini kiriting.',true);
-  if(!schoolId)return showToast('Avtoshkolani tanlang.',true);
-  if(!groupId)return showToast('Guruhni tanlang.',true);
+  if(!n||!schoolId){
+    return showToast('F.I.Sh. va avtoshkolani kiriting',true);
+  }
 
   try{
     await api('/students',{
       method:'POST',
       body:JSON.stringify({
         fullName:n,
-        phone,
+        phone:$('sp').value.trim(),
         schoolId,
-        groupId,
-        plate,
-        attendance_count
+        groupId:$('sg').value||null,
+        plate:$('spl').value.trim(),
+        attendanceCount
       })
     });
 
     closeModal();
     await adminLoad();
-    adminTab('schools');
-    await adminShowGroups(schoolId);
-    await adminShowStudents(groupId);
-    showToast('O‘quvchi saqlandi. Telefon raqami ham bazaga yozildi.');
+    adminTab('students');
+    showToast(n+' qo‘shildi — '+attendanceCount+' dars saqlandi');
   }catch(e){
     showToast(e.message,true);
   }
