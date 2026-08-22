@@ -25,6 +25,18 @@ function auth(req,res){
   }
 }
 
+function attendanceExpr(){
+  return `(
+    COALESCE(st.attendance_count,0)
+    + COALESCE((
+        SELECT COUNT(*)
+        FROM public.sessions se
+        WHERE se.student_id=st.id
+          AND LOWER(COALESCE(se.status,''))='completed'
+      ),0)
+  )::int`;
+}
+
 async function ensureSchema(){
   await pool.query(`
     ALTER TABLE public.students
@@ -70,7 +82,7 @@ export default async function handler(req,res){
           st.*,
           s.name AS school_name,
           g.name AS group_name,
-          COALESCE(st.attendance_count,0)::int AS attendance_count
+          ${attendanceExpr()} AS attendance_count
         FROM public.students st
         JOIN public.driving_schools s ON s.id=st.school_id
         LEFT JOIN public.school_groups g ON g.id=st.group_id
