@@ -13,7 +13,7 @@ const frozenFinishFix = String.raw`<script>
     const school = !!v.student_id;
     const activeSeconds = Number(v.duration_seconds || 0);
     const activeMinutes = Math.floor(activeSeconds / 60);
-    const escx = typeof esc === 'function' ? esc : (x => String(x ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])));
+    const escx = typeof esc === 'function' ? esc : (x => String(x ?? '').replace(/[&<>\"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[m])));
     const dtx = typeof dt === 'function' ? dt : (x => x ? new Date(x).toLocaleString('uz-UZ') : '—');
     const durx = typeof dur === 'function' ? dur : (s => Math.floor(Number(s||0)/60) + ' daqiqa');
     const moneyx = typeof money === 'function' ? money : (n => Number(n||0).toLocaleString('uz-UZ') + ' so‘m');
@@ -76,7 +76,7 @@ const frozenFinishFix = String.raw`<script>
     e.preventDefault();e.stopImmediatePropagation();safeFrozenFinish(id);
   },true);
 })();
-</script><script src="/schools-enhance.js"></script>`;
+</script><script src="/schools-enhance.js"></script><script src="/student-attendance-fix.js"></script>`;
 
 export default async function handler(req, res) {
   const jsonRes = {
