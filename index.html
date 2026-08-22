@@ -107,16 +107,7 @@ button,input,select{font:inherit}button{cursor:pointer}input,select{width:100%;p
 </div>
 <div id="studentBox"></div>
 <div class="actions"><button class="btn green" id="startBtn">▶ Vaqt ochish</button>
-<div class="field" style="margin-top:14px">
-  <label for="studentLessons">Qatnashgan darslar soni</label>
-  <input id="studentLessons" name="lessons_attended" type="number"
-         min="0" max="999" step="1" value="0"
-         placeholder="Masalan: 8"
-         inputmode="numeric">
-  <small style="display:block;margin-top:6px;color:#6b7280">
-    O‘quvchi hozirgacha nechta darsga qatnashganini kiriting.
-  </small>
-</div>
+
 <button type="button" class="btn light" onclick="resetStart()">Bekor</button></div>
 <div id="startErr" class="err"></div>
 </form>
@@ -691,6 +682,10 @@ function studentModal(preSchoolId='',preGroupId=''){
     '<div class="fg"><label>Avtoshkola</label><select id="ss" onchange="modalGroups()" required><option value="">Tanlang</option>'+schoolOptions+'</select></div>'+
     '<div class="fg"><label>Guruh</label><select id="sg" required><option value="">Avval avtoshkolani tanlang</option></select></div>'+
     '<div class="fg"><label>Avtomobil raqami</label><input id="spl" placeholder="01 A555AA"></div>'+
+    '<div class="fg"><label>Hozirgacha qatnashgan darslar soni</label>'+
+      '<input id="sLessons" type="number" min="0" max="999" step="1" value="0" inputmode="numeric" placeholder="Masalan: 4">'+
+      '<div class="muted" style="margin-top:5px">Eski o‘quvchini qo‘shayotgan bo‘lsangiz, avval qatnashgan darslarini shu yerga yozing.</div>'+
+    '</div>'+
     '<div class="actions">'+
       '<button class="btn green" type="button" onclick="createStudent()">Saqlash</button>'+
       '<button class="btn light" type="button" onclick="closeModal()">Bekor</button>'+
@@ -733,7 +728,7 @@ async function createStudent(){
   const schoolId=$('ss')?.value;
   const groupId=$('sg')?.value;
   const plate=$('spl')?.value.trim();
-const lessons_attended = Math.max(0, Number(document.getElementById("studentLessons")?.value || 0));
+  const attendance_count=Math.max(0, Math.floor(Number($('sLessons')?.value || 0)));
 
   if(!n)return showToast('F.I.Sh. ni kiriting.',true);
   if(!phone)return showToast('O‘quvchining telefon raqamini kiriting.',true);
@@ -748,7 +743,8 @@ const lessons_attended = Math.max(0, Number(document.getElementById("studentLess
         phone,
         schoolId,
         groupId,
-        plate
+        plate,
+        attendance_count
       })
     });
 
