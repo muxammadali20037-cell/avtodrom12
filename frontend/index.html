@@ -26,6 +26,7 @@ button,input,select{font:inherit}button{cursor:pointer}input,select{width:100%;p
 .kv{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.kv>div{background:#f5faf7;border-radius:10px;padding:12px}.kv b{display:block;font-size:17px}.kv span{font-size:11px;color:var(--muted)}
 .modalBg,.adminGate{position:fixed;inset:0;background:#07191266;display:grid;place-items:center;padding:18px;z-index:100}.modal{width:min(620px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;padding:20px}.modalHead{display:flex;justify-content:space-between;align-items:center;gap:10px}.toastBox{position:fixed;right:18px;bottom:18px;z-index:300;display:grid;gap:8px}.toast{background:#10231a;color:#fff;padding:11px 14px;border-radius:10px;box-shadow:var(--shadow)}.toast.error{background:#8d211a}
 .adminCard{width:min(1250px,96vw);max-height:94vh;overflow:auto;background:#fff;border-radius:18px;padding:20px}.adminLogin{width:min(430px,100%)}.adminBar{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#0b2b20;color:#fff;border-radius:13px;padding:14px 16px;margin-bottom:15px}.adminBar small{color:#c9ded5}.live{color:#0b8c50}
+.reportFilters{display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:15px}.reportFilters .fg{margin:0;min-width:190px}.reportQuick{display:flex;gap:7px;flex-wrap:wrap}.studentSearchHint{padding:10px 12px;background:#f5faf7;border:1px solid var(--line);border-radius:10px;color:var(--muted);margin-bottom:12px}.studentDetailPanel{margin-top:14px}.studentHistoryTitle{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.studentHistoryMeta{font-size:12px;color:var(--muted)}
 @media(max-width:1050px){.stats{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:720px){.side{transform:translateX(-100%);transition:.2s}.side.open{transform:translateX(0)}.main{margin-left:0}.hamb{display:block}.top{padding:0 14px}.content{padding:15px}.formGrid{grid-template-columns:1fr}.span2{grid-column:auto}.kv{grid-template-columns:1fr 1fr}.cards{grid-template-columns:1fr}.vehicleTop{flex-direction:column;align-items:flex-start}}
 @media(max-width:480px){.stats{grid-template-columns:1fr}.plate{grid-template-columns:70px 1fr}.search{flex-direction:column}}
@@ -121,11 +122,23 @@ button,input,select{font:inherit}button{cursor:pointer}input,select{width:100%;p
 <section id="p-frozen" class="page hidden"><div class="head"><div><h1>Muzlatilgan</h1><p>Keyin davom ettirish yoki yakunlash mumkin</p></div></div><div class="panel"><div class="search"><input id="frozenQ" placeholder="Muzlatilgan raqam..."></div><div id="frozenList"></div></div></section>
 
 <section id="p-daily" class="page hidden">
-<div class="head"><div><h1>Kunlik hisobot</h1><p>Naqd, terminal, avtomobillar va avtoshkola o‘quvchilari</p></div><button class="btn green" type="button" onclick="exportExcel()">Excel (.xls)</button></div>
+<div class="head"><div><h1>Kunlik hisobot</h1><p>Istalgan kunni kalendardan tanlang va shu kunning to‘liq hisobotini ko‘ring.</p></div><button class="btn green" type="button" onclick="exportExcel()">Excel (.xls)</button></div>
+<div class="panel">
+  <div class="reportFilters">
+    <div class="fg"><label>Hisobot sanasi</label><input id="reportDate" type="date"></div>
+    <div class="reportQuick">
+      <button class="btn light" type="button" onclick="setReportDateOffset(0)">Bugun</button>
+      <button class="btn light" type="button" onclick="setReportDateOffset(-1)">Kecha</button>
+      <button class="btn light" type="button" onclick="setReportDateOffset(-4)">4 kun oldin</button>
+      <button class="btn light" type="button" onclick="setReportDateOffset(-10)">10 kun oldin</button>
+      <button class="btn green" type="button" onclick="loadDaily()">Ko‘rsatish</button>
+    </div>
+  </div>
+  <div class="muted">Tanlangan sana: <b id="reportDateLabel">—</b></div>
+</div>
 <div class="stats"><div class="stat"><small>Avtomobillar</small><b id="rdc">0</b></div><div class="stat"><small>Umumiy</small><b class="greenText" id="rdm">0</b></div><div class="stat"><small>Naqd</small><b class="greenText" id="rdcash">0</b></div><div class="stat"><small>Terminal</small><b class="greenText" id="rdterm">0</b></div><div class="stat"><small>Jami vaqt</small><b id="rdtime">0</b></div></div>
 <div class="panel"><div class="tableWrap" id="dailyTableWrap"><table class="table" id="dailyTable"></table></div></div>
 </section>
-
 <section id="p-history" class="page hidden"><div class="head"><div><h1>Avtomobil tarixi</h1><p>Raqam orqali barcha tashriflar</p></div></div><div class="panel"><div class="search"><input id="histQ" placeholder="01 A555AA"><button class="btn green" type="button" onclick="historySearch()">Qidirish</button></div><div id="histOut"></div></div></section>
 </div>
 </main>
@@ -242,6 +255,7 @@ $('group').addEventListener('change',studentsForGroup);
 $('student').addEventListener('change',studentInfo);
 $('finishQ').addEventListener('input',renderFinish);
 $('frozenQ').addEventListener('input',renderFrozen);
+$('reportDate')?.addEventListener('change',()=>loadDaily());
 
 $('plateBody').addEventListener('input',e=>{
   e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
@@ -431,20 +445,33 @@ function tableHTML(rows){
   rows.map(r=>{const att=Number(r.attendance_count||0),cls=att>=12?'attendanceBlue':att>=6?'attendanceRed':r.school_name?'schoolRow':'';return '<tr class="'+cls+'"><td><b>'+esc(r.plate||'')+'</b></td><td>'+dt(r.started_at)+'</td><td>'+dt(r.finished_at)+'</td><td>'+dur(r.duration_seconds)+'</td><td>'+esc(r.school_name||'—')+'</td><td>'+esc(r.group_name||'—')+'</td><td>'+esc(r.student_name||'—')+'</td><td>'+((r.student_name&&att)||'—')+'</td><td>'+money(r.cash_amount||0)+'</td><td>'+money(r.terminal_amount||0)+'</td><td><b>'+money(r.amount||0)+'</b></td></tr>'}).join('')+'</tbody></table>';
 }
 
+function localDateISO(offsetDays=0){
+  const now=new Date();
+  const t=new Date(now.getFullYear(),now.getMonth(),now.getDate()+offsetDays);
+  return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+}
+function formatReportDate(v){
+  if(!v)return '—';
+  const p=v.split('-');
+  return p.length===3?p[2]+'.'+p[1]+'.'+p[0]:v;
+}
+function setReportDateOffset(offset){
+  const el=$('reportDate');
+  if(el)el.value=localDateISO(offset);
+  loadDaily();
+}
 async function loadDaily(){
   try{
-    daily=await api('/reports/daily')||{};
+    const date=$('reportDate')?.value||localDateISO(0);
+    if($('reportDate')&&!$('reportDate').value)$('reportDate').value=date;
+    if($('reportDateLabel'))$('reportDateLabel').textContent=formatReportDate(date);
+    daily=await api('/reports/daily?date='+encodeURIComponent(date))||{};
     const s=daily.summary||{},rows=Array.isArray(daily.rows)?daily.rows:[];
     $('rdc').textContent=s.count??rows.length;
     $('rdm').textContent=money(s.amount);
     $('rdcash').textContent=money(s.cash);
     $('rdterm').textContent=money(s.terminal);
     $('rdtime').textContent=dur(rows.reduce((a,x)=>a+Number(x.duration_seconds||0),0));
-
-    /* MUHIM TUZATISH:
-       Oldingi kod dailyTable.parentElement.innerHTML ni almashtirib,
-       keyingi chaqiruvda dailyTable ni DOMdan o‘chirib yuborardi.
-       Endi doimiy dailyTableWrap konteyneri saqlanadi. */
     const host=$('dailyTableWrap');
     if(host)host.innerHTML=tableHTML(rows);
   }catch(e){showToast(e.message,true)}
@@ -462,7 +489,7 @@ function exportExcel(){
   .adminStudentPhone{font-weight:600}
 </style>
 </head><body><table><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>Vaqt</th><th>Avtoshkola</th><th>Guruh</th><th>O‘quvchi</th><th>Kelgan dars</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr>${body}</table></body></html>`;
-  const blob=new Blob(['\ufeff'+xls],{type:'application/vnd.ms-excel'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='avtodrom-'+new Date().toISOString().slice(0,10)+'.xls';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  const blob=new Blob(['\ufeff'+xls],{type:'application/vnd.ms-excel'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='avtodrom-'+(($('reportDate')&&$('reportDate').value)||localDateISO(0))+'.xls';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 async function historySearch(){
   const q=$('histQ').value.trim();if(!q)return;
@@ -500,7 +527,7 @@ function adminTab(t){
     return;
   }
   if(t==='students'){
-    c.innerHTML='<div class="head"><div><h2>O‘quvchilar</h2><p>F.I.Sh., telefon, avtoshkola, guruh, avtomobil va darslar soni saqlanadi.</p></div><button class="btn green" type="button" onclick="studentModal()">＋ O‘quvchi</button></div><div class="panel"><div class="search"><input id="adminStudentQ" placeholder="O‘quvchi, telefon yoki raqam..." oninput="adminRenderStudents()"></div><div id="adminStudents"></div></div>';
+    c.innerHTML='<div class="head"><div><h2>O‘quvchilarni qidirish</h2><p>Ism, familiya, telefon, avtomobil yoki guruh bo‘yicha qidiring. O‘quvchini tanlab uning barcha dars tarixini ko‘ring.</p></div></div><div class="panel"><div class="studentSearchHint">🔎 Qidiruv natijasidan o‘quvchini tanlang — qachon, soat nechada va qaysi avtomobilda darsga qatnashgani to‘liq chiqadi.</div><div class="search"><input id="adminStudentQ" placeholder="Ism, familiya, telefon yoki raqam..." oninput="adminRenderStudents()"></div><div id="adminStudents"></div><div id="adminStudentDetail"></div></div>';
     adminRenderStudents();
   }
 }
@@ -607,42 +634,58 @@ async function adminShowStudents(gid){
 }
 
 function studentCardHTML(s){
-  const n=Number(s.attendance_count||0);
-  const cls=attendanceClass(n);
+  const n=Number(s.attendance_count||0),cls=attendanceClass(n);
   const label=n<6?'1–5 normal':n<12?'6–11 qizil nazorat':'12+ yangi bosqich';
-
-  return '<div class="card" style="margin:8px 0;background:'+
-    (n>=6&&n<12?'#fff0ef':n>=12?'#e9f1ff':'#fff')+'">'+
+  return '<div class="card click" style="margin:8px 0;background:'+(n>=6&&n<12?'#fff0ef':n>=12?'#e9f1ff':'#fff')+'" onclick="showStudentDetail(\''+esc(String(s.id||''))+'\')">'+
     '<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">'+
-      '<div>'+
-        '<h3>'+esc(s.full_name)+'</h3>'+
-        '<div class="muted">📞 '+esc(s.phone||'Telefon kiritilmagan')+'</div>'+
-        '<div class="muted">🏫 '+esc(s.school_name||'')+' • '+esc(s.group_name||'Guruhsiz')+'</div>'+
-        '<div class="muted">🚗 '+esc(s.plate||'Avtomobil biriktirilmagan')+'</div>'+
-      '</div>'+
-      '<div style="text-align:right">'+
-        '<span class="badge '+cls+'">'+n+' dars</span>'+
-        '<div class="muted" style="margin-top:7px">'+label+'</div>'+
-      '</div>'+
-    '</div>'+
-  '</div>';
+      '<div><h3>'+esc(s.full_name)+'</h3>'+
+      '<div class="muted">📞 '+esc(s.phone||'Telefon kiritilmagan')+'</div>'+
+      '<div class="muted">🏫 '+esc(s.school_name||'')+' • '+esc(s.group_name||'Guruhsiz')+'</div>'+
+      '<div class="muted">🚗 '+esc(s.plate||'Avtomobil biriktirilmagan')+'</div></div>'+
+      '<div style="text-align:right"><span class="badge '+cls+'">'+n+' dars</span><div class="muted" style="margin-top:7px">'+label+'</div></div>'+
+    '</div></div>';
 }
 
 function adminRenderStudents(){
   const box=$('adminStudents');
   if(!box)return;
-
   const q=($('adminStudentQ')?.value||'').trim().toLowerCase();
   const arr=students.filter(s=>{
-    const hay=[
-      s.full_name,s.phone,s.plate,s.school_name,s.group_name
-    ].map(x=>String(x||'').toLowerCase()).join(' ');
+    const hay=[s.full_name,s.phone,s.plate,s.school_name,s.group_name].map(x=>String(x||'').toLowerCase()).join(' ');
     return !q||hay.includes(q);
   });
+  box.innerHTML=arr.length?arr.map(studentCardHTML).join(''):'<div class="muted">O‘quvchi topilmadi</div>';
+}
 
-  box.innerHTML=arr.length
-    ? arr.map(studentCardHTML).join('')
-    : '<div class="muted">O‘quvchi topilmadi</div>';
+async function showStudentDetail(id){
+  const s=students.find(x=>String(x.id)===String(id));
+  const box=$('adminStudentDetail');
+  if(!s||!box)return;
+  box.innerHTML='<div class="panel studentDetailPanel"><div class="muted">O‘quvchi tarixi yuklanmoqda...</div></div>';
+  try{
+    let rows=[];
+    try{
+      const byStudent=await api('/history?studentId='+encodeURIComponent(id));
+      rows=Array.isArray(byStudent?.rows)?byStudent.rows:[];
+    }catch{}
+    if(!rows.length && s.plate){
+      const byPlate=await api('/history?plate='+encodeURIComponent(s.plate));
+      rows=Array.isArray(byPlate?.rows)?byPlate.rows:[];
+    }
+    rows=rows.filter(r=>{
+      if(r.student_id && String(r.student_id)===String(id))return true;
+      return r.student_name && String(r.student_name).trim().toLowerCase()===String(s.full_name||'').trim().toLowerCase();
+    });
+    rows.sort((a,b)=>new Date(b.started_at||0)-new Date(a.started_at||0));
+    const n=Number(s.attendance_count||0);
+    box.innerHTML='<div class="panel studentDetailPanel">'+
+      '<div class="studentHistoryTitle"><div><h3 style="margin:0">'+esc(s.full_name)+'</h3><div class="studentHistoryMeta">'+esc(s.school_name||'')+' • '+esc(s.group_name||'Guruhsiz')+' • '+esc(s.phone||'Telefon kiritilmagan')+'</div></div><button class="btn light" type="button" onclick="$(\'adminStudentDetail\').innerHTML=\'\'">Yopish</button></div>'+
+      '<div class="kv" style="margin:14px 0"><div><b>'+n+'</b><span>Jami qatnashuv</span></div><div><b>'+esc(s.plate||'—')+'</b><span>Avtomobil</span></div><div><b>'+rows.length+'</b><span>Tarixdagi dars</span></div><div><b>'+(n<6?'1–5 normal':n<12?'6–11 qizil':'12+ yangi bosqich')+'</b><span>Holat</span></div></div>'+
+      '<div class="studentHistoryTitle"><h3 style="margin:0">Dars qatnashuv tarixi</h3><span class="studentHistoryMeta">Sana • vaqt • avtomobil • davomiylik</span></div>'+
+      (rows.length?tableHTML(rows):'<div class="muted" style="padding:15px 0">Bu o‘quvchi bo‘yicha tarixiy sessiyalar topilmadi. Yangi darslar tugatilgach shu yerda avtomatik ko‘rinadi.</div>')+
+      '</div>';
+    box.scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(e){box.innerHTML='<div class="panel studentDetailPanel"><div class="err">Tarixni yuklashda xato: '+esc(e.message)+'</div></div>'}
 }
 
 function groupModal(schoolId){
