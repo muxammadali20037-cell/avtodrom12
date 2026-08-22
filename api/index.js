@@ -1,5 +1,6 @@
 import app from "../backend/src/server.js";
 import { handleFreezeRequest } from "../backend/src/freeze-routes.js";
+import studentHandler from "./students.js";
 import { readFile } from "node:fs/promises";
 
 const frozenFinishFix = String.raw`<script>
@@ -89,6 +90,13 @@ export default async function handler(req, res) {
   };
   const handled = await handleFreezeRequest(req, jsonRes);
   if (handled !== null) return handled;
+
+  // O‘quvchi endpointini alohida handler orqali ishlatamiz.
+  // Bu endpoint attendance_count ni qabul qiladi va Supabase/Postgres bazasiga saqlaydi.
+  if (req.url?.split('?')[0] === '/api/students') {
+    return studentHandler(req, res);
+  }
+
   if (req.method === "GET" && !req.url?.startsWith("/api/") && req.url !== "/favicon.ico") {
     res.sendFile = async (filePath, options, callback) => {
       try {
