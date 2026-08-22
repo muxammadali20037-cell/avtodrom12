@@ -1,5 +1,4 @@
 <!doctype html>
-
 <html lang="uz">
 <head>
 <meta charset="utf-8">
@@ -36,7 +35,6 @@ button,input,select{font:inherit}button{cursor:pointer}input,select{width:100%;p
   .adminSchoolGroupCard{border:1px solid #dfeee8;border-radius:14px;padding:14px;background:#fff;margin-bottom:10px}
   .adminStudentPhone{font-weight:600}
 </style>
-
 </head>
 <body>
 
@@ -111,7 +109,6 @@ button,input,select{font:inherit}button{cursor:pointer}input,select{width:100%;p
 <div class="actions"><button class="btn green" id="startBtn">▶ Vaqt ochish</button>
 
 <button type="button" class="btn light" onclick="resetStart()">Bekor</button></div>
-
 <div id="startErr" class="err"></div>
 </form>
 </div>
@@ -308,7 +305,7 @@ async function studentsForGroup(){
   const s=$('school').value,g=$('group').value;if(!s||!g)return;
   try{
     students=await api('/students?schoolId='+encodeURIComponent(s)+'&groupId='+encodeURIComponent(g))||[];
-    $('student').innerHTML='<option value="">O‘quvchini tanlang</option>'+students.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.full_name)+' — '+(x.attendance_count||0)+' dars</option>').join('');
+    $('student').innerHTML='<option value="">O‘quvchini tanlang</option>'+students.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.full_name)+' — '+(x.attendance_count||0)+' dars'+(x.phone?' — '+esc(x.phone):'')+'</option>').join('');
     $('student').disabled=false;
   }catch(e){showToast(e.message,true)}
 }
@@ -460,12 +457,10 @@ function exportExcel(){
     return '<tr class="'+cls+'"><td>'+esc(r.plate||'')+'</td><td>'+dt(r.started_at)+'</td><td>'+dt(r.finished_at)+'</td><td>'+dur(r.duration_seconds)+'</td><td>'+esc(r.school_name||'')+'</td><td>'+esc(r.group_name||'')+'</td><td>'+esc(r.student_name||'')+'</td><td>'+(r.student_name?att:'')+'</td><td>'+Number(r.cash_amount||0)+'</td><td>'+Number(r.terminal_amount||0)+'</td><td>'+Number(r.amount||0)+'</td></tr>'
   }).join('');
   const xls=`<html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:6px}.schoolRow{background:#fff4bf}.attendanceRed{background:#ffd9d6}.attendanceBlue{background:#dbe8ff}</style>
-
 <style id="admin-school-groups-v2">
   .adminSchoolGroupCard{border:1px solid #dfeee8;border-radius:14px;padding:14px;background:#fff;margin-bottom:10px}
   .adminStudentPhone{font-weight:600}
 </style>
-
 </head><body><table><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>Vaqt</th><th>Avtoshkola</th><th>Guruh</th><th>O‘quvchi</th><th>Kelgan dars</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr>${body}</table></body></html>`;
   const blob=new Blob(['\ufeff'+xls],{type:'application/vnd.ms-excel'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='avtodrom-'+new Date().toISOString().slice(0,10)+'.xls';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
@@ -475,327 +470,331 @@ async function historySearch(){
 }
 
 function openAdminGate(){
-$('adminErr').textContent='';$('adminUser').value='';$('adminPass').value='';$('adminGate').classList.remove('hidden');setTimeout(()=>$('adminUser').focus(),50)
+  $('adminErr').textContent='';$('adminUser').value='';$('adminPass').value='';$('adminGate').classList.remove('hidden');setTimeout(()=>$('adminUser').focus(),50)
 }
 function closeAdminGate(){$('adminGate').classList.add('hidden')}
 const ADMIN_LOGIN='admin',ADMIN_PASSWORD='Admin@2026';
 $('adminLoginForm').addEventListener('submit',async e=>{
-e.preventDefault();
-if($('adminUser').value.trim()!==ADMIN_LOGIN||$('adminPass').value!==ADMIN_PASSWORD){$('adminErr').textContent='Admin login yoki parol noto‘g‘ri.';return}
-sessionStorage.setItem('avtodrom_admin','1');closeAdminGate();$('adminPanel').classList.remove('hidden');await adminLoad();
+  e.preventDefault();
+  if($('adminUser').value.trim()!==ADMIN_LOGIN||$('adminPass').value!==ADMIN_PASSWORD){$('adminErr').textContent='Admin login yoki parol noto‘g‘ri.';return}
+  sessionStorage.setItem('avtodrom_admin','1');closeAdminGate();$('adminPanel').classList.remove('hidden');await adminLoad();
 });
 function closeAdminPanel(){sessionStorage.removeItem('avtodrom_admin');$('adminPanel').classList.add('hidden')}
 
 async function adminLoad(){
-try{schools=await api('/schools')||[]}catch{schools=[]}
-try{groups=await api('/groups')||[]}catch{groups=[]}
-try{students=await api('/students')||[]}catch{students=[]}
-$('adSchools').textContent=schools.length;$('adGroups').textContent=groups.length;$('adStudents').textContent=students.length;
-adminTab('dashboard');adminRealtime();
+  try{schools=await api('/schools')||[]}catch{schools=[]}
+  try{groups=await api('/groups')||[]}catch{groups=[]}
+  try{students=await api('/students')||[]}catch{students=[]}
+  $('adSchools').textContent=schools.length;$('adGroups').textContent=groups.length;$('adStudents').textContent=students.length;
+  adminTab('dashboard');adminRealtime();
 }
 function adminTab(t){
-const c=$('adminContent');
-if(t==='dashboard'){
-c.innerHTML='<div class="head"><div><h2>Admin Dashboard</h2><p>Real-time avtodromdagi barcha amallar va analitika.</p></div><button class="btn light" type="button" onclick="adminRealtime()">↻ Yangilash</button></div><div class="stats"><div class="stat"><small>Bugun kirgan</small><b id="arToday">0</b></div><div class="stat"><small>Hozir avtodromda</small><b id="arActive">0</b></div><div class="stat"><small>Muzlatilgan</small><b id="arFrozen">0</b></div><div class="stat"><small>Bugungi tushum</small><b id="arAmount" class="greenText">0</b></div><div class="stat"><small>Naqd</small><b id="arCash" class="greenText">0</b></div><div class="stat"><small>Terminal</small><b id="arTerminal" class="greenText">0</b></div></div><div class="grid2"><div class="panel"><h3>Hozir avtodromda <span class="live">● LIVE</span></h3><div id="adminActiveRows"></div></div><div class="panel"><h3>Bugungi to‘lovlar</h3><div id="adminPaymentRows"></div></div></div><div class="panel"><h3>Bugungi barcha amallar</h3><div class="tableWrap"><table class="table" id="adminAllRows"></table></div></div>';
-return;
-}
-if(t==='schools'){
-c.innerHTML='<div class="head"><div><h2>Avtoshkolalar</h2><p>Avtoshkola → guruh → o‘quvchilar. Har bir guruh ichidan o‘quvchi qo‘shiladi.</p></div><button class="btn green" type="button" onclick="schoolModal()">＋ Avtoshkola</button></div><div id="adminSchoolCards" class="cards"></div><div id="adminSchoolDetail"></div>';
-renderAdminSchools();
-return;
-}
-if(t==='students'){
-c.innerHTML='<div class="head"><div><h2>O‘quvchilar</h2><p>F.I.Sh., telefon, avtoshkola, guruh, avtomobil va darslar soni saqlanadi.</p></div><button class="btn green" type="button" onclick="studentModal()">＋ O‘quvchi</button></div><div class="panel"><div class="search"><input id="adminStudentQ" placeholder="O‘quvchi, telefon yoki raqam..." oninput="adminRenderStudents()"></div><div id="adminStudents"></div></div>';
-adminRenderStudents();
-}
+  const c=$('adminContent');
+  if(t==='dashboard'){
+    c.innerHTML='<div class="head"><div><h2>Admin Dashboard</h2><p>Real-time avtodromdagi barcha amallar va analitika.</p></div><button class="btn light" type="button" onclick="adminRealtime()">↻ Yangilash</button></div><div class="stats"><div class="stat"><small>Bugun kirgan</small><b id="arToday">0</b></div><div class="stat"><small>Hozir avtodromda</small><b id="arActive">0</b></div><div class="stat"><small>Muzlatilgan</small><b id="arFrozen">0</b></div><div class="stat"><small>Bugungi tushum</small><b id="arAmount" class="greenText">0</b></div><div class="stat"><small>Naqd</small><b id="arCash" class="greenText">0</b></div><div class="stat"><small>Terminal</small><b id="arTerminal" class="greenText">0</b></div></div><div class="grid2"><div class="panel"><h3>Hozir avtodromda <span class="live">● LIVE</span></h3><div id="adminActiveRows"></div></div><div class="panel"><h3>Bugungi to‘lovlar</h3><div id="adminPaymentRows"></div></div></div><div class="panel"><h3>Bugungi barcha amallar</h3><div class="tableWrap"><table class="table" id="adminAllRows"></table></div></div>';
+    return;
+  }
+  if(t==='schools'){
+    c.innerHTML='<div class="head"><div><h2>Avtoshkolalar</h2><p>Avtoshkola → guruh → o‘quvchilar. Har bir guruh ichidan o‘quvchi qo‘shiladi.</p></div><button class="btn green" type="button" onclick="schoolModal()">＋ Avtoshkola</button></div><div id="adminSchoolCards" class="cards"></div><div id="adminSchoolDetail"></div>';
+    renderAdminSchools();
+    return;
+  }
+  if(t==='students'){
+    c.innerHTML='<div class="head"><div><h2>O‘quvchilar</h2><p>F.I.Sh., telefon, avtoshkola, guruh, avtomobil va darslar soni saqlanadi.</p></div><button class="btn green" type="button" onclick="studentModal()">＋ O‘quvchi</button></div><div class="panel"><div class="search"><input id="adminStudentQ" placeholder="O‘quvchi, telefon yoki raqam..." oninput="adminRenderStudents()"></div><div id="adminStudents"></div></div>';
+    adminRenderStudents();
+  }
 }
 async function adminRealtime(){
-if(sessionStorage.getItem('avtodrom_admin')!=='1')return;
-try{
-const [d,r,a,f]=await Promise.all([api('/dashboard'),api('/reports/daily'),api('/sessions/active'),api('/sessions/frozen')]);
-const s=d?.summary||d||{},rs=r?.summary||{};
-const today=d?.todayCount??d?.today_count??s.todayCount??rs.count??(r?.rows||[]).length;
-const ac=d?.active??d?.activeCount??s.active??a.length,fr=d?.frozen??s.frozen??f.length;
-const amount=d?.todayAmount??d?.amount??d?.revenue??s.amount??rs.amount??0,cash=d?.cash??s.cash??rs.cash??0,term=d?.terminal??s.terminal??rs.terminal??0;
-if($('arToday'))$('arToday').textContent=today;if($('arActive'))$('arActive').textContent=ac;if($('arFrozen'))$('arFrozen').textContent=fr;if($('arAmount'))$('arAmount').textContent=money(amount);if($('arCash'))$('arCash').textContent=money(cash);if($('arTerminal'))$('arTerminal').textContent=money(term);
-if($('adminActiveRows'))$('adminActiveRows').innerHTML=a.length?a.map(v=>vehicle(v,false)).join(''):'<div class="muted">Hozir avtodromda avtomobil yo‘q</div>';
-const rows=r?.rows||[];
-if($('adminPaymentRows'))$('adminPaymentRows').innerHTML=rows.filter(x=>Number(x.amount||0)>0).map(x=>'<div class="card"><b>'+esc(x.plate)+'</b><div class="muted">'+esc(x.student_name||'Oddiy mijoz')+'</div><b>'+money(x.amount)+'</b><div>'+money(x.cash_amount||0)+' naqd • '+money(x.terminal_amount||0)+' terminal</div></div>').join('')||'<div class="muted">To‘lov yo‘q</div>';
-if($('adminAllRows'))$('adminAllRows').innerHTML=rows.length?'<thead><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>O‘quvchi</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr></thead><tbody>'+rows.map(x=>'<tr class="'+(x.school_name?'schoolRow':'')+'"><td>'+esc(x.plate)+'</td><td>'+dt(x.started_at)+'</td><td>'+dt(x.finished_at)+'</td><td>'+esc(x.student_name||'—')+'</td><td>'+money(x.cash_amount||0)+'</td><td>'+money(x.terminal_amount||0)+'</td><td>'+money(x.amount||0)+'</td></tr>').join('')+'</tbody>':'<tbody><tr><td>Ma’lumot yo‘q</td></tr></tbody>';
-}catch(e){showToast(e.message,true)}
+  if(sessionStorage.getItem('avtodrom_admin')!=='1')return;
+  try{
+    const [d,r,a,f]=await Promise.all([api('/dashboard'),api('/reports/daily'),api('/sessions/active'),api('/sessions/frozen')]);
+    const s=d?.summary||d||{},rs=r?.summary||{};
+    const today=d?.todayCount??d?.today_count??s.todayCount??rs.count??(r?.rows||[]).length;
+    const ac=d?.active??d?.activeCount??s.active??a.length,fr=d?.frozen??s.frozen??f.length;
+    const amount=d?.todayAmount??d?.amount??d?.revenue??s.amount??rs.amount??0,cash=d?.cash??s.cash??rs.cash??0,term=d?.terminal??s.terminal??rs.terminal??0;
+    if($('arToday'))$('arToday').textContent=today;if($('arActive'))$('arActive').textContent=ac;if($('arFrozen'))$('arFrozen').textContent=fr;if($('arAmount'))$('arAmount').textContent=money(amount);if($('arCash'))$('arCash').textContent=money(cash);if($('arTerminal'))$('arTerminal').textContent=money(term);
+    if($('adminActiveRows'))$('adminActiveRows').innerHTML=a.length?a.map(v=>vehicle(v,false)).join(''):'<div class="muted">Hozir avtodromda avtomobil yo‘q</div>';
+    const rows=r?.rows||[];
+    if($('adminPaymentRows'))$('adminPaymentRows').innerHTML=rows.filter(x=>Number(x.amount||0)>0).map(x=>'<div class="card"><b>'+esc(x.plate)+'</b><div class="muted">'+esc(x.student_name||'Oddiy mijoz')+'</div><b>'+money(x.amount)+'</b><div>'+money(x.cash_amount||0)+' naqd • '+money(x.terminal_amount||0)+' terminal</div></div>').join('')||'<div class="muted">To‘lov yo‘q</div>';
+    if($('adminAllRows'))$('adminAllRows').innerHTML=rows.length?'<thead><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>O‘quvchi</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr></thead><tbody>'+rows.map(x=>'<tr class="'+(x.school_name?'schoolRow':'')+'"><td>'+esc(x.plate)+'</td><td>'+dt(x.started_at)+'</td><td>'+dt(x.finished_at)+'</td><td>'+esc(x.student_name||'—')+'</td><td>'+money(x.cash_amount||0)+'</td><td>'+money(x.terminal_amount||0)+'</td><td>'+money(x.amount||0)+'</td></tr>').join('')+'</tbody>':'<tbody><tr><td>Ma’lumot yo‘q</td></tr></tbody>';
+  }catch(e){showToast(e.message,true)}
 }
 function renderAdminSchools(){
-const box=$('adminSchoolCards');
-if(!box)return;
+  const box=$('adminSchoolCards');
+  if(!box)return;
 
-box.innerHTML=schools.length
-? schools.map(s=>{
-const localGroups=groups.filter(g=>String(g.school_id)===String(s.id));
-const groupCount=Number(s.group_count ?? localGroups.length ?? 0);
-const studentCount=Number(s.student_count ?? 0);
+  box.innerHTML=schools.length
+    ? schools.map(s=>{
+        const localGroups=groups.filter(g=>String(g.school_id)===String(s.id));
+        const groupCount=Number(s.group_count ?? localGroups.length ?? 0);
+        const studentCount=Number(s.student_count ?? 0);
 
-    return '<div class="card" style="cursor:default">'+
-      '<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">'+
-        '<div onclick="adminShowGroups(\''+esc(s.id)+'\')" style="cursor:pointer;flex:1;min-width:220px">'+
-          '<h3>'+esc(s.name)+'</h3>'+
-          '<div class="muted">📞 '+esc(s.phone||'Telefon yo‘q')+'</div>'+
-          '<div style="margin-top:8px"><span class="badge">'+groupCount+' guruh</span> <span class="badge">'+studentCount+' o‘quvchi</span></div>'+
-        '</div>'+
-        '<div class="actions" style="margin:0">'+
-          '<button class="btn light" type="button" onclick="adminShowGroups(\''+esc(s.id)+'\')">Guruhlar</button>'+
-          '<button class="btn green" type="button" onclick="groupModal(\''+esc(s.id)+'\')">＋ Guruh qo‘shish</button>'+
-        '</div>'+
-      '</div>'+
-    '</div>';
-  }).join('')
-: '<div class="muted">Avtoshkola yo‘q. Avval «＋ Avtoshkola» orqali qo‘shing.</div>';
-
+        return '<div class="card" style="cursor:default">'+
+          '<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">'+
+            '<div onclick="adminShowGroups(\''+esc(s.id)+'\')" style="cursor:pointer;flex:1;min-width:220px">'+
+              '<h3>'+esc(s.name)+'</h3>'+
+              '<div class="muted">📞 '+esc(s.phone||'Telefon yo‘q')+'</div>'+
+              '<div style="margin-top:8px"><span class="badge">'+groupCount+' guruh</span> <span class="badge">'+studentCount+' o‘quvchi</span></div>'+
+            '</div>'+
+            '<div class="actions" style="margin:0">'+
+              '<button class="btn light" type="button" onclick="adminShowGroups(\''+esc(s.id)+'\')">Guruhlar</button>'+
+              '<button class="btn green" type="button" onclick="groupModal(\''+esc(s.id)+'\')">＋ Guruh qo‘shish</button>'+
+            '</div>'+
+          '</div>'+
+        '</div>';
+      }).join('')
+    : '<div class="muted">Avtoshkola yo‘q. Avval «＋ Avtoshkola» orqali qo‘shing.</div>';
 }
 
 async function adminShowGroups(id){
-const s=schools.find(x=>String(x.id)===String(id));
-let gs=[];
-try{
-gs=await api('/groups?schoolId='+encodeURIComponent(id))||[];
-}catch{
-gs=groups.filter(x=>String(x.school_id)===String(id));
-}
+  const s=schools.find(x=>String(x.id)===String(id));
+  let gs=[];
+  try{
+    gs=await api('/groups?schoolId='+encodeURIComponent(id))||[];
+  }catch{
+    gs=groups.filter(x=>String(x.school_id)===String(id));
+  }
 
-$('adminSchoolDetail').innerHTML=
-'<div class="panel">'+
-'<div class="modalHead">'+
-'<div><h3>'+esc(s?.name||'Avtoshkola')+'</h3>'+
-'<div class="muted">Guruhlar va har bir guruhdagi o‘quvchilar</div></div>'+
-'<div class="actions" style="margin:0">'+
-'<button class="btn green" type="button" onclick="groupModal(\''+esc(id)+'\')">＋ Guruh qo‘shish</button>'+
-'<button class="btn light" type="button" onclick="$(\'adminSchoolDetail\').innerHTML=\'\'">Yopish</button>'+
-'</div>'+
-'</div>'+
-'<div class="cards" style="margin-top:14px">'+
-(gs.length
-? gs.map(g=>
-'<div class="card" style="cursor:default">'+
-'<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">'+
-'<div><h3>'+esc(g.name)+'</h3>'+
-'<div class="muted">'+Number(g.student_count||0)+' o‘quvchi</div></div>'+
-'<div class="actions" style="margin:0">'+
-'<button class="btn light" type="button" onclick="adminShowStudents(\''+esc(g.id)+'\')">O‘quvchilar</button>'+
-'<button class="btn green" type="button" onclick="studentModal(\''+esc(id)+'\',\''+esc(g.id)+'\')">＋ O‘quvchi qo‘shish</button>'+
-'</div>'+
-'</div>'+
-'<div id="groupStudents_'+esc(g.id)+'" style="margin-top:10px"></div>'+
-'</div>'
-).join('')
-: '<div class="muted">Bu avtoshkolada hali guruh yo‘q. «＋ Guruh qo‘shish»ni bosing.</div>')+
-'</div>'+
-'</div>';
+  $('adminSchoolDetail').innerHTML=
+    '<div class="panel">'+
+      '<div class="modalHead">'+
+        '<div><h3>'+esc(s?.name||'Avtoshkola')+'</h3>'+
+        '<div class="muted">Guruhlar va har bir guruhdagi o‘quvchilar</div></div>'+
+        '<div class="actions" style="margin:0">'+
+          '<button class="btn green" type="button" onclick="groupModal(\''+esc(id)+'\')">＋ Guruh qo‘shish</button>'+
+          '<button class="btn light" type="button" onclick="$(\'adminSchoolDetail\').innerHTML=\'\'">Yopish</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="cards" style="margin-top:14px">'+
+        (gs.length
+          ? gs.map(g=>
+              '<div class="card" style="cursor:default">'+
+                '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">'+
+                  '<div><h3>'+esc(g.name)+'</h3>'+
+                  '<div class="muted">'+Number(g.student_count||0)+' o‘quvchi</div></div>'+
+                  '<div class="actions" style="margin:0">'+
+                    '<button class="btn light" type="button" onclick="adminShowStudents(\''+esc(g.id)+'\')">O‘quvchilar</button>'+
+                    '<button class="btn green" type="button" onclick="studentModal(\''+esc(id)+'\',\''+esc(g.id)+'\')">＋ O‘quvchi qo‘shish</button>'+
+                  '</div>'+
+                '</div>'+
+                '<div id="groupStudents_'+esc(g.id)+'" style="margin-top:10px"></div>'+
+              '</div>'
+            ).join('')
+          : '<div class="muted">Bu avtoshkolada hali guruh yo‘q. «＋ Guruh qo‘shish»ni bosing.</div>')+
+      '</div>'+
+    '</div>';
 }
 
 async function adminShowStudents(gid){
-let arr=[];
-try{
-arr=await api('/students?groupId='+encodeURIComponent(gid))||[];
-}catch{
-arr=students.filter(x=>String(x.group_id)===String(gid));
-}
+  let arr=[];
+  try{
+    arr=await api('/students?groupId='+encodeURIComponent(gid))||[];
+  }catch{
+    arr=students.filter(x=>String(x.group_id)===String(gid));
+  }
 
-const target=$('groupStudents_'+gid);
-const html=arr.length
-? '<div style="border-top:1px solid #dfeee8;padding-top:10px">'+arr.map(studentCardHTML).join('')+'</div>'
-: '<div class="muted">Bu guruhda hali o‘quvchi yo‘q.</div>';
+  const target=$('groupStudents_'+gid);
+  const html=arr.length
+    ? '<div style="border-top:1px solid #dfeee8;padding-top:10px">'+arr.map(studentCardHTML).join('')+'</div>'
+    : '<div class="muted">Bu guruhda hali o‘quvchi yo‘q.</div>';
 
-if(target){
-target.innerHTML=html;
-}else{
-$('adminSchoolDetail').insertAdjacentHTML('beforeend',
-'<div class="panel"><h3>Guruh o‘quvchilari</h3>'+html+'</div>');
-}
+  if(target){
+    target.innerHTML=html;
+  }else{
+    $('adminSchoolDetail').insertAdjacentHTML('beforeend',
+      '<div class="panel"><h3>Guruh o‘quvchilari</h3>'+html+'</div>');
+  }
 }
 
 function studentCardHTML(s){
-const n=Number(s.attendance_count||0);
-const cls=attendanceClass(n);
-const label=n<6?'1–5 normal'<12?'6–11 qizil nazorat':'12+ yangi bosqich';
+  const n=Number(s.attendance_count||0);
+  const cls=attendanceClass(n);
+  const label=n<6?'1–5 normal':n<12?'6–11 qizil nazorat':'12+ yangi bosqich';
 
-return '<div class="card" style="margin:8px 0;background:'+
- (n>=6&&n<12?'#fff0ef':n>=12?'#e9f1ff':'#fff')+'">'+
-'<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">'+
-'<div>'+
-'<h3>'+esc(s.full_name)+'</h3>'+
-'<div class="muted">📞 '+esc(s.phone||'Telefon kiritilmagan')+'</div>'+
-'<div class="muted">🏫 '+esc(s.school_name||'')+' • '+esc(s.group_name||'Guruhsiz')+'</div>'+
-'<div class="muted">🚗 '+esc(s.plate||'Avtomobil biriktirilmagan')+'</div>'+
-'</div>'+
-'<div style="text-align:right">'+
-'<span class="badge '+cls+'">'+n+' dars</span>'+
-'<div class="muted" style="margin-top:7px">'+label+'</div>'+
-'</div>'+
-'</div>'+
-'</div>';
+  return '<div class="card" style="margin:8px 0;background:'+
+    (n>=6&&n<12?'#fff0ef':n>=12?'#e9f1ff':'#fff')+'">'+
+    '<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">'+
+      '<div>'+
+        '<h3>'+esc(s.full_name)+'</h3>'+
+        '<div class="muted">📞 '+esc(s.phone||'Telefon kiritilmagan')+'</div>'+
+        '<div class="muted">🏫 '+esc(s.school_name||'')+' • '+esc(s.group_name||'Guruhsiz')+'</div>'+
+        '<div class="muted">🚗 '+esc(s.plate||'Avtomobil biriktirilmagan')+'</div>'+
+      '</div>'+
+      '<div style="text-align:right">'+
+        '<span class="badge '+cls+'">'+n+' dars</span>'+
+        '<div class="muted" style="margin-top:7px">'+label+'</div>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
 }
 
 function adminRenderStudents(){
-const box=$('adminStudents');
-if(!box)return;
+  const box=$('adminStudents');
+  if(!box)return;
 
-const q=($('adminStudentQ')?.value||'').trim().toLowerCase();
-const arr=students.filter(s=>{
-const hay=[
-s.full_name,s.phone,s.plate,s.school_name,s.group_name
-].map(x=>String(x||'').toLowerCase()).join(' ');
-return !q||hay.includes(q);
-});
+  const q=($('adminStudentQ')?.value||'').trim().toLowerCase();
+  const arr=students.filter(s=>{
+    const hay=[
+      s.full_name,s.phone,s.plate,s.school_name,s.group_name
+    ].map(x=>String(x||'').toLowerCase()).join(' ');
+    return !q||hay.includes(q);
+  });
 
-box.innerHTML=arr.length
-? arr.map(studentCardHTML).join('')
-: '<div class="muted">O‘quvchi topilmadi</div>';
+  box.innerHTML=arr.length
+    ? arr.map(studentCardHTML).join('')
+    : '<div class="muted">O‘quvchi topilmadi</div>';
 }
 
 function groupModal(schoolId){
-const s=schools.find(x=>String(x.id)===String(schoolId));
-if(!s)return showToast('Avtoshkola topilmadi.',true);
+  const s=schools.find(x=>String(x.id)===String(schoolId));
+  if(!s)return showToast('Avtoshkola topilmadi.',true);
 
-modal(
-'<h2>Yangi guruh</h2>'+
-'<div class="muted" style="margin-bottom:14px">Avtoshkola: <b>'+esc(s.name)+'</b></div>'+
-'<div class="fg"><label>Guruh nomi</label><input id="groupName" placeholder="A-1" required></div>'+
-'<div class="actions">'+
-'<button class="btn green" type="button" onclick="createGroup(\''+esc(schoolId)+'\')">Saqlash</button>'+
-'<button class="btn light" type="button" onclick="closeModal()">Bekor</button>'+
-'</div>'
-);
+  modal(
+    '<h2>Yangi guruh</h2>'+
+    '<div class="muted" style="margin-bottom:14px">Avtoshkola: <b>'+esc(s.name)+'</b></div>'+
+    '<div class="fg"><label>Guruh nomi</label><input id="groupName" placeholder="A-1" required></div>'+
+    '<div class="actions">'+
+      '<button class="btn green" type="button" onclick="createGroup(\''+esc(schoolId)+'\')">Saqlash</button>'+
+      '<button class="btn light" type="button" onclick="closeModal()">Bekor</button>'+
+    '</div>'
+  );
 }
 
 async function createGroup(schoolId){
-const name=$('groupName')?.value.trim();
-if(!name)return showToast('Guruh nomini kiriting.',true);
+  const name=$('groupName')?.value.trim();
+  if(!name)return showToast('Guruh nomini kiriting.',true);
 
-try{
-await api('/groups',{
-method:'POST',
-body.stringify({schoolId,name})
-});
+  try{
+    await api('/groups',{
+      method:'POST',
+      body:JSON.stringify({schoolId,name})
+    });
 
-closeModal();
-await adminLoad();
-adminTab('schools');
-await adminShowGroups(schoolId);
-showToast('Guruh qo‘shildi.');
-
-}catch(e){
-showToast(e.message,true);
-}
+    closeModal();
+    await adminLoad();
+    adminTab('schools');
+    await adminShowGroups(schoolId);
+    showToast('Guruh qo‘shildi.');
+  }catch(e){
+    showToast(e.message,true);
+  }
 }
 
 function schoolModal(){modal('<h2>Yangi avtoshkola</h2><div class="fg"><label>Avtoshkola nomi</label><input id="schoolName" required></div><div class="fg"><label>Telefon</label><input id="schoolPhone"></div><div class="actions"><button class="btn green" type="button" onclick="createSchool()">Saqlash</button><button class="btn light" type="button" onclick="closeModal()">Bekor</button></div>')}
-async function createSchool(){const name=$('schoolName').value.trim();if(!name)return showToast('Avtoshkola nomini kiriting',true);try{await api('/schools',{method:'POST',body.stringify({name,phone:$('schoolPhone').value.trim()})});closeModal();await adminLoad();showToast('Avtoshkola qo‘shildi')}catch(e){showToast(e.message,true)}}
+async function createSchool(){const name=$('schoolName').value.trim();if(!name)return showToast('Avtoshkola nomini kiriting',true);try{await api('/schools',{method:'POST',body:JSON.stringify({name,phone:$('schoolPhone').value.trim()})});closeModal();await adminLoad();showToast('Avtoshkola qo‘shildi')}catch(e){showToast(e.message,true)}}
 function studentModal(preSchoolId='',preGroupId=''){
-if(!schools.length){
-showToast('Avval avtoshkola yarating.',true);
-return;
-}
+  if(!schools.length){
+    showToast('Avval avtoshkola yarating.',true);
+    return;
+  }
 
-const schoolOptions=schools.map(x=>
-'<option value="'+esc(x.id)+'" '+(String(x.id)===String(preSchoolId)?'selected':'')+'>'+
-esc(x.name)+'</option>'
-).join('');
+  const schoolOptions=schools.map(x=>
+    '<option value="'+esc(x.id)+'" '+(String(x.id)===String(preSchoolId)?'selected':'')+'>'+
+    esc(x.name)+'</option>'
+  ).join('');
 
-modal(
-'<h2>Yangi o‘quvchi</h2>'+
-'<div class="fg"><label>F.I.Sh.</label><input id="sn" required autocomplete="name"></div>'+
-'<div class="fg"><label>Telefon raqami <span class="muted">(majburiy)</span></label><input id="sp" type="tel" placeholder="+998 90 123 45 67" required autocomplete="tel"></div>'+
-'<div class="fg"><label>Avtoshkola</label><select id="ss" onchange="modalGroups()" required><option value="">Tanlang</option>'+schoolOptions+'</select></div>'+
-'<div class="fg"><label>Guruh</label><select id="sg" required><option value="">Avval avtoshkolani tanlang</option></select></div>'+
-'<div class="fg"><label>Avtomobil raqami</label><input id="spl" placeholder="01 A555AA"></div>'+
-'<div class="fg"><label>Hozirgacha qatnashgan darslar soni</label>'+
-'<input id="sLessons" type="number" min="0" max="999" step="1" value="0" inputmode="numeric" placeholder="Masalan: 4">'+
-'<div class="muted" style="margin-top:5px">Eski o‘quvchini qo‘shayotgan bo‘lsangiz, avval qatnashgan darslarini shu yerga yozing.</div>'+
-'</div>'+
-'<div class="actions">'+
-'<button class="btn green" type="button" onclick="createStudent()">Saqlash</button>'+
-'<button class="btn light" type="button" onclick="closeModal()">Bekor</button>'+
-'</div>'
-);
+  modal(
+    '<h2>Yangi o‘quvchi</h2>'+
+    '<div class="fg"><label>F.I.Sh.</label><input id="sn" required autocomplete="name"></div>'+
+    '<div class="fg"><label>Telefon raqami <span class="muted">(majburiy)</span></label><input id="sp" type="tel" placeholder="+998 90 123 45 67" required autocomplete="tel"></div>'+
+    '<div class="fg"><label>Avtoshkola</label><select id="ss" onchange="modalGroups()" required><option value="">Tanlang</option>'+schoolOptions+'</select></div>'+
+    '<div class="fg"><label>Guruh</label><select id="sg" required><option value="">Avval avtoshkolani tanlang</option></select></div>'+
+    '<div class="fg"><label>Avtomobil raqami</label><input id="spl" placeholder="01 A555AA"></div>'+
+    '<div class="fg"><label>Hozirgacha qatnashgan darslar soni</label>'+
+      '<input id="sLessons" type="number" min="0" max="999" step="1" value="0" inputmode="numeric" placeholder="Masalan: 4" autocomplete="off">'+
+      '<div class="muted" style="margin-top:5px">Eski o‘quvchini qo‘shayotgan bo‘lsangiz, avval qatnashgan darslarini shu yerga yozing.</div>'+
+    '</div>'+
+    '<div class="actions">'+
+      '<button class="btn green" type="button" onclick="createStudent()">Saqlash</button>'+
+      '<button class="btn light" type="button" onclick="closeModal()">Bekor</button>'+
+    '</div>'
+  );
 
-if(preSchoolId){
-modalGroups().then(()=>{
-if(preGroupId && $('sg'))$('sg').value=preGroupId;
-});
-}
+  if(preSchoolId){
+    modalGroups().then(()=>{
+      if(preGroupId && $('sg'))$('sg').value=preGroupId;
+    });
+  }
 }
 
 async function modalGroups(){
-const id=$('ss').value;
-const groupSelect=$('sg');
-if(!groupSelect)return;
+  const id=$('ss').value;
+  const groupSelect=$('sg');
+  if(!groupSelect)return;
 
-if(!id){
-groupSelect.innerHTML='<option value="">Avval avtoshkolani tanlang</option>';
-return;
-}
+  if(!id){
+    groupSelect.innerHTML='<option value="">Avval avtoshkolani tanlang</option>';
+    return;
+  }
 
-try{
-const g=await api('/groups?schoolId='+encodeURIComponent(id))||[];
-groupSelect.innerHTML='<option value="">Guruhni tanlang</option>'+
-g.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join('');
+  try{
+    const g=await api('/groups?schoolId='+encodeURIComponent(id))||[];
+    groupSelect.innerHTML='<option value="">Guruhni tanlang</option>'+
+      g.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join('');
 
-if(!g.length){
-  groupSelect.innerHTML='<option value="">Bu avtoshkolada guruh yo‘q</option>';
-}
-
-}catch(e){
-showToast(e.message,true);
-}
+    if(!g.length){
+      groupSelect.innerHTML='<option value="">Bu avtoshkolada guruh yo‘q</option>';
+    }
+  }catch(e){
+    showToast(e.message,true);
+  }
 }
 
 async function createStudent(){
-const n=$('sn').value.trim();
-const schoolId=$('ss').value;
-const attendanceCount=Math.max(0,Math.floor(Number($('sattendance')?.value||0)));
+  const n=$('sn').value.trim();
+  const schoolId=$('ss').value;
+  const attendanceCount=Math.max(0,Math.floor(Number($('sLessons')?.value||0)));
 
-if(!n||!schoolId){
-return showToast('F.I.Sh. va avtoshkolani kiriting',true);
-}
+  if(!n||!schoolId){
+    return showToast('F.I.Sh. va avtoshkolani kiriting',true);
+  }
 
-try{
-await api('/students',{
-method:'POST',
-body.stringify({
-fullName,
-phone:$('sp').value.trim(),
-schoolId,
-groupId:$('sg').value||null,
-plate:$('spl').value.trim(),
-attendanceCount
-})
-});
+  try{
+    const result=await api('/students',{
+      method:'POST',
+      body:JSON.stringify({
+        fullName:n,
+        phone:$('sp').value.trim(),
+        schoolId,
+        groupId:$('sg').value||null,
+        plate:$('spl').value.trim(),
+        // Backendlarning ikkala nomlash variantiga ham mos yuboramiz.
+        attendanceCount: attendanceCount,
+        attendance_count: attendanceCount
+      })
+    });
 
-closeModal();
-await adminLoad();
-adminTab('students');
-showToast(n+' qo‘shildi — '+attendanceCount+' dars saqlandi');
+    // Server qiymatni qaytargan bo‘lsa, 0 ga tushib ketganini yashirmaymiz.
+    // UI faqat baza muvaffaqiyatli qabul qilganidan keyin yopiladi.
+    const saved = Number(result?.attendance_count ?? result?.attendanceCount ?? attendanceCount);
+    if(saved !== attendanceCount){
+      throw Error('Server o‘quvchi dars sonini '+saved+' qilib qaytardi. Backend /students endpointida attendance_count saqlanishi kerak.');
+    }
 
-}catch(e){
-showToast(e.message,true);
-}
+    closeModal();
+    await adminLoad();
+    adminTab('students');
+    showToast(n+' qo‘shildi — '+attendanceCount+' dars saqlandi');
+  }catch(e){
+    showToast(e.message,true);
+  }
 }
 
 function modal(content){$('modal').innerHTML='<div class="modalBg" onclick="if(event.target===this)closeModal()"><div class="modal">'+content+'</div></div>'}
 function closeModal(){$('modal').innerHTML=''}
 
-setInterval(()=>{$('clock').textContent=new Date().toLocaleString('uz-UZ',{timeZone:'Asia/Tashkent',hour12})},1000);
+setInterval(()=>{$('clock').textContent=new Date().toLocaleString('uz-UZ',{timeZone:'Asia/Tashkent',hour12:false})},1000);
 setInterval(()=>{document.querySelectorAll('.timer[data-start]').forEach(el=>{const start=new Date(el.dataset.start).getTime();if(Number.isFinite(start))el.textContent=dur((Date.now()-start)/1000)})},1000);
 setInterval(()=>{if(token){
-// Payment form ochiq bo‘lsa, loadActive faqat ma’lumotni yangilaydi;
-// finish formasini qayta render qilmaydi.
-loadActive(true);
-if(!$('p-daily').classList.contains('hidden'))loadDaily();
-if(sessionStorage.getItem('avtodrom_admin')==='1')adminRealtime();
+  // Payment form ochiq bo‘lsa, loadActive faqat ma’lumotni yangilaydi;
+  // finish formasini qayta render qilmaydi.
+  loadActive(true);
+  if(!$('p-daily').classList.contains('hidden'))loadDaily();
+  if(sessionStorage.getItem('avtodrom_admin')==='1')adminRealtime();
 }},15000);
 document.querySelectorAll('.nav[data-p]').forEach(x=>x.addEventListener('click',()=>go(x.dataset.p)));
 
 if(token&&me)boot();
 </script>
-
 </body>
 </html>
