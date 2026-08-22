@@ -447,12 +447,12 @@ function exportExcel(){
     const att=Number(r.attendance_count||0),cls=att>=12?'attendanceBlue':att>=6?'attendanceRed':r.school_name?'schoolRow':'';
     return '<tr class="'+cls+'"><td>'+esc(r.plate||'')+'</td><td>'+dt(r.started_at)+'</td><td>'+dt(r.finished_at)+'</td><td>'+dur(r.duration_seconds)+'</td><td>'+esc(r.school_name||'')+'</td><td>'+esc(r.group_name||'')+'</td><td>'+esc(r.student_name||'')+'</td><td>'+(r.student_name?att:'')+'</td><td>'+Number(r.cash_amount||0)+'</td><td>'+Number(r.terminal_amount||0)+'</td><td>'+Number(r.amount||0)+'</td></tr>'
   }).join('');
-  const xls='<html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:6px}.schoolRow{background:#fff4bf}.attendanceRed{background:#ffd9d6}.attendanceBlue{background:#dbe8ff}</style>
+  const xls=`<html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:6px}.schoolRow{background:#fff4bf}.attendanceRed{background:#ffd9d6}.attendanceBlue{background:#dbe8ff}</style>
 <style id="admin-school-groups-v2">
   .adminSchoolGroupCard{border:1px solid #dfeee8;border-radius:14px;padding:14px;background:#fff;margin-bottom:10px}
   .adminStudentPhone{font-weight:600}
 </style>
-</head><body><table><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>Vaqt</th><th>Avtoshkola</th><th>Guruh</th><th>O‘quvchi</th><th>Kelgan dars</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr>'+body+'</table></body></html>';
+</head><body><table><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>Vaqt</th><th>Avtoshkola</th><th>Guruh</th><th>O‘quvchi</th><th>Kelgan dars</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr>${body}</table></body></html>`;
   const blob=new Blob(['\ufeff'+xls],{type:'application/vnd.ms-excel'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='avtodrom-'+new Date().toISOString().slice(0,10)+'.xls';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 async function historySearch(){
@@ -553,7 +553,7 @@ async function adminShowGroups(id){
         '<div class="muted">Guruhlar va har bir guruhdagi o‘quvchilar</div></div>'+
         '<div class="actions" style="margin:0">'+
           '<button class="btn green" type="button" onclick="groupModal(\''+esc(id)+'\')">＋ Guruh qo‘shish</button>'+
-          '<button class="btn light" type="button" onclick="$(\\'adminSchoolDetail\\').innerHTML=\\'\\'">Yopish</button>'+
+          '<button class="btn light" type="button" onclick="$(\'adminSchoolDetail\').innerHTML=\'\'">Yopish</button>'+
         '</div>'+
       '</div>'+
       '<div class="cards" style="margin-top:14px">'+
