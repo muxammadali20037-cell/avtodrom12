@@ -25,9 +25,9 @@ async function ensureSchema(){
        SET attendance_count = GREATEST(
          COALESCE(attendance_count,0),
          COALESCE(NULLIF((substring(notes from 'ATTENDANCE_BASE=([0-9]+)')),'')::int,0)
-       )
+       ),
+           notes = NULLIF(regexp_replace(COALESCE(notes,''),'(^|;)ATTENDANCE_BASE=[0-9]+;?','','i'),'')
      WHERE notes ~ 'ATTENDANCE_BASE=[0-9]+'
-       AND COALESCE(attendance_count,0)=0
   `);
   await pool.query(`
     CREATE OR REPLACE FUNCTION public.avtodrom_increment_student_attendance()
@@ -74,8 +74,13 @@ export default async function handler(req,res){
       const phone=String(body.phone||'').trim()||null;
       const plate=String(body.plate||'').trim()||null;
       let attendanceCount=Math.max(0,Math.min(999,Math.floor(Number(body.attendanceCount||0))));
-      if(!attendanceCount && typeof body.notes==='string'){
-        const m=body.notes.match(/ATTENDANCE_BASE=(\d+)/i);if(m)attendanceCount=Math.max(0,Math.min(999,Number(m[1])));
+      let notes=String(body.notes||'').trim();
+      if(typeof body.notes==='string'){
+        const m=body.notes.match(/ATTENDANCE_BASE=(\d+)/i);
+        if(m){
+          if(!attendanceCount) attendanceCount=Math.max(0,Math.min(999,Number(m[1])));
+          notes=body.notes.replace(/(^|;)ATTENDANCE_BASE=\d+;?/i,'$1').replace(/^;|;$/g,'').trim();
+        }
       }
       if(!schoolId||!name)return json(res,400,{error:'Avtoshkola va o‘quvchi ismi kerak'});
       const s=await pool.query(`SELECT id FROM driving_schools WHERE id=$1 AND owner_key=$2 AND active=true`,[schoolId,owner]);
@@ -84,12 +89,11 @@ export default async function handler(req,res){
         const g=await pool.query(`SELECT id FROM school_groups WHERE id=$1 AND school_id=$2 AND owner_key=$3 AND active=true`,[groupId,schoolId,owner]);
         if(!g.rows[0])return json(res,400,{error:'Guruh noto‘g‘ri'});
       }
-      const notes=String(body.notes||'').trim()||null;
       const r=await pool.query(`
         INSERT INTO students(owner_key,school_id,group_id,full_name,phone,plate,notes,attendance_count)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8)
         RETURNING *
-      `,[owner,schoolId,groupId,name,phone,plate,notes,attendanceCount]);
+      `,[owner,schoolId,groupId,name,phone,plate,notes||null,attendanceCount]);
       return json(res,201,r.rows[0]);
     }
 
