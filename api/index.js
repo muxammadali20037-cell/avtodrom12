@@ -76,7 +76,7 @@ const frozenFinishFix = String.raw`<script>
     e.preventDefault();e.stopImmediatePropagation();safeFrozenFinish(id);
   },true);
 })();
-</script><script src="/schools-enhance.js"></script><script src="/student-attendance-fix.js"></script>`;
+</script><script src="/schools-enhance.js"></script><script src="/student-attendance-fix.js"></script><script src="/restore-features.js"></script>`;
 
 export default async function handler(req, res) {
   const jsonRes = {
