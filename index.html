@@ -183,6 +183,7 @@ button,input,select{font:inherit}button{cursor:pointer}input,select{width:100%;p
 'use strict';
 
 const API='/api';
+const RESTORE='/api/restore';
 const regions=['01','10','20','25','30','40','50','60','70','75','80','85','90','95'];
 let token=localStorage.getItem('avtodrom_token')||'';
 let me=JSON.parse(localStorage.getItem('avtodrom_user')||'null');
@@ -345,6 +346,8 @@ async function api(path,opt={}){
   }finally{clearTimeout(timeout)}
 }
 
+async function apiRestore(path,opt={}){ return api(path,opt,RESTORE); }
+
 function loginMode(){$('loginBox').classList.remove('hidden');$('registerBox').classList.add('hidden')}
 function registerMode(){$('loginBox').classList.add('hidden');$('registerBox').classList.remove('hidden')}
 function saveLogin(x){
@@ -485,45 +488,11 @@ $('startForm').addEventListener('submit',async e=>{
     }
 
     btn.textContent='Saqlanmoqda...';
-    try {
-      const x=await api('/sessions/start',{method:'POST',body:JSON.stringify(b)});
-      showToast((x?.plate||(($('region').value+' '+body).trim()))+' uchun vaqt ochildi.');
-      resetStart();
-      await loadActive(true);
-      go('active');
-    } catch(startError) {
-      // Backend avtomobil bandligini 409 bilan qaytarsa ham,
-      // mijozni avtomatik kutish navbatiga tushiramiz.
-      if (startError && /409|conflict|band|jarayonda|active/i.test(startError.message||'')) {
-        const selected=type==='school' ? students.find(x=>String(x.id)===String($('student').value)) : null;
-        const queued=enqueueLesson({
-          queueId:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random()),
-          studentId:selected?.id||null,
-          studentName:selected?.full_name||'Oddiy mijoz',
-          schoolId:type==='school'?($('school').value||null):null,
-          groupId:type==='school'?($('group').value||null):null,
-          plate:body,
-          plateBody:body,
-          regionCode:$('region').value,
-          ...parts,
-          model:b.model,
-          driverName:b.driverName,
-          customerType:type
-        });
-
-        if(queued){
-          showToast((selected?.full_name||'Oddiy mijoz')+' avtomobil bandligi sabab kutish rejimiga qo‘shildi.');
-          resetStart();
-          await loadActive(true);
-          renderWaitingQueue();
-          go('active');
-        } else {
-          $('startErr').textContent='Bu mijoz shu avtomobil uchun allaqachon kutish navbatida.';
-        }
-      } else {
-        throw startError;
-      }
-    }
+    const x=await api('/sessions/start',{method:'POST',body:JSON.stringify(b)});
+    showToast((x?.plate||(($('region').value+' '+body).trim()))+' uchun vaqt ochildi.');
+    resetStart();
+    await loadActive(true);
+    go('active');
   }catch(x){
     $('startErr').textContent=x.message||'Vaqt ochilmadi.';
   }finally{
@@ -559,9 +528,14 @@ async function addSelectedToWaiting(){
   }
 
   try{
-    // Kutish rejimi tugmasi avtomobil hozir jarayonda bo‘lsa ham,
-    // hali jarayonga kirmagan bo‘lsa ham navbatga qo‘sha oladi.
-    // Navbatdagi mijozning vaqti faqat avtomobil bo‘shagach ochiladi.
+    await loadActive(true);
+    const vehicleKey=carKey($('region').value,body);
+    const sameCarActive=active.some(a=>activeCarKey(a)===vehicleKey);
+    if(!sameCarActive){
+      if(err)err.textContent='Bu avtomobil hozir jarayonda emas. Avval unga vaqt oching, keyin navbatga qo‘shing.';
+      return;
+    }
+
     const parts=plateParts(body);
     const queued=enqueueLesson({
       queueId:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random()),
@@ -978,24 +952,32 @@ async function fetchStudentHistoryRows(id){
 
   let data=null;
   let lastError=null;
-  // The project already has a dedicated, authenticated student-history API.
-  // Use it first; the previous /history route was not connected to that handler.
-  for(const path of [
-    '/student-history.js?studentId='+encodeURIComponent(id),
-    '/history?studentId='+encodeURIComponent(id)
-  ]){
+  const plate=String(s.plate||s.vehicle_plate||s.car_number||'').trim();
+
+  const paths=['/student-history.js?studentId='+encodeURIComponent(id)];
+  if(plate) paths.push('/history?plate='+encodeURIComponent(plate));
+
+  for(const path of paths){
     try{
       data=await api(path);
       if(data)break;
-    }catch(e){lastError=e}
+    }catch(e){
+      lastError=e;
+    }
   }
-  if(!data)throw(lastError||Error('O‘quvchi tarixini olishda xatolik.'));
+
+  // Excel export must not fail just because a history endpoint is unavailable.
+  if(!data) data={rows:[]};
 
   let rows=Array.isArray(data.rows)?data.rows:[];
   rows=rows.filter(r=>{
     if(r.student_id && String(r.student_id)===String(id))return true;
     if(r.studentId && String(r.studentId)===String(id))return true;
     if(r.student_name && String(r.student_name).trim().toLowerCase()===String(s.full_name||'').trim().toLowerCase())return true;
+    if(plate){
+      const rp=String(r.plate||r.vehicle_plate||r.car_number||'').trim().toUpperCase();
+      if(rp===plate.toUpperCase())return true;
+    }
     return false;
   });
   rows.sort((a,b)=>new Date(a.started_at||a.start_time||0)-new Date(b.started_at||b.start_time||0));
@@ -1099,7 +1081,12 @@ async function exportStudentHistory(id){
       '</body></html>';
 
     downloadExcelCompatible(filename,html);
-    showToast(rows.length ? 'O‘quvchining to‘liq dars tarixi Excel faylga chiqarildi.' : 'Excel fayl yaratildi, lekin bazada bu o‘quvchi uchun tarixiy sessiya topilmadi.', !rows.length);
+    showToast(
+      rows.length
+        ? 'O‘quvchining to‘liq dars tarixi Excel faylga chiqarildi.'
+        : 'Excel fayl yaratildi. Tarixiy sessiya topilmadi yoki tarix API hozircha mavjud emas.',
+      false
+    );
   }catch(e){
     showToast(e.message||'Excel tarixini tayyorlashda xatolik',true);
   }finally{
@@ -1201,7 +1188,9 @@ async function editStudentModal(id){
   modal(
     '<h2>O‘quvchini tahrirlash</h2>'+
     '<div class="fg"><label>F.I.Sh.</label><input id="esn" value="'+esc(s.full_name||'')+'" required></div>'+
-    '<div class="fg"><label>Tug‘ilgan sana</label><input id="esp" type="date" value="'+esc(s.birth_date||s.birthDate||s.phone||'')+'"></div>'+
+    '<div class="fg"><label>Tug‘ilgan sana</label><input id="esp" type="date" value="'+esc(s.birth_date||s.birthDate||'')+'" required></div>'+
+    '<div class="fg"><label>Telefon raqami</label><input id="esPhone" type="tel" value="'+esc(s.phone||'')+'" placeholder="+998901112233"></div>'+
+    '<div class="fg"><label>Avtomobil raqami</label><input id="espl" value="'+esc(s.plate||'')+'" placeholder="111QQQ yoki 01 A555AA" maxlength="9"></div>'+
     '<div class="fg"><label>Avtoshkola</label><select id="ess" onchange="editStudentGroups()" required>'+schoolOptions+'</select></div>'+
     '<div class="fg"><label>Guruh</label><select id="esg"><option value="">Guruhsiz</option></select></div>'+
      
@@ -1227,42 +1216,61 @@ async function editStudentGroups(selectedGroupId=''){
 async function updateStudent(id){
   const current=students.find(x=>String(x.id)===String(id));
   if(!current)return showToast('O‘quvchi topilmadi.',true);
+
   const fullName=$('esn')?.value.trim();
   const birthDate=$('esp')?.value.trim();
+  const phone=$('esPhone')?.value.trim() ?? String(current.phone||'');
   const schoolId=$('ess')?.value;
   const groupId=$('esg')?.value||null;
+  const plate=String($('espl')?.value||current.plate||'').trim().toUpperCase();
   const attendanceCount=Math.max(0,Math.floor(Number($('esLessons')?.value||0)));
-  if(!fullName||!schoolId||!birthDate)return showToast('F.I.Sh., tug‘ilgan sana va avtoshkolani kiriting.',true);
+
+  if(!fullName||!schoolId||!birthDate){
+    return showToast('F.I.Sh., tug‘ilgan sana va avtoshkolani kiriting.',true);
+  }
+
   try{
-    const response=await api('/students/'+encodeURIComponent(id),{
+    const response=await apiRestore('/students/'+encodeURIComponent(id),{
       method:'PUT',
       body:JSON.stringify({
         fullName,
         birthDate,
-        phone:current.phone||'',
+        phone,
         schoolId,
         groupId,
-        plate:current.plate||'',
+        plate,
         attendanceCount,
         attendance_count:attendanceCount
       })
     });
-    const saved=Number(response?.attendance_count ?? response?.attendanceCount ?? attendanceCount);
+
+    const saved=Number(
+      response?.attendance_count ??
+      response?.attendanceCount ??
+      attendanceCount
+    );
+
     if(saved!==attendanceCount){
-      throw Error('Server dars sonini '+saved+' qilib qaytardi. Backend /students/:id endpointida attendance_count saqlanishini tekshiring.');
+      throw Error(
+        'Server dars sonini '+saved+
+        ' qilib qaytardi. /api/restore/students/:id endpointini tekshiring.'
+      );
     }
+
     closeModal();
     await adminLoad();
     adminTab('students');
     showToast(fullName+' yangilandi.');
-  }catch(e){showToast(e.message,true)}
+  }catch(e){
+    showToast(e.message||'O‘quvchini saqlashda xatolik',true);
+  }
 }
 async function deleteStudent(id){
   const s=students.find(x=>String(x.id)===String(id));
   if(!s)return;
   if(!confirm('«'+(s.full_name||'O‘quvchi')+'»ni o‘chirishni xohlaysizmi?'))return;
   try{
-    await api('/students/'+encodeURIComponent(id),{method:'DELETE'});
+    await apiRestore('/students/'+encodeURIComponent(id),{method:'DELETE'});
     await adminLoad();
     adminTab('students');
     showToast('O‘quvchi o‘chirildi.');
