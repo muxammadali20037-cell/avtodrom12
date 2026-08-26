@@ -41,6 +41,47 @@
     }
   };
 
+  // MUHIM: O‘quvchini tahrirlashdagi eski PATCH 404 muammosini tuzatadi.
+  // Backend endi PATCH/PUT ni qabul qiladi. Mavjud avtomobil raqami saqlanadi.
+  window.updateStudent = async function(id){
+    const s=getStudents().find(x=>String(x.id)===String(id));
+    const fullName=document.getElementById('esn')?.value.trim();
+    const birthDate=document.getElementById('esp')?.value.trim();
+    const schoolId=document.getElementById('ess')?.value;
+    const groupId=document.getElementById('esg')?.value||null;
+    const attendanceCount=Math.max(0,Math.min(9999,Math.floor(Number(document.getElementById('esLessons')?.value||0))));
+
+    if(!fullName||!schoolId||!birthDate){
+      if(typeof showToast==='function')showToast('F.I.Sh., tug‘ilgan sana va avtoshkolani kiriting.',true);
+      return;
+    }
+
+    try{
+      const response=await api('/students/'+encodeURIComponent(id),{
+        method:'PATCH',
+        body:JSON.stringify({
+          fullName,
+          birthDate,
+          schoolId,
+          groupId,
+          plate:s?.plate||'',
+          attendanceCount,
+          attendance_count:attendanceCount
+        })
+      });
+      const saved=Number(response?.attendance_count ?? response?.attendanceCount ?? attendanceCount);
+      if(saved!==attendanceCount){
+        throw Error('Server dars sonini '+saved+' qilib qaytardi.');
+      }
+      if(typeof closeModal==='function')closeModal();
+      if(typeof adminLoad==='function')await adminLoad();
+      if(typeof adminTab==='function')adminTab('students');
+      if(typeof showToast==='function')showToast(fullName+' yangilandi.');
+    }catch(e){
+      if(typeof showToast==='function')showToast(e.message||'O‘quvchini saqlashda xatolik',true);
+    }
+  };
+
   function getStudents(){return Array.isArray(window.students)?window.students:[];}
 
   function renderStudentOptions(){
