@@ -1,30 +1,56 @@
-/* Safe compatibility loader: keep the existing restore features, then replace only bulk student import UI. */
+/* AVTODROM restore/rescue layer.
+   It first repairs and executes the main inline application script if a syntax
+   error prevented it from running, then installs the 3-field bulk student UI. */
 (async function(){
   'use strict';
-  const legacyUrl='https://raw.githubusercontent.com/muxammadali20037-cell/avtodrom12/79921d94a2f5f05ef1be75b77c6d6bf0dd4d4f88/frontend/restore-features.js';
-  try{
-    const r=await fetch(legacyUrl,{cache:'no-store'});
-    if(!r.ok) throw new Error('Legacy restore script yuklanmadi');
-    const code=await r.text();
-    (0,eval)(code);
-  }catch(e){console.error('RESTORE FEATURES LOAD:',e);}
 
   const $=id=>document.getElementById(id);
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const token=()=>localStorage.getItem('avtodrom_token')||'';
 
+  function repairMainScript(){
+    if(window.__avtodromMainRestored) return true;
+    const scripts=[...document.querySelectorAll('script:not([src])')];
+    const main=scripts.find(s=>String(s.textContent||'').includes("const API='/api'"));
+    if(!main) return false;
+    let code=main.textContent||'';
+    code=code.replace("esc(s?.name'')","esc(s?.name||'')");
+    code=code.replace("esc(g?.name'')","esc(g?.name||'')");
+
+    const fixedBulk=`function parseBulk(){const lines=($('bulkText').value||'').split(/\\r?\\n/).map(x=>x.trim()).filter(Boolean),rows=[],errors=[];lines.forEach((line,i)=>{let m=line.match(/^(.+?)\\s*(?:,|;|\\t)\\s*(\\d{4}-\\d{2}-\\d{2}|\\d{2}\\.\\d{2}\\.\\d{4})\\s*(?:,|;|\\t)\\s*(\\d+)$/);if(!m)m=line.match(/^(.+?)\\s+(\\d{4}-\\d{2}-\\d{2}|\\d{2}\\.\\d{2}\\.\\d{4})\\s+(\\d+)$/);if(!m){errors.push((i+1)+'-qator: F.I.Sh., tug‘ilgan sana va dars sonini kiriting');return}let birthDate=m[2];if(/^\\d{2}\\.\\d{2}\\.\\d{4}$/.test(birthDate)){const [d,mo,y]=birthDate.split('.');birthDate=y+'-'+mo+'-'+d}const lessons=Number(m[3]);if(!Number.isInteger(lessons)||lessons<0){errors.push((i+1)+'-qator: dars soni noto‘g‘ri');return}rows.push({line:i+1,fullName:m[1].trim(),birthDate,lessons})});return{rows,errors}}\nfunction previewBulk()`;
+    const bulkRe=/function parseBulk\(\)\{[\s\S]*?\}\nfunction previewBulk\(\)/;
+    if(bulkRe.test(code)) code=code.replace(bulkRe,fixedBulk);
+
+    try{
+      const s=document.createElement('script');
+      s.type='text/javascript';
+      s.textContent=code;
+      document.body.appendChild(s);
+      window.__avtodromMainRestored=true;
+      console.log('AVTODROM main script restored successfully');
+      return true;
+    }catch(e){
+      console.error('AVTODROM main script restore failed:',e);
+      return false;
+    }
+  }
+
+  // The original app script currently has one syntax error. Repair it before
+  // installing the feature overrides. A classic script with a syntax error does
+  // not prevent later script elements from executing.
+  repairMainScript();
+
   function parseBulk(text){
     const lines=String(text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean),rows=[],errors=[];
     lines.forEach((line,i)=>{
-      const p=line.split(/[,;\t]/).map(x=>x.trim());
-      if(p.length!==3){errors.push((i+1)+'-qator: F.I.Sh., tug‘ilgan sana va darslar soni kerak.');return;}
-      const fullName=p[0],birthDate=p[1],lessons=Number(p[2]);
-      if(!fullName){errors.push((i+1)+'-qator: F.I.Sh. bo‘sh.');return;}
-      if(!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)){errors.push((i+1)+'-qator: sana YYYY-MM-DD formatida bo‘lsin.');return;}
-      const d=new Date(birthDate+'T00:00:00');
-      if(Number.isNaN(d.getTime())||d.toISOString().slice(0,10)!==birthDate){errors.push((i+1)+'-qator: tug‘ilgan sana noto‘g‘ri.');return;}
+      let m=line.match(/^(.+?)\s*(?:,|;|\t)\s*(\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4})\s*(?:,|;|\t)\s*(\d+)$/);
+      if(!m) m=line.match(/^(.+?)\s+(\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4})\s+(\d+)$/);
+      if(!m){errors.push((i+1)+'-qator: F.I.Sh., tug‘ilgan sana va darslar sonini kiriting.');return;}
+      let birthDate=m[2];
+      if(/^\d{2}\.\d{2}\.\d{4}$/.test(birthDate)){const [d,mo,y]=birthDate.split('.');birthDate=y+'-'+mo+'-'+d;}
+      const lessons=Number(m[3]);
       if(!Number.isInteger(lessons)||lessons<0){errors.push((i+1)+'-qator: darslar soni noto‘g‘ri.');return;}
-      rows.push({fullName,birthDate,lessons});
+      rows.push({fullName:m[1].trim(),birthDate,lessons});
     });
     return {rows,errors};
   }
@@ -54,14 +80,13 @@
         '<div class="muted">Guruh: <b>'+esc(g?.name||'Tanlanmagan')+'</b></div>'+
         '<div class="studentDetail"><b>Faqat 3 ta ma’lumot:</b> F.I.Sh., tug‘ilgan sana, darslar soni.<br>'+
         '<span class="mini">Har qator: Aliyev Muhammad, 1992-01-14, 4</span><br>'+
-        '<span class="mini">Telefon, avtomobil, guruh yoki boshqa ma’lumot kerak emas.</span></div>'+
-        '<div class="fg"><label>O‘quvchilar ro‘yxati</label><textarea id="bulkText" rows="12" placeholder="Aliyev Muhammad, 1992-01-14, 4&#10;Karimov Aziz, 1995-06-22, 0"></textarea></div>'+
+        '<span class="mini">Telefon, avtomobil, guruh yoki boshqa ma’lumot kerak emas.</span></div>'+ 
+        '<div class="fg"><label>O‘quvchilar ro‘yxati</label><textarea id="bulkText" rows="12" placeholder="Aliyev Muhammad, 1992-01-14, 4&#10;Karimov Aziz, 1995-06-22, 0"></textarea></div>'+ 
         '<div class="actions"><button type="button" class="btn light" id="bulkPreviewBtn">🔎 Tekshirish</button><button type="button" class="btn green" id="bulkSaveBtn">✓ Hammasini qo‘shish</button><button type="button" class="btn light" onclick="closeModal()">Bekor</button></div><div id="bulkOut"></div>');
       $('bulkPreviewBtn').onclick=()=>{const p=parseBulk($('bulkText').value);$('bulkOut').innerHTML='<div class="studentDetail"><b>'+p.rows.length+' ta tayyor</b>'+(p.errors.length?'<div class="err">'+p.errors.map(esc).join('<br>')+'</div>':'<div class="ok">Ma’lumotlar to‘g‘ri.</div>')+'</div>';};
       $('bulkSaveBtn').onclick=()=>saveBulk(String(schoolId),String(groupId||''));
     };
   }
 
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(installBulkOverride,50));
-  else setTimeout(installBulkOverride,50);
+  setTimeout(installBulkOverride,100);
 })();
