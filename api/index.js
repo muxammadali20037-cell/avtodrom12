@@ -1,5 +1,6 @@
 import app from "../backend/src/server.js";
 import { handleFreezeRequest } from "../backend/src/freeze-routes.js";
+import { handleCompatRequest } from "./compat-routes.js";
 import { readFile } from "node:fs/promises";
 
 const frozenFinishFix = String.raw`<script>
@@ -94,6 +95,13 @@ export default async function handler(req, res) {
       return this;
     }
   };
+
+  // Compatibility endpoints must run before Express so the existing
+  // server.js can remain untouched. This fixes the PATCH 404s and keeps
+  // the current frontend contract intact.
+  const compatHandled = await handleCompatRequest(req, res);
+  if (compatHandled) return;
+
   const handled = await handleFreezeRequest(req, jsonRes);
   if (handled !== null) return handled;
 
