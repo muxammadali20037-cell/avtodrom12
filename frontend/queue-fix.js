@@ -115,7 +115,7 @@
     try{
       let rows=[];
       if(id && typeof window.api==='function'){
-        const result=await window.api('/history?studentId='+encodeURIComponent(id));
+        const result=await window.api('/student-history?studentId='+encodeURIComponent(id));
         rows=Array.isArray(result)?result:(Array.isArray(result?.rows)?result.rows:[]);
       }
       downloadXls(found,rows);
