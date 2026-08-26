@@ -485,11 +485,45 @@ $('startForm').addEventListener('submit',async e=>{
     }
 
     btn.textContent='Saqlanmoqda...';
-    const x=await api('/sessions/start',{method:'POST',body:JSON.stringify(b)});
-    showToast((x?.plate||(($('region').value+' '+body).trim()))+' uchun vaqt ochildi.');
-    resetStart();
-    await loadActive(true);
-    go('active');
+    try {
+      const x=await api('/sessions/start',{method:'POST',body:JSON.stringify(b)});
+      showToast((x?.plate||(($('region').value+' '+body).trim()))+' uchun vaqt ochildi.');
+      resetStart();
+      await loadActive(true);
+      go('active');
+    } catch(startError) {
+      // Backend avtomobil bandligini 409 bilan qaytarsa ham,
+      // mijozni avtomatik kutish navbatiga tushiramiz.
+      if (startError && /409|conflict|band|jarayonda|active/i.test(startError.message||'')) {
+        const selected=type==='school' ? students.find(x=>String(x.id)===String($('student').value)) : null;
+        const queued=enqueueLesson({
+          queueId:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random()),
+          studentId:selected?.id||null,
+          studentName:selected?.full_name||'Oddiy mijoz',
+          schoolId:type==='school'?($('school').value||null):null,
+          groupId:type==='school'?($('group').value||null):null,
+          plate:body,
+          plateBody:body,
+          regionCode:$('region').value,
+          ...parts,
+          model:b.model,
+          driverName:b.driverName,
+          customerType:type
+        });
+
+        if(queued){
+          showToast((selected?.full_name||'Oddiy mijoz')+' avtomobil bandligi sabab kutish rejimiga qo‘shildi.');
+          resetStart();
+          await loadActive(true);
+          renderWaitingQueue();
+          go('active');
+        } else {
+          $('startErr').textContent='Bu mijoz shu avtomobil uchun allaqachon kutish navbatida.';
+        }
+      } else {
+        throw startError;
+      }
+    }
   }catch(x){
     $('startErr').textContent=x.message||'Vaqt ochilmadi.';
   }finally{
@@ -525,14 +559,9 @@ async function addSelectedToWaiting(){
   }
 
   try{
-    await loadActive(true);
-    const vehicleKey=carKey($('region').value,body);
-    const sameCarActive=active.some(a=>activeCarKey(a)===vehicleKey);
-    if(!sameCarActive){
-      if(err)err.textContent='Bu avtomobil hozir jarayonda emas. Avval unga vaqt oching, keyin navbatga qo‘shing.';
-      return;
-    }
-
+    // Kutish rejimi tugmasi avtomobil hozir jarayonda bo‘lsa ham,
+    // hali jarayonga kirmagan bo‘lsa ham navbatga qo‘sha oladi.
+    // Navbatdagi mijozning vaqti faqat avtomobil bo‘shagach ochiladi.
     const parts=plateParts(body);
     const queued=enqueueLesson({
       queueId:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random()),
