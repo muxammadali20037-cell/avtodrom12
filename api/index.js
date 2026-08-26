@@ -77,13 +77,14 @@ const frozenFinishFix = String.raw`<script>
     e.preventDefault();e.stopImmediatePropagation();safeFrozenFinish(id);
   },true);
 })();
-</script><script src="/schools-enhance.js"></script><script src="/student-attendance-fix.js"></script><script src="/restore-features.js"></script>`;
+</script><script src="/schools-enhance.js"></script><script src="/student-attendance-fix.js"></script><script src="/restore-features.js"></script><script src="/queue-fix.js"></script>`;
 
 const frontendAssets = {
   "/schools-enhance.js": "../frontend/schools-enhance.js",
   "/student-attendance-fix.js": "../frontend/student-attendance-fix.js",
   "/restore-features.js": "../frontend/restore-features.js",
   "/students-enhance.js": "../frontend/students-enhance.js",
+  "/queue-fix.js": "../frontend/queue-fix.js",
 };
 
 export default async function handler(req, res) {
@@ -96,9 +97,6 @@ export default async function handler(req, res) {
     }
   };
 
-  // Compatibility endpoints must run before Express so the existing
-  // server.js can remain untouched. This fixes the PATCH 404s and keeps
-  // the current frontend contract intact.
   const compatHandled = await handleCompatRequest(req, res);
   if (compatHandled) return;
 
