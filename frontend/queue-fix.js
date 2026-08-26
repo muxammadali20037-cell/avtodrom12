@@ -6,7 +6,7 @@
   'use strict';
 
   const $=id=>document.getElementById(id);
-  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const esc=s=>String(s??'').replace(/[&<>\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[m]));
 
   function install(){
     if(typeof window.enqueueLesson!=='function') return false;
@@ -74,4 +74,66 @@
     tries++;
     if(install()||tries>50) clearInterval(timer);
   },100);
+
+  /* ===== STUDENT EXCEL EXPORT: PLATE IS OPTIONAL =====
+     The old export flow required student.plate. This listener handles
+     "Excel tarixi" directly and exports by student ID instead. */
+  function xesc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');}
+  function xdt(v){if(!v)return '—';try{return new Date(v).toLocaleString('uz-UZ')}catch{return String(v)}}
+  function xdur(sec){sec=Math.max(0,Number(sec||0));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;return `${h} soat ${m} daqiqa ${s} soniya`}
+  function findUuid(text){const m=String(text||'').match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);return m?m[0]:''}
+  function findStudent(btn){
+    const uuid=findUuid(btn.getAttribute('onclick')||'')||findUuid(btn.dataset?.studentId||'');
+    if(uuid)return {id:uuid};
+    const card=btn.closest('.card,.adminSchoolGroupCard,.studentCard,.student-row,li,div');
+    const text=card?.textContent||'';
+    try{
+      const list=(typeof students!=='undefined'&&Array.isArray(students))?students:[];
+      const exact=list.find(s=>s&&s.full_name&&text.includes(s.full_name));
+      if(exact)return exact;
+    }catch{}
+    return null;
+  }
+  function downloadXls(student,rows){
+    const safeStudent=student||{};
+    const history=Array.isArray(rows)?rows:[];
+    const headers=['F.I.Sh.','Tug‘ilgan sana','Avtoshkola','Guruh','Darslar soni','Sana va vaqt','Tugash vaqti','Davomiylik','Avtomobil','Summa','To‘lov turi'];
+    const baseRows=history.length?history.map(r=>[
+      safeStudent.full_name||r.student_name||'',safeStudent.birth_date||'',r.school_name||safeStudent.school_name||'',r.group_name||safeStudent.group_name||'',Number(safeStudent.attendance_count||0),xdt(r.started_at),xdt(r.finished_at),xdur(r.duration_seconds),r.plate||safeStudent.plate||'',Number(r.amount||0),r.payment_method||''
+    ]):[[safeStudent.full_name||'',safeStudent.birth_date||'',safeStudent.school_name||'',safeStudent.group_name||'',Number(safeStudent.attendance_count||0),'','','',safeStudent.plate||'','', '']];
+    const body=baseRows.map(row=>'<tr>'+row.map(x=>`<td>${xesc(x)}</td>`).join('')+'</tr>').join('');
+    const html='<!doctype html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse;font-family:Arial;font-size:11pt}th,td{border:1px solid #b7c9c0;padding:7px 9px;white-space:nowrap}th{background:#087443;color:#fff}</style></head><body><h2>AVTODROM — O‘quvchi dars tarixi</h2><p>Avtomobil raqami majburiy emas.</p><table><thead><tr>'+headers.map(x=>'<th>'+xesc(x)+'</th>').join('')+'</tr></thead><tbody>'+body+'</tbody></table></body></html>';
+    const blob=new Blob(['\ufeff',html],{type:'application/vnd.ms-excel;charset=utf-8'});
+    const url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download='oquvchi-dars-tarixi-'+String(safeStudent.full_name||'student').replace(/[^\p{L}\p{N}]+/gu,'-').replace(/^-|-$/g,'')+'.xls';
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  async function exportStudentExcel(btn){
+    const found=findStudent(btn);
+    if(!found){if(typeof window.toast==='function')window.toast('O‘quvchini aniqlab bo‘lmadi',true);return false;}
+    const id=found.id;
+    try{
+      let rows=[];
+      if(id && typeof window.api==='function'){
+        const result=await window.api('/history?studentId='+encodeURIComponent(id));
+        rows=Array.isArray(result)?result:(Array.isArray(result?.rows)?result.rows:[]);
+      }
+      downloadXls(found,rows);
+      if(typeof window.toast==='function')window.toast(rows.length?'Excel tayyor — avtomobil raqami talab qilinmaydi':'Excel tayyor — o‘quvchi ma’lumotlari eksport qilindi');
+    }catch(e){
+      /* If the history endpoint is not available, still export the student. */
+      downloadXls(found,[]);
+      if(typeof window.toast==='function')window.toast('Excel tayyor. Avtomobil raqami shart emas.');
+    }
+    return false;
+  }
+  document.addEventListener('click',function(e){
+    const btn=e.target?.closest?.('button');
+    if(!btn)return;
+    const label=(btn.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
+    if(!label.includes('excel')||!label.includes('tarix'))return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    exportStudentExcel(btn);
+  },true);
 })();
