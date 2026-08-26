@@ -1,23 +1,72 @@
 <!doctype html>
 <html lang="uz">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AVTODROM</title></head>
-<body><div style="font-family:Arial;padding:40px;text-align:center">Yuklanmoqda...</div>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AVTODROM — Boshqaruv tizimi</title>
+</head>
+<body style="margin:0;background:#f4faf7">
+<div id="boot" style="font-family:Arial,sans-serif;padding:40px;text-align:center;color:#10251d">Yuklanmoqda...</div>
 <script>
-(async()=>{
-  try{
-    const r=await fetch('/index.backup.html',{cache:'no-store'});
-    if(!r.ok) throw new Error('backup index yuklanmadi: '+r.status);
-    let html=await r.text();
-    html=html.replace("esc(s?.name'')","esc(s?.name||'')").replace("esc(g?.name'')","esc(g?.name||'')");
-    const oldParse=html.match(/function parseBulk\(\)\{[\s\S]*?\nfunction previewBulk\(\)/);
-    const fixedParse=`function parseBulk(){const lines=($('bulkText').value||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean),rows=[],errors=[];lines.forEach((line,i)=>{let m=line.match(/^(.+?)\s*(?:,|;|\t)\s*(\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4})\s*(?:,|;|\t)\s*(\d+)$/);if(!m)m=line.match(/^(.+?)\s+(\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4})\s+(\d+)$/);if(!m){errors.push((i+1)+'-qator: F.I.Sh., tug‘ilgan sana va dars sonini kiriting');return}let birthDate=m[2];if(/^\d{2}\.\d{2}\.\d{4}$/.test(birthDate)){const [d,mo,y]=birthDate.split('.');birthDate=y+'-'+mo+'-'+d}const lessons=Number(m[3]);if(!Number.isInteger(lessons)||lessons<0){errors.push((i+1)+'-qator: dars soni noto‘g‘ri');return}rows.push({line:i+1,fullName:m[1].trim(),birthDate,lessons})});return{rows,errors}}\nfunction previewBulk()`;
-    if(oldParse) html=html.replace(oldParse,fixedParse);
-    const doc=new DOMParser().parseFromString(html,'text/html');
-    const imported=document.importNode(doc.documentElement,true);
-    document.documentElement.replaceWith(imported);
-    const scripts=[...document.querySelectorAll('script')].filter(s=>s.textContent&&s.textContent.includes("'use strict'"));
-    for(const old of scripts){const s=document.createElement('script');s.textContent=old.textContent;old.replaceWith(s)}
-  }catch(e){document.body.innerHTML='<pre style="color:#b42318;padding:20px">'+String(e.message||e)+'</pre>'}
+(async function () {
+  try {
+    const response = await fetch('/index.backup.html?boot=' + Date.now(), { cache: 'no-store' });
+    if (!response.ok) throw new Error('index.backup.html yuklanmadi: HTTP ' + response.status);
+
+    let html = await response.text();
+
+    // Faqat ma'lum bo'lgan buzilgan ifodalarni xavfsiz tuzatamiz.
+    html = html
+      .replaceAll("esc(s?.name'')", "esc(s?.name||'')")
+      .replaceAll("esc(g?.name'')", "esc(g?.name||'')")
+      .replaceAll("esc(s?.name\'\')", "esc(s?.name||'')")
+      .replaceAll("esc(g?.name\'\')", "esc(g?.name||'')");
+
+    // Eski ommaviy qo'shish parseri xato bo'lsa, faqat parser funksiyasini almashtiramiz.
+    const start = html.indexOf('function parseBulk(){');
+    const end = html.indexOf('function previewBulk()', start);
+    if (start >= 0 && end > start) {
+      const fixedParser = `function parseBulk(){
+        const text = $('bulkText') ? ($('bulkText').value || '') : '';
+        const lines = text.split(/\\r?\\n/).map(x=>x.trim()).filter(Boolean);
+        const rows=[];
+        const errors=[];
+        lines.forEach((line,i)=>{
+          let m=line.match(/^(.+?)\\s*(?:,|;|\\t)\\s*(\\d{4}-\\d{2}-\\d{2}|\\d{2}\\.\\d{2}\\.\\d{4})\\s*(?:,|;|\\t)\\s*(\\d+)$/);
+          if(!m) m=line.match(/^(.+?)\\s+(\\d{4}-\\d{2}-\\d{2}|\\d{2}\\.\\d{2}\\.\\d{4})\\s+(\\d+)$/);
+          if(!m){
+            errors.push((i+1)+'-qator: F.I.Sh., tug‘ilgan sana va dars sonini kiriting');
+            return;
+          }
+          let birthDate=m[2];
+          if(/^\\d{2}\\.\\d{2}\\.\\d{4}$/.test(birthDate)){
+            const parts=birthDate.split('.');
+            birthDate=parts[2]+'-'+parts[1]+'-'+parts[0];
+          }
+          const lessons=Number(m[3]);
+          if(!Number.isInteger(lessons)||lessons<0){
+            errors.push((i+1)+'-qator: dars soni noto‘g‘ri');
+            return;
+          }
+          rows.push({line:i+1,fullName:m[1].trim(),birthDate,lessons});
+        });
+        return {rows,errors};
+      }
+`;
+      html = html.slice(0,start) + fixedParser + html.slice(end);
+    }
+
+    // Eng muhim tuzatish: DOMParser/importNode orqali scriptlarni o'chirib qo'ymaymiz.
+    // To'liq HTML document.write orqali qayta yuklanadi va backup ichidagi barcha JS odatdagidek ishga tushadi.
+    document.open();
+    document.write(html);
+    document.close();
+  } catch (error) {
+    document.open();
+    document.write('<!doctype html><html lang="uz"><body style="font-family:Arial;padding:30px"><h2>AVTODROM yuklanmadi</h2><pre style="white-space:pre-wrap;color:#b42318">' + String(error && (error.stack || error.message) || error).replace(/[<>]/g,'') + '</pre><p>index.backup.html mavjudligini tekshiring.</p></body></html>');
+    document.close();
+  }
 })();
 </script>
-</body></html>
+</body>
+</html>
