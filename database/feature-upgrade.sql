@@ -1,5 +1,6 @@
 -- AVTODROM feature upgrade
--- Safe additive migration. The backend also runs these statements on startup.
+-- Safe additive migration. The API compatibility layer also applies these
+-- two student columns automatically for existing deployments.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -32,9 +33,14 @@ CREATE TABLE IF NOT EXISTS students (
   phone VARCHAR(50),
   plate VARCHAR(20),
   notes TEXT,
+  birth_date DATE,
+  manual_attendance_count INTEGER NOT NULL DEFAULT 0,
   active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_date DATE;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS manual_attendance_count INTEGER NOT NULL DEFAULT 0;
 
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20) NOT NULL DEFAULT 'cash';
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS cash_amount NUMERIC(12,2) NOT NULL DEFAULT 0;
@@ -63,5 +69,6 @@ CREATE INDEX IF NOT EXISTS idx_sessions_plate_time ON sessions(vehicle_id,starte
 CREATE INDEX IF NOT EXISTS idx_sessions_payment ON sessions(payment_method);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_frozen ON sessions(user_id,status,frozen_at DESC);
 CREATE INDEX IF NOT EXISTS idx_students_owner ON students(owner_key);
+CREATE INDEX IF NOT EXISTS idx_students_birth_date ON students(birth_date);
 CREATE INDEX IF NOT EXISTS idx_school_groups_owner ON school_groups(owner_key);
 CREATE INDEX IF NOT EXISTS idx_schools_owner ON driving_schools(owner_key);
