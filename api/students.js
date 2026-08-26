@@ -18,6 +18,7 @@ function auth(req,res){
 }
 async function ensureSchema(){
   await pool.query(`ALTER TABLE public.students ADD COLUMN IF NOT EXISTS attendance_count integer NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE public.students ADD COLUMN IF NOT EXISTS birth_date date`);
   await pool.query(`ALTER TABLE public.students DROP CONSTRAINT IF EXISTS students_attendance_count_nonnegative`);
   await pool.query(`ALTER TABLE public.students ADD CONSTRAINT students_attendance_count_nonnegative CHECK (attendance_count >= 0)`);
   await pool.query(`
@@ -71,14 +72,15 @@ export default async function handler(req,res){
       const schoolId=String(body.schoolId||'');
       const groupId=body.groupId?String(body.groupId):null;
       const name=String(body.fullName||'').trim();
+      const birthDate=body.birthDate ? String(body.birthDate).trim() : null;
       const phone=String(body.phone||'').trim()||null;
       const plate=String(body.plate||'').trim()||null;
-      let attendanceCount=Math.max(0,Math.min(999,Math.floor(Number(body.attendanceCount||0))));
+      let attendanceCount=Math.max(0,Math.min(9999,Math.floor(Number(body.attendanceCount ?? body.attendance_count ?? 0))));
       let notes=String(body.notes||'').trim();
       if(typeof body.notes==='string'){
         const m=body.notes.match(/ATTENDANCE_BASE=(\d+)/i);
         if(m){
-          if(!attendanceCount) attendanceCount=Math.max(0,Math.min(999,Number(m[1])));
+          if(!attendanceCount) attendanceCount=Math.max(0,Math.min(9999,Number(m[1])));
           notes=body.notes.replace(/(^|;)ATTENDANCE_BASE=\d+;?/i,'$1').replace(/^;|;$/g,'').trim();
         }
       }
@@ -90,14 +92,72 @@ export default async function handler(req,res){
         if(!g.rows[0])return json(res,400,{error:'Guruh noto‘g‘ri'});
       }
       const r=await pool.query(`
-        INSERT INTO students(owner_key,school_id,group_id,full_name,phone,plate,notes,attendance_count)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+        INSERT INTO students(owner_key,school_id,group_id,full_name,birth_date,phone,plate,notes,attendance_count)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
         RETURNING *
-      `,[owner,schoolId,groupId,name,phone,plate,notes||null,attendanceCount]);
+      `,[owner,schoolId,groupId,name,birthDate,phone,plate,notes||null,attendanceCount]);
       return json(res,201,r.rows[0]);
     }
 
-    res.setHeader('Allow','GET,POST,OPTIONS');
+    if(req.method==='PATCH' || req.method==='PUT'){
+      const id=String(req.url.split('?')[0].split('/').filter(Boolean).pop()||'');
+      if(!id)return json(res,400,{error:'O‘quvchi ID kerak'});
+      const body=req.body||{};
+      const current=await pool.query(`
+        SELECT * FROM students WHERE id=$1 AND owner_key=$2 AND active=true
+      `,[id,owner]);
+      if(!current.rows[0])return json(res,404,{error:'O‘quvchi topilmadi'});
+
+      const old=current.rows[0];
+      const fullName=String(body.fullName ?? old.full_name ?? '').trim();
+      const birthDate=body.birthDate!==undefined ? (String(body.birthDate||'').trim()||null) : (old.birth_date||null);
+      const phone=body.phone!==undefined ? (String(body.phone||'').trim()||null) : (old.phone||null);
+      const plate=body.plate!==undefined ? (String(body.plate||'').trim()||null) : (old.plate||null);
+      const schoolId=body.schoolId!==undefined ? (String(body.schoolId||'').trim()||null) : old.school_id;
+      const groupId=body.groupId!==undefined ? (body.groupId?String(body.groupId):null) : old.group_id;
+      const attendanceRaw=body.attendanceCount!==undefined ? body.attendanceCount : body.attendance_count;
+      const attendanceCount=attendanceRaw!==undefined
+        ? Math.max(0,Math.min(9999,Math.floor(Number(attendanceRaw)||0)))
+        : Number(old.attendance_count||0);
+
+      if(!fullName||!schoolId)return json(res,400,{error:'F.I.Sh. va avtoshkolani kiriting'});
+      const s=await pool.query(`SELECT id FROM driving_schools WHERE id=$1 AND owner_key=$2 AND active=true`,[schoolId,owner]);
+      if(!s.rows[0])return json(res,404,{error:'Avtoshkola topilmadi'});
+      if(groupId){
+        const g=await pool.query(`SELECT id FROM school_groups WHERE id=$1 AND school_id=$2 AND owner_key=$3 AND active=true`,[groupId,schoolId,owner]);
+        if(!g.rows[0])return json(res,400,{error:'Guruh noto‘g‘ri'});
+      }
+
+      const r=await pool.query(`
+        UPDATE students
+           SET full_name=$1,
+               birth_date=$2,
+               phone=$3,
+               plate=$4,
+               school_id=$5,
+               group_id=$6,
+               attendance_count=$7
+         WHERE id=$8 AND owner_key=$9 AND active=true
+         RETURNING *,
+           (SELECT name FROM driving_schools WHERE id=students.school_id) AS school_name,
+           (SELECT name FROM school_groups WHERE id=students.group_id) AS group_name
+      `,[fullName,birthDate,phone,plate,schoolId,groupId,attendanceCount,id,owner]);
+      return json(res,200,r.rows[0]);
+    }
+
+    if(req.method==='DELETE'){
+      const id=String(req.url.split('?')[0].split('/').filter(Boolean).pop()||'');
+      if(!id)return json(res,400,{error:'O‘quvchi ID kerak'});
+      const r=await pool.query(`
+        UPDATE students SET active=false
+         WHERE id=$1 AND owner_key=$2 AND active=true
+         RETURNING id,full_name
+      `,[id,owner]);
+      if(!r.rows[0])return json(res,404,{error:'O‘quvchi topilmadi'});
+      return json(res,200,{ok:true,id:r.rows[0].id,full_name:r.rows[0].full_name});
+    }
+
+    res.setHeader('Allow','GET,POST,PATCH,PUT,DELETE,OPTIONS');
     return json(res,405,{error:'Method not allowed'});
   }catch(e){
     console.error('STUDENTS API:',e);
