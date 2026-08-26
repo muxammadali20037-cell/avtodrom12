@@ -159,6 +159,15 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}input,select,tex
 const API='/api';
 const RESTORE='/api/restore';
 const regions=['01','10','20','25','30','40','50','60','70','75','80','85','90','95'];
+
+// O'zbekiston avtomobil regionlari: select har doim real variantlar bilan to'ldiriladi.
+function initRegionSelect(){
+  const el=$('region');
+  if(!el) return;
+  const current=el.value;
+  el.innerHTML=regions.map(r=>'<option value=\"'+r+'\">'+r+'</option>').join('');
+  el.value=regions.includes(current)?current:regions[0];
+}
 let token=localStorage.getItem('avtodrom_token')||'';
 let me=JSON.parse(localStorage.getItem('avtodrom_user')||'null');
 let active=[],frozen=[],schools=[],groups=[],students=[],daily=null;
@@ -301,7 +310,8 @@ function openAdminGate(){$('adminErr').textContent='';$('adminUser').value='';$(
 function closeAdminGate(){$('adminGate').classList.add('hidden')}
 function closeAdminPanel(){$('adminPanel').classList.add('hidden');sessionStorage.removeItem('avtodrom_admin')}
 async function adminLogin(e){e.preventDefault();if($('adminUser').value.trim()!=='admin'||$('adminPass').value!=='Admin@2026'){$('adminErr').textContent='Admin login yoki parol noto‘g‘ri.';return}sessionStorage.setItem('avtodrom_admin','1');closeAdminGate();$('adminPanel').classList.remove('hidden');await adminLoad()}
-async function adminLoad(){try{schools=await api('/schools')||[];groups=await api('/groups')||[];students=await api('/students')||[];const d=await api('/dashboard');$('adSchools').textContent=schools.length;$('adGroups').textContent=groups.length;$('adStudents').textContent=students.length;$('adToday').textContent=Number(d.todayCount||0);$('adActive').textContent=Number(d.active||0);adminTab('dashboard')}catch(e){toast(e.message,true)}}
+async function adminLoad(){
+  if($('modal')?.innerHTML.trim()) return;try{schools=await api('/schools')||[];groups=await api('/groups')||[];students=await api('/students')||[];const d=await api('/dashboard');$('adSchools').textContent=schools.length;$('adGroups').textContent=groups.length;$('adStudents').textContent=students.length;$('adToday').textContent=Number(d.todayCount||0);$('adActive').textContent=Number(d.active||0);adminTab('dashboard')}catch(e){toast(e.message,true)}}
 function adminTab(t){
   const c=$('adminContent');
   if(t==='dashboard'){c.innerHTML='<div class="head"><div><h2>Admin Dashboard</h2><p>Barcha asosiy ko‘rsatkichlar.</p></div><button class="btn light" onclick="adminLoad()">↻ Yangilash</button></div><div class="panel"><div class="kv"><div><b>'+schools.length+'</b><span>Avtoshkola</span></div><div><b>'+groups.length+'</b><span>Guruh</span></div><div><b>'+students.length+'</b><span>O‘quvchi</span></div><div><b>'+active.length+'</b><span>Jarayonda</span></div></div></div>';return}
@@ -323,7 +333,7 @@ async function deleteGroup(id){const g=groups.find(x=>String(x.id)===String(id))
 function studentModal(preSchool='',preGroup=''){const opts=schools.map(s=>'<option value="'+esc(s.id)+'" '+(String(s.id)===String(preSchool)?'selected':'')+'>'+esc(s.name)+'</option>').join('');modal('<h2>O‘quvchi qo‘shish</h2><div class="fg"><label>F.I.Sh.</label><input id="sn"></div><div class="fg"><label>Tug‘ilgan sana / telefon</label><input id="sp" placeholder="1992-01-14 yoki telefon"></div><div class="fg"><label>Avtoshkola</label><select id="ss">'+opts+'</select></div><div class="fg"><label>Guruh</label><select id="sg"><option value="">Guruhsiz</option></select></div><div class="fg"><label>Avtomobil</label><input id="spl" placeholder="01 A555AA"></div><div class="fg"><label>Qatnashgan darslar</label><input id="sl" type="number" min="0" value="0"></div><div class="actions"><button class="btn green" onclick="createStudent()">Saqlash</button><button class="btn light" onclick="closeModal()">Bekor</button></div>');$('ss').onchange=()=>fillStudentGroups();fillStudentGroups(preGroup)}
 async function fillStudentGroups(selected=''){const sid=$('ss')?.value;if(!sid||!$('sg'))return;const gs=await api('/groups?schoolId='+encodeURIComponent(sid))||[];$('sg').innerHTML='<option value="">Guruhsiz</option>'+gs.map(g=>'<option value="'+esc(g.id)+'" '+(String(g.id)===String(selected)?'selected':'')+'>'+esc(g.name)+'</option>').join('')}
 async function createStudent(){const name=$('sn').value.trim(),sid=$('ss').value,lessons=Math.max(0,Math.floor(Number($('sl').value||0)));if(!name||!sid)return toast('F.I.Sh. va avtoshkolani kiriting',true);try{const r=await apiRestore('/students/bulk',{method:'POST',body:JSON.stringify({rows:[{fullName:name,phone:$('sp').value.trim(),schoolId:sid,groupId:$('sg').value||null,plate:$('spl').value.trim(),lessons}]})});if(Number(r.added||0)!==1)throw Error(r.errors?.[0]?.error||'O‘quvchi saqlanmadi');closeModal();await adminLoad();adminTab('students');toast(name+' qo‘shildi — '+lessons+' dars.')}catch(e){toast(e.message,true)}}
-function bulkStudentModal(schoolId,groupId){const s=schools.find(x=>String(x.id)===String(schoolId)),g=groups.find(x=>String(x.id)===String(groupId));modal('<h2>📋 O‘quvchilarni ommaviy qo‘shish</h2><div class="muted">Avtomatik guruh: <b>'+esc(s?.name||'')+'</b> → <b>'+esc(g?.name||'')+'</b></div><div class="studentDetail"><b>Format:</b> F.I.Sh.  tug‘ilgan sana yoki telefon  darslar soni  avtomobil (ixtiyoriy)<br><span class="mini">Misol: Aliyev Muhammad  1992-01-14  4</span></div><div class="fg"><label>Ro‘yxat</label><textarea id="bulkText" rows="12" placeholder="Aliyev Muhammad  1992-01-14  4&#10;Karimov Aziz  1995-06-22  0"></textarea></div><div class="actions"><button class="btn light" onclick="previewBulk()">🔎 Tekshirish</button><button class="btn green" onclick="saveBulk(\''+esc(schoolId)+'\',\''+esc(groupId)+'\')">✓ Hammasini qo‘shish</button><button class="btn light" onclick="closeModal()">Bekor</button></div><div id="bulkOut"></div>')}
+function bulkStudentModal(schoolId,groupId){const s=schools.find(x=>String(x.id)===String(schoolId)),g=groups.find(x=>String(x.id)===String(groupId));modal('<h2>📋 O‘quvchilarni ommaviy qo‘shish</h2><div class="muted">Avtomatik guruh: <b>'+esc(s?.name'')+'</b> → <b>'+esc(g?.name'')+'</b></div><div class="studentDetail"><b>Format:</b> F.I.Sh.  tug‘ilgan sana yoki telefon  darslar soni<br><span class="mini">Misol: Aliyev Muhammad  1992-01-14  4</span></div><div class="fg"><label>Ro‘yxat</label><textarea id="bulkText" rows="12" placeholder="Aliyev Muhammad  1992-01-14  4&#10;Karimov Aziz  1995-06-22  0"></textarea></div><div class="actions"><button class="btn light" onclick="previewBulk()">🔎 Tekshirish</button><button class="btn green" onclick="saveBulk(\''+esc(schoolId)+'\',\''+esc(groupId)+'\')">✓ Hammasini qo‘shish</button><button class="btn light" onclick="closeModal()">Bekor</button></div><div id="bulkOut"></div>')}
 function parseBulk(){const lines=($('bulkText').value||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean),rows=[],errors=[];lines.forEach((line,i)=>{const p=line.split('|').map(x=>x.trim());if(p.length<3){errors.push((i+1)+'-qator: kamida 3 ta ustun kerak');return}const lessons=Number(p[2]);if(!Number.isInteger(lessons)||lessons<0){errors.push((i+1)+'-qator: dars soni noto‘g‘ri');return}rows.push({line:i+1,fullName:p[0],phone:p[1],lessons,plate:p[3]||''})});return{rows,errors}}
 function previewBulk(){const p=parseBulk();$('bulkOut').innerHTML='<div class="studentDetail"><b>'+p.rows.length+' ta tayyor</b>'+(p.errors.length?'<div class="err">'+p.errors.map(esc).join('<br>')+'</div>':'')+'</div>'}
 async function saveBulk(schoolId,groupId){const p=parseBulk();if(!p.rows.length){previewBulk();return}try{const r=await apiRestore('/students/bulk',{method:'POST',body:JSON.stringify({rows:p.rows.map(x=>({...x,schoolId,groupId}))})});$('bulkOut').innerHTML='<div class="ok">Qo‘shildi: '+Number(r.added||0)+' ta. Xato: '+(r.errors?.length||0)+' ta.</div>';await adminLoad();adminTab('schools');await showGroups(schoolId)}catch(e){toast(e.message,true)}}
@@ -347,13 +357,14 @@ $('school').onchange=loadGroups;
 $('group').onchange=loadStudents;
 $('student').onchange=studentInfo;
 $('finishQ').oninput=renderFinish;
+initRegionSelect();
 $('reportDate').value=localDateISO(0);
 $('adminLoginForm').onsubmit=adminLogin;
 document.querySelectorAll('.nav[data-p]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.p)));
 
 setInterval(()=>{$('clock').textContent=new Date().toLocaleString('uz-UZ',{timeZone:'Asia/Tashkent',hour12:false})},1000);
 setInterval(()=>{document.querySelectorAll('.timer[data-start]').forEach(x=>{const s=new Date(x.dataset.start).getTime();if(Number.isFinite(s))x.textContent=dur((Date.now()-s)/1000)})},1000);
-setInterval(async()=>{if(token){try{await loadActive();if(sessionStorage.getItem('avtodrom_admin')==='1')await adminLoad()}catch(_){}}},15000);
+setInterval(async()=>{if(token){try{await loadActive();if(sessionStorage.getItem('avtodrom_admin')==='1' && !$('modal')?.innerHTML.trim()) await adminLoad()}catch(_){}}},15000);
 
 if(token&&me)boot();
 </script>
