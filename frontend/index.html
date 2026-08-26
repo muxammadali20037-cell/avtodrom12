@@ -109,8 +109,8 @@ button,input,select{font:inherit}button{cursor:pointer}input,select{width:100%;p
 <div class="formGrid">
 <div class="span2">
 <label class="muted"></label>
-<div class="plate"><select id="region" aria-label="Hudud kodi"></select><input id="plateBody" class="plateBody" maxlength="6" minlength="6" inputmode="text" autocomplete="off" placeholder="A555AA yoki 555AAA" required></div>
-<div class="plateHint">Majburiy: aynan 3 ta raqam + 3 ta harf. Masalan: <b>A555AA</b> yoki <b>555AAA</b>.</div>
+<div class="plate"><select id="region" aria-label="Hudud kodi"></select><input id="plateBody" class="plateBody" maxlength="6" minlength="6" inputmode="text" autocomplete="off" placeholder="111QQQ yoki A555AA" required></div>
+<div class="plateHint">6 ta belgi yozing. Masalan: <b>111QQQ</b>, <b>444WWW</b>, <b>A555AA</b>. Qanday yozsangiz shunday saqlanadi.</div>
 <div id="plateErr" class="err"></div>
 </div>
 <div><label class="muted"> rusumi</label><input id="model" placeholder="Chevrolet Cobalt"></div>
@@ -121,7 +121,7 @@ button,input,select{font:inherit}button{cursor:pointer}input,select{width:100%;p
 <div><label class="muted">O‘quvchi</label><select id="student" disabled><option value="">Avval guruh</option></select></div>
 </div>
 <div id="studentBox"></div>
-<div class="actions"><button class="btn green" id="startBtn">▶ Vaqt ochish</button><button type="button" class="btn light" id="queueBtn" onclick="addSelectedToWaiting()">⏳ Kutish rejimiga qo‘shish</button><span class="muted" style="align-self:center">Birinchi o‘quvchi tugaguncha vaqt ochilmaydi.</span>
+<div class="actions"><button class="btn green" id="startBtn">▶ Vaqt ochish</button><button type="button" class="btn light" id="queueBtn" onclick="addSelectedToWaiting()">⏳ Kutish rejimiga qo‘shish</button><span class="muted" style="align-self:center">Avtomobil band bo‘lsa navbatga qo‘shiladi.</span>
 <button type="button" class="btn light" onclick="resetStart()">Bekor</button></div>
 <div id="startErr" class="err"></div>
 </form>
@@ -208,34 +208,34 @@ function queueKey(x){
 function enqueueLesson(x){
   const k=queueKey(x);
   if(!k)return false;
-  if(lessonQueue.some(q=>queueKey(q)===k && String(q.studentId||q.student_id)===String(x.studentId||x.student_id)))return false;
-  lessonQueue.push({...x,plateBody:x.plateBody||x.plate,queuedAt:new Date().toISOString(),status:'WAITING'});
+  const sameCustomer=lessonQueue.some(q=>
+    queueKey(q)===k &&
+    String(q.studentId||q.student_id||'')===String(x.studentId||x.student_id||'') &&
+    String(q.customerType||'ordinary')===String(x.customerType||'ordinary')
+  );
+  if(sameCustomer)return false;
+  lessonQueue.push({...x,queueId:x.queueId||((crypto.randomUUID&&crypto.randomUUID())||String(Date.now())+'-'+Math.random()),plateBody:x.plateBody||x.plate,queuedAt:new Date().toISOString(),status:'WAITING'});
   saveLessonQueue();return true;
 }
-function removeQueued(studentId){lessonQueue=lessonQueue.filter(q=>String(q.studentId||q.student_id)!==String(studentId));saveLessonQueue()}
+function removeQueued(queueId){lessonQueue=lessonQueue.filter(q=>String(q.queueId||'')!==String(queueId));saveLessonQueue()}
 function removeQueuedItem(item){const idx=lessonQueue.indexOf(item);if(idx>=0)lessonQueue.splice(idx,1);saveLessonQueue()}
 function nextQueuedForPlate(region,body){const k=carKey(region,body);return lessonQueue.find(q=>queueKey(q)===k)||null}
 function waitingQueueHTML(){
   if(!lessonQueue.length)return '';
   const grouped={};
-  lessonQueue.forEach(q=>{
-    const k=queueKey(q);
-    (grouped[k] ||= []).push(q);
-  });
-  let html='<div class="panel" style="margin-top:14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h3 style="margin:0">⏳ Kutayotgan o‘quvchilar</h3><span class="badge yellow">'+lessonQueue.length+' ta kutmoqda</span></div>';
+  lessonQueue.forEach(q=>{const k=queueKey(q);(grouped[k] ||= []).push(q)});
+  let html='<div class="panel" style="margin-top:14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h3 style="margin:0">⏳ Kutish rejimi</h3><span class="badge yellow">'+lessonQueue.length+' ta kutmoqda</span></div>';
   Object.keys(grouped).forEach(k=>{
-    const list=grouped[k], first=list[0];
+    const list=grouped[k],first=list[0];
     const plate=((first.regionCode||'')+' '+(first.plateBody||first.plate||'')).trim();
     html+='<div class="card" style="margin:10px 0"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><b>🚗 '+esc(plate)+'</b><span class="badge">'+list.length+' ta</span></div>';
     html+='<div style="margin-top:8px">'+list.map((q,i)=>{
-      const sid=esc(String(q.studentId||q.student_id||''));
+      const qid=esc(String(q.queueId||''));
+      const name=q.studentName||'Oddiy mijoz';
+      const typeLabel=q.customerType==='school'?'Avtoshkola o‘quvchisi':'Oddiy mijoz';
       return '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)">'+
-        '<div><b>'+(i+1)+'. '+esc(q.studentName||'O‘quvchi')+'</b><div class="muted">Vaqt hali ochilmagan • '+esc(plate)+'</div></div>'+
-        '<div class="actions" style="margin:0">'+
-        '<span class="badge yellow">KUTISHDA</span>'+
-        '<button type="button" class="btn green" onclick="startQueuedLesson(\''+sid+'\')">▶ Vaqt ochish</button>'+
-        '<button type="button" class="btn light" onclick="removeQueuedById(\''+sid+'\')">Bekor</button>'+
-        '</div></div>';
+        '<div><b>'+(i+1)+'. '+esc(name)+'</b><div class="muted">'+esc(typeLabel)+' • Vaqt hali ochilmagan • '+esc(plate)+'</div></div>'+
+        '<div class="actions" style="margin:0"><span class="badge yellow">KUTISHDA</span><button type="button" class="btn green" onclick="startQueuedLesson(\''+qid+'\')">▶ Vaqt ochish</button><button type="button" class="btn light" onclick="removeQueuedById(\''+qid+'\')">Bekor</button></div></div>';
     }).join('')+'</div></div>';
   });
   return html+'</div>';
@@ -245,49 +245,36 @@ function renderWaitingQueue(){
   const hosts=[$('waitingQueue'),$('waitingQueueAdd')].filter(Boolean);
   hosts.forEach(h=>h.innerHTML=html);
 }
-async function startQueuedLesson(studentId){
-  const q=lessonQueue.find(x=>String(x.studentId||x.student_id)===String(studentId));
-  if(!q)return showToast('Kutishdagi o‘quvchi topilmadi.',true);
+async function startQueuedLesson(queueId){
+  const q=lessonQueue.find(x=>String(x.queueId||'')===String(queueId));
+  if(!q)return showToast('Kutishdagi mijoz topilmadi.',true);
   try{
     await loadActive(true);
     const key=queueKey(q);
-    if(active.some(a=>activeCarKey(a)===key)){
-      return showToast('Bu avtomobil hali jarayonda. Avval oldingi darsni tugating.',true);
-    }
+    if(active.some(a=>activeCarKey(a)===key))return showToast('Bu avtomobil hali jarayonda. Avval oldingi darsni tugating.',true);
     const plate=String(q.plateBody||q.plate||'').replace(/\s+/g,'').toUpperCase();
     const payload={
-      regionCode:q.regionCode||q.region_code||'',
-      plate,plateBody:plate,
-      firstLetter:q.firstLetter||q.first_letter||'',
-      number:q.number||'',
-      lastLetters:q.lastLetters||q.last_letters||'',
-      model:q.model||'',
-      driverName:q.driverName||q.driver_name||'',
-      schoolId:q.schoolId||q.school_id||null,
-      groupId:q.groupId||q.group_id||null,
-      studentId:q.studentId||q.student_id||null
+      regionCode:q.regionCode||q.region_code||'',plate,plateBody:plate,
+      firstLetter:q.firstLetter||q.first_letter||'',number:q.number||'',lastLetters:q.lastLetters||q.last_letters||'',
+      model:q.model||'',driverName:q.driverName||q.driver_name||'',
+      schoolId:q.schoolId||q.school_id||null,groupId:q.groupId||q.group_id||null,studentId:q.studentId||q.student_id||null
     };
     await api('/sessions/start',{method:'POST',body:JSON.stringify(payload)});
-    removeQueuedItem(q);
-    showToast((q.studentName||'O‘quvchi')+' uchun vaqt qo‘lda ochildi.');
-    await loadActive(true);
-    renderWaitingQueue();
-    go('active');
+    removeQueuedItem(q);showToast((q.studentName||'Oddiy mijoz')+' uchun vaqt ochildi.');await loadActive(true);renderWaitingQueue();go('active');
   }catch(e){showToast(e.message||'Vaqt ochilmadi.',true)}
 }
-function removeQueuedById(studentId){
-  const q=lessonQueue.find(x=>String(x.studentId||x.student_id)===String(studentId));
+function removeQueuedById(queueId){
+  const q=lessonQueue.find(x=>String(x.queueId||'')===String(queueId));
   if(!q)return;
-  if(!confirm((q.studentName||'O‘quvchi')+'ni kutish rejimidan chiqaramizmi?'))return;
-  removeQueued(studentId);renderWaitingQueue();showToast('Kutishdagi o‘quvchi chiqarildi.');
+  if(!confirm((q.studentName||'Oddiy mijoz')+'ni kutish rejimidan chiqaramizmi?'))return;
+  removeQueued(queueId);renderWaitingQueue();showToast('Kutishdagi mijoz chiqarildi.');
 }
-
 async function autoStartNextFromQueue(finished){
   const next=nextQueuedForPlate(finished?.region_code||finished?.regionCode||'',finished?.plate_body||finished?.plateBody||finished?.plate||'');
   if(!next)return false;
   try{
     await loadActive(true);
-    if(active.some(a=>String(a.student_id||a.studentId||'')===String(next.studentId||next.student_id||''))){
+    if((next.studentId||next.student_id) && active.some(a=>String(a.student_id||a.studentId||'')===String(next.studentId||next.student_id||''))){
       removeQueuedItem(next);renderWaitingQueue();return true;
     }
     const plate=String(next.plateBody||next.plate||'').replace(/\s+/g,'').toUpperCase();
@@ -415,54 +402,101 @@ $('plateBody').addEventListener('input',e=>{
 $('plateBody').addEventListener('keydown',e=>{if(e.key==='Enter')e.preventDefault()});
 
 function plateParts(body){
-  body=body.toUpperCase().replace(/\s/g,'');
+  body=String(body||'').toUpperCase().replace(/\s/g,'');
+  // Raqam UI uchun aynan kiritilgan ko‘rinishda saqlanadi.
+  // 6 ta harf/raqamdan iborat bo‘lsa qabul qilamiz: 111QQQ, 444WWW, A555AA va h.k.
+  if(!/^[A-Z0-9]{6}$/.test(body))return null;
   if(/^[A-Z]\d{3}[A-Z]{2}$/.test(body))return {firstLetter:body[0],number:body.slice(1,4),lastLetters:body.slice(4,6)};
   if(/^\d{3}[A-Z]{3}$/.test(body))return {firstLetter:body[3],number:body.slice(0,3),lastLetters:body.slice(4,6)};
-  return null;
+  // Backenddagi eski ustunlar uchun fallback. Asosiy qiymat — plate/plateBody.
+  return {firstLetter:body[0],number:body.slice(1,4),lastLetters:body.slice(4,6)};
 }
 
 $('startForm').addEventListener('submit',async e=>{
-  e.preventDefault();$('startErr').textContent='';$('plateErr').textContent='';
-  const body=$('plateBody').value.trim().toUpperCase(),parts=plateParts(body);
-  if(!parts){$('plateErr').textContent='Raqam noto‘g‘ri. Masalan A555AA yoki 555AAA — aynan 3 raqam + 3 harf.';$('plateBody').focus();return}
-  const b={regionCode:$('region').value,plate:body,plateBody:body,...parts,model:$('model').value.trim(),driverName:$('driver').value.trim()};
-  if($('type').value==='school'){
-    if(!$('school').value||!$('student').value){$('startErr').textContent='Avtoshkola va o‘quvchini tanlang.';return}
-    b.schoolId=$('school').value;b.groupId=$('group').value||null;b.studentId=$('student').value;
+  e.preventDefault();
+  $('startErr').textContent='';
+  $('plateErr').textContent='';
+
+  const body=String($('plateBody').value||'').trim().toUpperCase();
+  const parts=plateParts(body);
+  if(!parts){
+    $('plateErr').textContent='Raqam 6 ta harf/raqam bo‘lishi kerak. Masalan: 111QQQ, 444WWW yoki A555AA.';
+    $('plateBody').focus();
+    return;
   }
+
+  const type=$('type').value;
+  const b={
+    regionCode:$('region').value,
+    plate:body,
+    plateBody:body,
+    ...parts,
+    model:$('model').value.trim(),
+    driverName:$('driver').value.trim()
+  };
+
+  if(type==='school'){
+    if(!$('school').value||!$('student').value){
+      $('startErr').textContent='Avtoshkola va o‘quvchini tanlang.';
+      return;
+    }
+    b.schoolId=$('school').value;
+    b.groupId=$('group').value||null;
+    b.studentId=$('student').value;
+  }
+
   const btn=$('startBtn');
-  // BIRINCHI MUHIM QOIDA: navbat instruktor bo‘yicha emas, AVTOMOBIL RAQAMI bo‘yicha.
-  // Bir xil avtomobil allaqachon ACTIVE bo‘lsa, yangi vaqt ochilmaydi — o‘quvchi WAITING bo‘ladi.
-  if($('type').value==='school' && $('student').value){
-    const selected=students.find(x=>String(x.id)===String($('student').value));
+  btn.disabled=true;
+  btn.textContent='Tekshirilmoqda...';
+
+  try{
+    // Kutish rejimi ENDILIKDA oddiy mijozga ham, avtoshkola o‘quvchisiga ham ishlaydi.
     await loadActive(true);
     const vehicleKey=carKey($('region').value,body);
     const sameCarActive=active.some(a=>activeCarKey(a)===vehicleKey);
     const alreadyQueued=nextQueuedForPlate($('region').value,body);
-    if(sameCarActive || alreadyQueued){
-      btn.disabled=true;
-      btn.textContent='⏳ Kutishga qo‘shilmoqda...';
+
+    if(sameCarActive||alreadyQueued){
+      const selected=type==='school' ? students.find(x=>String(x.id)===String($('student').value)) : null;
       const queued=enqueueLesson({
-        studentId:selected?.id, studentName:selected?.full_name,
-        schoolId:$('school').value, groupId:$('group').value, plate:body,
-        plateBody:body, regionCode:$('region').value, ...parts, model:b.model, driverName:b.driverName
+        queueId:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random()),
+        studentId:selected?.id||null,
+        studentName:selected?.full_name||'Oddiy mijoz',
+        schoolId:type==='school'?($('school').value||null):null,
+        groupId:type==='school'?($('group').value||null):null,
+        plate:body,
+        plateBody:body,
+        regionCode:$('region').value,
+        ...parts,
+        model:b.model,
+        driverName:b.driverName,
+        customerType:type
       });
-      renderWaitingQueue();
-      showToast(queued ? selected.full_name+' kutish navbatiga qo‘shildi. Vaqt hali ochilmadi.' : 'Bu o‘quvchi shu avtomobil navbatida allaqachon bor.', !queued);
-      resetStart();go('active');
-      btn.disabled=false;btn.textContent='▶ Vaqt ochish';
+
+      if(!queued){
+        $('startErr').textContent='Bu avtomobil uchun shu mijoz allaqachon kutish navbatida.';
+      }else{
+        showToast((selected?.full_name||'Oddiy mijoz')+' kutish rejimiga qo‘shildi. Vaqt hali ochilmadi.');
+        resetStart();
+        renderWaitingQueue();
+        go('active');
+      }
       return;
     }
-  }
-  btn.disabled=true;btn.textContent='Saqlanmoqda...';
-  try{
-    const x=await api('/sessions/start',{method:'POST',body:JSON.stringify(b)});
-    showToast((x?.plate||$('region').value+' '+body)+' uchun vaqt ochildi.');
-    resetStart();await loadActive(true);go('active');
-  }catch(x){$('startErr').textContent=x.message}
-  finally{btn.disabled=false;btn.textContent='▶ Vaqt ochish'}
-});
 
+    btn.textContent='Saqlanmoqda...';
+    const x=await api('/sessions/start',{method:'POST',body:JSON.stringify(b)});
+    showToast((x?.plate||(($('region').value+' '+body).trim()))+' uchun vaqt ochildi.');
+    resetStart();
+    await loadActive(true);
+    go('active');
+  }catch(x){
+    $('startErr').textContent=x.message||'Vaqt ochilmadi.';
+  }finally{
+    btn.disabled=false;
+    btn.textContent='▶ Vaqt ochish';
+  }
+});
 function resetStart(){
   $('startForm').reset();$('plateErr').textContent='';$('startErr').textContent='';$('studentBox').innerHTML='';
   $('plateBody').value='';schoolMode();
@@ -471,33 +505,60 @@ function resetStart(){
 
 async function addSelectedToWaiting(){
   const body=String($('plateBody')?.value||'').replace(/\s+/g,'').toUpperCase();
+  const type=$('type')?.value||'ordinary';
   const studentId=$('student')?.value||'';
   const schoolId=$('school')?.value||'';
   const groupId=$('group')?.value||'';
   const err=$('startErr');
   if(err)err.textContent='';
+
   if(!body){if(err)err.textContent='Avtomobil raqamini kiriting.';return}
-  if(!plateParts(body)){if(err)err.textContent='Avtomobil raqami noto‘g‘ri. Masalan A555AA yoki 555AAA.';return}
-  if($('type').value!=='school'||!studentId){if(err)err.textContent='Kutish rejimi faqat avtoshkola o‘quvchisi uchun.';return}
-  const selected=students.find(x=>String(x.id)===String(studentId));
-  if(!selected){if(err)err.textContent='O‘quvchini tanlang.';return}
+  if(!plateParts(body)){
+    if(err)err.textContent='Raqam 6 ta harf/raqam bo‘lishi kerak. Masalan 111QQQ yoki 444WWW.';
+    return;
+  }
+
+  let selected=null;
+  if(type==='school'){
+    selected=students.find(x=>String(x.id)===String(studentId));
+    if(!selected){if(err)err.textContent='O‘quvchini tanlang.';return}
+  }
+
   try{
     await loadActive(true);
     const vehicleKey=carKey($('region').value,body);
     const sameCarActive=active.some(a=>activeCarKey(a)===vehicleKey);
-    if(!sameCarActive){if(err)err.textContent='Bu avtomobil hozir jarayonda emas. Avval birinchi o‘quvchiga vaqt oching.';return}
+    if(!sameCarActive){
+      if(err)err.textContent='Bu avtomobil hozir jarayonda emas. Avval unga vaqt oching, keyin navbatga qo‘shing.';
+      return;
+    }
+
     const parts=plateParts(body);
     const queued=enqueueLesson({
-      studentId:selected.id,studentName:selected.full_name,
-      schoolId,groupId,plate:body,plateBody:body,regionCode:$('region').value,
-      ...parts,model:$('model').value.trim(),driverName:$('driver').value.trim()
+      queueId:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random()),
+      studentId:selected?.id||null,
+      studentName:selected?.full_name||'Oddiy mijoz',
+      schoolId:type==='school'?(schoolId||null):null,
+      groupId:type==='school'?(groupId||null):null,
+      plate:body,
+      plateBody:body,
+      regionCode:$('region').value,
+      ...parts,
+      model:$('model').value.trim(),
+      driverName:$('driver').value.trim(),
+      customerType:type
     });
+
     renderWaitingQueue();
-    if(queued){showToast(selected.full_name+' kutish rejimiga qo‘shildi. Vaqt hali ochilmadi.');resetStart();go('active');}
-    else showToast('Bu o‘quvchi shu avtomobil navbatida allaqachon bor.',true);
+    if(queued){
+      showToast((selected?.full_name||'Oddiy mijoz')+' kutish rejimiga qo‘shildi.');
+      resetStart();
+      go('active');
+    }else{
+      showToast('Bu mijoz shu avtomobil navbatida allaqachon bor.',true);
+    }
   }catch(e){if(err)err.textContent=e.message}
 }
-
 async function loadSchoolSelect(){
   try{
     if(!schools.length)schools=await api('/schools');
@@ -635,7 +696,9 @@ async function finishSession(id,prefix='finish'){
     active=active.filter(x=>String(x.id)!==String(id));frozen=frozen.filter(x=>String(x.id)!==String(id));
     showToast('Tugatildi. Ma’lumot bazaga saqlandi.');
     renderFinish();renderFrozen();await loadActive(true);renderWaitingQueue();
-    // Kutish rejimidagi keyingi o‘quvchi avtomatik boshlanmaydi. Operator qo‘lda START bosadi.
+    // Navbatdagi mijoz/o‘quvchi bo‘lsa, shu avtomobil bo‘shashi bilan keyingi vaqt avtomatik ochiladi.
+    await autoStartNextFromQueue(finishedSession);
+    renderWaitingQueue();
     if(!$('p-daily').classList.contains('hidden'))await loadDaily();
   }catch(e){if(err)err.textContent=e.message;btn.disabled=false;btn.textContent='✓ TUGATISH'}
 }
@@ -1133,23 +1196,24 @@ async function editStudentGroups(selectedGroupId=''){
   }catch(e){showToast(e.message,true)}
 }
 async function updateStudent(id){
+  const current=students.find(x=>String(x.id)===String(id));
+  if(!current)return showToast('O‘quvchi topilmadi.',true);
   const fullName=$('esn')?.value.trim();
-  const phone=$('esp')?.value.trim();
+  const birthDate=$('esp')?.value.trim();
   const schoolId=$('ess')?.value;
   const groupId=$('esg')?.value||null;
-  const birthDate=$('esp')?.value.trim();
   const attendanceCount=Math.max(0,Math.floor(Number($('esLessons')?.value||0)));
   if(!fullName||!schoolId||!birthDate)return showToast('F.I.Sh., tug‘ilgan sana va avtoshkolani kiriting.',true);
   try{
     const response=await api('/students/'+encodeURIComponent(id),{
-      method:'PATCH',
+      method:'PUT',
       body:JSON.stringify({
         fullName,
         birthDate,
-        phone:birthDate,
+        phone:current.phone||'',
         schoolId,
         groupId,
-        plate:'',
+        plate:current.plate||'',
         attendanceCount,
         attendance_count:attendanceCount
       })
