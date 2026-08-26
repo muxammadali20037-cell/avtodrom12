@@ -75,9 +75,7 @@
     if(install()||tries>50) clearInterval(timer);
   },100);
 
-  /* ===== STUDENT EXCEL EXPORT: PLATE IS OPTIONAL =====
-     The old export flow required student.plate. This listener handles
-     "Excel tarixi" directly and exports by student ID instead. */
+  /* ===== STUDENT EXCEL EXPORT: PLATE IS OPTIONAL ===== */
   function xesc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');}
   function xdt(v){if(!v)return '—';try{return new Date(v).toLocaleString('uz-UZ')}catch{return String(v)}}
   function xdur(sec){sec=Math.max(0,Number(sec||0));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;return `${h} soat ${m} daqiqa ${s} soniya`}
@@ -114,14 +112,17 @@
     const id=found.id;
     try{
       let rows=[];
-      if(id && typeof window.api==='function'){
-        const result=await window.api('/student-history?studentId='+encodeURIComponent(id));
-        rows=Array.isArray(result)?result:(Array.isArray(result?.rows)?result.rows:[]);
+      if(id){
+        const token=localStorage.getItem('avtodrom_token')||'';
+        const response=await fetch('/api/student-history?studentId='+encodeURIComponent(id),{headers:token?{Authorization:'Bearer '+token}:{}});
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok) throw new Error(result.error||'Tarixni olishda xatolik');
+        rows=Array.isArray(result?.rows)?result.rows:[];
+        if(result?.student) Object.assign(found,result.student);
       }
       downloadXls(found,rows);
       if(typeof window.toast==='function')window.toast(rows.length?'Excel tayyor — avtomobil raqami talab qilinmaydi':'Excel tayyor — o‘quvchi ma’lumotlari eksport qilindi');
     }catch(e){
-      /* If the history endpoint is not available, still export the student. */
       downloadXls(found,[]);
       if(typeof window.toast==='function')window.toast('Excel tayyor. Avtomobil raqami shart emas.');
     }
