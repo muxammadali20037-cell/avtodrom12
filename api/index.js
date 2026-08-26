@@ -78,6 +78,13 @@ const frozenFinishFix = String.raw`<script>
 })();
 </script><script src="/schools-enhance.js"></script><script src="/student-attendance-fix.js"></script><script src="/restore-features.js"></script>`;
 
+const frontendAssets = {
+  "/schools-enhance.js": "../frontend/schools-enhance.js",
+  "/student-attendance-fix.js": "../frontend/student-attendance-fix.js",
+  "/restore-features.js": "../frontend/restore-features.js",
+  "/students-enhance.js": "../frontend/students-enhance.js",
+};
+
 export default async function handler(req, res) {
   const jsonRes = {
     status(code) { res.statusCode = code; return this; },
@@ -89,6 +96,21 @@ export default async function handler(req, res) {
   };
   const handled = await handleFreezeRequest(req, jsonRes);
   if (handled !== null) return handled;
+
+  const pathname = String(req.url || "").split("?")[0];
+  if (req.method === "GET" && frontendAssets[pathname]) {
+    try {
+      const data = await readFile(new URL(frontendAssets[pathname], import.meta.url));
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+      res.setHeader("Cache-Control", "no-store");
+      return res.end(data);
+    } catch (error) {
+      res.statusCode = 500;
+      return res.end("Frontend asset yuklanmadi");
+    }
+  }
+
   if (req.method === "GET" && !req.url?.startsWith("/api/") && req.url !== "/favicon.ico") {
     res.sendFile = async (filePath, options, callback) => {
       try {
