@@ -1,1 +1,0 @@
-The frontend stable restoration is applied through the Git tree in the following commit.
