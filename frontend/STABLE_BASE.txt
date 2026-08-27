@@ -1,0 +1,1 @@
+The stable frontend baseline is the 35f71cb6d03d8d831d4c4a7ed81b134c08aad023 snapshot. This marker is intentionally non-executable.
