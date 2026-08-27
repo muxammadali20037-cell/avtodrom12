@@ -660,11 +660,17 @@ function normalizeStudentList(list){
 }
 function renderStudentSuggestions(list){
   const dl=$('studentSuggestions');if(!dl)return;
-  const arr=normalizeStudentList(list);
+  const seen=new Set();
+  const arr=normalizeStudentList(list).filter(x=>{
+    const id=String(x?.id||'');
+    if(!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
   dl.innerHTML=arr.map(x=>{
     const meta=[x.school_name,x.group_name].filter(Boolean).join(' • ');
     const count=Number(x.attendance_count||0);
-    return '<option value="'+esc(x.full_name||'')+'" label="'+esc(meta+(count?' — '+count+' dars':''))+'"></option>';
+    return '<option value="'+esc(x.full_name||'')+'" label="'+esc(meta+(count?' — '+count+' dars':' — 0 dars'))+'"></option>';
   }).join('');
 }
 async function loadAllStudentsForSearch(){
@@ -704,6 +710,12 @@ async function applyStudentByName(value){
   students=normalizeStudentList(pool);
   if($('studentId'))$('studentId').value=String(student.id||'');
   if($('student'))$('student').value=String(student.full_name||'');
+  if($('studentBox')){
+    const n=Number(student.attendance_count||0);
+    const cls=n>=12?'blue':n>=6?'red':'';
+    const label=n<6?'1–5 normal':n<12?'6–11 nazorat':'12+ yangi bosqich';
+    $('studentBox').innerHTML='<div class="attendance"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap"><div><b style="font-size:19px">'+esc(student.full_name)+'</b><div class="muted">📞 '+esc(student.phone||'—')+'</div></div><span class="badge '+cls+'">'+n+' marta qatnashgan</span></div><div class="muted" style="margin-top:8px">🏫 '+esc(student.school_name||'—')+' • 👥 '+esc(student.group_name||'—')+' • 🚗 '+esc(student.plate||'—')+'</div><div class="muted" style="margin-top:4px">'+esc(label)+'</div></div>';
+  }
   if($('school')&&student.school_id&&String($('school').value)!==String(student.school_id)){
     await loadSchoolSelect();
     $('school').value=String(student.school_id);
@@ -1382,7 +1394,7 @@ async function updateStudent(id){
   }
 
   try{
-    const response=await apiRestore('/students/'+encodeURIComponent(id),{
+    const response=await api('/students/'+encodeURIComponent(id),{
       method:'PUT',
       body:JSON.stringify({
         fullName,
@@ -1422,7 +1434,7 @@ async function deleteStudent(id){
   if(!s)return;
   if(!confirm('«'+(s.full_name||'O‘quvchi')+'»ni o‘chirishni xohlaysizmi?'))return;
   try{
-    await apiRestore('/students/'+encodeURIComponent(id),{method:'DELETE'});
+    await api('/students/'+encodeURIComponent(id),{method:'DELETE'});
     await adminLoad();
     adminTab('students');
     showToast('O‘quvchi o‘chirildi.');
