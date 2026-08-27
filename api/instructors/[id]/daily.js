@@ -1,10 +1,5 @@
-import { handleSafeV3 } from '../../../backend/src/v3-safe-routes.js';
+import { handleInstructorDaily } from '../../../backend/src/instructor-routes.js';
 
 export default async function handler(req, res) {
-  const handled = await handleSafeV3(req, res);
-  if (!handled && !res.writableEnded) {
-    res.statusCode = 404;
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.end(JSON.stringify({ error: 'Route topilmadi' }));
-  }
+  return handleInstructorDaily(req, res, req.query?.id || null);
 }
