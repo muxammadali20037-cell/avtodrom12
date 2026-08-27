@@ -1,6 +1,7 @@
 import app from "../backend/src/server.js";
 import { handleFreezeRequest } from "../backend/src/freeze-routes.js";
 import { handleCompatRequest } from "./compat-routes.js";
+import { handleV3Request } from "./v3-routes.js";
 import { readFile } from "node:fs/promises";
 
 export default async function handler(req, res) {
@@ -15,6 +16,12 @@ export default async function handler(req, res) {
     }
   };
 
+  // V3 BIRINCHI: yetishmayotgan endpointlar (students PUT/DELETE, instructors,
+  // sessions/active-v3, start-v3, vehicle-lookup, student-history).
+  // Faqat o'ziga tegishli yo'llarni ushlaydi, qolganini o'tkazib yuboradi.
+  const v3Handled = await handleV3Request(req, res);
+  if (v3Handled) return v3Handled;
+
   const compatHandled = await handleCompatRequest(req, res);
   if (compatHandled) return compatHandled;
 
@@ -23,8 +30,6 @@ export default async function handler(req, res) {
 
   // IMPORTANT: never inject repair/restore scripts into the production HTML.
   // The main frontend/index.html is already the canonical application file.
-  // Injecting restore-features.js / queue-fix.js here caused duplicate handlers,
-  // syntax errors and the visible "+content+" popup.
   if (req.method === "GET" && !String(req.url || "").startsWith("/api/") && req.url !== "/favicon.ico") {
     const filePath = new URL("../frontend/index.html", import.meta.url);
     try {
