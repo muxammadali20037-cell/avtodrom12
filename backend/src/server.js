@@ -16,6 +16,41 @@ const frontendPath = path.resolve(__dirname, '../../frontend');
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
+/* ==========================================================================
+   YANGI: async route'lardagi xatolar Express'ga yetib borishi uchun wrapper.
+   Busiz async handler ichidagi xato "Internal Server Error" HTML sahifasi
+   sifatida qaytardi va frontend uni o'qiy olmasdi.
+   ========================================================================== */
+['get', 'post', 'put', 'delete'].forEach(method => {
+  const original = app[method].bind(app);
+  app[method] = (routePath, ...handlers) => original(
+    routePath,
+    ...handlers.map(fn => (typeof fn === 'function' && fn.length < 4)
+      ? (req, res, next) => { try { return Promise.resolve(fn(req, res, next)).catch(next); } catch (e) { return next(e); } }
+      : fn)
+  );
+});
+
+/* ==========================================================================
+   YANGI: jadval o'zgarishlari tugamaguncha API so'rovlarini kutdirish.
+   Vercel'da server "sovuq" ishga tushganda birinchi so'rovlar migratsiyadan
+   oldin kelib, "column does not exist" -> 500 xatosini berardi.
+   ========================================================================== */
+let schemaPromise = null;
+function schemaReady() {
+  if (!schemaPromise) {
+    schemaPromise = ensureFeatureSchema()
+      .then(ensureAdminUser)
+      .catch(e => { console.error('SCHEMA INIT:', e.message); });
+  }
+  return schemaPromise;
+}
+app.use(async (req, res, next) => {
+  if (!req.path.startsWith('/api/')) return next();
+  try { await schemaReady(); } catch (e) { console.error('SCHEMA WAIT:', e.message); }
+  next();
+});
+
 const REGIONS = ['01','10','20','25','30','40','50','60','70','75','80','85','90','95'];
 const uid = req => String(req.user.sub);
 const num = v => Number.isFinite(Number(v)) ? Number(v) : 0;
@@ -170,7 +205,23 @@ function elapsedSeconds(s) {
   return Math.max(0, Math.floor((Date.now() - new Date(s.started_at).getTime()) / 1000));
 }
 
-app.get('/api/health',async(req,res)=>{try{await pool.query('SELECT 1');res.json({ok:true,database:true})}catch{res.status(503).json({ok:false,database:false})}});
+app.get('/api/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    const cols = await pool.query(
+      `SELECT table_name, column_name FROM information_schema.columns
+       WHERE table_schema='public' AND (
+         (table_name='sessions' AND column_name IN ('target_duration','lessons_counted','frozen_at','resumed_at','instructor_id'))
+         OR (table_name='students' AND column_name IN ('birth_date','status'))
+         OR (table_name='instructors' AND column_name='id'))`
+    );
+    const have = cols.rows.map(r => r.table_name + '.' + r.column_name);
+    const need = ['sessions.target_duration','sessions.lessons_counted','sessions.frozen_at','sessions.resumed_at','sessions.instructor_id','students.birth_date','students.status','instructors.id'];
+    res.json({ ok: true, database: true, schema_ok: need.every(n => have.includes(n)), missing: need.filter(n => !have.includes(n)) });
+  } catch (e) {
+    res.status(503).json({ ok: false, database: false, error: e.message });
+  }
+});
 app.post('/api/auth/register',async(req,res)=>{const{fullName,username,password}=req.body;if(!fullName||!username||!password)return res.status(400).json({error:'Ism, login va parol kerak'});if(String(password).length<6)return res.status(400).json({error:'Parol kamida 6 belgidan iborat bo‘lishi kerak'});const c=await pool.connect();try{await c.query('BEGIN');const hash=await bcrypt.hash(password,12);const r=await c.query(`INSERT INTO users(full_name,username,password_hash) VALUES($1,$2,$3) RETURNING id,full_name,username,role`,[String(fullName).trim(),String(username).trim(),hash]);const user=r.rows[0];await c.query(`INSERT INTO user_settings(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING`,[user.id]);await c.query('COMMIT');res.status(201).json({user,token:tokenFor(user)})}catch(e){await c.query('ROLLBACK');res.status(e.code==='23505'?409:500).json({error:e.code==='23505'?'Bu login mavjud':'Ro‘yxatdan o‘tishda server xatosi'})}finally{c.release()}});
 app.post('/api/auth/login',async(req,res)=>{try{const username=String(req.body.username||'').trim(),password=String(req.body.password||'');const r=await pool.query(`SELECT * FROM users WHERE username=$1 LIMIT 1`,[username]);if(!r.rows[0]||!(await bcrypt.compare(password,r.rows[0].password_hash)))return res.status(401).json({error:'Login yoki parol noto‘g‘ri'});const u=r.rows[0],user={id:u.id,full_name:u.full_name,username:u.username,role:u.role};await ensureAccountData(user.id);res.json({user,token:tokenFor(user)})}catch{res.status(500).json({error:'Kirishda server xatosi'})}});
 
@@ -585,9 +636,17 @@ app.get('/api/admin/students/:id', adminAuth, async (req, res) => {
 app.use(express.static(frontendPath));
 app.use((req,res,next)=>{if(req.path.startsWith('/api/'))return res.status(404).json({error:'Endpoint topilmadi'});res.sendFile(path.join(frontendPath,'index.html'))});
 
-ensureFeatureSchema()
-  .then(ensureAdminUser)
-  .catch(e => console.error('FEATURE INIT', e));
+/* Migratsiyani darhol boshlaymiz; so'rovlar yuqoridagi middleware'da kutadi */
+schemaReady();
+
+/* YANGI: barcha tutilmagan xatolar API uchun JSON qaytaradi (HTML emas) */
+app.use((err, req, res, next) => {
+  console.error('UNHANDLED', req.method, req.originalUrl, '->', err && err.message);
+  if (req.path.startsWith('/api/')) {
+    return res.status(500).json({ error: 'Serverda xatolik: ' + ((err && err.message) || 'nomalum') });
+  }
+  next(err);
+});
 
 export default app;
 if(process.env.VERCEL!=='1')app.listen(PORT,'0.0.0.0',()=>console.log(`AVTODROM running on :${PORT}`));
