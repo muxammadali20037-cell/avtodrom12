@@ -155,6 +155,9 @@ async function ensureFeatureSchema(){
   await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS frozen_at TIMESTAMPTZ`);
   await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS resumed_at TIMESTAMPTZ`);
   await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS instructor_id UUID`);
+  /* instructors.id bazada TEXT bo'lishi mumkin — instructor_id ni ham TEXT ga
+     keltiramiz, shunda "operator does not exist: text = uuid" xatosi chiqmaydi */
+  await q(`ALTER TABLE sessions ALTER COLUMN instructor_id TYPE TEXT USING instructor_id::text`);
   await q(`ALTER TABLE sessions ALTER COLUMN duration_seconds SET DEFAULT 0`);
 
   /* YANGI: 111QQQ formati uchun raqam ustunlarini moslashtirish */
@@ -215,9 +218,20 @@ app.get('/api/health', async (req, res) => {
          OR (table_name='students' AND column_name IN ('birth_date','status'))
          OR (table_name='instructors' AND column_name='id'))`
     );
+    const types = await pool.query(
+      `SELECT table_name, column_name, data_type FROM information_schema.columns
+       WHERE table_schema='public' AND table_name IN ('instructors','sessions','students')
+         AND column_name IN ('id','instructor_id','student_id','school_id','owner_key')
+       ORDER BY table_name, column_name`
+    );
     const have = cols.rows.map(r => r.table_name + '.' + r.column_name);
     const need = ['sessions.target_duration','sessions.lessons_counted','sessions.frozen_at','sessions.resumed_at','sessions.instructor_id','students.birth_date','students.status','instructors.id'];
-    res.json({ ok: true, database: true, schema_ok: need.every(n => have.includes(n)), missing: need.filter(n => !have.includes(n)) });
+    res.json({
+      ok: true, database: true,
+      schema_ok: need.every(n => have.includes(n)),
+      missing: need.filter(n => !have.includes(n)),
+      types: types.rows.map(r => r.table_name + '.' + r.column_name + ' = ' + r.data_type)
+    });
   } catch (e) {
     res.status(503).json({ ok: false, database: false, error: e.message });
   }
@@ -261,7 +275,7 @@ app.post('/api/groups',auth,async(req,res)=>{const schoolId=String(req.body.scho
 /* O'ZGARTIRILDI: attendance_count endi DARSLAR yig'indisi (1 soat = 1 dars),
    avval oddiy tashriflar SONI edi — shuning uchun 2 soat 1 ko'rinardi. */
 const STUDENT_ATTENDANCE_SQL = `(SELECT COALESCE(SUM(CASE WHEN se.lessons_counted > 0 THEN se.lessons_counted ELSE 1 END),0)::int
-   FROM sessions se WHERE se.student_id = st.id AND se.status = 'completed')`;
+   FROM sessions se WHERE se.student_id::text = st.id::text AND se.status = 'completed')`;
 
 app.get('/api/students',auth,async(req,res)=>{
   const p=[ownerKey(req)];let w='st.owner_key=$1';
@@ -314,7 +328,7 @@ app.put('/api/instructors/:id', auth, async (req, res) => {
   if (!name) return res.status(400).json({ error: 'Instruktor ismi kerak' });
   const r = await pool.query(
     `UPDATE instructors SET school_id=$1, full_name=$2, phone=$3, plate=$4, model=$5, status=$6
-     WHERE id=$7 AND owner_key=$8 RETURNING *`,
+     WHERE id::text=$7 AND owner_key=$8 RETURNING *`,
     [req.body.school_id || req.body.schoolId || null, name, req.body.phone || null,
      req.body.plate || null, req.body.model || null, req.body.status || 'active', req.params.id, ownerKey(req)]
   );
@@ -322,7 +336,7 @@ app.put('/api/instructors/:id', auth, async (req, res) => {
   res.json(r.rows[0]);
 });
 app.delete('/api/instructors/:id', auth, async (req, res) => {
-  const r = await pool.query(`UPDATE instructors SET active=false WHERE id=$1 AND owner_key=$2 RETURNING id`, [req.params.id, ownerKey(req)]);
+  const r = await pool.query(`UPDATE instructors SET active=false WHERE id::text=$1 AND owner_key=$2 RETURNING id`, [req.params.id, ownerKey(req)]);
   if (!r.rows[0]) return res.status(404).json({ error: 'Instruktor topilmadi' });
   res.json({ ok: true });
 });
@@ -358,10 +372,10 @@ const SESSION_SELECT = `SELECT s.id, v.plate, v.model, v.driver_name, s.started_
     i.full_name instructor_name
   FROM sessions s
   JOIN vehicles v ON v.id = s.vehicle_id
-  LEFT JOIN driving_schools ds ON ds.id = s.school_id
-  LEFT JOIN school_groups g ON g.id = s.group_id
-  LEFT JOIN students st ON st.id = s.student_id
-  LEFT JOIN instructors i ON i.id = s.instructor_id`;
+  LEFT JOIN driving_schools ds ON ds.id::text = s.school_id::text
+  LEFT JOIN school_groups g ON g.id::text = s.group_id::text
+  LEFT JOIN students st ON st.id::text = s.student_id::text
+  LEFT JOIN instructors i ON i.id::text = s.instructor_id::text`;
 
 app.get('/api/sessions/active', auth, async (req, res) => {
   const r = await pool.query(`${SESSION_SELECT} WHERE s.user_id=$1 AND s.status='active' ORDER BY s.started_at`, [uid(req)]);
@@ -409,7 +423,7 @@ app.post('/api/sessions/start', auth, async (req, res) => {
       if (!gr.rows[0]) throw new Error('Guruh noto‘g‘ri');
     }
     if (instructorId) {
-      const ir = await c.query(`SELECT id FROM instructors WHERE id=$1 AND owner_key=$2 AND active=true`, [instructorId, ownerKey(req)]);
+      const ir = await c.query(`SELECT id FROM instructors WHERE id::text=$1 AND owner_key=$2 AND active=true`, [instructorId, ownerKey(req)]);
       if (!ir.rows[0]) throw new Error('Instruktor topilmadi');
     }
 
@@ -524,10 +538,10 @@ const REPORT_SELECT = `SELECT s.id,v.plate,v.model,v.driver_name,s.started_at,s.
     ds.name school_name,g.name group_name,st.full_name student_name,i.full_name instructor_name,
     ${STUDENT_ATTENDANCE_SQL} attendance_count
   FROM sessions s JOIN vehicles v ON v.id=s.vehicle_id
-  LEFT JOIN driving_schools ds ON ds.id=s.school_id
-  LEFT JOIN school_groups g ON g.id=s.group_id
-  LEFT JOIN students st ON st.id=s.student_id
-  LEFT JOIN instructors i ON i.id=s.instructor_id`;
+  LEFT JOIN driving_schools ds ON ds.id::text=s.school_id::text
+  LEFT JOIN school_groups g ON g.id::text=s.group_id::text
+  LEFT JOIN students st ON st.id::text=s.student_id::text
+  LEFT JOIN instructors i ON i.id::text=s.instructor_id::text`;
 
 app.get('/api/reports/daily',auth,async(req,res)=>{try{const date=/^\d{4}-\d{2}-\d{2}$/.test(req.query.date||'')?req.query.date:new Date().toISOString().slice(0,10);const r=await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND s.status='completed' AND s.started_at::date=$2 ORDER BY s.started_at DESC`,[uid(req),date]);const summary=r.rows.reduce((a,x)=>{a.count++;a.seconds+=Number(x.duration_seconds||0);a.amount+=Number(x.amount||0);a.cash+=Number(x.cash_amount||0);a.terminal+=Number(x.terminal_amount||0);a.lessons+=Number(x.lessons_counted||0);return a},{count:0,seconds:0,amount:0,cash:0,terminal:0,lessons:0});res.json({date,summary,rows:r.rows})}catch(e){console.error('DAILY:',e.message);res.status(500).json({error:'Hisobotni olishda xatolik'})}});
 app.get('/api/history',auth,async(req,res)=>{const plate=String(req.query.plate||'').trim().toUpperCase();if(!plate)return res.status(400).json({error:'Avtomobil raqami kerak'});const like='%'+plate.replace(/\s+/g,'%')+'%';const r=await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND v.plate ILIKE $2 AND s.status='completed' ORDER BY s.started_at DESC`,[uid(req),like]);res.json({plate,rows:r.rows})});
