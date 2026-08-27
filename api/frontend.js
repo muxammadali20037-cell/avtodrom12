@@ -5,7 +5,8 @@ const EXTRA_SCRIPTS = [
   '/schools-enhance.js',
   '/student-attendance-fix.js',
   '/restore-features.js',
-  '/queue-fix.js'
+  '/queue-fix.js',
+  '/runtime-relations-fix.js'
 ];
 
 function sanitize(html) {
@@ -20,10 +21,6 @@ function sanitize(html) {
   const scriptEnd = html.lastIndexOf('</script>', templateEnd);
   if (scriptEnd < start) return html;
 
-  // The old relation layer was accidentally embedded inside the exportExcel()
-  // template string. Its raw </script> closed the real page script early and
-  // caused the browser SyntaxError shown in production. Remove only that bad
-  // embedded block; keep the surrounding Excel HTML untouched.
   return html.slice(0, start) + html.slice(scriptEnd + '</script>'.length);
 }
 
