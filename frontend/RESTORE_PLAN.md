@@ -1,0 +1,1 @@
+Stable frontend restoration marker. See the commit that replaced frontend/index.html with the verified stable blob from the 35f71cb baseline. No application logic belongs in repair scripts.
