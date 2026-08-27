@@ -1211,6 +1211,7 @@ const STATE = {
   activeFilter: 'all', activeQuery: '',
   page: 'add',
   form: { customerType: 'ordinary', student: null, instructor: null, hours: 1, customMinutes: 90 },
+  settings: { hourlyRate: 0, minimumPayment: 0, calculationMode: 'hour' },
   busy: new Set(),
   online: true,
   meta: {}
@@ -1625,11 +1626,13 @@ function Combobox(hostId, options) {
 const Data = {
   async preload() {
     /* Kerakli ro'yxatlar parallel — har navigatsiyada qayta so'ralmaydi */
-    const [schools, instructors, students] = await Promise.all([
+    const [schools, instructors, students, settings] = await Promise.all([
       api('/schools').catch(e => { console.error('[schools]', e.technical); return null; }),
       api('/instructors').catch(e => { console.error('[instructors]', e.technical); return null; }),
-      api('/students').catch(e => { console.error('[students]', e.technical); return null; })
+      api('/students').catch(e => { console.error('[students]', e.technical); return null; }),
+      api('/settings').catch(e => { console.error('[settings]', e.technical); return null; })
     ]);
+    if (settings) STATE.settings = settings;
     STATE.schools = Array.isArray(schools) ? schools : (schools && schools.rows) || [];
     STATE.instructors = Array.isArray(instructors) ? instructors : (instructors && instructors.rows) || [];
     if (students === null) { STATE.studentsLoadFailed = true; STATE.students = []; }
@@ -2239,6 +2242,22 @@ function isSchoolSession(v) {
   return !!(v.student_id || v.studentId || v.student_name || v.school_id || v.school_name || getMeta(v.id).customerType === 'school');
 }
 
+/* Narx hisobi — tarif serverdan keladi (sozlamalar yoki sessiyaning o'z tarifi).
+   Avtoshkola o'quvchisi uchun to'lov 0 (mavjud biznes qoidasi). */
+function sessionPrice(v, elapsed) {
+  if (isSchoolSession(v)) return 0;
+  const st = STATE.settings || {};
+  const rate = num(v.hourly_rate) || num(st.hourlyRate) || 0;
+  const minPay = num(v.minimum_payment) || num(st.minimumPayment) || 0;
+  const mode = v.calculation_mode || st.calculationMode || 'hour';
+  if (!rate) return null;
+  let price = mode === 'minute'
+    ? (Math.max(0, elapsed) / 3600) * rate
+    : Math.ceil(Math.max(1, elapsed) / 3600) * rate;
+  price = Math.max(price, minPay);
+  return Math.round(price / 1000) * 1000;
+}
+
 /* ===================== 13. ACTIVE — Jarayonda ===================== */
 const Active = {
   loading: false,
@@ -2347,6 +2366,7 @@ const Active = {
       v.group_name || ''
     ].filter(Boolean).map(esc).join(' &bull; ');
     const pct = t.target ? Math.min(100, Math.max(0, (t.elapsed / t.target) * 100)) : 0;
+    const price = sessionPrice(v, t.elapsed);
     const leftClass = t.remaining === null ? 'left-none' : tier === 'amber' ? 'left-amber' : (tier === 'red' || tier === 'crit') ? 'left-red' : 'left-ok';
     let warn = '';
     if (!t.frozen && tier === 'crit') warn = '<div class="warn-line red"><i class="fa-solid fa-bell" aria-hidden="true"></i> Vaqt tugayapti — 5 daqiqadan kam qoldi!</div>';
@@ -2370,6 +2390,7 @@ const Active = {
       + '<div class="time-block"><span>Qolgan</span><b class="js-remaining ' + leftClass + '">' + (t.remaining === null ? 'Belgilanmagan' : (t.remaining <= 0 ? 'Tugagan' : dur(t.remaining))) + '</b></div>'
       + '<div class="time-block"><span>Rejadagi</span><b style="font-size:15px;color:var(--muted)">' + (t.target ? esc(durShort(t.target)) : '—') + '</b></div>'
       + '<div class="time-block"><span>Boshlangan</span><b style="font-size:15px;color:var(--muted)">' + esc(timeOnly(v.started_at)) + '</b></div>'
+      + '<div class="time-block"><span>Hisoblangan</span><b class="js-price" style="font-size:15px;color:var(--g-dark)">' + (price === null ? '—' : esc(money(price))) + '</b></div>'
       + '</div>'
       + (t.target ? '<div class="progress js-progress ' + (tier === 'ok' || tier === 'none' ? '' : tier) + '"><i style="width:' + pct.toFixed(1) + '%"></i></div>' : '')
       + '<div class="js-warn">' + warn + '</div>'
@@ -2411,6 +2432,8 @@ const Active = {
       }
       const pr = card.querySelector('.js-progress > i');
       if (pr && t.target) pr.style.width = Math.min(100, Math.max(0, (t.elapsed / t.target) * 100)).toFixed(1) + '%';
+      const pe = card.querySelector('.js-price');
+      if (pe) { const pv = sessionPrice(v, t.elapsed); pe.textContent = pv === null ? '—' : money(pv); }
       if (this.lastTiers[v.id] !== tier) { needsResort = true; this.lastTiers[v.id] = tier; }
     });
     if (needsResort && STATE.page === 'active') this.render();
@@ -2456,7 +2479,13 @@ const Finish = {
     const t = sessionTiming(v);
     const person = sessionPerson(v) || 'Oddiy mijoz';
     const instructor = sessionInstructor(v);
-    const lessons = isSchoolSession(v) ? secondsToLessons(t.elapsed) : 0;
+    const isSchool = isSchoolSession(v);
+    const lessons = isSchool ? secondsToLessons(t.elapsed) : 0;
+    const suggested = sessionPrice(v, t.elapsed);
+    const st = STATE.settings || {};
+    const rate = num(v.hourly_rate) || num(st.hourlyRate) || 0;
+    const mode = v.calculation_mode || st.calculationMode || 'hour';
+    Finish.suggested = suggested || 0;
 
     openModal('<div class="modal-head"><div><h2>Sessiyani yakunlash</h2>'
       + '<p class="text-muted">' + esc(v.plate || '') + (v.model ? ' — ' + esc(v.model) : '') + '</p></div>'
@@ -2469,12 +2498,25 @@ const Finish = {
       + '</div>'
       + (instructor ? '<div class="field-help" style="margin-bottom:10px"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktor: <b>' + esc(instructor) + '</b></div>' : '')
       + (lessons ? '<div class="field-help" style="margin-bottom:10px"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> Bu sessiya <b>' + lessons + ' dars</b> sifatida hisoblanadi (1 soat = 1 dars).</div>' : '')
+      + (suggested === null
+        ? '<div class="field-help" style="margin-bottom:10px"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Soatlik tarif sozlanmagan — summani qo\'lda kiriting.</div>'
+        : isSchool
+          ? '<div class="autofill" style="margin-bottom:12px"><div class="autofill-head mb-0"><b><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> Avtoshkola o\'quvchisi</b><b style="color:var(--g-dark)">To\'lovsiz</b></div></div>'
+          : '<div class="autofill" style="margin-bottom:12px"><div class="autofill-head mb-0">'
+            + '<div><b>Hisoblangan narx</b><div class="text-muted" style="font-size:12px">'
+            + esc(durShort(t.elapsed) + ' &bull; ' + money(rate) + '/soat' + (mode === 'minute' ? ' (daqiqa bo\'yicha)' : '')) + '</div></div>'
+            + '<b style="font-size:22px;color:var(--g-dark)">' + esc(money(suggested)) + '</b></div></div>')
       + '<form data-act="finishSubmit" data-id="' + esc(id) + '" data-source="' + esc(source || 'active') + '">'
+      + (suggested ? '<div class="seg" style="margin-bottom:12px">'
+        + '<button class="seg-btn" type="button" data-act="finishPay" data-mode="cash"><i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i> Hammasi naqd</button>'
+        + '<button class="seg-btn" type="button" data-act="finishPay" data-mode="terminal"><i class="fa-solid fa-credit-card" aria-hidden="true"></i> Hammasi terminal</button>'
+        + '<button class="seg-btn" type="button" data-act="finishPay" data-mode="zero">To\'lovsiz</button>'
+        + '</div>' : '')
       + '<div class="form-grid">'
-      + '<div><label class="field-label" for="finCash"><i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i> Naqd (so\'m)</label><input id="finCash" type="number" min="0" step="1000" value="0" inputmode="numeric"></div>'
+      + '<div><label class="field-label" for="finCash"><i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i> Naqd (so\'m)</label><input id="finCash" type="number" min="0" step="1000" value="' + (suggested || 0) + '" inputmode="numeric"></div>'
       + '<div><label class="field-label" for="finTerm"><i class="fa-solid fa-credit-card" aria-hidden="true"></i> Terminal (so\'m)</label><input id="finTerm" type="number" min="0" step="1000" value="0" inputmode="numeric"></div>'
       + '</div>'
-      + '<div class="autofill" style="margin-top:12px"><div class="autofill-head mb-0"><b>Jami to\'lov</b><b id="finTotal" style="font-size:20px;color:var(--g-dark)">0 so\'m</b></div></div>'
+      + '<div class="autofill" style="margin-top:12px"><div class="autofill-head mb-0"><b>Jami to\'lov</b><b id="finTotal" style="font-size:20px;color:var(--g-dark)">' + esc(money(suggested || 0)) + '</b></div></div>'
       + '<div class="actions-row">'
       + '<button class="btn btn-green btn-lg" type="submit" id="finBtn"><span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Yakunlash</span></button>'
       + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
@@ -2483,6 +2525,16 @@ const Finish = {
     const upd = () => { $('finTotal').textContent = money(num($('finCash').value) + num($('finTerm').value)); };
     $('finCash').addEventListener('input', upd);
     $('finTerm').addEventListener('input', upd);
+  },
+
+  suggested: 0,
+  quickPay(mode) {
+    const total = num(Finish.suggested);
+    if (!$('finCash') || !$('finTerm')) return;
+    $('finCash').value = mode === 'cash' ? total : 0;
+    $('finTerm').value = mode === 'terminal' ? total : 0;
+    $('finTotal').textContent = money(num($('finCash').value) + num($('finTerm').value));
+    $$('#modal .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
   },
 
   async submit(id, source, form) {
@@ -3486,6 +3538,7 @@ const ACTIONS = {
   /* --- tugatish --- */
   openFinish: d => Finish.open(d.id, d.source || 'active'),
   finishSubmit: (d, el) => Finish.submit(d.id, d.source, el),
+  finishPay: d => Finish.quickPay(d.mode),
 
   /* --- hisobot / tarix --- */
   reportOffset: d => Reports.setOffset(d.off),
