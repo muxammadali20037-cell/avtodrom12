@@ -1,0 +1,1 @@
+Do not mutate frontend/index.html automatically. It is maintained as a canonical source file.
