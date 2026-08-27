@@ -51,7 +51,6 @@ button,input,select{font:inherit}button{cursor:pointer}input,select{width:100%;p
   textarea:focus{border-color:#62c89d;box-shadow:0 0 0 3px #62c89d22;outline:none}
 </style>
 
-<style id="v3-css">
 /* ===== AVTODROM V3 additive layer: requested features only ===== */
 .v3-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .v3-box{border:1px solid var(--line);border-radius:13px;padding:12px;background:#fbfefd}
@@ -70,14 +69,6 @@ button,input,select{font:inherit}button{cursor:pointer}input,select{width:100%;p
 .v3-modal-list{display:grid;gap:8px;margin-top:12px}
 .v3-modal-row{padding:10px;border:1px solid var(--line);border-radius:10px}
 @media(max-width:900px){.v3-grid{grid-template-columns:1fr}.v3-typebar{overflow:auto}}
-.v3-detail-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
-.v3-detail-item{background:#f5faf7;border:1px solid var(--line);border-radius:10px;padding:9px}
-.v3-detail-item small{display:block;color:var(--muted);margin-bottom:3px}
-.v3-detail-item b{display:block;line-height:1.25}
-.v3-school-link{background:#eef8f3!important}
-@media(max-width:900px){.v3-detail-grid{grid-template-columns:1fr 1fr}}
-@media(max-width:520px){.v3-detail-grid{grid-template-columns:1fr}}
-</style>
 </head>
 <body>
 
@@ -138,7 +129,7 @@ button,input,select{font:inherit}button{cursor:pointer}input,select{width:100%;p
 <div class="formGrid">
 <div class="span2">
 <label class="muted"></label>
-<div class="plate"><select id="region" aria-label="Hudud kodi"></select><input id="plateBody" class="plateBody" maxlength="6" minlength="6" inputmode="text" autocomplete="off" placeholder="111QQQ yoki A555AA" required></div>
+<div class="plate"><select id="region" aria-label="Hudud kodi"></select><input id="plateBody" class="plateBody" maxlength="6" minlength="6" inputmode="text" autocomplete="off" placeholder="222AAA, B111WW yoki A555AA" required></div>
 <div class="plateHint">6 ta belgi yozing. Masalan: <b>111QQQ</b>, <b>444WWW</b>, <b>A555AA</b>. Qanday yozsangiz shunday saqlanadi.</div>
 <div id="plateErr" class="err"></div>
 </div>
@@ -147,12 +138,7 @@ button,input,select{font:inherit}button{cursor:pointer}input,select{width:100%;p
 <div><label class="muted">Kirish turi</label><select id="type"><option value="ordinary">Oddiy mijoz</option><option value="school">Avtoshkola o‘quvchisi — BEPUL</option></select></div>
 <div><label class="muted">Avtoshkola</label><select id="school" disabled><option value="">Tanlang</option></select></div>
 <div><label class="muted">Guruh</label><select id="group" disabled><option value="">Avval avtoshkola</option></select></div>
-<div>
-<label class="muted">O‘quvchi</label>
-<input id="student" list="studentSuggestions" autocomplete="off" placeholder="O‘quvchi ism familiyasini yozing" disabled>
-<datalist id="studentSuggestions"></datalist>
-<input id="studentId" type="hidden" value="">
-</div>
+<div><label class="muted">O‘quvchi</label><select id="student" disabled><option value="">Avval guruh</option></select></div>
 </div>
 <div id="studentBox"></div>
 <div class="actions"><button class="btn green" id="startBtn">▶ Vaqt ochish</button><button type="button" class="btn light" id="queueBtn" onclick="addSelectedToWaiting()">⏳ Kutish rejimiga qo‘shish</button><span class="muted" style="align-self:center">Avtomobil band bo‘lsa navbatga qo‘shiladi.</span>
@@ -227,7 +213,6 @@ button,input,select{font:inherit}button{cursor:pointer}input,select{width:100%;p
 <div id="modal"></div><div id="toastBox" class="toastBox"></div>
 
 <script>
-
 'use strict';
 
 const API='/api';
@@ -454,13 +439,31 @@ $('plateBody').addEventListener('keydown',e=>{if(e.key==='Enter')e.preventDefaul
 
 function plateParts(body){
   body=String(body||'').toUpperCase().replace(/\s/g,'');
-  // Raqam UI uchun aynan kiritilgan ko‘rinishda saqlanadi.
-  // 6 ta harf/raqamdan iborat bo‘lsa qabul qilamiz: 111QQQ, 444WWW, A555AA va h.k.
   if(!/^[A-Z0-9]{6}$/.test(body))return null;
-  if(/^[A-Z]\d{3}[A-Z]{2}$/.test(body))return {firstLetter:body[0],number:body.slice(1,4),lastLetters:body.slice(4,6)};
-  if(/^\d{3}[A-Z]{3}$/.test(body))return {firstLetter:body[3],number:body.slice(0,3),lastLetters:body.slice(4,6)};
-  // Backenddagi eski ustunlar uchun fallback. Asosiy qiymat — plate/plateBody.
-  return {firstLetter:body[0],number:body.slice(1,4),lastLetters:body.slice(4,6)};
+
+  // Kiritilgan 6 belgilik raqam aynan plate/plateBody sifatida saqlanadi.
+  // Quyidagi qismlar faqat mavjud backend ustunlari uchun ajratiladi.
+  if(/^[A-Z]\d{3}[A-Z]{2}$/.test(body)){
+    return {
+      firstLetter:body.slice(0,1),
+      number:body.slice(1,4),
+      lastLetters:body.slice(4,6)
+    };
+  }
+
+  if(/^\d{3}[A-Z]{3}$/.test(body)){
+    return {
+      firstLetter:body.slice(3,4),
+      number:body.slice(0,3),
+      lastLetters:body.slice(4,6)
+    };
+  }
+
+  return {
+    firstLetter:body.slice(0,1),
+    number:body.slice(1,4),
+    lastLetters:body.slice(4,6)
+  };
 }
 
 $('startForm').addEventListener('submit',async e=>{
@@ -487,14 +490,13 @@ $('startForm').addEventListener('submit',async e=>{
   };
 
   if(type==='school'){
-    const selectedStudentId=String($('studentId')?.value||'');
-    if(!$('school').value||!selectedStudentId){
-      $('startErr').textContent='O‘quvchini tanlang.';
+    if(!$('school').value||!$('student').value){
+      $('startErr').textContent='Avtoshkola va o‘quvchini tanlang.';
       return;
     }
     b.schoolId=$('school').value;
-    b.groupId=$('group').value;
-    b.studentId=selectedStudentId;
+    b.groupId=$('group').value||null;
+    b.studentId=$('student').value;
   }
 
   const btn=$('startBtn');
@@ -634,123 +636,16 @@ async function groupsForSchool(){
   }catch(e){showToast(e.message,true)}
 }
 async function studentsForGroup(){
-  const schoolId=String($('school')?.value||''),groupId=String($('group')?.value||'');
-  if(!schoolId||!groupId){
-    students=[];
-    renderStudentSuggestions([]);
-    if($('student')){$('student').value='';$('student').disabled=true;}
-    if($('studentId'))$('studentId').value='';
-    if($('studentBox'))$('studentBox').innerHTML='';
-    return;
-  }
+  const s=$('school').value,g=$('group').value;if(!s||!g)return;
   try{
-    const list=await api('/students?schoolId='+encodeURIComponent(schoolId)+'&groupId='+encodeURIComponent(groupId))||[];
-    students=normalizeStudentList(list);
-    renderStudentSuggestions(students);
+    students=await api('/students?schoolId='+encodeURIComponent(s)+'&groupId='+encodeURIComponent(g))||[];
+    $('student').innerHTML='<option value="">O‘quvchini tanlang</option>'+students.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.full_name)+' — '+(x.attendance_count||0)+' dars'+((x.birth_date||x.birthDate)?' — '+esc(x.birth_date||x.birthDate):'')+'</option>').join('');
     $('student').disabled=false;
-    $('student').placeholder='O‘quvchini tanlang yoki ism-familiya yozing';
-    $('student').value='';
-    $('studentId').value='';
-    $('studentBox').innerHTML='<div class="muted" style="margin-top:8px">O‘quvchilar A–Z tartibida saralangan. Ism-familiyaning bir qismini yozsangiz, faqat mos o‘quvchilar chiqadi.</div>';
   }catch(e){showToast(e.message,true)}
 }
-
-function normalizeStudentList(list){
-  return (Array.isArray(list)?list:[]).slice().sort((a,b)=>String(a?.full_name||'').localeCompare(String(b?.full_name||''),'uz',{sensitivity:'base'}));
-}
-function renderStudentSuggestions(list){
-  const dl=$('studentSuggestions');if(!dl)return;
-  const seen=new Set();
-  const arr=normalizeStudentList(list).filter(x=>{
-    const id=String(x?.id||'');
-    if(!id || seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
-  dl.innerHTML=arr.map(x=>{
-    const meta=[x.school_name,x.group_name].filter(Boolean).join(' • ');
-    const count=Number(x.attendance_count||0);
-    return '<option value="'+esc(x.full_name||'')+'" label="'+esc(meta+(count?' — '+count+' dars':' — 0 dars'))+'"></option>';
-  }).join('');
-}
-async function loadAllStudentsForSearch(){
-  try{
-    const list=await api('/students')||[];
-    students=normalizeStudentList(list);
-    renderStudentSuggestions(students);
-    return students;
-  }catch(e){
-    students=[];
-    renderStudentSuggestions([]);
-    throw e;
-  }
-}
-async function applyStudentByName(value){
-  const q=String(value||'').trim().toLocaleLowerCase('uz');
-  if(!q){
-    if($('studentId'))$('studentId').value='';
-    if($('studentBox'))$('studentBox').innerHTML='';
-    return null;
-  }
-  let pool=students;
-  const schoolId=String($('school')?.value||''),groupId=String($('group')?.value||'');
-  if(schoolId&&groupId){
-    pool=pool.filter(x=>String(x.school_id)===schoolId&&String(x.group_id||'')===groupId);
-  }else if(!pool.length || !pool.some(x=>String(x.full_name||'').toLocaleLowerCase('uz').includes(q))){
-    try{pool=await loadAllStudentsForSearch()}catch{return null;}
-  }
-  const exact=pool.filter(x=>String(x.full_name||'').trim().toLocaleLowerCase('uz')===q);
-  const matches=exact.length?exact:pool.filter(x=>String(x.full_name||'').toLocaleLowerCase('uz').includes(q));
-  if(matches.length!==1){
-    if($('studentId'))$('studentId').value='';
-    if($('studentBox')&&matches.length>1)$('studentBox').innerHTML='<div class="muted">Bir nechta o‘quvchi topildi. To‘liq ism-familiyani tanlang.</div>';
-    return null;
-  }
-  const student=matches[0];
-  students=normalizeStudentList(pool);
-  if($('studentId'))$('studentId').value=String(student.id||'');
-  if($('student'))$('student').value=String(student.full_name||'');
-  if($('studentBox')){
-    const n=Number(student.attendance_count||0);
-    const cls=n>=12?'blue':n>=6?'red':'';
-    const label=n<6?'1–5 normal':n<12?'6–11 nazorat':'12+ yangi bosqich';
-    $('studentBox').innerHTML='<div class="attendance"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap"><div><b style="font-size:19px">'+esc(student.full_name)+'</b><div class="muted">📞 '+esc(student.phone||'—')+'</div></div><span class="badge '+cls+'">'+n+' marta qatnashgan</span></div><div class="muted" style="margin-top:8px">🏫 '+esc(student.school_name||'—')+' • 👥 '+esc(student.group_name||'—')+' • 🚗 '+esc(student.plate||'—')+'</div><div class="muted" style="margin-top:4px">'+esc(label)+'</div></div>';
-  }
-  if($('school')&&student.school_id&&String($('school').value)!==String(student.school_id)){
-    await loadSchoolSelect();
-    $('school').value=String(student.school_id);
-  }
-  if(student.school_id){
-    await groupsForSchool();
-    if($('group')&&student.group_id)$('group').value=String(student.group_id);
-  }
-  studentInfo();
-  return student;
-}
-function bindStudentSearchRelation(){
-  const el=$('student');if(!el||el.dataset.studentRelationBound)return;
-  el.dataset.studentRelationBound='1';
-  el.addEventListener('input',()=>{
-    clearTimeout(window.__studentRelationTimer);
-    const value=el.value;
-    const schoolId=String($('school')?.value||''),groupId=String($('group')?.value||'');
-    if($('studentId'))$('studentId').value='';
-    if(schoolId&&groupId){
-      const filtered=normalizeStudentList(students.filter(x=>String(x.school_id)===schoolId&&String(x.group_id||'')===groupId));
-      renderStudentSuggestions(filtered);
-    }else{
-      renderStudentSuggestions(normalizeStudentList(students));
-    }
-    window.__studentRelationTimer=setTimeout(()=>applyStudentByName(value),180);
-  });
-  el.addEventListener('change',()=>applyStudentByName(el.value));
-}
-bindStudentSearchRelation();
 function attendanceClass(n){return n>=6&&n<12?'red':n>=12?'blue':''}
 function studentInfo(){
-  const sid=String($('studentId')?.value||'');
-  const value=String($('student')?.value||'').trim();
-  const s=students.find(x=>sid&&String(x.id)===sid)||students.find(x=>String(x.full_name||'').trim()===value);
+  const s=students.find(x=>x.id===$('student').value);
   if(!s){$('studentBox').innerHTML='';return}
 
   const n=Number(s.attendance_count||0);
@@ -922,10 +817,7 @@ function exportExcel(){
   .adminSchoolGroupCard{border:1px solid #dfeee8;border-radius:14px;padding:14px;background:#fff;margin-bottom:10px}
   .adminStudentPhone{font-weight:600}
 </style>
-</head><body><table><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>Vaqt</th><th>Avtoshkola</th><th>Guruh</th><th>O‘quvchi</th><th>Kelgan dars</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr>${body}</table>
-<!-- relation layer moved to separate V3 script -->
-
-</body></html>`;
+</head><body><table><tr><th>Raqam</th><th>Kirish</th><th>Chiqish</th><th>Vaqt</th><th>Avtoshkola</th><th>Guruh</th><th>O‘quvchi</th><th>Kelgan dars</th><th>Naqd</th><th>Terminal</th><th>Jami</th></tr>${body}</table></body></html>`;
   const blob=new Blob(['\ufeff'+xls],{type:'application/vnd.ms-excel'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='avtodrom-'+(($('reportDate')&&$('reportDate').value)||localDateISO(0))+'.xls';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 async function historySearch(){
@@ -1394,7 +1286,7 @@ async function updateStudent(id){
   }
 
   try{
-    const response=await api('/students/'+encodeURIComponent(id),{
+    const response=await apiRestore('/students/'+encodeURIComponent(id),{
       method:'PUT',
       body:JSON.stringify({
         fullName,
@@ -1434,7 +1326,7 @@ async function deleteStudent(id){
   if(!s)return;
   if(!confirm('«'+(s.full_name||'O‘quvchi')+'»ni o‘chirishni xohlaysizmi?'))return;
   try{
-    await api('/students/'+encodeURIComponent(id),{method:'DELETE'});
+    await apiRestore('/students/'+encodeURIComponent(id),{method:'DELETE'});
     await adminLoad();
     adminTab('students');
     showToast('O‘quvchi o‘chirildi.');
@@ -1758,10 +1650,8 @@ document.querySelectorAll('.nav[data-p]').forEach(x=>x.addEventListener('click',
 loadLessonQueue();renderWaitingQueue();
 
 if(token&&me)boot();
-
 </script>
 <script>
-
 /* =========================================================
    AVTODROM V3 — additive requested features
    Existing functionality is preserved; this layer only adds
@@ -1833,39 +1723,11 @@ async function v3LoadInstructors(){
 function v3RenderInstructorSelect(){
   const el=$('v3Instructor');
   if(!el)return;
-  const current=String(el.value||'');
   el.innerHTML='<option value="">Instruktorni tanlang</option>'+
     V3.instructors.filter(x=>x.active!==false).map(x=>
       '<option value="'+v3Esc(x.id)+'">'+v3Esc(x.full_name||x.name||'Instruktor')+
-      (x.vehicle_plate?' — '+v3Esc(x.vehicle_plate):'')+
-      (x.school_name?' • '+v3Esc(x.school_name):'')+'</option>'
+      (x.vehicle_plate?' — '+v3Esc(x.vehicle_plate):'')+'</option>'
     ).join('');
-  if(current && Array.from(el.options).some(o=>o.value===current))el.value=current;
-}
-async function v3ApplyInstructorToStart(id){
-  const inst=V3.instructors.find(x=>String(x.id)===String(id));
-  if(!inst)return;
-  const fullPlate=String(inst.vehicle_plate||'').trim();
-  const parsed=typeof parsePlate==='function'?parsePlate(fullPlate):null;
-  if(parsed){
-    if(parsed.region&&$('region'))$('region').value=parsed.region;
-    if($('plateBody'))$('plateBody').value=parsed.body;
-  }else if(fullPlate && $('plateBody')){
-    const raw=fullPlate.toUpperCase().replace(/\s+/g,'');
-    $('plateBody').value=raw.startsWith(String($('region')?.value||''))?raw.slice(2):raw;
-  }
-  if($('model'))$('model').value=String(inst.vehicle_model||inst.model||'');
-  if($('driver'))$('driver').value=String(inst.driver_name||'');
-  if(inst.school_id&&$('school')){
-    try{
-      await loadSchoolSelect();
-      $('school').value=String(inst.school_id);
-      await groupsForSchool();
-      if(inst.group_id&&$('group'))$('group').value=String(inst.group_id);
-      await studentsForGroup();
-    }catch(e){showToast(e.message,true)}
-  }
-  if(parsed) setTimeout(v3LookupVehicle,0);
 }
 function v3DurationMinutes(){
   const h=Math.max(0,Math.floor(Number($('plannedHours')?.value||0)));
@@ -1900,23 +1762,16 @@ function v3AddStartFields(){
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
         '<div><input id="plannedHours" type="number" min="0" max="24" step="1" value="1" inputmode="numeric" placeholder="Soat"></div>'+
         '<div><input id="plannedMinutes" type="number" min="0" max="59" step="1" value="0" inputmode="numeric" placeholder="Daqiqa"></div>'+
-      '</div><div class="v3-note">Masalan: 2 soat 0 daqiqa. O‘quvchi ham, oddiy mijoz ham belgilaydi.</div>'+
-    '</div>'+
-    '<div class="v3-box"><label class="muted">1 soatlik tarif</label>'+
-      '<div class="v3-price" id="v3HourlyRate">0 so‘m</div>'+
-      '<div class="v3-note">Admin belgilagan tarif. Ruchnoy summa yo‘q.</div>'+
-    '</div>'+
-    '<div class="v3-box"><label class="muted">Avtomatik hisob</label>'+
-      '<div id="v3PricePreview"></div>'+
+      '</div>'+
     '</div>'+
     '<div class="v3-box span2"><label class="muted">Instruktor</label>'+
       '<select id="v3Instructor"><option value="">Instruktorni tanlang</option></select>'+
-      '<div class="v3-note">Avtomobil raqami tanilganda biriktirilgan instruktor avtomatik chiqadi.</div>'+
+      '<div class="v3-note">Avtomobil raqami bo‘yicha biriktirilgan instruktor avtomatik tanlanadi.</div>'+
     '</div>';
 
   grid.appendChild(wrap);
   ['plannedHours','plannedMinutes'].forEach(id=>$(id)?.addEventListener('input',v3RefreshStartPrice));
-  $('v3Instructor')?.addEventListener('change',()=>v3ApplyInstructorToStart($('v3Instructor').value));
+  $('v3Instructor')?.addEventListener('change',()=>{});
   const rate=$('v3HourlyRate');
   if(rate)rate.textContent=v3Money(V3.settings.hourlyRate);
   v3RenderInstructorSelect();
@@ -1936,21 +1791,21 @@ async function v3LookupVehicle(){
       if(v.driver_name && $('driver') && !$('driver').value.trim())$('driver').value=v.driver_name;
       if(v.instructor_id && $('v3Instructor')){
         $('v3Instructor').value=v.instructor_id;
-        await v3ApplyInstructorToStart(v.instructor_id);
       }
     }catch(e){/* lookup is optional; do not disturb START */}
   },250);
 }
 function v3StartPayload(){
   const body=String($('plateBody')?.value||'').replace(/\s+/g,'').toUpperCase();
-  const p=typeof parsePlate==='function'?parsePlate(body):null;
-  if(!p)throw Error('Raqam noto‘g‘ri.');
+  const p=plateParts(body);
+  if(!p)throw Error('Raqam noto‘g‘ri. 6 ta harf/raqam kiriting.');
   const type=$('type')?.value||'ordinary';
   const plannedMinutes=v3DurationMinutes();
   if(plannedMinutes<=0)throw Error('Avtodromda bo‘lish vaqtini kiriting.');
   const b={
     regionCode:$('region').value,
-    plateBody:p.body,
+    plate:body,
+    plateBody:body,
     firstLetter:p.firstLetter,
     number:p.number,
     lastLetters:p.lastLetters,
@@ -1963,9 +1818,7 @@ function v3StartPayload(){
   };
   if(type==='school'){
     if(!$('school').value||!$('group').value||!$('student').value)throw Error('Avtoshkola, guruh va o‘quvchini tanlang.');
-    const selectedStudentId=String($('studentId')?.value||'');
-    if(!$('school').value||!$('group').value||!selectedStudentId)throw Error('Avtoshkola, guruh va o‘quvchini tanlang.');
-    b.schoolId=$('school').value;if($('group').value)b.groupId=$('group').value;b.studentId=selectedStudentId;
+    b.schoolId=$('school').value;b.groupId=$('group').value;b.studentId=$('student').value;
   }
   return b;
 }
@@ -1982,7 +1835,7 @@ function v3BindStart(){
     try{
       const b=v3StartPayload();
       const btn=$('startBtn');btn.disabled=true;btn.textContent='Saqlanmoqda...';
-      const x=await api('/sessions/start',{method:'POST',body:JSON.stringify(b)});
+      const x=await api('/sessions/start-v3',{method:'POST',body:JSON.stringify(b)});
       if(typeof showToast==='function')showToast((x?.plate||b.plateBody)+' uchun vaqt ochildi.');
       if(typeof resetStart==='function')resetStart();
       await v3LoadActive();
@@ -2046,30 +1899,20 @@ function v3UpdatePay(key){
 const v3FinishAmount={};
 function v3OpenFinish(id){
   const v=active.find(x=>String(x.id)===String(id));
-  if(!v)return;
-  const key='v3_'+String(id);
+  const host=$('finish-'+id);
+  if(!v||!host)return;
+  const key='v3_'+id;
   v3FinishAmount[key]=v3Price(v);
   v3Finish.method[key]='cash';
-  const content='<div class="modalHead"><div><h2 style="margin:0">Tugatish</h2><div class="muted">Sessiyani yakunlash</div></div><button type="button" class="btn light" onclick="closeModal()">Yopish</button></div>'+v3FinishHTML(v,key);
-  if(typeof modal!=='function')return showToast?.('Tugatish oynasi ochilmadi.',true);
-  modal(content);
+  host.innerHTML=v3FinishHTML(v,key);
   if(v3Finish.method[key])v3SelectPay(key,v3Finish.method[key]);
   const tick=()=>{
-    if(!$('modal')?.querySelector('#v3finish-time-'+key)){
-      clearInterval(v3Finish.timers[key]);
-      delete v3Finish.timers[key];
-      return;
-    }
     const sec=v3Elapsed(v),amount=v3Price(v);
     v3FinishAmount[key]=amount;
-    const timeEl=$('v3finish-time-'+key);
-    const priceEl=$('v3finish-price-'+key);
-    if(timeEl)timeEl.textContent=dur(sec);
-    if(priceEl)priceEl.textContent=v3Money(amount);
+    if($('v3finish-time-'+key))$('v3finish-time-'+key).textContent=dur(sec);
+    if($('v3finish-price-'+key))$('v3finish-price-'+key).textContent=v3Money(amount);
   };
-  clearInterval(v3Finish.timers[key]);
-  v3Finish.timers[key]=setInterval(tick,1000);
-  tick();
+  clearInterval(v3Finish.timers[key]);v3Finish.timers[key]=setInterval(tick,1000);tick();
 }
 async function v3FinishSession(id){
   const v=active.find(x=>String(x.id)===String(id));if(!v)return;
@@ -2094,10 +1937,6 @@ async function v3FinishSession(id){
     });
     clearInterval(v3Finish.timers[key]);
     active=active.filter(x=>String(x.id)!==String(id));
-    clearInterval(v3Finish.timers[key]);
-    delete v3Finish.timers[key];
-    delete v3FinishAmount[key];
-    closeModal();
     showToast('Tugatildi. Narx haqiqiy daqiqa bo‘yicha avtomatik hisoblandi.');
     renderFinish();await v3LoadActive();renderWaitingQueue();
     if(!$('p-daily').classList.contains('hidden'))await loadDaily();
@@ -2165,7 +2004,7 @@ window.v3OpenInfo=v3OpenInfo;
 
 async function v3LoadActive(){
   try{
-    const x=await api('/sessions/active');
+    const x=await api('/sessions/active-v3');
     active=Array.isArray(x)?x:(x?.rows||[]);
   }catch{
     try{active=await api('/sessions/active')||[]}catch(e){showToast(e.message,true);return}
@@ -2207,78 +2046,38 @@ function v3UpdateFilterCounts(){
 }
 
 /* Instructor admin */
-async function v3InstructorModal(editId){
+function v3InstructorModal(editId){
   const x=V3.instructors.find(i=>String(i.id)===String(editId))||{};
-  try{
-    if(!Array.isArray(schools)||!schools.length) schools=await api('/schools')||[];
-  }catch(e){
-    showToast(e.message,true);
-    schools=[];
-  }
-
-  const schoolOptions='<option value="">Avtoshkolani tanlang</option>'+
-    schools.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'uz',{sensitivity:'base'})).map(s=>
-      '<option value="'+v3Esc(s.id)+'" '+(String(s.id)===String(x.school_id)?'selected':'')+'>'+v3Esc(s.name)+'</option>'
-    ).join('');
-
-  modal(
-    '<div class="modalHead"><div>'+
-      '<h2 style="margin:0">'+(editId?'Instruktorni tahrirlash':'Instruktor qo‘shish')+'</h2>'+
-      '<div class="muted">ID avtomatik yaratiladi. Instruktor uchun faqat avtoshkolani tanlang; guruh kerak emas.</div>'+
-    '</div><button class="btn light" type="button" onclick="closeModal()">Yopish</button></div>'+
-    '<div class="formGrid">'+
-      '<div class="fg"><label>F.I.Sh.</label><input id="v3iName" value="'+v3Esc(x.full_name||x.name||'')+'" placeholder="Aliyev Ali"></div>'+
-      '<div class="fg"><label>Telefon</label><input id="v3iPhone" value="'+v3Esc(x.phone||'')+'" placeholder="+998..." type="tel"></div>'+
-      '<div class="fg span2"><label>Avtoshkola</label><select id="v3iSchool">'+schoolOptions+'</select></div>'+
-      '<div class="fg"><label>Avtomobil raqami</label><input id="v3iPlate" value="'+v3Esc(x.vehicle_plate||'')+'" placeholder="01 A 555 AA"></div>'+
-      '<div class="fg"><label>Avtomobil rusumi</label><input id="v3iModel" value="'+v3Esc(x.vehicle_model||'')+'" placeholder="Chevrolet Cobalt"></div>'+
-      '<div class="fg"><label>Holati</label><select id="v3iActive"><option value="true" '+(x.active!==false?'selected':'')+'>Faol</option><option value="false" '+(x.active===false?'selected':'')+'>Nofaol</option></select></div>'+
-      '<div class="fg"><label>Biriktirish</label><div class="v3-note">Avtomobil bazadagi mavjud mashinadan tanlanadi. Bir mashina ikki faol instruktorga biriktirilmaydi.</div></div>'+
-    '</div>'+
-    '<div class="actions"><button class="btn green" type="button" onclick="v3SaveInstructor(\''+v3Esc(editId||'')+'\')">Saqlash</button><button class="btn light" type="button" onclick="closeModal()">Bekor</button></div>'+
-    '<div id="v3iErr" class="err"></div>'
-  );
+  modal('<div class="modalHead"><div><h2 style="margin:0">'+(editId?'Instruktorni tahrirlash':'Instruktor qo‘shish')+'</h2></div><button class="btn light" type="button" onclick="closeModal()">Yopish</button></div>'+
+    '<div class="fg"><label>F.I.Sh.</label><input id="v3iName" value="'+v3Esc(x.full_name||x.name||'')+'" placeholder="Aliyev Ali"></div>'+
+    '<div class="fg"><label>Telefon</label><input id="v3iPhone" value="'+v3Esc(x.phone||'')+'" placeholder="+998..."></div>'+
+    '<div class="fg"><label>Avtomobil raqami</label><input id="v3iPlate" value="'+v3Esc(x.vehicle_plate||'')+'" placeholder="01 A 555 AA"></div>'+
+    '<div class="fg"><label>Holati</label><select id="v3iActive"><option value="true" '+(x.active!==false?'selected':'')+'>Faol</option><option value="false" '+(x.active===false?'selected':'')+'>Nofaol</option></select></div>'+
+    '<div class="actions"><button class="btn green" type="button" onclick="v3SaveInstructor(\''+v3Esc(editId||'')+'\')">Saqlash</button><button class="btn light" type="button" onclick="closeModal()">Bekor</button></div><div id="v3iErr" class="err"></div>');
 }
 async function v3SaveInstructor(id){
   try{
-    const body={fullName:$('v3iName').value.trim(),phone:$('v3iPhone').value.trim(),schoolId:$('v3iSchool')?.value||'',vehiclePlate:$('v3iPlate').value.trim(),vehicleModel:$('v3iModel')?.value.trim()||'',active:$('v3iActive').value==='true'};
+    const body={fullName:$('v3iName').value.trim(),phone:$('v3iPhone').value.trim(),vehiclePlate:$('v3iPlate').value.trim(),active:$('v3iActive').value==='true'};
     if(!body.fullName)throw Error('F.I.Sh. kerak');
-    if(!body.schoolId)throw Error('Avtoshkolani tanlang');
     await api(id?'/instructors/'+encodeURIComponent(id):'/instructors',{method:id?'PUT':'POST',body:JSON.stringify(body)});
     closeModal();await v3LoadInstructors();showToast('Instruktor saqlandi.');
   }catch(e){$('v3iErr').textContent=e.message}
 }
-async function v3BulkInstructorModal(){
-  try{ if(!Array.isArray(schools)||!schools.length) schools=await api('/schools')||[]; }
-  catch(e){ showToast(e.message,true); return; }
-
-  const opts='<option value="">Avtoshkolani tanlang</option>'+
-    schools.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'uz',{sensitivity:'base'}))
-      .map(s=>'<option value="'+v3Esc(s.id)+'">'+v3Esc(s.name)+'</option>').join('');
-
-  modal(
-    '<div class="modalHead"><div><h2 style="margin:0">Instruktorlarni ommaviy qo‘shish</h2>'+
-    '<div class="muted">Har qatorda: F.I.Sh. | telefon | avtomobil raqami | rusum. Guruh kerak emas.</div></div>'+
-    '<button class="btn light" type="button" onclick="closeModal()">Yopish</button></div>'+
-    '<div class="fg"><label>Avtoshkola</label><select id="v3BulkSchool">'+opts+'</select></div>'+
-    '<div class="fg"><label>Instruktorlar ro‘yxati</label>'+
-    '<textarea id="v3iBulk" rows="9" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px" placeholder="Aliyev Ali | +998901112233 | 01 A 555 AA | Chevrolet Cobalt\nValiyev Vali | +998901234567 | 01 B 777 BB | Chevrolet Nexia"></textarea></div>'+
-    '<div class="actions"><button class="btn green" type="button" onclick="v3SaveBulkInstructors()">Saqlash</button><button class="btn light" type="button" onclick="closeModal()">Bekor</button></div>'+
-    '<div id="v3iBulkErr" class="err"></div>'
-  );
+function v3BulkInstructorModal(){
+  modal('<div class="modalHead"><div><h2 style="margin:0">Instruktorlarni ommaviy qo‘shish</h2><div class="muted">Har qatorda: F.I.Sh. | telefon | avtomobil raqami</div></div><button class="btn light" type="button" onclick="closeModal()">Yopish</button></div>'+
+    '<div class="fg"><textarea id="v3iBulk" rows="10" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px" placeholder="Aliyev Ali | +998901112233 | 01 A 555 AA\nValiyev Vali | +998901234567 | 01 B 777 BB"></textarea></div>'+
+    '<div class="actions"><button class="btn green" type="button" onclick="v3SaveBulkInstructors()">Saqlash</button></div><div id="v3iBulkErr" class="err"></div>');
 }
 async function v3SaveBulkInstructors(){
-  const lines=String($('v3iBulk')?.value||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
-  const schoolId=$('v3BulkSchool')?.value||'',err=$('v3iBulkErr');
-  if(!schoolId){if(err)err.textContent='Avtoshkolani tanlang';return}
-  if(!lines.length){if(err)err.textContent='Kamida bitta instruktor kiriting';return}
+  const lines=String($('v3iBulk').value||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
   try{
     for(const line of lines){
-      const p=line.split('|').map(x=>x.trim()); if(!p[0])continue;
-      await api('/instructors',{method:'POST',body:JSON.stringify({fullName:p[0],phone:p[1]||'',schoolId,vehiclePlate:p[2]||'',vehicleModel:p[3]||'',active:true})});
+      const p=line.split('|').map(x=>x.trim());
+      if(!p[0])continue;
+      await api('/instructors',{method:'POST',body:JSON.stringify({fullName:p[0],phone:p[1]||'',vehiclePlate:p[2]||'',active:true})});
     }
     closeModal();await v3LoadInstructors();showToast(lines.length+' ta instruktor qo‘shildi.');
-  }catch(e){if(err)err.textContent=e.message||'Ommaviy qo‘shishda xatolik'}
+  }catch(e){$('v3iBulkErr').textContent=e.message}
 }
 function v3RenderAdminInstructors(){
   const boxes=[$('v3InstructorList'),$('v3AdminInstructorList')].filter(Boolean);
@@ -2344,7 +2143,7 @@ window.adminTab=function(t){
   oldAdminTab(t);
   setTimeout(()=>{
     if(t==='dashboard')v3AddAdminPriceBox();
-    if(t==='instructors' && typeof v3RenderAdminInstructors==='function')v3RenderAdminInstructors();
+    if(t==='instructors')v3RenderAdminInstructors();
   },0);
 };
 
@@ -2405,7 +2204,7 @@ document.addEventListener('change',e=>{
 setTimeout(()=>{
   v3AddStartFields();
   v3LoadSettings();
-  Promise.resolve().then(()=>v3LoadInstructors()).catch(()=>{});
+  v3LoadInstructors();
   v3BindStart();
   v3AddActiveFilters();
 },50);
@@ -2473,7 +2272,6 @@ window.v3FinishFrozen=async(id,key)=>{
   }catch(e){const er=document.getElementById(key+'err');if(er)er.textContent=e.message||'Xatolik';}
 };
 })();
-
 </script>
 </body>
 </html>
