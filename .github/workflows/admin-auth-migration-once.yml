@@ -1,0 +1,110 @@
+name: admin-auth-migration-once
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: ${{ !contains(github.event.head_commit.message, 'admin auth migration applied') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Patch frontend
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+
+          s=s.replace("const ADMIN_LOGIN = 'admin';\nconst ADMIN_PASS = 'Admin@2026';\n", "")
+          s=s.replace("let me = JSON.parse(localStorage.getItem('avtodrom_user') || 'null');", "let me = JSON.parse(localStorage.getItem('avtodrom_user') || 'null');\nlet adminToken = sessionStorage.getItem('avtodrom_admin_token') || '';" )
+          s=s.replace("function logout() { localStorage.removeItem('avtodrom_token'); localStorage.removeItem('avtodrom_user'); sessionStorage.removeItem('avtodrom_admin'); location.reload(); }", "function logout() { localStorage.removeItem('avtodrom_token'); localStorage.removeItem('avtodrom_user'); sessionStorage.removeItem('avtodrom_admin'); sessionStorage.removeItem('avtodrom_admin_token'); adminToken=''; location.reload(); }")
+
+          if "async function adminApi(" not in s:
+            marker="/* ===== NAVBAT (QUEUE) ===== */"
+            block="""/* ===== ADMIN API ===== */
+          async function adminApi(path,opt={}) {
+            const ctrl=new AbortController();
+            const t=setTimeout(()=>ctrl.abort(),15000);
+            try {
+              const headers={'Content-Type':'application/json', ...(adminToken?{Authorization:'Bearer '+adminToken}:{}), ...(opt.headers||{})};
+              const r=await fetch(API+'/admin'+path,{...opt,headers,signal:ctrl.signal});
+              const txt=await r.text();
+              let data={}; try{data=txt?JSON.parse(txt):{}}catch{data={error:txt}};
+              if(!r.ok) throw Error(data.error||data.message||('Server xatosi: '+r.status));
+              return data;
+            } finally { clearTimeout(t); }
+          }
+
+          """
+            if marker not in s: raise SystemExit('queue marker missing')
+            s=s.replace(marker,block+marker,1)
+
+          old=re.compile(r"function closeAdminGate\(\) \{ \$\('adminGate'\)\.classList\.add\('hidden'\); \}\n \$\('adminLoginForm'\)\.addEventListener\('submit', async e => \{.*?\nfunction closeAdminPanel\(\) \{",re.S)
+          new="""function closeAdminGate() { $('adminGate').classList.add('hidden'); }
+          $('adminLoginForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            $('adminErr').textContent='';
+            const btn=e.target.querySelector('.btn'); btn?.classList.add('loading');
+            try {
+              const r=await fetch(API+'/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('adminUser').value.trim(),password:$('adminPass').value})});
+              const data=await r.json().catch(()=>({}));
+              if(!r.ok) throw Error(data.error||'Admin login ishlamadi');
+              if(data.admin?.role!=='admin'||!data.token) throw Error('Admin sessiyasi yaroqsiz');
+              adminToken=data.token;
+              sessionStorage.setItem('avtodrom_admin_token',adminToken);
+              sessionStorage.setItem('avtodrom_admin','1');
+              closeAdminGate();
+              $('adminPanel').classList.remove('hidden');
+              await adminLoad();
+            } catch(x) { $('adminErr').textContent=x.message||'Admin login xatosi'; }
+            finally { btn?.classList.remove('loading'); }
+          });
+          function closeAdminPanel() {
+            sessionStorage.removeItem('avtodrom_admin');
+            sessionStorage.removeItem('avtodrom_admin_token');
+            adminToken='';
+            $('adminPanel').classList.add('hidden');
+          }
+          function closeAdminPanel() {"""
+          m=old.search(s)
+          if not m: raise SystemExit('admin gate block missing')
+          s=s[:m.start()]+new+s[m.end():]
+
+          s=s.replace("async function adminLoad() {\n  try { schools=await api('/schools')||[]; } catch { schools=[]; }\n  try { groups=await api('/groups')||[]; } catch { groups=[]; }\n  try { students=await api('/students')||[]; } catch { students=[]; }", "async function adminLoad() {\n  if(!adminToken) throw Error('Admin sessiyasi mavjud emas');\n  try { schools=await adminApi('/schools')||[]; } catch { schools=[]; }\n  try { groups=await adminApi('/groups')||[]; } catch { groups=[]; }\n  try { students=await adminApi('/students')||[]; } catch { students=[]; }")
+
+          p.write_text(s,encoding='utf-8')
+          PY
+
+      - name: Validate
+        run: |
+          node --check api/admin-auth-v2.js
+          node --check api/index.js
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          blocks=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          Path('/tmp/frontend.js').write_text('\n'.join(blocks),encoding='utf-8')
+          print('script blocks:',len(blocks))
+          PY
+          node --check /tmp/frontend.js
+
+      - name: Remove workflow and commit
+        run: |
+          rm -f .github/workflows/admin-auth-migration-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html api/admin-auth-v2.js api/index.js docs/ADMIN_SETUP.md .github/workflows/admin-auth-migration-once.yml
+          git commit -m 'chore: admin auth migration applied [skip ci]'
+          git push
