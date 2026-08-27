@@ -10,7 +10,7 @@
     { "src": "api/instructor-detail.js", "use": "@vercel/node" },
     { "src": "api/instructor-daily.js", "use": "@vercel/node" },
     { "src": "api/vehicle-lookup.js", "use": "@vercel/node" },
-    { "src": "api/sessions/active-v3.js", "use": "@vercel/node" },
+    { "src": "api/sessions/active-fixed.js", "use": "@vercel/node" },
     { "src": "api/sessions/start-v3.js", "use": "@vercel/node" }
   ],
   "routes": [
@@ -21,7 +21,7 @@
     { "src": "/api/instructors/([^/]+)", "dest": "/api/instructor-detail.js?id=$1" },
     { "src": "/api/instructors", "dest": "/api/instructors-fixed.js" },
     { "src": "/api/vehicle-lookup", "dest": "/api/vehicle-lookup.js" },
-    { "src": "/api/sessions/active-v3", "dest": "/api/sessions/active-v3.js" },
+    { "src": "/api/sessions/active-v3", "dest": "/api/sessions/active-fixed.js" },
     { "src": "/api/sessions/start-v3", "dest": "/api/sessions/start-v3.js" },
     { "src": "/", "dest": "/api/frontend.js" },
     { "src": "/(.*)", "dest": "/api/index.js" }
