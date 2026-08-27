@@ -1,0 +1,76 @@
+name: Fix frontend syntax error
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Repair malformed frontend scripts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          changed = False
+          pattern = re.compile(
+              r'\n<!-- relation layer moved to separate V3 script -->\n\n\n'
+              r'<script id="avtodrom-static-finish-fix">.*?\n</script>(?=\n</body></html>`;)',
+              re.S,
+          )
+
+          for name in ('frontend/index.html', 'index.html'):
+              p = Path(name)
+              if not p.exists():
+                  continue
+              s = p.read_text(encoding='utf-8')
+              ns, n = pattern.subn('', s, count=1)
+              if n:
+                  p.write_text(ns, encoding='utf-8')
+                  print(f'Repaired {name}')
+                  changed = True
+              else:
+                  print(f'No malformed nested script found in {name}')
+
+          if not changed:
+              raise SystemExit(0)
+          PY
+
+      - name: Validate JavaScript syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile
+
+          for name in ('frontend/index.html', 'index.html'):
+              p = Path(name)
+              if not p.exists():
+                  continue
+              s = p.read_text(encoding='utf-8')
+              scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', s, re.S | re.I)
+              for i, js in enumerate(scripts, 1):
+                  q = Path(tempfile.gettempdir()) / f'{p.stem}-{i}.js'
+                  q.write_text(js, encoding='utf-8')
+                  subprocess.run(['node', '--check', str(q)], check=True)
+              print(f'Syntax OK: {name} ({len(scripts)} scripts)')
+          PY
+
+      - name: Commit repair
+        run: |
+          if git diff --quiet -- frontend/index.html index.html; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/index.html index.html
+          git commit -m "fix: repair malformed frontend script"
+          git push
