@@ -243,24 +243,35 @@ async function ensureFeatureSchema(){
 }
 
 /* YANGI: birinchi admin hisobini .env dan yaratish (ADMIN_USERNAME + ADMIN_PASSWORD) */
+export const adminStatus = { envSet: false, created: false, error: null, username: null };
 async function ensureAdminUser() {
   const username = String(process.env.ADMIN_USERNAME || '').trim();
   const password = String(process.env.ADMIN_PASSWORD || '');
-  if (!username || !password) return;
+  adminStatus.envSet = !!(username && password);
+  adminStatus.username = username || null;
+  if (!username || !password) {
+    console.warn('ADMIN: ADMIN_USERNAME / ADMIN_PASSWORD env o‘zgaruvchilari o‘rnatilmagan — admin hisobi yaratilmadi');
+    return;
+  }
   try {
     const hash = await bcrypt.hash(password, 12);
     const existing = await pool.query(`SELECT id FROM users WHERE username=$1`, [username]);
     if (existing.rows[0]) {
       await pool.query(`UPDATE users SET password_hash=$1, role='admin' WHERE username=$2`, [hash, username]);
+      adminStatus.created = true;
       console.log('ADMIN: mavjud hisob yangilandi ->', username);
     } else {
       await pool.query(
         `INSERT INTO users(full_name,username,password_hash,role) VALUES($1,$2,$3,'admin')`,
         ['Administrator', username, hash]
       );
+      adminStatus.created = true;
       console.log('ADMIN: yangi hisob yaratildi ->', username);
     }
-  } catch (e) { console.error('ADMIN INIT:', e.message); }
+  } catch (e) {
+    adminStatus.error = e.message;
+    console.error('ADMIN INIT:', e.message);
+  }
 }
 
 /* Sessiyaning haqiqiy o'tgan vaqti — server soati bo'yicha */
@@ -289,13 +300,21 @@ app.get('/api/health', async (req, res) => {
              AND column_name IN ('id','instructor_id','student_id','school_id','owner_key')))
        ORDER BY table_name, column_name`
     );
+    const adminAccounts = await pool.query(`SELECT username FROM users WHERE role='admin' ORDER BY username`).catch(() => ({ rows: [] }));
     const have = cols.rows.map(r => r.table_name + '.' + r.column_name);
     const need = ['sessions.target_duration','sessions.lessons_counted','sessions.frozen_at','sessions.resumed_at','sessions.instructor_id','students.birth_date','students.status','instructors.id','instructors.owner_key','instructors.full_name','instructors.plate','instructors.model','instructors.status','instructors.active'];
     res.json({
       ok: true, database: true,
       schema_ok: need.every(n => have.includes(n)),
       missing: need.filter(n => !have.includes(n)),
-      types: types.rows.map(r => r.table_name + '.' + r.column_name + ' = ' + r.data_type)
+      types: types.rows.map(r => r.table_name + '.' + r.column_name + ' = ' + r.data_type),
+      admin: {
+        env_set: adminStatus.envSet,
+        env_username: adminStatus.username,
+        bootstrap_ok: adminStatus.created,
+        bootstrap_error: adminStatus.error,
+        accounts: adminAccounts.rows.map(r => r.username)
+      }
     });
   } catch (e) {
     res.status(503).json({ ok: false, database: false, error: e.message });
@@ -313,12 +332,20 @@ app.post('/api/admin/login', async (req, res) => {
     const password = String(req.body.password || '');
     if (!username || !password) return res.status(400).json({ error: 'Login va parol kerak' });
 
+    const anyAdmin = await pool.query(`SELECT COUNT(*)::int n FROM users WHERE role='admin'`);
+    if (!anyAdmin.rows[0].n) {
+      console.warn('ADMIN LOGIN: bazada admin hisobi yo‘q');
+      return res.status(503).json({
+        error: 'Admin hisobi hali yaratilmagan. ADMIN_USERNAME va ADMIN_PASSWORD o‘zgaruvchilarini qo‘shib, qaytadan deploy qiling.'
+      });
+    }
     const r = await pool.query(`SELECT * FROM users WHERE username=$1 LIMIT 1`, [username]);
     const u = r.rows[0];
-    if (!u || !(await bcrypt.compare(password, u.password_hash))) {
-      return res.status(401).json({ error: 'Login yoki parol noto‘g‘ri' });
+    if (!u) return res.status(401).json({ error: 'Bunday login topilmadi' });
+    if (!u.password_hash || !(await bcrypt.compare(password, u.password_hash))) {
+      return res.status(401).json({ error: 'Parol noto‘g‘ri' });
     }
-    if (u.role !== 'admin') return res.status(403).json({ error: 'Bu hisobda admin huquqi yo‘q' });
+    if (u.role !== 'admin') return res.status(403).json({ error: 'Bu hisobda admin huquqi yo‘q (roli: ' + (u.role || 'yo‘q') + ')' });
 
     const admin = { id: u.id, full_name: u.full_name, username: u.username, role: 'admin' };
     res.json({ admin, user: admin, token: tokenFor(admin) });
