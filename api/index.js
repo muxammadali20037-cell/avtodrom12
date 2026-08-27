@@ -2,7 +2,7 @@ import app from "../backend/src/server.js";
 import { handleFreezeRequest } from "../backend/src/freeze-routes.js";
 import { handleCompatRequest } from "./compat-routes.js";
 import { handleV3Request } from "./v3-routes.js";
-import { handleAdminRequest } from "./admin-auth.js";
+import { handleAdminRequest } from "./admin-auth-v2.js";
 import { readFile } from "node:fs/promises";
 
 const rootFrontend = new URL("../index.html", import.meta.url);
