@@ -5,9 +5,8 @@ const frontendFile = new URL('../frontend/index.html', import.meta.url);
 function patchPlateParser(html) {
   let source = String(html || '');
 
-  // The current V3 start code calls parsePlate(), but the main app may contain
-  // an older parser that rejects the compact 3-digit + 3-letter form (111AAA).
-  // Patch only the two V3 call sites; everything else stays untouched.
+  // Keep the existing app intact. Only normalize the two V3 places that need
+  // a reliable plate parser, and provide that parser before any user action.
   source = source.replace(
     "const parsed=typeof parsePlate==='function'?parsePlate(fullPlate):null;",
     "const parsed=window.__avtodromParsePlate(fullPlate);"
@@ -17,6 +16,8 @@ function patchPlateParser(html) {
     "const p=window.__avtodromParsePlate(body);"
   );
 
+  // IMPORTANT: do not use source.includes('__avtodromParsePlate') here,
+  // because the call sites above intentionally contain that name too.
   const helper = `<script>
 (function(){
   'use strict';
@@ -24,6 +25,7 @@ function patchPlateParser(html) {
     const q=String(value??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
     if(!q) return null;
 
+    // Full plate: 01 A 111 AA / 01A111AA
     let m=q.match(/^(\\d{2})([A-Z])(\\d{3})([A-Z]{2})$/);
     if(m){
       return {
@@ -35,6 +37,7 @@ function patchPlateParser(html) {
       };
     }
 
+    // Body: A111AA
     m=q.match(/^([A-Z])(\\d{3})([A-Z]{2})$/);
     if(m){
       return {
@@ -45,6 +48,7 @@ function patchPlateParser(html) {
       };
     }
 
+    // Body: 111AAA
     m=q.match(/^(\\d{3})([A-Z]{3})$/);
     if(m){
       return {
@@ -60,9 +64,9 @@ function patchPlateParser(html) {
 })();
 </script>`;
 
-  if (!source.includes('__avtodromParsePlate')) {
-    source = source.replace('</body>', helper + '</body>');
-  } else if (!source.includes('window.__avtodromParsePlate')) {
+  // Inject exactly once. Check for the actual function definition, not the
+  // call-site identifier, so the helper can never be skipped accidentally.
+  if (!source.includes('window.__avtodromParsePlate = function')) {
     source = source.replace('</body>', helper + '</body>');
   }
 
@@ -83,7 +87,7 @@ export default async function handler(req, res) {
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-    res.setHeader('X-Avtodrom-Frontend', 'canonical-clean-v2');
+    res.setHeader('X-Avtodrom-Frontend', 'canonical-clean-v3');
     return res.end(html);
   } catch (error) {
     console.error('FRONTEND SERVE ERROR:', error?.message || error);
