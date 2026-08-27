@@ -1,0 +1,1 @@
+Frontend index restored to the last stable application snapshot while preserving backend/API and relation files. The production page is served from frontend/index.html; relation behavior should be added through a separate external layer only after the base syntax is verified.
