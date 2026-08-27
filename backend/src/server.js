@@ -214,6 +214,10 @@ async function ensureFeatureSchema(){
   await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS frozen_at TIMESTAMPTZ`);
   await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS resumed_at TIMESTAMPTZ`);
   await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS instructor_id UUID`);
+  /* Haydovchi ismi endi SESSIYAGA yoziladi. Avval faqat vehicles jadvalida
+     saqlanardi va shu raqam bilan ochilgan har bir yangi sessiyada eski ism
+     avtomatik chiqib qolardi. */
+  await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS driver_name VARCHAR(160)`);
   /* instructors.id bazada TEXT bo'lishi mumkin — instructor_id ni ham TEXT ga
      keltiramiz, shunda "operator does not exist: text = uuid" xatosi chiqmaydi */
   await q(`ALTER TABLE sessions ALTER COLUMN instructor_id TYPE TEXT USING instructor_id::text`);
@@ -427,8 +431,9 @@ app.post('/api/instructors/bulk', auth, async (req, res) => {
 });
 
 /* ---------------------- SESSIYALAR ---------------------- */
-const SESSION_SELECT = `SELECT s.id, v.plate, v.model, v.driver_name, s.started_at, s.status,
+const SESSION_SELECT = `SELECT s.id, v.plate, v.model, COALESCE(s.driver_name, v.driver_name) driver_name, s.started_at, s.status,
     COALESCE(s.duration_seconds,0) duration_seconds, s.resumed_at, s.frozen_at, s.target_duration,
+    s.hourly_rate, s.minimum_payment, s.calculation_mode,
     s.school_id, s.group_id, s.student_id, s.instructor_id,
     ds.name school_name, g.name group_name, st.full_name student_name,
     i.full_name instructor_name
@@ -457,11 +462,21 @@ app.post('/api/sessions/start', auth, async (req, res) => {
     await c.query('BEGIN');
     let vr = await c.query(`SELECT * FROM vehicles WHERE plate=$1 AND user_id=$2`, [p.plate, uid(req)]);
     let v = vr.rows[0];
+    const modelIn = String(req.body.model || '').trim();
+    const driverIn = String(req.body.driverName || '').trim();
     if (!v) {
       vr = await c.query(
         `INSERT INTO vehicles(user_id,region_code,first_letter,number,last_letters,plate,model,driver_name)
          VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-        [uid(req), p.region, p.firstLetter, p.number, p.lastLetters, p.plate, req.body.model || null, req.body.driverName || null]
+        [uid(req), p.region, p.firstLetter, p.number, p.lastLetters, p.plate, modelIn || null, driverIn || null]
+      );
+      v = vr.rows[0];
+    } else if (modelIn || driverIn) {
+      /* Operator yangi qiymat kiritgan bo'lsa avtomobil kartochkasi yangilanadi */
+      vr = await c.query(
+        `UPDATE vehicles SET model = COALESCE(NULLIF($2,''), model), driver_name = COALESCE(NULLIF($3,''), driver_name)
+         WHERE id=$1 RETURNING *`,
+        [v.id, modelIn, driverIn]
       );
       v = vr.rows[0];
     }
@@ -498,9 +513,9 @@ app.post('/api/sessions/start', auth, async (req, res) => {
     const set = await c.query(`SELECT hourly_rate,minimum_payment,calculation_mode FROM user_settings WHERE user_id=$1`, [uid(req)]);
     const s = set.rows[0] || { hourly_rate: 30000, minimum_payment: 0, calculation_mode: 'hour' };
     const r = await c.query(
-      `INSERT INTO sessions(user_id,vehicle_id,hourly_rate,minimum_payment,calculation_mode,school_id,group_id,student_id,instructor_id,target_duration,duration_seconds,manual_price)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0,true) RETURNING id,started_at,target_duration`,
-      [uid(req), v.id, s.hourly_rate, s.minimum_payment, s.calculation_mode, schoolId, groupId, studentId, instructorId, target]
+      `INSERT INTO sessions(user_id,vehicle_id,hourly_rate,minimum_payment,calculation_mode,school_id,group_id,student_id,instructor_id,target_duration,driver_name,duration_seconds,manual_price)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,0,true) RETURNING id,started_at,target_duration`,
+      [uid(req), v.id, s.hourly_rate, s.minimum_payment, s.calculation_mode, schoolId, groupId, studentId, instructorId, target, driverIn]
     );
     await c.query('COMMIT');
     res.status(201).json({ id: r.rows[0].id, plate: p.plate, startedAt: r.rows[0].started_at, target_duration: r.rows[0].target_duration, schoolId, groupId, studentId, instructorId });
@@ -595,7 +610,7 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
 });
 
 /* ---------------------- HISOBOT / TARIX / DASHBOARD ---------------------- */
-const REPORT_SELECT = `SELECT s.id,v.plate,v.model,v.driver_name,s.started_at,s.finished_at,s.duration_seconds,
+const REPORT_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,v.driver_name) driver_name,s.started_at,s.finished_at,s.duration_seconds,
     s.amount,s.cash_amount,s.terminal_amount,s.payment_method,s.lessons_counted,s.student_id,
     ds.name school_name,g.name group_name,st.full_name student_name,i.full_name instructor_name,
     ${STUDENT_ATTENDANCE_SQL} attendance_count
