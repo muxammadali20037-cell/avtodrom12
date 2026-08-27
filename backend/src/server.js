@@ -122,19 +122,78 @@ async function ensureFeatureSchema(){
   await q(`CREATE TABLE IF NOT EXISTS school_groups(id UUID PRIMARY KEY DEFAULT gen_random_uuid(),owner_key TEXT NOT NULL,school_id UUID NOT NULL REFERENCES driving_schools(id) ON DELETE CASCADE,name VARCHAR(120) NOT NULL,notes TEXT,active BOOLEAN NOT NULL DEFAULT TRUE,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
   await q(`CREATE TABLE IF NOT EXISTS students(id UUID PRIMARY KEY DEFAULT gen_random_uuid(),owner_key TEXT NOT NULL,school_id UUID NOT NULL REFERENCES driving_schools(id) ON DELETE CASCADE,group_id UUID REFERENCES school_groups(id) ON DELETE SET NULL,full_name VARCHAR(160) NOT NULL,phone VARCHAR(50),plate VARCHAR(20),notes TEXT,active BOOLEAN NOT NULL DEFAULT TRUE,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
 
-  /* YANGI: instruktorlar */
+  /* ==========================================================================
+     INSTRUKTORLAR
+     Bazada allaqachon boshqa ko'rinishdagi "instructors" jadvali bo'lishi
+     mumkin (masalan full_name o'rniga name, id esa TEXT). Shuning uchun
+     jadvalni qayta yaratmaymiz — yetishmayotgan ustunlarni qo'shib,
+     mavjud ma'lumotni saqlagan holda moslashtiramiz.
+     ========================================================================== */
   await q(`CREATE TABLE IF NOT EXISTS instructors(
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    owner_key TEXT NOT NULL,
-    school_id UUID REFERENCES driving_schools(id) ON DELETE SET NULL,
-    full_name VARCHAR(160) NOT NULL,
-    phone VARCHAR(50),
-    plate VARCHAR(30),
-    model VARCHAR(120),
-    status VARCHAR(20) NOT NULL DEFAULT 'active',
-    active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
-  await q(`CREATE INDEX IF NOT EXISTS idx_instructors_owner ON instructors(owner_key,active)`);
+
+  await q(`ALTER TABLE instructors ADD COLUMN IF NOT EXISTS owner_key TEXT`);
+  await q(`ALTER TABLE instructors ADD COLUMN IF NOT EXISTS school_id TEXT`);
+  await q(`ALTER TABLE instructors ADD COLUMN IF NOT EXISTS full_name VARCHAR(160)`);
+  await q(`ALTER TABLE instructors ADD COLUMN IF NOT EXISTS phone VARCHAR(50)`);
+  await q(`ALTER TABLE instructors ADD COLUMN IF NOT EXISTS plate VARCHAR(30)`);
+  await q(`ALTER TABLE instructors ADD COLUMN IF NOT EXISTS model VARCHAR(120)`);
+  await q(`ALTER TABLE instructors ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'`);
+  await q(`ALTER TABLE instructors ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE`);
+  await q(`ALTER TABLE instructors ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`);
+
+  /* Eski jadvalda ism boshqa ustunda bo'lsa — ko'chiramiz */
+  await q(`DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='instructors' AND column_name='name') THEN
+        EXECUTE 'UPDATE instructors SET full_name = name WHERE full_name IS NULL AND name IS NOT NULL';
+      END IF;
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='instructors' AND column_name='fio') THEN
+        EXECUTE 'UPDATE instructors SET full_name = fio WHERE full_name IS NULL AND fio IS NOT NULL';
+      END IF;
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='instructors' AND column_name='vehicle_plate') THEN
+        EXECUTE 'UPDATE instructors SET plate = vehicle_plate WHERE plate IS NULL AND vehicle_plate IS NOT NULL';
+      END IF;
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='instructors' AND column_name='vehicle_model') THEN
+        EXECUTE 'UPDATE instructors SET model = vehicle_model WHERE model IS NULL AND vehicle_model IS NOT NULL';
+      END IF;
+    END $$;`);
+
+  /* Eski jadvaldagi majburiy (NOT NULL) ustunlar yangi INSERT'ni bloklamasin */
+  await q(`DO $$
+    DECLARE c RECORD;
+    BEGIN
+      FOR c IN
+        SELECT column_name FROM information_schema.columns
+         WHERE table_name='instructors' AND is_nullable='NO' AND column_default IS NULL
+           AND column_name NOT IN ('id','full_name')
+      LOOP
+        EXECUTE format('ALTER TABLE instructors ALTER COLUMN %I DROP NOT NULL', c.column_name);
+      END LOOP;
+    END $$;`);
+
+  /* id ustuni turiga qarab avtomatik qiymat berilishini ta'minlaymiz */
+  await q(`DO $$
+    DECLARE id_type TEXT;
+    BEGIN
+      SELECT data_type INTO id_type FROM information_schema.columns
+        WHERE table_name='instructors' AND column_name='id';
+      IF id_type IN ('text','character varying') THEN
+        EXECUTE 'ALTER TABLE instructors ALTER COLUMN id SET DEFAULT gen_random_uuid()::text';
+      ELSIF id_type = 'uuid' THEN
+        EXECUTE 'ALTER TABLE instructors ALTER COLUMN id SET DEFAULT gen_random_uuid()';
+      END IF;
+    END $$;`);
+
+  await q(`UPDATE instructors SET active = TRUE WHERE active IS NULL`);
+  await q(`UPDATE instructors SET status = 'active' WHERE status IS NULL`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_instructors_owner ON instructors(owner_key)`);
+  /* Egasi ko'rsatilmagan eski yozuvlarni yagona ish maydoniga bog'laymiz */
+  if (WORKSPACE_OWNER_ID) {
+    try { await pool.query(`UPDATE instructors SET owner_key=$1 WHERE owner_key IS NULL`, [WORKSPACE_OWNER_ID]); }
+    catch (e) { console.error('FEATURE SCHEMA (instructors owner):', e.message); }
+  }
 
   /* YANGI: o'quvchi qo'shimcha maydonlari */
   await q(`ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_date DATE`);
@@ -216,16 +275,18 @@ app.get('/api/health', async (req, res) => {
        WHERE table_schema='public' AND (
          (table_name='sessions' AND column_name IN ('target_duration','lessons_counted','frozen_at','resumed_at','instructor_id'))
          OR (table_name='students' AND column_name IN ('birth_date','status'))
-         OR (table_name='instructors' AND column_name='id'))`
+         OR (table_name='instructors' AND column_name IN ('id','owner_key','full_name','plate','model','status','active')))`
     );
     const types = await pool.query(
       `SELECT table_name, column_name, data_type FROM information_schema.columns
-       WHERE table_schema='public' AND table_name IN ('instructors','sessions','students')
-         AND column_name IN ('id','instructor_id','student_id','school_id','owner_key')
+       WHERE table_schema='public' AND (
+         table_name = 'instructors'
+         OR (table_name IN ('sessions','students')
+             AND column_name IN ('id','instructor_id','student_id','school_id','owner_key')))
        ORDER BY table_name, column_name`
     );
     const have = cols.rows.map(r => r.table_name + '.' + r.column_name);
-    const need = ['sessions.target_duration','sessions.lessons_counted','sessions.frozen_at','sessions.resumed_at','sessions.instructor_id','students.birth_date','students.status','instructors.id'];
+    const need = ['sessions.target_duration','sessions.lessons_counted','sessions.frozen_at','sessions.resumed_at','sessions.instructor_id','students.birth_date','students.status','instructors.id','instructors.owner_key','instructors.full_name','instructors.plate','instructors.model','instructors.status','instructors.active'];
     res.json({
       ok: true, database: true,
       schema_ok: need.every(n => have.includes(n)),
@@ -306,8 +367,9 @@ app.post('/api/students',auth,async(req,res)=>{
 app.get('/api/instructors', auth, async (req, res) => {
   const r = await pool.query(
     `SELECT i.*, s.name school_name FROM instructors i
-     LEFT JOIN driving_schools s ON s.id = i.school_id
-     WHERE i.owner_key = $1 AND i.active = true ORDER BY i.full_name`,
+     LEFT JOIN driving_schools s ON s.id::text = i.school_id::text
+     WHERE i.owner_key = $1 AND COALESCE(i.active, TRUE) = TRUE
+     ORDER BY i.full_name NULLS LAST`,
     [ownerKey(req)]
   );
   res.json(r.rows);
