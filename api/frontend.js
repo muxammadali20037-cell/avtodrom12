@@ -11,7 +11,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    const html = await readFile(frontendFile, 'utf8');
+    let html = await readFile(frontendFile, 'utf8');
+    if (!html.includes('/student-plate-instructor-fix.js')) {
+      html = html.replace('</body>', '<script src="/student-plate-instructor-fix.js"></script></body>');
+    }
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
