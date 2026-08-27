@@ -1,71 +1,25 @@
 {
   "version": 2,
   "builds": [
-    {
-      "src": "api/index.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/restore.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/instructors.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/instructors/[id].js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/instructors/[id]/daily.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/vehicle-lookup.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/sessions/active-v3.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/sessions/start-v3.js",
-      "use": "@vercel/node"
-    }
+    { "src": "api/index.js", "use": "@vercel/node" },
+    { "src": "api/frontend.js", "use": "@vercel/node" },
+    { "src": "api/restore.js", "use": "@vercel/node" },
+    { "src": "api/instructors.js", "use": "@vercel/node" },
+    { "src": "api/instructors/[id].js", "use": "@vercel/node" },
+    { "src": "api/instructors/[id]/daily.js", "use": "@vercel/node" },
+    { "src": "api/vehicle-lookup.js", "use": "@vercel/node" },
+    { "src": "api/sessions/active-v3.js", "use": "@vercel/node" },
+    { "src": "api/sessions/start-v3.js", "use": "@vercel/node" }
   ],
   "routes": [
-    {
-      "src": "/api/restore/(.*)",
-      "dest": "/api/restore.js"
-    },
-    {
-      "src": "/api/instructors/([^/]+)/daily",
-      "dest": "/api/instructors/[id]/daily.js"
-    },
-    {
-      "src": "/api/instructors/([^/]+)",
-      "dest": "/api/instructors/[id].js"
-    },
-    {
-      "src": "/api/instructors",
-      "dest": "/api/instructors.js"
-    },
-    {
-      "src": "/api/vehicle-lookup",
-      "dest": "/api/vehicle-lookup.js"
-    },
-    {
-      "src": "/api/sessions/active-v3",
-      "dest": "/api/sessions/active-v3.js"
-    },
-    {
-      "src": "/api/sessions/start-v3",
-      "dest": "/api/sessions/start-v3.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/api/index.js"
-    }
+    { "src": "/api/restore/(.*)", "dest": "/api/restore.js" },
+    { "src": "/api/instructors/([^/]+)/daily", "dest": "/api/instructors/[id]/daily.js" },
+    { "src": "/api/instructors/([^/]+)", "dest": "/api/instructors/[id].js" },
+    { "src": "/api/instructors", "dest": "/api/instructors.js" },
+    { "src": "/api/vehicle-lookup", "dest": "/api/vehicle-lookup.js" },
+    { "src": "/api/sessions/active-v3", "dest": "/api/sessions/active-v3.js" },
+    { "src": "/api/sessions/start-v3", "dest": "/api/sessions/start-v3.js" },
+    { "src": "/", "dest": "/api/frontend.js" },
+    { "src": "/(.*)", "dest": "/api/index.js" }
   ]
 }
