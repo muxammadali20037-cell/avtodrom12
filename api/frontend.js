@@ -2,11 +2,33 @@ import { readFile } from 'node:fs/promises';
 
 const frontendFile = new URL('../frontend/index.html', import.meta.url);
 
-function patchPlateParser(html) {
+function repairEmbeddedScriptTags(html) {
   let source = String(html || '');
 
-  // Keep the existing app intact. Only normalize the two V3 places that need
-  // a reliable plate parser, and provide that parser before any user action.
+  // exportExcel() contains an HTML document inside a JS template literal.
+  // A literal </script> closes the outer HTML script before JS parsing.
+  const start = source.indexOf('function exportExcel(){');
+  const end = source.indexOf('async function historySearch(){', start);
+  if (start >= 0 && end > start) {
+    const before = source.slice(0, start);
+    const block = source.slice(start, end).replace(/<\/script>/gi, '<\\/script>');
+    source = before + block + source.slice(end);
+  }
+
+  // A few legacy relation messages contain a raw newline in a single-quoted
+  // JS string. Escape only these known messages; leave all other code intact.
+  source = source
+    .replace("showToast('Kutishdagi mijoz topilmadi.\n", "showToast('Kutishdagi mijoz topilmadi.\\n")
+    .replace("showToast('O‘quvchi topilmadi.\n", "showToast('O‘quvchi topilmadi.\\n")
+    .replace("showToast('Guruh topilmadi.\n", "showToast('Guruh topilmadi.\\n");
+
+  return source;
+}
+
+function patchPlateParser(html) {
+  let source = repairEmbeddedScriptTags(html);
+
+  // Preserve the current app and only provide a stable parser for V3 START.
   source = source.replace(
     "const parsed=typeof parsePlate==='function'?parsePlate(fullPlate):null;",
     "const parsed=window.__avtodromParsePlate(fullPlate);"
@@ -16,8 +38,6 @@ function patchPlateParser(html) {
     "const p=window.__avtodromParsePlate(body);"
   );
 
-  // IMPORTANT: do not use source.includes('__avtodromParsePlate') here,
-  // because the call sites above intentionally contain that name too.
   const helper = `<script>
 (function(){
   'use strict';
@@ -25,47 +45,20 @@ function patchPlateParser(html) {
     const q=String(value??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
     if(!q) return null;
 
-    // Full plate: 01 A 111 AA / 01A111AA
     let m=q.match(/^(\\d{2})([A-Z])(\\d{3})([A-Z]{2})$/);
-    if(m){
-      return {
-        region:m[1],
-        body:m[2]+m[3]+m[4],
-        firstLetter:m[2],
-        number:m[3],
-        lastLetters:m[4]
-      };
-    }
+    if(m) return {region:m[1],body:m[2]+m[3]+m[4],firstLetter:m[2],number:m[3],lastLetters:m[4]};
 
-    // Body: A111AA
     m=q.match(/^([A-Z])(\\d{3})([A-Z]{2})$/);
-    if(m){
-      return {
-        body:q,
-        firstLetter:m[1],
-        number:m[2],
-        lastLetters:m[3]
-      };
-    }
+    if(m) return {body:q,firstLetter:m[1],number:m[2],lastLetters:m[3]};
 
-    // Body: 111AAA
     m=q.match(/^(\\d{3})([A-Z]{3})$/);
-    if(m){
-      return {
-        body:q,
-        firstLetter:m[2][0],
-        number:m[1],
-        lastLetters:m[2].slice(1)
-      };
-    }
+    if(m) return {body:q,firstLetter:m[2][0],number:m[1],lastLetters:m[2].slice(1)};
 
     return null;
   };
 })();
 </script>`;
 
-  // Inject exactly once. Check for the actual function definition, not the
-  // call-site identifier, so the helper can never be skipped accidentally.
   if (!source.includes('window.__avtodromParsePlate = function')) {
     source = source.replace('</body>', helper + '</body>');
   }
@@ -82,12 +75,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    let html = await readFile(frontendFile, 'utf8');
-    html = patchPlateParser(html);
+    const rawHtml = await readFile(frontendFile, 'utf8');
+    const html = patchPlateParser(rawHtml);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-    res.setHeader('X-Avtodrom-Frontend', 'canonical-clean-v3');
+    res.setHeader('X-Avtodrom-Frontend', 'canonical-clean-v4');
     return res.end(html);
   } catch (error) {
     console.error('FRONTEND SERVE ERROR:', error?.message || error);
