@@ -1069,25 +1069,88 @@ async function updateStudent(id){
     return showToast('F.I.Sh., tug‘ilgan sana va avtoshkolani kiriting.',true);
   }
 
-  const payload={fullName,birthDate,phone,schoolId,groupId,plate,attendanceCount,attendance_count:attendanceCount};
+  const payload=attendancePayload({fullName,birthDate,phone,schoolId,groupId,plate},attendanceCount);
 
   try{
     let response=null;
     try{
       response=await apiRestore('/students/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify(payload)});
     }catch(e1){
-      response=await api('/students/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify(payload)});
+      try{
+        response=await api('/students/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify(payload)});
+      }catch(e2){
+        response=await api('/students/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify(payload)});
+      }
     }
 
-    const saved=Number(response?.attendance_count ?? response?.attendanceCount ?? attendanceCount);
+    let saved=readAttendance(response,attendanceCount);
+
+    // Server dars sonini qabul qilmagan bo‘lsa — alohida urinib ko‘ramiz.
     if(saved!==attendanceCount){
-      throw Error('Server dars sonini '+saved+' qilib qaytardi. Backend attendance_count ustunini tekshiring.');
+      saved=await forceAttendance(id,attendanceCount,saved);
     }
 
-    closeModal();await adminLoad();adminTab('students');showToast(fullName+' yangilandi.');
+    closeModal();await adminLoad();adminTab('students');
+
+    if(saved===attendanceCount){
+      showToast(fullName+' yangilandi — '+attendanceCount+' dars saqlandi.');
+    }else{
+      showToast(fullName+' saqlandi, LEKIN dars soni bazada '+saved+' bo‘lib qoldi. Backend attendance_count ustunini tuzatish kerak.',true);
+    }
   }catch(e){
     showToast(e.message||'O‘quvchini saqlashda xatolik',true);
   }
+}
+
+/* Backendlar dars sonini turli nom bilan kutadi — hammasini birga yuboramiz. */
+function attendancePayload(base,count){
+  const n=Math.max(0,Math.floor(Number(count)||0));
+  return {
+    ...base,
+    attendanceCount:n,
+    attendance_count:n,
+    attendance:n,
+    lessons:n,
+    lessonCount:n,
+    lesson_count:n,
+    lessonsCount:n,
+    visits:n,
+    visit_count:n
+  };
+}
+function readAttendance(res,fallback){
+  if(!res||typeof res!=='object')return Number(fallback);
+  const src=res.student||res.data||res.row||res;
+  const v=src.attendance_count ?? src.attendanceCount ?? src.lessons ?? src.lesson_count ?? src.visits;
+  return v==null?Number(fallback):Number(v);
+}
+
+/* Dars soni saqlanmagan bo‘lsa: alohida endpointlarni ketma-ket sinab ko‘ramiz,
+   so‘ng bazadagi haqiqiy qiymatni o‘qib qaytaramiz. */
+async function forceAttendance(id,want,current){
+  const body=JSON.stringify(attendancePayload({},want));
+  const tries=[
+    ()=>apiRestore('/students/'+encodeURIComponent(id)+'/attendance',{method:'PUT',body}),
+    ()=>api('/students/'+encodeURIComponent(id)+'/attendance',{method:'PUT',body}),
+    ()=>api('/students/'+encodeURIComponent(id)+'/attendance',{method:'POST',body}),
+    ()=>api('/students/'+encodeURIComponent(id),{method:'PATCH',body}),
+    ()=>apiRestore('/students/'+encodeURIComponent(id),{method:'PATCH',body})
+  ];
+  for(const t of tries){
+    try{
+      const r=await t();
+      const got=readAttendance(r,NaN);
+      if(Number(got)===Number(want))return Number(want);
+    }catch(e){/* keyingi variant */}
+  }
+  // Oxirgi tekshiruv: bazadan qayta o‘qiymiz.
+  try{
+    const list=await api('/students?studentId='+encodeURIComponent(id));
+    const arr=Array.isArray(list)?list:(list?.rows||[]);
+    const found=arr.find(x=>String(x.id)===String(id));
+    if(found)return Number(found.attendance_count ?? found.attendanceCount ?? current);
+  }catch(e){}
+  return Number(current);
 }
 async function deleteStudent(id){
   const s=students.find(x=>String(x.id)===String(id));
@@ -1209,20 +1272,20 @@ async function bulkCreateStudents(schoolId,groupId){
 
   btn.disabled=true;
   btn.textContent='Saqlanmoqda... 0/'+valid.length;
-  let success=0,failed=0,failures=[];
+  let success=0,failed=0,attendanceWarn=0,failures=[];
 
   for(const row of valid){
     try{
       const response=await api('/students',{
         method:'POST',
-        body:JSON.stringify({
-          fullName:row.fullName,birthDate:row.birthDate,phone:row.birthDate,
-          schoolId,groupId,
-          attendanceCount:row.attendanceCount,attendance_count:row.attendanceCount
-        })
+        body:JSON.stringify(attendancePayload({
+          fullName:row.fullName,birthDate:row.birthDate,phone:row.birthDate,schoolId,groupId
+        },row.attendanceCount))
       });
-      const saved=Number(response?.attendance_count ?? response?.attendanceCount ?? row.attendanceCount);
-      if(saved!==row.attendanceCount)throw Error('Server dars sonini '+saved+' qilib qaytardi.');
+      let saved=readAttendance(response,row.attendanceCount);
+      const newId=response?.id||response?.student?.id||response?.data?.id;
+      if(saved!==row.attendanceCount && newId)saved=await forceAttendance(newId,row.attendanceCount,saved);
+      if(saved!==row.attendanceCount)attendanceWarn++;
       success++;
     }catch(e){
       failed++;failures.push(row.line+'-qator — '+row.fullName+': '+e.message);
@@ -1249,8 +1312,11 @@ async function bulkCreateStudents(schoolId,groupId){
 
   await adminLoad();adminTab('schools');await adminShowGroups(schoolId);
 
-  if(failed===0){showToast(success+' ta o‘quvchi '+groupName+' guruhiga qo‘shildi.');closeModal()}
-  else showToast(success+' ta qo‘shildi, '+failed+' ta xato.',true);
+  if(failed===0){
+    closeModal();
+    if(attendanceWarn)showToast(success+' ta o‘quvchi qo‘shildi, lekin '+attendanceWarn+' tasida dars soni bazaga yozilmadi (backend).',true);
+    else showToast(success+' ta o‘quvchi '+groupName+' guruhiga qo‘shildi.');
+  }else showToast(success+' ta qo‘shildi, '+failed+' ta xato.',true);
 }
 
 function studentModal(preSchoolId='',preGroupId=''){
@@ -1305,20 +1371,21 @@ async function createStudent(){
   try{
     const result=await api('/students',{
       method:'POST',
-      body:JSON.stringify({
+      body:JSON.stringify(attendancePayload({
         fullName:n,birthDate,phone:birthDate,schoolId,
-        groupId:$('sg').value||null,plate:$('spl').value.trim(),
-        attendanceCount:attendanceCount,attendance_count:attendanceCount
-      })
+        groupId:$('sg').value||null,plate:$('spl').value.trim()
+      },attendanceCount))
     });
 
-    const saved = Number(result?.attendance_count ?? result?.attendanceCount ?? attendanceCount);
-    if(saved !== attendanceCount){
-      throw Error('Server dars sonini '+saved+' qilib qaytardi. Backend /students endpointini tekshiring.');
+    let saved=readAttendance(result,attendanceCount);
+    const newId=result?.id||result?.student?.id||result?.data?.id;
+    if(saved!==attendanceCount && newId){
+      saved=await forceAttendance(newId,attendanceCount,saved);
     }
 
     closeModal();await adminLoad();adminTab('students');
-    showToast(n+' qo‘shildi — '+attendanceCount+' dars saqlandi');
+    if(saved===attendanceCount)showToast(n+' qo‘shildi — '+attendanceCount+' dars saqlandi');
+    else showToast(n+' qo‘shildi, lekin dars soni bazada '+saved+' bo‘lib qoldi. Backendni tuzatish kerak.',true);
   }catch(e){showToast(e.message,true)}
 }
 
