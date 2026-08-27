@@ -3,6 +3,7 @@
   "builds": [
     { "src": "api/index.js", "use": "@vercel/node" },
     { "src": "api/frontend.js", "use": "@vercel/node" },
+    { "src": "api/frontend-final.js", "use": "@vercel/node" },
     { "src": "api/restore.js", "use": "@vercel/node" },
     { "src": "api/students.js", "use": "@vercel/node" },
     { "src": "api/students/[id].js", "use": "@vercel/node" },
@@ -23,7 +24,7 @@
     { "src": "/api/vehicle-lookup", "dest": "/api/vehicle-lookup.js" },
     { "src": "/api/sessions/active-v3", "dest": "/api/sessions/active-fixed.js" },
     { "src": "/api/sessions/start-v3", "dest": "/api/sessions/start-v3.js" },
-    { "src": "/", "dest": "/api/frontend.js" },
+    { "src": "/", "dest": "/api/frontend-final.js" },
     { "src": "/(.*)", "dest": "/api/index.js" }
   ]
 }
