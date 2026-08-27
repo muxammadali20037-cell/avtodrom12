@@ -138,3 +138,63 @@
     exportStudentExcel(btn);
   },true);
 })();
+
+/* =========================================================
+   AVTODROM RELATION HARDENING
+   Instructor -> school/group/vehicle/model
+   Student name -> student/school/group auto-fill
+   No user-entered database IDs
+   ========================================================= */
+(function(){
+  'use strict';
+  const $=id=>document.getElementById(id);
+  const escRel=v=>String(v??'').replace(/[&<>\"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[x]));
+  const norm=v=>String(v??'').trim().toLowerCase().replace(/\s+/g,' ');
+  const parsePlate=v=>{const q=String(v??'').toUpperCase().replace(/[^A-Z0-9]/g,'');let m=q.match(/^(\d{2})([A-Z])(\d{3})([A-Z]{2})$/);if(m)return {region:m[1],body:q.slice(2),firstLetter:m[2],number:m[3],lastLetters:m[4]};m=q.match(/^([A-Z])(\d{3})([A-Z]{2})$/);if(m)return {body:q,firstLetter:m[1],number:m[2],lastLetters:m[3]};m=q.match(/^(\d{3})([A-Z]{3})$/);if(m)return {body:q,firstLetter:m[2][0],number:m[1],lastLetters:m[2].slice(1)};return null;};
+  window.v3ParsePlate=window.v3ParsePlate||parsePlate;
+
+  let allStudents=[];
+  let lookupTimer=null;
+  async function loadStudents(){
+    try{const x=await api('/students');allStudents=Array.isArray(x)?x:(x?.rows||x?.students||[]);renderSuggestions('');}catch(e){allStudents=[];console.warn('Student lookup:',e.message)}
+  }
+  function renderSuggestions(q){
+    const dl=$('studentSuggestions');if(!dl)return;
+    const s=norm(q);const list=allStudents.filter(x=>!s||norm([x.full_name,x.phone,x.plate,x.school_name,x.group_name].filter(Boolean).join(' ')).includes(s)).slice(0,100);
+    dl.innerHTML=list.map(x=>'<option value="'+escRel(x.full_name||'')+'" label="'+escRel([x.school_name,x.group_name].filter(Boolean).join(' • '))+'"></option>').join('');
+  }
+  function findStudent(v){const q=norm(v);if(!q)return null;const exact=allStudents.filter(x=>norm(x.full_name)===q);if(exact.length===1)return exact[0];const m=allStudents.filter(x=>norm(x.full_name).includes(q));return m.length===1?m[0]:null;}
+  async function loadGroups(schoolId,selected=''){
+    const g=$('group');if(!g)return;
+    if(!schoolId){g.innerHTML='<option value="">Avval avtoshkola</option>';g.disabled=true;return;}
+    try{const list=await api('/groups?schoolId='+encodeURIComponent(schoolId))||[];g.innerHTML='<option value="">Guruhni tanlang</option>'+list.map(x=>'<option value="'+escRel(x.id)+'" '+(String(x.id)===String(selected)?'selected':'')+'>'+escRel(x.name)+'</option>').join('');g.disabled=$('type')?.value!=='school';}catch(e){g.innerHTML='<option value="">Guruh yuklanmadi</option>'}
+  }
+  async function applyStudent(s){
+    if(!s)return;
+    if($('studentId'))$('studentId').value=String(s.id||'');
+    if($('school')&&s.school_id){$('school').value=String(s.school_id);await loadGroups(s.school_id,s.group_id||'');}
+    if($('group')&&s.group_id)$('group').value=String(s.group_id);
+    if($('studentBox'))$('studentBox').innerHTML='<div class="attendance"><b>'+escRel(s.full_name)+'</b><div class="muted">'+escRel(s.school_name||'')+(s.group_name?' • '+escRel(s.group_name):'')+'</div><div class="muted">📞 '+escRel(s.phone||'—')+' · 🚗 '+escRel(s.plate||'—')+' · Darslar: '+Number(s.attendance_count||0)+'</div></div>';
+  }
+  function bindStudent(){
+    const el=$('student');if(!el||el.dataset.relationBound)return;el.dataset.relationBound='1';el.disabled=$('type')?.value!=='school';
+    el.addEventListener('input',()=>{clearTimeout(lookupTimer);if($('studentId'))$('studentId').value='';renderSuggestions(el.value);lookupTimer=setTimeout(()=>applyStudent(findStudent(el.value)),120)});
+    el.addEventListener('change',()=>applyStudent(findStudent(el.value)));
+  }
+  function bindSchool(){const el=$('school');if(!el||el.dataset.relationBound)return;el.dataset.relationBound='1';el.addEventListener('change',()=>loadGroups(el.value,''));}
+  function applyInstructor(){
+    const el=$('v3Instructor');if(!el)return;
+    const id=String(el.value||'');const list=window.V3?.instructors||[];const inst=list.find(x=>String(x.id)===id);if(!inst)return;
+    const p=parsePlate(inst.vehicle_plate||'');
+    if(p){if(p.region&&$('region'))$('region').value=p.region;if($('plateBody'))$('plateBody').value=p.body;}
+    if($('model')&&inst.vehicle_model)$('model').value=inst.vehicle_model;
+    if($('driver')&&inst.driver_name)$('driver').value=inst.driver_name;
+    if($('school')&&inst.school_id){$('school').value=String(inst.school_id);loadGroups(inst.school_id,inst.group_id||'');}
+  }
+  function bindInstructor(){const el=$('v3Instructor');if(!el||el.dataset.relationBound)return;el.dataset.relationBound='1';el.addEventListener('change',applyInstructor);}
+  function bootRelation(){bindStudent();bindSchool();bindInstructor();if(!allStudents.length)loadStudents();}
+  const oldGo=window.go;window.go=function(page){oldGo(page);setTimeout(()=>{if(page==='add')bootRelation();if(page==='instructors')bindInstructor()},0)};
+  const oldLoad=window.v3LoadInstructors;
+  if(oldLoad&&!oldLoad.__relation){const w=async function(){const r=await oldLoad();setTimeout(bindInstructor,0);return r};w.__relation=true;window.v3LoadInstructors=w;}
+  setTimeout(bootRelation,150);
+})();
