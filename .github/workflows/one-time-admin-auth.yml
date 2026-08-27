@@ -1,0 +1,140 @@
+name: one-time-admin-auth
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore: one-time admin auth migration') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Patch canonical frontend and admin API
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          s = s.replace("const ADMIN_LOGIN = 'admin';\nconst ADMIN_PASS = 'Admin@2026';\n", "")
+          s = s.replace("let me = JSON.parse(localStorage.getItem('avtodrom_user') || 'null');", "let me = JSON.parse(localStorage.getItem('avtodrom_user') || 'null');\nlet adminToken = sessionStorage.getItem('avtodrom_admin_token') || ''; ")
+          s = s.replace("function logout() { localStorage.removeItem('avtodrom_token'); localStorage.removeItem('avtodrom_user'); sessionStorage.removeItem('avtodrom_admin'); location.reload(); }", "function logout() { localStorage.removeItem('avtodrom_token'); localStorage.removeItem('avtodrom_user'); sessionStorage.removeItem('avtodrom_admin'); sessionStorage.removeItem('avtodrom_admin_token'); adminToken=''; location.reload(); }")
+
+          if "async function adminApi(" not in s:
+              anchor = "/* ===== NAVBAT (QUEUE) ===== */"
+              admin_api = r'''/* ===== ADMIN API ===== */
+          async function adminApi(path, opt={}) {
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), 15000);
+            try {
+              const h = {'Content-Type':'application/json', ...(adminToken?{Authorization:'Bearer '+adminToken}:{}) , ...(opt.headers||{})};
+              const r = await fetch(API+'/admin'+path, {...opt, headers:h, signal:ctrl.signal});
+              const txt = await r.text(); let data={};
+              try { data = txt ? JSON.parse(txt) : {}; } catch { data={error:txt||('Server xatosi: '+r.status)}; }
+              if(!r.ok) throw Error(data.error||data.message||('Server xatosi: '+r.status));
+              return data;
+            } catch(e) {
+              if(e.name==='AbortError') throw Error('Server 15 soniyada javob bermadi.');
+              throw e;
+            } finally { clearTimeout(t); }
+          }
+
+          '''
+              if anchor not in s:
+                  raise SystemExit('QUEUE anchor not found')
+              s = s.replace(anchor, admin_api + anchor, 1)
+
+          gate_old = re.compile(r"\s*\$\('adminLoginForm'\)\.addEventListener\('submit', async e => \{.*?\nfunction closeAdminPanel\(\) \{", re.S)
+          gate_new = '''
+          $('adminLoginForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            $('adminErr').textContent='';
+            const btn=e.target.querySelector('.btn');
+            btn?.classList.add('loading');
+            try {
+              const username=$('adminUser').value.trim();
+              const password=$('adminPass').value;
+              const result=await fetch(API+'/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+              const data=await result.json().catch(()=>({}));
+              if(!result.ok) throw Error(data.error||'Admin login ishlamadi');
+              if(data.admin?.role!=='admin'||!data.token) throw Error('Admin sessiyasi yaroqsiz');
+              adminToken=data.token;
+              sessionStorage.setItem('avtodrom_admin_token',adminToken);
+              sessionStorage.setItem('avtodrom_admin','1');
+              closeAdminGate();
+              $('adminPanel').classList.remove('hidden');
+              await adminLoad();
+            } catch(x) {
+              $('adminErr').textContent=x.message||'Admin login xatosi';
+            } finally { btn?.classList.remove('loading'); }
+          });
+          function closeAdminPanel() {
+            sessionStorage.removeItem('avtodrom_admin');
+            sessionStorage.removeItem('avtodrom_admin_token');
+            adminToken='';
+            $('adminPanel').classList.add('hidden');
+          }
+          function closeAdminPanel() {'''
+          # gate_new intentionally preserves the existing function name only once.
+          m = gate_old.search(s)
+          if not m:
+              raise SystemExit('admin gate block not found')
+          replacement = gate_new.replace("function closeAdminPanel() {function closeAdminPanel() {", "function closeAdminPanel() {")
+          s = s[:m.start()] + replacement + s[m.end():]
+
+          s = s.replace("async function adminLoad() {\n  try { schools=await api('/schools')||[]; } catch { schools=[]; }\n  try { groups=await api('/groups')||[]; } catch { groups=[]; }\n  try { students=await api('/students')||[]; } catch { students=[]; }", "async function adminLoad() {\n  if(!adminToken) throw Error('Admin sessiyasi mavjud emas.');\n  try { schools=await adminApi('/schools')||[]; } catch { schools=[]; }\n  try { groups=await adminApi('/groups')||[]; } catch { groups=[]; }\n  try { students=await adminApi('/students')||[]; } catch { students=[]; }")
+
+          # Only admin CRUD functions that are not shared with the operator UI.
+          for old,new in [
+              ("api('/schools/'+encodeURIComponent(id)", "adminApi('/schools/'+encodeURIComponent(id)"),
+              ("api('/schools',{method:'POST'", "adminApi('/schools',{method:'POST'"),
+              ("api('/schools')||[]", "adminApi('/schools')||[]"),
+              ("api('/students/'+encodeURIComponent(sid)+'/history'", "adminApi('/students/'+encodeURIComponent(sid)"),
+              ("api('/students/'+encodeURIComponent(id)", "adminApi('/students/'+encodeURIComponent(id)"),
+              ("api('/students',{method:'POST'", "adminApi('/students',{method:'POST'"),
+              ("api('/students')||[]", "adminApi('/students')||[]"),
+          ]:
+              s=s.replace(old,new)
+
+          p.write_text(s,encoding='utf-8')
+
+          a = Path('api/admin-auth.js')
+          z = a.read_text(encoding='utf-8')
+          if not z.startswith("import crypto from 'node:crypto';"):
+              z = "import crypto from 'node:crypto';\n" + z
+          a.write_text(z,encoding='utf-8')
+
+          docs = Path('docs/ADMIN_SETUP.md')
+          docs.write_text('''# Admin authentication setup\n\nProduction admin login is server-side. Do not put admin credentials in `index.html`.\n\nConfigure these Vercel environment variables for Production: \n\n- `JWT_SECRET` — long random secret\n- `ADMIN_USERNAME` — admin login\n- `ADMIN_PASSWORD` — admin password\n\nRedeploy after changing them. The browser stores only the short-lived admin JWT in session storage; authorization is verified by the API.\n''', encoding='utf-8')
+      
+      - name: Validate JS syntax
+        run: |
+          node --check api/admin-auth.js
+          node --check api/index.js
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html=Path('index.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',html,re.S|re.I)
+          Path('/tmp/frontend-check.js').write_text('\n\n'.join(scripts),encoding='utf-8')
+          print('script blocks:', len(scripts))
+          PY
+          node --check /tmp/frontend-check.js
+
+      - name: Commit once and remove workflow
+        run: |
+          rm -f .github/workflows/one-time-admin-auth.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html api/admin-auth.js docs/ADMIN_SETUP.md .github/workflows/one-time-admin-auth.yml
+          git commit -m 'chore: one-time admin auth migration [skip ci]'
+          git push
