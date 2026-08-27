@@ -463,41 +463,6 @@ function plateParts(body){
   return {firstLetter:body[0],number:body.slice(1,4),lastLetters:body.slice(4,6)};
 }
 
-/* Canonical plate parser shared by V3 relation code.
-   Supports:
-   - 111QQQ / 444WWW
-   - A555AA / B111WW
-   - 01A555AA / 01 A 555 AA
-*/
-function parsePlate(raw){
-  const original=String(raw||'').toUpperCase().replace(/[\s-]+/g,'');
-  if(!original)return null;
-
-  let region=String($('region')?.value||'');
-  let body=original;
-
-  if(/^\d{2}[A-Z]\d{3}[A-Z]{2}$/.test(original)){
-    region=original.slice(0,2);
-    body=original.slice(2);
-  }
-
-  if(!regions.includes(region))return null;
-  const parts=plateParts(body);
-  if(!parts)return null;
-
-  return {
-    region,
-    body,
-    firstLetter:parts.firstLetter,
-    number:parts.number,
-    lastLetters:parts.lastLetters,
-    plate:region+' '+(body.length===6 && /^\d{3}[A-Z]{3}$/.test(body)
-      ? parts.firstLetter+' '+parts.number+' '+parts.lastLetters
-      : parts.firstLetter+' '+parts.number+' '+parts.lastLetters)
-  };
-}
-window.parsePlate=parsePlate;
-
 $('startForm').addEventListener('submit',async e=>{
   e.preventDefault();
   $('startErr').textContent='';
@@ -1978,8 +1943,8 @@ async function v3LookupVehicle(){
 }
 function v3StartPayload(){
   const body=String($('plateBody')?.value||'').replace(/\s+/g,'').toUpperCase();
-  const p=parsePlate(body);
-  if(!p)throw Error('Raqam noto‘g‘ri. 6 ta belgi kiriting: 111AAA yoki A555AA.');
+  const p=typeof parsePlate==='function'?parsePlate(body):null;
+  if(!p)throw Error('Raqam noto‘g‘ri.');
   const type=$('type')?.value||'ordinary';
   const plannedMinutes=v3DurationMinutes();
   if(plannedMinutes<=0)throw Error('Avtodromda bo‘lish vaqtini kiriting.');
@@ -2017,7 +1982,7 @@ function v3BindStart(){
     try{
       const b=v3StartPayload();
       const btn=$('startBtn');btn.disabled=true;btn.textContent='Saqlanmoqda...';
-      const x=await api('/sessions/start-v3',{method:'POST',body:JSON.stringify(b)});
+      const x=await api('/sessions/start',{method:'POST',body:JSON.stringify(b)});
       if(typeof showToast==='function')showToast((x?.plate||b.plateBody)+' uchun vaqt ochildi.');
       if(typeof resetStart==='function')resetStart();
       await v3LoadActive();
@@ -2186,7 +2151,7 @@ window.v3OpenInfo=v3OpenInfo;
 
 async function v3LoadActive(){
   try{
-    const x=await api('/sessions/active-v3');
+    const x=await api('/sessions/active');
     active=Array.isArray(x)?x:(x?.rows||[]);
   }catch{
     try{active=await api('/sessions/active')||[]}catch(e){showToast(e.message,true);return}
@@ -2352,7 +2317,7 @@ window.adminTab=function(t){
   oldAdminTab(t);
   setTimeout(()=>{
     if(t==='dashboard')v3AddAdminPriceBox();
-    if(t==='instructors')v3RenderAdminInstructors();
+    if(t==='instructors' && typeof v3RenderAdminInstructors==='function')v3RenderAdminInstructors();
   },0);
 };
 
@@ -2413,7 +2378,7 @@ document.addEventListener('change',e=>{
 setTimeout(()=>{
   v3AddStartFields();
   v3LoadSettings();
-  v3LoadInstructors();
+  Promise.resolve().then(()=>v3LoadInstructors()).catch(()=>{});
   v3BindStart();
   v3AddActiveFilters();
 },50);
