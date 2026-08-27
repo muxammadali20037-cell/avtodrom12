@@ -1741,7 +1741,7 @@ async function createStudent(){
   }
 }
 
-function modal(htmlContent){$('modal').innerHTML='<div class="modalBg" onclick="if(event.target===this)closeModal()"><div class="modal">'+htmlContent+'</div></div>'}
+function modal(content){$('modal').innerHTML='<div class="modalBg" onclick="if(event.target===this)closeModal()"><div class="modal">'+content+'</div></div>'}
 function closeModal(){$('modal').innerHTML=''}
 
 setInterval(()=>{$('clock').textContent=new Date().toLocaleString('uz-UZ',{timeZone:'Asia/Tashkent',hour12:false})},1000);
