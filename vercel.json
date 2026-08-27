@@ -18,7 +18,7 @@
     { "src": "/api/students/([^/]+)", "dest": "/api/students/[id].js" },
     { "src": "/api/students", "dest": "/api/students.js" },
     { "src": "/api/instructors/([^/]+)/daily", "dest": "/api/instructor-daily.js?id=$1" },
-    { "src": "/api/instructors/([^/]+)", "dest": "/api/instructor-detail.js?id=$1" },
+    { "src": "/api/instructors/([^/]+)", "dest": "/api/instructors-fixed.js?id=$1" },
     { "src": "/api/instructors", "dest": "/api/instructors-fixed.js" },
     { "src": "/api/vehicle-lookup", "dest": "/api/vehicle-lookup.js" },
     { "src": "/api/sessions/active-v3", "dest": "/api/sessions/active-fixed.js" },
