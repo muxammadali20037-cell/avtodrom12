@@ -1356,9 +1356,21 @@ async function request(path, opt, kind) {
       const serverMsg = data && (data.error || data.message);
       if (res.status === 401) {
         if (kind === 'admin') {
+          /* Faqat admin sessiyasini tozalaymiz — operator tizimda qoladi */
           STATE.admin.token = '';
           try { sessionStorage.removeItem(CONFIG.ADMIN_TOKEN_KEY); sessionStorage.removeItem(CONFIG.ADMIN_FLAG_KEY); } catch (e) { /* noop */ }
+          try {
+            const panel = document.getElementById('adminPanel');
+            const gate = document.getElementById('adminGate');
+            if (panel) panel.classList.add('hidden');
+            if (gate) gate.classList.remove('hidden');
+          } catch (e2) { /* noop */ }
           throw ApiError('Admin sessiyasi tugadi. Qaytadan kiring.', 401, serverMsg);
+        }
+        if (kind === 'public') {
+          /* Login / admin login: 401 = login yoki parol noto'g'ri.
+             Operator sessiyasiga TEGMAYMIZ va tizimdan chiqarmaymiz. */
+          throw ApiError(serverMsg || "Login yoki parol noto'g'ri.", 401, serverMsg);
         }
         hardLogout(true);
         throw ApiError('Sessiya tugagan. Qaytadan kiring.', 401, serverMsg);
@@ -2886,8 +2898,13 @@ const Admin = {
           method: 'POST',
           body: jsonBody({ username: $('adminUser').value.trim(), password: $('adminPass').value })
         }, 'public');
-        if (!data || !data.token || !data.admin || data.admin.role !== 'admin') {
-          throw ApiError('Admin sessiyasi yaroqsiz.', 0, 'invalid admin payload');
+        if (!data || !data.token) {
+          throw ApiError('Server admin tokenini qaytarmadi. Backendni tekshiring.', 0, 'no admin token');
+        }
+        /* role backend javobida bo'lsa tekshiramiz; bo'lmasa qat'iy talab qilmaymiz */
+        const role = (data.admin && data.admin.role) || (data.user && data.user.role) || '';
+        if (role && role !== 'admin') {
+          throw ApiError("Bu hisobda admin huquqi yo'q.", 403, 'role=' + role);
         }
         STATE.admin.token = data.token;
         try {
