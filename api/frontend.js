@@ -53,18 +53,15 @@ const instructorOnlySchoolFix = String.raw`<script>
     ).join('');
 
     modalx(
-      '<div class="modalHead"><div>'+
-        '<h2 style="margin:0">'+(editId?'Instruktorni tahrirlash':'Instruktor qo‘shish')+'</h2>'+
-        '<div class="muted">Instruktorga faqat avtoshkola biriktiriladi. Guruh talab qilinmaydi.</div>'+
-      '</div><button class="btn light" type="button" onclick="closeModal()">Yopish</button></div>'+
+      '<div class="modalHead"><div><h2 style="margin:0">'+(editId?'Instruktorni tahrirlash':'Instruktor qo‘shish')+'</h2><div class="muted">Instruktorga faqat avtoshkola biriktiriladi. Guruh talab qilinmaydi.</div></div><button class="btn light" type="button" onclick="closeModal()">Yopish</button></div>'+ 
       '<div class="formGrid">'+
-        '<div class="fg"><label>F.I.Sh.</label><input id="v3iName" value="'+escx(x.full_name||x.name||'')+'" placeholder="Aliyev Ali"></div>'+
-        '<div class="fg"><label>Telefon</label><input id="v3iPhone" value="'+escx(x.phone||'')+'" placeholder="+998..." type="tel"></div>'+
-        '<div class="fg span2"><label>Avtoshkola</label><select id="v3iSchool">'+schoolOptions+'</select></div>'+
-        '<div class="fg"><label>Avtomobil raqami</label><input id="v3iPlate" value="'+escx(x.vehicle_plate||'')+'" placeholder="01 A 555 AA"></div>'+
-        '<div class="fg"><label>Avtomobil rusumi</label><input id="v3iModel" value="'+escx(x.vehicle_model||'')+'" placeholder="Chevrolet Cobalt"></div>'+
-        '<div class="fg"><label>Holati</label><select id="v3iActive"><option value="true" '+(x.active!==false?'selected':'')+'>Faol</option><option value="false" '+(x.active===false?'selected':'')+'>Nofaol</option></select></div>'+
-        '<div class="fg"><label>Biriktirish</label><div class="v3-note">Avtomobil bazadagi mavjud mashinadan tanlanadi. Bir avtomobil faqat bitta faol instruktorga tegishli bo‘ladi.</div></div>'+
+        '<div class="fg"><label>F.I.Sh.</label><input id="v3iName" value="'+escx(x.full_name||x.name||'')+'" placeholder="Aliyev Ali"></div>'+ 
+        '<div class="fg"><label>Telefon</label><input id="v3iPhone" value="'+escx(x.phone||'')+'" placeholder="+998..." type="tel"></div>'+ 
+        '<div class="fg span2"><label>Avtoshkola</label><select id="v3iSchool">'+schoolOptions+'</select></div>'+ 
+        '<div class="fg"><label>Avtomobil raqami</label><input id="v3iPlate" value="'+escx(x.vehicle_plate||'')+'" placeholder="01 A 555 AA"></div>'+ 
+        '<div class="fg"><label>Avtomobil rusumi</label><input id="v3iModel" value="'+escx(x.vehicle_model||'')+'" placeholder="Chevrolet Cobalt"></div>'+ 
+        '<div class="fg"><label>Holati</label><select id="v3iActive"><option value="true" '+(x.active!==false?'selected':'')+'>Faol</option><option value="false" '+(x.active===false?'selected':'')+'>Nofaol</option></select></div>'+ 
+        '<div class="fg"><label>Biriktirish</label><div class="v3-note">Avtomobil bazadagi mavjud mashinadan tanlanadi. Bir avtomobil faqat bitta faol instruktorga tegishli bo‘ladi.</div></div>'+ 
       '</div>'+ 
       '<div class="actions"><button class="btn green" type="button" onclick="v3SaveInstructor(\\''+escx(editId||'')+'\\')">Saqlash</button><button class="btn light" type="button" onclick="closeModal()">Bekor</button></div>'+ 
       '<div id="v3iErr" class="err"></div>'
@@ -72,64 +69,55 @@ const instructorOnlySchoolFix = String.raw`<script>
   };
 
   window.v3SaveInstructor = async function(id){
-    const err = document.getElementById('v3iErr');
-    if(err) err.textContent='';
-    const payload = {
-      fullName: document.getElementById('v3iName')?.value.trim() || '',
-      phone: document.getElementById('v3iPhone')?.value.trim() || '',
-      schoolId: document.getElementById('v3iSchool')?.value || '',
-      vehiclePlate: document.getElementById('v3iPlate')?.value.trim() || '',
-      vehicleModel: document.getElementById('v3iModel')?.value.trim() || '',
-      active: document.getElementById('v3iActive')?.value === 'true'
-    };
-    if(!payload.fullName){ if(err)err.textContent='F.I.Sh. kerak'; return; }
-    if(!payload.schoolId){ if(err)err.textContent='Avtoshkolani tanlang'; return; }
+    const err = document.getElementById('v3iErr'); if(err) err.textContent='';
+    const payload={fullName:document.getElementById('v3iName')?.value.trim()||'',phone:document.getElementById('v3iPhone')?.value.trim()||'',schoolId:document.getElementById('v3iSchool')?.value||'',vehiclePlate:document.getElementById('v3iPlate')?.value.trim()||'',vehicleModel:document.getElementById('v3iModel')?.value.trim()||'',active:document.getElementById('v3iActive')?.value==='true'};
+    if(!payload.fullName){if(err)err.textContent='F.I.Sh. kerak';return;}
+    if(!payload.schoolId){if(err)err.textContent='Avtoshkolani tanlang';return;}
     try{
-      await window.api(id ? '/instructors/'+encodeURIComponent(id) : '/instructors', {
-        method: id ? 'PUT' : 'POST',
-        body: JSON.stringify(payload)
-      });
-      if(typeof window.closeModal==='function') window.closeModal();
-      if(typeof window.v3LoadInstructors==='function') await window.v3LoadInstructors();
-      if(typeof window.showToast==='function') window.showToast('Instruktor saqlandi.');
-    }catch(e){ if(err) err.textContent=e.message||'Instruktor saqlanmadi'; }
+      await window.api(id?'/instructors/'+encodeURIComponent(id):'/instructors',{method:id?'PUT':'POST',body:JSON.stringify(payload)});
+      if(typeof window.closeModal==='function')window.closeModal();
+      if(typeof window.v3LoadInstructors==='function')await window.v3LoadInstructors();
+      if(typeof window.showToast==='function')window.showToast('Instruktor saqlandi.');
+    }catch(e){if(err)err.textContent=e.message||'Instruktor saqlanmadi';}
   };
 
   window.v3BulkInstructorModal = async function(){
-    let schools=[];
-    try{ schools=await getSchools(); }catch(e){ if(typeof window.showToast==='function')window.showToast(e.message,true); return; }
+    let schools=[];try{schools=await getSchools();}catch(e){if(typeof window.showToast==='function')window.showToast(e.message,true);return;}
     const opts='<option value="">Avtoshkolani tanlang</option>'+sortSchools(schools).map(s=>'<option value="'+escx(s.id)+'">'+escx(s.name)+'</option>').join('');
     modalx('<div class="modalHead"><div><h2 style="margin:0">Instruktorlarni ommaviy qo‘shish</h2><div class="muted">Har qatorda: F.I.Sh. | telefon | avtomobil raqami | rusum</div></div><button class="btn light" type="button" onclick="closeModal()">Yopish</button></div><div class="fg"><label>Avtoshkola</label><select id="v3BulkSchool">'+opts+'</select></div><div class="fg"><textarea id="v3iBulk" rows="9" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px" placeholder="Aliyev Ali | +998901112233 | 01 A 555 AA | Chevrolet Cobalt"></textarea></div><div class="actions"><button class="btn green" type="button" onclick="v3SaveBulkInstructors()">Saqlash</button><button class="btn light" type="button" onclick="closeModal()">Bekor</button></div><div id="v3iBulkErr" class="err"></div>');
   };
 
   window.v3SaveBulkInstructors = async function(){
-    const lines=String(document.getElementById('v3iBulk')?.value||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
-    const schoolId=document.getElementById('v3BulkSchool')?.value||'';
-    const err=document.getElementById('v3iBulkErr');
+    const lines=String(document.getElementById('v3iBulk')?.value||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean),schoolId=document.getElementById('v3BulkSchool')?.value||'',err=document.getElementById('v3iBulkErr');
     if(!schoolId){if(err)err.textContent='Avtoshkolani tanlang';return;}
     if(!lines.length){if(err)err.textContent='Kamida bitta instruktor kiriting';return;}
-    try{
-      for(const line of lines){
-        const p=line.split('|').map(x=>x.trim());
-        if(!p[0])continue;
-        await window.api('/instructors',{method:'POST',body:JSON.stringify({fullName:p[0],phone:p[1]||'',schoolId,vehiclePlate:p[2]||'',vehicleModel:p[3]||'',active:true})});
-      }
-      if(typeof window.closeModal==='function')window.closeModal();
-      if(typeof window.v3LoadInstructors==='function')await window.v3LoadInstructors();
-      if(typeof window.showToast==='function')window.showToast(lines.length+' ta instruktor qo‘shildi.');
-    }catch(e){if(err)err.textContent=e.message||'Ommaviy qo‘shishda xatolik';}
+    try{for(const line of lines){const p=line.split('|').map(x=>x.trim());if(!p[0])continue;await window.api('/instructors',{method:'POST',body:JSON.stringify({fullName:p[0],phone:p[1]||'',schoolId,vehiclePlate:p[2]||'',vehicleModel:p[3]||'',active:true})});}if(typeof window.closeModal==='function')window.closeModal();if(typeof window.v3LoadInstructors==='function')await window.v3LoadInstructors();if(typeof window.showToast==='function')window.showToast(lines.length+' ta instruktor qo‘shildi.');}catch(e){if(err)err.textContent=e.message||'Ommaviy qo‘shishda xatolik';}
   };
 
-  /* Prevent old wrapper code from trying to depend on an undefined instructor renderer. */
-  if(typeof window.v3RenderAdminInstructors!=='function'){
-    window.v3RenderAdminInstructors=function(){
-      const boxes=[document.getElementById('v3InstructorList'),document.getElementById('v3AdminInstructorList')].filter(Boolean);
-      const list=Array.isArray(window.V3?.instructors)?window.V3.instructors:[];
-      boxes.forEach(box=>{
-        box.innerHTML=list.length?list.map(i=>'<div class="card"><h3>'+escx(i.full_name||i.name||'Instruktor')+'</h3><div class="muted">📞 '+escx(i.phone||'—')+'</div><div class="muted">🚗 '+escx(i.vehicle_plate||'Biriktirilmagan')+'</div></div>').join(''):'<div class="muted">Instruktor yo‘q.</div>';
-      });
-    };
+  if(typeof window.v3RenderAdminInstructors!=='function')window.v3RenderAdminInstructors=function(){};
+})();
+</script>`;
+
+const plateCompatScript = String.raw`<script>
+/* ===== PLATE COMPATIBILITY =====
+   This does not change the existing UI. It only makes the plate parser
+   available to the current V3 START handler and never blocks a supported
+   six-character plate such as 111QQQ or A555AA. */
+(function(){
+  'use strict';
+  function parsePlateCompat(value){
+    const q=String(value??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(!q)return null;
+    let m=q.match(/^(\\d{2})([A-Z])(\\d{3})([A-Z]{2})$/);
+    if(m)return {region:m[1],body:m[2]+m[3]+m[4],firstLetter:m[2],number:m[3],lastLetters:m[4]};
+    m=q.match(/^([A-Z])(\\d{3})([A-Z]{2})$/);
+    if(m)return {body:q,firstLetter:m[1],number:m[2],lastLetters:m[3]};
+    m=q.match(/^(\\d{3})([A-Z]{3})$/);
+    if(m)return {body:q,firstLetter:m[2][0],number:m[1],lastLetters:m[2].slice(1)};
+    return null;
   }
+  window.parsePlate=window.parsePlate||parsePlateCompat;
+  window.v3ParsePlate=window.v3ParsePlate||parsePlateCompat;
 })();
 </script>`;
 
@@ -148,11 +136,14 @@ export default async function handler(req, res) {
     if (!html.includes('INSTRUCTOR: SCHOOL ONLY')) {
       html = html.replace('</body>', instructorOnlySchoolFix + '</body>');
     }
+    if (!html.includes('PLATE COMPATIBILITY')) {
+      html = html.replace('</body>', plateCompatScript + '</body>');
+    }
 
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-    res.setHeader('X-Avtodrom-Frontend', 'instructor-school-only');
+    res.setHeader('X-Avtodrom-Frontend', 'instructor-school-only-plate-compatible');
     return res.end(html);
   } catch (error) {
     console.error('FRONTEND SERVE ERROR:', error?.message || error);
