@@ -129,7 +129,7 @@ button,input,select{font:inherit}button{cursor:pointer}input,select{width:100%;p
 <div class="formGrid">
 <div class="span2">
 <label class="muted"></label>
-<div class="plate"><select id="region" aria-label="Hudud kodi"></select><input id="plateBody" class="plateBody" maxlength="6" minlength="6" inputmode="text" autocomplete="off" placeholder="111QQQ yoki A555AA" required></div>
+<div class="plate"><select id="region" aria-label="Hudud kodi"></select><input id="plateBody" class="plateBody" maxlength="6" minlength="6" inputmode="text" autocomplete="off" placeholder="222AAA, B111WW yoki A555AA" required></div>
 <div class="plateHint">6 ta belgi yozing. Masalan: <b>111QQQ</b>, <b>444WWW</b>, <b>A555AA</b>. Qanday yozsangiz shunday saqlanadi.</div>
 <div id="plateErr" class="err"></div>
 </div>
@@ -439,13 +439,31 @@ $('plateBody').addEventListener('keydown',e=>{if(e.key==='Enter')e.preventDefaul
 
 function plateParts(body){
   body=String(body||'').toUpperCase().replace(/\s/g,'');
-  // Raqam UI uchun aynan kiritilgan ko‘rinishda saqlanadi.
-  // 6 ta harf/raqamdan iborat bo‘lsa qabul qilamiz: 111QQQ, 444WWW, A555AA va h.k.
   if(!/^[A-Z0-9]{6}$/.test(body))return null;
-  if(/^[A-Z]\d{3}[A-Z]{2}$/.test(body))return {firstLetter:body[0],number:body.slice(1,4),lastLetters:body.slice(4,6)};
-  if(/^\d{3}[A-Z]{3}$/.test(body))return {firstLetter:body[3],number:body.slice(0,3),lastLetters:body.slice(4,6)};
-  // Backenddagi eski ustunlar uchun fallback. Asosiy qiymat — plate/plateBody.
-  return {firstLetter:body[0],number:body.slice(1,4),lastLetters:body.slice(4,6)};
+
+  // Kiritilgan 6 belgilik raqam aynan plate/plateBody sifatida saqlanadi.
+  // Quyidagi qismlar faqat mavjud backend ustunlari uchun ajratiladi.
+  if(/^[A-Z]\d{3}[A-Z]{2}$/.test(body)){
+    return {
+      firstLetter:body.slice(0,1),
+      number:body.slice(1,4),
+      lastLetters:body.slice(4,6)
+    };
+  }
+
+  if(/^\d{3}[A-Z]{3}$/.test(body)){
+    return {
+      firstLetter:body.slice(3,4),
+      number:body.slice(0,3),
+      lastLetters:body.slice(4,6)
+    };
+  }
+
+  return {
+    firstLetter:body.slice(0,1),
+    number:body.slice(1,4),
+    lastLetters:body.slice(4,6)
+  };
 }
 
 $('startForm').addEventListener('submit',async e=>{
@@ -1744,18 +1762,11 @@ function v3AddStartFields(){
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
         '<div><input id="plannedHours" type="number" min="0" max="24" step="1" value="1" inputmode="numeric" placeholder="Soat"></div>'+
         '<div><input id="plannedMinutes" type="number" min="0" max="59" step="1" value="0" inputmode="numeric" placeholder="Daqiqa"></div>'+
-      '</div><div class="v3-note">Masalan: 2 soat 0 daqiqa. O‘quvchi ham, oddiy mijoz ham belgilaydi.</div>'+
-    '</div>'+
-    '<div class="v3-box"><label class="muted">1 soatlik tarif</label>'+
-      '<div class="v3-price" id="v3HourlyRate">0 so‘m</div>'+
-      '<div class="v3-note">Admin belgilagan tarif. Ruchnoy summa yo‘q.</div>'+
-    '</div>'+
-    '<div class="v3-box"><label class="muted">Avtomatik hisob</label>'+
-      '<div id="v3PricePreview"></div>'+
+      '</div>'+
     '</div>'+
     '<div class="v3-box span2"><label class="muted">Instruktor</label>'+
       '<select id="v3Instructor"><option value="">Instruktorni tanlang</option></select>'+
-      '<div class="v3-note">Avtomobil raqami tanilganda biriktirilgan instruktor avtomatik chiqadi.</div>'+
+      '<div class="v3-note">Avtomobil raqami bo‘yicha biriktirilgan instruktor avtomatik tanlanadi.</div>'+
     '</div>';
 
   grid.appendChild(wrap);
@@ -1786,14 +1797,15 @@ async function v3LookupVehicle(){
 }
 function v3StartPayload(){
   const body=String($('plateBody')?.value||'').replace(/\s+/g,'').toUpperCase();
-  const p=typeof parsePlate==='function'?parsePlate(body):null;
-  if(!p)throw Error('Raqam noto‘g‘ri.');
+  const p=plateParts(body);
+  if(!p)throw Error('Raqam noto‘g‘ri. 6 ta harf/raqam kiriting.');
   const type=$('type')?.value||'ordinary';
   const plannedMinutes=v3DurationMinutes();
   if(plannedMinutes<=0)throw Error('Avtodromda bo‘lish vaqtini kiriting.');
   const b={
     regionCode:$('region').value,
-    plateBody:p.body,
+    plate:body,
+    plateBody:body,
     firstLetter:p.firstLetter,
     number:p.number,
     lastLetters:p.lastLetters,
