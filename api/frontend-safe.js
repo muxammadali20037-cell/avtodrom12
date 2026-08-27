@@ -2,117 +2,355 @@ import { readFile } from 'node:fs/promises';
 
 const frontendFile = new URL('../frontend/index.html', import.meta.url);
 
-const PATCH = `<script id="avtodrom-static-safe-v1">
+const PATCH = String.raw`<script id="avtodrom-professional-relations-v1">
 (function(){
   'use strict';
-  const $ = id => document.getElementById(id);
-  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  const byId = id => document.getElementById(id);
+  const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[ch]));
+  const normalize = value => String(value ?? '').trim().toLocaleLowerCase('uz-UZ').replace(/\s+/g,' ');
   const token = () => localStorage.getItem('avtodrom_token') || '';
+
   async function apiCall(path, options){
     const opts = options || {};
-    const headers = Object.assign({'Content-Type':'application/json'}, token() ? {Authorization:'Bearer '+token()} : {}, opts.headers || {});
-    const r = await fetch('/api'+path, Object.assign({}, opts, {headers}));
-    const text = await r.text();
+    const headers = Object.assign(
+      {'Content-Type':'application/json'},
+      token() ? {Authorization:'Bearer '+token()} : {},
+      opts.headers || {}
+    );
+    const response = await fetch('/api'+path, Object.assign({}, opts, {headers}));
+    const text = await response.text();
     let data = {};
-    try { data = text ? JSON.parse(text) : {}; } catch { data = {error:text}; }
-    if(!r.ok) throw new Error(data.error || ('HTTP '+r.status));
+    try { data = text ? JSON.parse(text) : {}; }
+    catch { data = {error:text}; }
+    if(!response.ok) throw new Error(data.error || data.message || ('HTTP '+response.status));
     return data;
   }
-  function duration(sec){
-    sec = Math.max(0, Math.floor(Number(sec) || 0));
-    const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
-    return [h,m,s].map(x=>String(x).padStart(2,'0')).join(':');
+
+  function setSelectValue(select, value){
+    if(!select || value == null || value === '') return false;
+    const wanted = String(value);
+    let option = Array.from(select.options).find(o => String(o.value) === wanted);
+    if(!option){
+      option = document.createElement('option');
+      option.value = wanted;
+      option.textContent = wanted;
+      select.appendChild(option);
+    }
+    select.value = wanted;
+    return select.value === wanted;
   }
-  function money(n){ return new Intl.NumberFormat('uz-UZ').format(Math.round(Number(n)||0))+' so‘m'; }
-  function elapsed(v){
-    const t = new Date(v && v.started_at || 0).getTime();
-    if(Number.isFinite(t) && t > 0) return Math.max(0,(Date.now()-t)/1000);
-    return Number(v && v.duration_seconds || 0);
+
+  function clearStudentDetail(){
+    const box = byId('studentBox');
+    if(box) box.innerHTML = '';
   }
-  function isSchool(v){ return String(v && v.customer_type || '').toLowerCase()==='school' || !!(v && v.student_id); }
-  function amount(v){
-    if(isSchool(v)) return 0;
-    const manual = Number(v && v.manual_price);
-    if(Number.isFinite(manual) && manual > 0) return manual;
-    const hourly = Number(v && v.hourly_rate || 0);
-    const minimum = Number(v && v.minimum_payment || 0);
-    return Math.max(minimum, hourly > 0 ? hourly * elapsed(v) / 3600 : Number(v && v.amount || 0));
-  }
-  async function activeById(id){
-    const local = Array.isArray(window.active) ? window.active.find(x=>String(x.id)===String(id)) : null;
-    if(local) return local;
-    const data = await apiCall('/sessions/active');
-    const list = Array.isArray(data) ? data : (data.rows || []);
-    return list.find(x=>String(x.id)===String(id)) || null;
-  }
-  function closeSafeModal(){
-    const el = $('avtodromSafeFinishModal');
-    if(el) el.remove();
-    if(window.__avtodromSafeFinishTimer) clearInterval(window.__avtodromSafeFinishTimer);
-  }
-  window.v3OpenFinish = async function(id){
+
+  let studentsCache = [];
+  let studentSearchTimer = null;
+  let studentBound = false;
+
+  async function loadAllStudents(){
     try{
-      const v = await activeById(id);
-      if(!v) throw new Error('Faol sessiya topilmadi');
-      closeSafeModal();
-      const school = isSchool(v);
-      const root = document.createElement('div');
-      root.id = 'avtodromSafeFinishModal';
-      root.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(7,25,18,.55);display:grid;place-items:center;padding:18px';
-      const box = document.createElement('div');
-      box.style.cssText='width:min(620px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;padding:20px;font-family:Arial,sans-serif';
-      const idSafe = esc(String(id));
-      box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><h2 style="margin:0 0 5px">Tugatish</h2><div style="color:#6b7d76">'+esc(v.plate||'')+' · '+esc(v.model||'')+'</div></div><button id="sfClose" style="border:0;border-radius:10px;padding:10px 14px;background:#e8f7f0;color:#07854e;font-weight:700">Yopish</button></div>'+
-      '<div style="margin-top:14px;display:grid;grid-template-columns:repeat(2,1fr);gap:9px">'+
-      '<div style="background:#f5faf7;border-radius:10px;padding:12px"><small style="color:#6b7d76">O‘tgan vaqt</small><b id="sfTime" style="display:block;font-size:19px">'+duration(elapsed(v))+'</b></div>'+ 
-      '<div style="background:#f5faf7;border-radius:10px;padding:12px"><small style="color:#6b7d76">Summa</small><b id="sfAmount" style="display:block;font-size:19px;color:#07854e">'+money(amount(v))+'</b></div>'+ 
-      '<div style="background:#f5faf7;border-radius:10px;padding:12px"><small style="color:#6b7d76">Mijoz</small><b style="display:block">'+esc(v.student_name||v.driver_name||'Oddiy mijoz')+'</b></div>'+ 
-      '<div style="background:#f5faf7;border-radius:10px;padding:12px"><small style="color:#6b7d76">Toifa</small><b style="display:block">'+(school?'AVTOSHKOLA':'CHASTNIY')+'</b></div></div>'+ 
-      (school ? '<div style="margin-top:14px;padding:12px;border-radius:10px;background:#e8f7f0;color:#07854e;font-weight:700">Avtoshkola o‘quvchisi — BEPUL</div>' :
-      '<div style="margin-top:14px"><label style="font-weight:700;display:block;margin-bottom:6px">Yakuniy narx</label><input id="sfFinalAmount" type="number" min="0" step="100" value="'+Math.round(amount(v))+'" style="width:100%;padding:11px 12px;border:1px solid #d8e9e1;border-radius:10px;box-sizing:border-box"><label style="font-weight:700;display:block;margin:12px 0 6px">To‘lov turi</label><select id="sfMethod" style="width:100%;padding:11px 12px;border:1px solid #d8e9e1;border-radius:10px"><option value="cash">Naqd</option><option value="terminal">Terminal</option><option value="mixed">Aralash</option></select><div id="sfMixed" style="display:none;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px"><div><label style="font-weight:700;display:block;margin-bottom:6px">Naqd</label><input id="sfCash" type="number" min="0" value="0" style="width:100%;padding:11px 12px;border:1px solid #d8e9e1;border-radius:10px;box-sizing:border-box"></div><div><label style="font-weight:700;display:block;margin-bottom:6px">Terminal</label><input id="sfTerminal" type="number" min="0" value="0" style="width:100%;padding:11px 12px;border:1px solid #d8e9e1;border-radius:10px;box-sizing:border-box"></div></div></div>')+
-      '<div style="display:flex;gap:8px;margin-top:16px"><button id="sfConfirm" style="border:0;border-radius:10px;padding:11px 15px;background:#07854e;color:#fff;font-weight:700">Tugatishni tasdiqlash</button><button id="sfCancel" style="border:0;border-radius:10px;padding:11px 15px;background:#e8f7f0;color:#07854e;font-weight:700">Bekor</button></div><div id="sfError" style="color:#b42318;margin-top:9px"></div>';
-      root.appendChild(box); document.body.appendChild(root);
-      $('sfClose').onclick=closeSafeModal; $('sfCancel').onclick=closeSafeModal;
-      if(!school){
-        $('sfMethod').onchange=function(){ $('sfMixed').style.display=this.value==='mixed'?'grid':'none'; };
-        $('sfFinalAmount').oninput=function(){const m=$('sfMethod').value;if(m==='cash')$('sfCash').value=this.value;if(m==='terminal')$('sfTerminal').value=this.value;};
-        $('sfMethod').dispatchEvent(new Event('change'));
+      const data = await apiCall('/students');
+      studentsCache = (Array.isArray(data) ? data : (data.rows || data.students || []))
+        .slice()
+        .sort((a,b) => normalize(a.full_name).localeCompare(normalize(b.full_name),'uz',{sensitivity:'base'}));
+      return studentsCache;
+    }catch(error){
+      studentsCache = [];
+      return [];
+    }
+  }
+
+  function ensureStudentSearchUI(){
+    const select = byId('student');
+    if(!select) return null;
+
+    let input = byId('studentSearchInput');
+    if(!input){
+      input = document.createElement('input');
+      input.id = 'studentSearchInput';
+      input.type = 'search';
+      input.autocomplete = 'off';
+      input.placeholder = 'O‘quvchi ism-familiyasini yozing yoki tanlang';
+      input.setAttribute('list','studentSearchSuggestions');
+      input.style.marginBottom = '8px';
+
+      const list = document.createElement('datalist');
+      list.id = 'studentSearchSuggestions';
+
+      select.parentNode.insertBefore(input, select);
+      select.style.display = 'none';
+      select.setAttribute('aria-hidden','true');
+      select.tabIndex = -1;
+
+      if(!byId('studentId')){
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.id = 'studentId';
+        select.parentNode.appendChild(hidden);
       }
-      $('sfConfirm').onclick=async function(){
-        const err=$('sfError'); err.textContent=''; this.disabled=true;
-        try{
-          let finalAmount = school ? 0 : Math.max(0, Number($('sfFinalAmount').value||0));
-          let method = school ? 'cash' : $('sfMethod').value;
-          let cash=0, terminal=0;
-          if(school){cash=0;terminal=0;}
-          else if(method==='cash'){cash=finalAmount;terminal=0;}
-          else if(method==='terminal'){cash=0;terminal=finalAmount;}
-          else {cash=Number($('sfCash').value||0);terminal=Number($('sfTerminal').value||0);if(Math.abs(cash+terminal-finalAmount)>0.01) throw new Error('Naqd + terminal summasi yakuniy narxga teng bo‘lishi kerak');}
-          await apiCall('/sessions/'+encodeURIComponent(String(id))+'/finish',{method:'POST',body:JSON.stringify({amount:finalAmount,paymentMethod:method,cashAmount:cash,terminalAmount:terminal})});
-          closeSafeModal();
-          window.location.reload();
-        }catch(e){err.textContent=e && e.message ? e.message : 'Tugatishda xatolik';this.disabled=false;}
-      };
-      const tick=()=>{if($('sfTime'))$('sfTime').textContent=duration(elapsed(v));}; tick(); window.__avtodromSafeFinishTimer=setInterval(tick,1000);
-    }catch(e){ if(window.showToast) window.showToast(e.message||'Tugatish oynasi ochilmadi',true); }
-  };
-  window.v3InstructorDaily = async function(id){
-    try{
-      const date = typeof window.localDateISO==='function' ? window.localDateISO(0) : new Date().toISOString().slice(0,10);
-      const data = await apiCall('/instructors/'+encodeURIComponent(String(id))+'/daily?date='+encodeURIComponent(date));
-      const rows = Array.isArray(data && data.rows) ? data.rows : [];
-      const name = (data && data.instructor && data.instructor.full_name) || 'Instruktor';
-      const escCell = v => String(v ?? '').replace(/"/g,'""');
-      const lines = [];
-      lines.push(['#','Avtomobil','Rusumi','O‘quvchi/Mijoz','Avtoshkola','Guruh','Kirish','Tugash','Davomiylik','Summa','To‘lov turi'].map(x=>'"'+escCell(x)+'"').join(';'));
-      rows.forEach((r,i)=>{
-        lines.push([i+1,r.plate||'',r.model||'',r.student_name||r.driver_name||'Oddiy mijoz',r.school_name||'',r.group_name||'',r.started_at||'',r.finished_at||'',duration(r.duration_seconds),r.amount||0,r.payment_method||''].map(x=>'"'+escCell(x)+'"').join(';'));
+
+      if(!byId('studentSearchStatus')){
+        const status = document.createElement('div');
+        status.id = 'studentSearchStatus';
+        status.className = 'muted';
+        status.style.cssText = 'font-size:12px;margin-top:4px';
+        input.parentNode.appendChild(list);
+        input.parentNode.appendChild(status);
+      }else{
+        input.parentNode.appendChild(list);
+      }
+
+      input.addEventListener('input', () => {
+        clearTimeout(studentSearchTimer);
+        const value = input.value;
+        studentSearchTimer = setTimeout(() => searchAndApplyStudent(value), 180);
       });
-      const blob = new Blob(['\\ufeff'+lines.join('\\r\\n')],{type:'text/csv;charset=utf-8'});
-      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(name.replace(/[^\\p{L}\\p{N}]+/gu,'_')||'instruktor')+'-'+date+'.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1500);
-      if(window.showToast) window.showToast('1 kunlik Excel/CSV tayyor.');
-    }catch(e){ if(window.showToast) window.showToast(e.message||'Excel yuklanmadi.',true); }
-  };
+
+      input.addEventListener('change', () => searchAndApplyStudent(input.value));
+      input.addEventListener('blur', () => {
+        if(input.value.trim()) searchAndApplyStudent(input.value);
+      });
+    }
+
+    return input;
+  }
+
+  function renderStudentSuggestions(query){
+    const list = byId('studentSearchSuggestions');
+    if(!list) return;
+    const q = normalize(query);
+    const schoolId = String(byId('school')?.value || '');
+    const rows = studentsCache
+      .filter(s => !schoolId || String(s.school_id || '') === schoolId)
+      .filter(s => !q || normalize(s.full_name).includes(q))
+      .slice(0,100);
+
+    list.innerHTML = rows.map(s =>
+      '<option value="'+escapeHtml(s.full_name||'')+'" label="'+
+      escapeHtml((s.school_name||'')+' • '+(s.group_name||'')+' • '+Number(s.attendance_count||0)+' dars')+
+      '"></option>'
+    ).join('');
+
+    const status = byId('studentSearchStatus');
+    if(status){
+      status.textContent = q ? rows.length+' ta o‘quvchi topildi' : 'O‘quvchini yozing yoki ro‘yxatdan tanlang';
+    }
+  }
+
+  function showStudentCard(student){
+    const box = byId('studentBox');
+    if(!box || !student) return;
+    const attendance = Number(student.attendance_count || 0);
+    const badgeClass = attendance >= 12 ? 'blue' : attendance >= 6 ? 'red' : '';
+    box.innerHTML =
+      '<div class="attendance">'+
+        '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap">'+
+          '<div><b style="font-size:18px">'+escapeHtml(student.full_name||'')+'</b>'+\
+          '<div class="muted">'+escapeHtml(student.phone||'Telefon yo‘q')+'</div></div>'+\
+          '<span class="badge '+badgeClass+'">'+attendance+' marta qatnashgan</span>'+\
+        '</div>'+\
+        '<div class="attGrid">'+\
+          '<div class="att"><b>'+escapeHtml(student.school_name||'—')+'</b><span class="muted">Avtoshkola</span></div>'+\
+          '<div class="att"><b>'+escapeHtml(student.group_name||'—')+'</b><span class="muted">Guruh</span></div>'+\
+          '<div class="att"><b>'+escapeHtml(student.plate||'—')+'</b><span class="muted">Avtomobil</span></div>'+\
+          '<div class="att"><b>'+attendance+'</b><span class="muted">Kelgan dars</span></div>'+\
+        '</div>'+\
+      '</div>';
+  }
+
+  async function applyStudent(student){
+    if(!student) return;
+
+    const search = ensureStudentSearchUI();
+    if(search) search.value = student.full_name || '';
+
+    const select = byId('student');
+    const hidden = byId('studentId');
+    setSelectValue(select, student.id);
+    if(hidden) hidden.value = String(student.id || '');
+
+    const school = byId('school');
+    const group = byId('group');
+
+    if(school && student.school_id){
+      school.disabled = false;
+      setSelectValue(school, student.school_id);
+      if(typeof window.groupsForSchool === 'function'){
+        try{ await window.groupsForSchool(); }catch{}
+      }
+    }
+
+    if(group && student.group_id){
+      setSelectValue(group, student.group_id);
+      group.disabled = false;
+    }
+
+    showStudentCard(student);
+  }
+
+  async function searchAndApplyStudent(value){
+    const q = normalize(value);
+    renderStudentSuggestions(value);
+
+    const hidden = byId('studentId');
+    const select = byId('student');
+
+    if(!q){
+      if(hidden) hidden.value = '';
+      if(select) select.value = '';
+      clearStudentDetail();
+      return;
+    }
+
+    if(!studentsCache.length) await loadAllStudents();
+
+    const schoolId = String(byId('school')?.value || '');
+    const pool = studentsCache.filter(s => !schoolId || String(s.school_id || '') === schoolId);
+
+    const exact = pool.filter(s => normalize(s.full_name) === q);
+    const starts = pool.filter(s => normalize(s.full_name).startsWith(q));
+    const contains = pool.filter(s => normalize(s.full_name).includes(q));
+    const matches = exact.length ? exact : (starts.length ? starts : contains);
+
+    if(matches.length === 1){
+      await applyStudent(matches[0]);
+      return;
+    }
+
+    if(hidden) hidden.value = '';
+    if(matches.length > 1){
+      const status = byId('studentSearchStatus');
+      if(status) status.textContent = matches.length+' ta o‘quvchi topildi — ism-familiyani aniqroq yozing yoki ro‘yxatdan tanlang';
+    }
+  }
+
+  async function bindStudentRelation(){
+    if(studentBound) return;
+    const type = byId('type');
+    const student = byId('student');
+    if(!type || !student) return;
+
+    studentBound = true;
+    const search = ensureStudentSearchUI();
+
+    if(search) search.disabled = type.value !== 'school';
+    if(student) student.disabled = false;
+
+    await loadAllStudents();
+    renderStudentSuggestions(search?.value || '');
+
+    if(type){
+      type.addEventListener('change', async () => {
+        const schoolMode = type.value === 'school';
+        if(search) search.disabled = !schoolMode;
+        if(!schoolMode){
+          const hidden = byId('studentId');
+          if(hidden) hidden.value = '';
+          if(student) student.value = '';
+          if(search) search.value = '';
+          clearStudentDetail();
+        }else{
+          await loadAllStudents();
+          renderStudentSuggestions(search?.value || '');
+        }
+      });
+    }
+
+    byId('school')?.addEventListener('change', async () => {
+      if(type?.value !== 'school') return;
+      const currentSearch = byId('studentSearchInput')?.value || '';
+      if(currentSearch) await searchAndApplyStudent(currentSearch);
+      else renderStudentSuggestions('');
+    });
+  }
+
+  let instructorCache = [];
+  let instructorListenerBound = false;
+
+  async function loadInstructorRelation(){
+    try{
+      const data = await apiCall('/instructors');
+      instructorCache = Array.isArray(data) ? data : (data.items || data.instructors || data.rows || []);
+    }catch{
+      instructorCache = [];
+    }
+    ensureInstructorListener();
+  }
+
+  function parseInstructorPlate(value){
+    const raw = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    let m = raw.match(/^(\d{2})([A-Z])(\d{3})([A-Z]{2})$/);
+    if(m) return {region:m[1], body:m[2]+m[3]+m[4]};
+    m = raw.match(/^(\d{2})(\d{3}[A-Z]{3})$/);
+    if(m) return {region:m[1], body:m[2]};
+    m = raw.match(/^([A-Z])(\d{3})([A-Z]{2})$/);
+    if(m) return {region:'', body:m[1]+m[2]+m[3]};
+    m = raw.match(/^(\d{3})([A-Z]{3})$/);
+    if(m) return {region:'', body:raw};
+    return null;
+  }
+
+  function applyInstructorVehicle(instructor){
+    if(!instructor) return;
+
+    const model = byId('model');
+    const driver = byId('driver');
+    const region = byId('region');
+    const plate = byId('plateBody');
+
+    if(model && instructor.vehicle_model) model.value = instructor.vehicle_model;
+    if(driver && !driver.value.trim() && instructor.driver_name) driver.value = instructor.driver_name;
+
+    const parsed = parseInstructorPlate(instructor.vehicle_plate);
+    if(parsed){
+      if(region && parsed.region) setSelectValue(region, parsed.region);
+      if(plate && parsed.body) plate.value = parsed.body.toUpperCase().slice(0,6);
+      const err = byId('plateErr');
+      if(err) err.textContent = '';
+    }
+  }
+
+  function ensureInstructorListener(){
+    const select = byId('v3Instructor');
+    if(!select || instructorListenerBound) return;
+    instructorListenerBound = true;
+
+    const apply = () => {
+      const id = String(select.value || '');
+      const instructor = instructorCache.find(x => String(x.id) === id);
+      if(instructor) applyInstructorVehicle(instructor);
+    };
+
+    select.addEventListener('change', apply);
+    apply();
+  }
+
+  const nativeLoadInstructors = window.v3LoadInstructors;
+  if(typeof nativeLoadInstructors === 'function'){
+    window.v3LoadInstructors = async function(){
+      await nativeLoadInstructors.apply(this, arguments);
+      try{ await loadInstructorRelation(); }catch{}
+      setTimeout(ensureInstructorListener,0);
+    };
+  }else{
+    loadInstructorRelation();
+  }
+
+  async function boot(){
+    try{ await bindStudentRelation(); }catch{}
+    setTimeout(() => { try { ensureInstructorListener(); } catch {} }, 150);
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', boot, {once:true});
+  }else{
+    boot();
+  }
 })();
 <\/script>`;
 
@@ -123,16 +361,17 @@ export default async function handler(req,res){
     return res.end(JSON.stringify({error:'Method ruxsat etilmagan'}));
   }
   try{
-    const html = await readFile(frontendFile,'utf8');
-    const out = html.includes('id="avtodrom-static-safe-v1"') ? html : html.replace('</body>', PATCH+'</body>');
+    const html=await readFile(frontendFile,'utf8');
+    const out=html.includes('id="avtodrom-professional-relations-v1"') ? html : html.replace('</body>',PATCH+'</body>');
     res.statusCode=200;
     res.setHeader('Content-Type','text/html; charset=utf-8');
     res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, max-age=0');
     res.setHeader('Pragma','no-cache');
     res.setHeader('Expires','0');
-    res.setHeader('X-Avtodrom-Frontend','static-safe-v1');
+    res.setHeader('X-Avtodrom-Frontend','professional-relations-v1');
     return res.end(out);
-  }catch(e){
+  }catch(error){
+    console.error('FRONTEND SERVE ERROR:',error?.message||error);
     res.statusCode=500;
     res.setHeader('Content-Type','application/json; charset=utf-8');
     return res.end(JSON.stringify({error:'Frontend yuklanmadi'}));
