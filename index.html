@@ -1133,13 +1133,12 @@ table.tbl td b { font-weight: 700; }
 const API = '/api';
 const RESTORE = '/api/restore';
 const REGIONS = ['01','10','20','25','30','40','50','60','70','75','80','85','90','95'];
-const ADMIN_LOGIN = 'admin';
-const ADMIN_PASS = 'Admin@2026';
 const QUEUE_KEY = 'avtodrom_car_lesson_queue_v3';
 
 /* ===== HOLAT ===== */
 let token = localStorage.getItem('avtodrom_token') || '';
 let me = JSON.parse(localStorage.getItem('avtodrom_user') || 'null');
+let adminToken = sessionStorage.getItem('avtodrom_admin_token') || '';
 let active = [], frozen = [], schools = [], groups = [], students = [];
 let daily = null, finishTimers = {}, lessonQueue = [];
 
@@ -1203,6 +1202,19 @@ async function api(path, opt={}) {
   } finally { clearTimeout(t); }
 }
 
+/* ===== ADMIN API ===== */
+async function adminApi(path,opt={}) {
+  const ctrl=new AbortController(); const timer=setTimeout(()=>ctrl.abort(),15000);
+  try {
+    const headers={'Content-Type':'application/json',...(adminToken?{Authorization:'Bearer '+adminToken}:{}),...(opt.headers||{})};
+    const r=await fetch(API+'/admin'+path,{...opt,headers,signal:ctrl.signal});
+    const txt=await r.text(); let data={};
+    try{data=txt?JSON.parse(txt):{}}catch{data={error:txt||('Server xatosi: '+r.status)}}
+    if(!r.ok) throw Error(data.error||data.message||('Server xatosi: '+r.status));
+    return data;
+  } finally { clearTimeout(timer); }
+}
+
 /* ===== NAVBAT (QUEUE) ===== */
 function loadLessonQueue() { try { lessonQueue=JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]'); if(!Array.isArray(lessonQueue)) lessonQueue=[]; } catch { lessonQueue=[]; } }
 function saveLessonQueue() { localStorage.setItem(QUEUE_KEY, JSON.stringify(lessonQueue)); }
@@ -1260,7 +1272,7 @@ function saveLogin(x) {
   if(!x||!x.token) throw Error('Token qaytmadi.');
   token=x.token; me=x.user||null; localStorage.setItem('avtodrom_token',token); localStorage.setItem('avtodrom_user',JSON.stringify(me)); boot();
 }
-function logout() { localStorage.removeItem('avtodrom_token'); localStorage.removeItem('avtodrom_user'); sessionStorage.removeItem('avtodrom_admin'); location.reload(); }
+function logout() { localStorage.removeItem('avtodrom_token'); localStorage.removeItem('avtodrom_user'); sessionStorage.removeItem('avtodrom_admin'); sessionStorage.removeItem('avtodrom_admin_token'); adminToken=''; location.reload(); }
 function boot() {
   $('login').classList.add('hidden'); $('app').classList.remove('hidden');
   $('who').textContent = me?.username||me?.full_name||'Operator';
@@ -1480,20 +1492,19 @@ async function historySearch() {
 function openAdminGate() { $('adminErr').textContent=''; $('adminUser').value=''; $('adminPass').value=''; $('adminGate').classList.remove('hidden'); setTimeout(()=>$('adminUser')?.focus(),50); }
 function closeAdminGate() { $('adminGate').classList.add('hidden'); }
  $('adminLoginForm').addEventListener('submit', async e => {
-  e.preventDefault();
-  if($('adminUser').value.trim()!==ADMIN_LOGIN||$('adminPass').value!==ADMIN_PASS) { $('adminErr').textContent='Admin login yoki parol noto\'g\'ri.'; return; }
-  sessionStorage.setItem('avtodrom_admin','1'); closeAdminGate(); $('adminPanel').classList.remove('hidden'); await adminLoad();
+  e.preventDefault(); $('adminErr').textContent='';
+  const btn=e.target.querySelector('.btn'); btn?.classList.add('loading');
+  try {
+    const r=await fetch(API+'/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('adminUser').value.trim(),password:$('adminPass').value})});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok) throw Error(data.error||'Admin login ishlamadi');
+    if(data.admin?.role!=='admin'||!data.token) throw Error('Admin sessiyasi yaroqsiz');
+    adminToken=data.token; sessionStorage.setItem('avtodrom_admin_token',adminToken);
+    sessionStorage.setItem('avtodrom_admin','1'); closeAdminGate(); $('adminPanel').classList.remove('hidden'); await adminLoad();
+  } catch(x) { $('adminErr').textContent=x.message||'Admin login xatosi'; }
+  finally { btn?.classList.remove('loading'); }
 });
-function closeAdminPanel() { sessionStorage.removeItem('avtodrom_admin'); $('adminPanel').classList.add('hidden'); }
-
-/* ===== ADMIN YUKLASH ===== */
-async function adminLoad() {
-  try { schools=await api('/schools')||[]; } catch { schools=[]; }
-  try { groups=await api('/groups')||[]; } catch { groups=[]; }
-  try { students=await api('/students')||[]; } catch { students=[]; }
-  $('adSchools').textContent=schools.length; $('adGroups').textContent=groups.length; $('adStudents').textContent=students.length;
-  adminTab('dashboard');
-}
+function closeAdminPanel() { sessionStorage.removeItem('avtodrom_admin'); sessionStorage.removeItem('avtodrom_admin_token'); adminToken=''; $('adminPanel').classList.add('hidden'); }
 
 /* ===== ADMIN TABLAR ===== */
 function adminTab(t) {
@@ -1569,15 +1580,15 @@ function schoolModal(id) {
 async function saveSchool(e,id) {
   e.preventDefault(); const err=$('schErr'); if(err) err.textContent='';
   try {
-    if(id) await api('/schools/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify({name:$('schName').value.trim()})});
-    else await api('/schools',{method:'POST',body:JSON.stringify({name:$('schName').value.trim()})});
+    if(id) await adminApi('/schools/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify({name:$('schName').value.trim()})});
+    else await adminApi('/schools',{method:'POST',body:JSON.stringify({name:$('schName').value.trim()})});
     showToast('Saqlandi.'); closeModal(); schools=await api('/schools')||[]; renderAdminSchools();
   } catch(x) { if(err) err.textContent=x.message; }
   return false;
 }
 async function deleteSchool(id) {
   if(!confirm('Avtoshkolani o\'chirmoqchimisiz? Barcha guruh va o\'quvchilar ham o\'chadi.')) return;
-  try { await api('/schools/'+encodeURIComponent(id),{method:'DELETE'}); showToast('O\'chirildi.'); schools=await api('/schools')||[]; renderAdminSchools(); } catch(e) { showToast(e.message,true); }
+  try { await adminApi('/schools/'+encodeURIComponent(id),{method:'DELETE'}); showToast('O\'chirildi.'); schools=await api('/schools')||[]; renderAdminSchools(); } catch(e) { showToast(e.message,true); }
 }
 
 /* ===== ADMIN O'QUVCHILAR ===== */
@@ -1595,7 +1606,7 @@ function adminRenderStudents() {
 async function adminStudentDetail(sid) {
   const c=$('adminStudentDetail'); if(!c) return; c.classList.remove('hidden');
   try {
-    const data=await api('/students/'+encodeURIComponent(sid)+'/history');
+    const data=await adminApi('/students/'+encodeURIComponent(sid));
     const s=data.student||students.find(x=>x.id===sid)||{};
     const rows=data.rows||[];
     c.innerHTML='<div class="panel student-detail"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><div><h3 style="margin:0">'+esc(s.full_name)+'</h3><p class="text-muted" style="margin:4px 0 0">'+esc(s.phone||'')+' &bull; '+esc(s.school_name||'')+' &bull; '+esc(s.group_name||'')+'</p></div><div class="actions-row" style="margin:0"><button class="btn btn-light" type="button" onclick="studentModal(\''+esc(sid)+'\')"><i class="fa-solid fa-pen"></i> Tahrirlash</button><button class="btn btn-danger" type="button" onclick="deleteStudent(\''+esc(sid)+'\')"><i class="fa-solid fa-trash"></i> O\'chirish</button><button class="btn btn-ghost" type="button" onclick="$(\'adminStudentDetail\').classList.add(\'hidden\')"><i class="fa-solid fa-xmark"></i></button></div></div><div class="text-muted" style="margin-top:12px;font-size:12px">Jami qatnashgan: <b>'+(rows.length)+'</b> ta dars</div>'+tableHTML(rows)+'</div>';
@@ -1610,15 +1621,15 @@ async function saveStudent(e,id) {
   e.preventDefault(); const err=$('stErr'); if(err) err.textContent='';
   const payload={full_name:$('stName').value.trim(),phone:$('stPhone').value.trim(),birth_date:$('stBirth').value,plate:$('stPlate').value.trim()};
   try {
-    if(id) await api('/students/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify(payload)});
-    else { payload.school_id=$('school')?.value||null; payload.group_id=$('group')?.value||null; await api('/students',{method:'POST',body:JSON.stringify(payload)}); }
+    if(id) await adminApi('/students/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify(payload)});
+    else { payload.school_id=$('school')?.value||null; payload.group_id=$('group')?.value||null; await adminApi('/students',{method:'POST',body:JSON.stringify(payload)}); }
     showToast('Saqlandi.'); closeModal(); students=await api('/students')||[]; adminRenderStudents();
   } catch(x) { if(err) err.textContent=x.message; }
   return false;
 }
 async function deleteStudent(id) {
   if(!confirm('O\'quvchini o\'chirmoqchimisiz?')) return;
-  try { await api('/students/'+encodeURIComponent(id),{method:'DELETE'}); showToast('O\'chirildi.'); students=await api('/students')||[]; adminRenderStudents(); $('adminStudentDetail')?.classList.add('hidden'); } catch(e) { showToast(e.message,true); }
+  try { await adminApi('/students/'+encodeURIComponent(id),{method:'DELETE'}); showToast('O\'chirildi.'); students=await api('/students')||[]; adminRenderStudents(); $('adminStudentDetail')?.classList.add('hidden'); } catch(e) { showToast(e.message,true); }
 }
 
 /* ===== V3 INSTRUKTORLAR ===== */
