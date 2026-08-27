@@ -86,7 +86,9 @@ async function save(req,res,ownerKey,id=null){
       }
       profileId=crypto.randomUUID();
       const parts=fullName.split(/\s+/).filter(Boolean);
-      await c.query(`INSERT INTO profiles(id,first_name,last_name,phone,role,created_at,updated_at) VALUES($1,$2,$3,$4,'instructor',NOW(),NOW())`,[profileId,parts.shift()||fullName,parts.join(' ')||null,phone]);
+      const tg=await c.query(`SELECT COALESCE(MIN(telegram_id),0)-1 AS telegram_id FROM profiles`);
+      const telegramId=Number(tg.rows[0]?.telegram_id ?? -1);
+      await c.query(`INSERT INTO profiles(id,telegram_id,first_name,last_name,phone,role,created_at,updated_at) VALUES($1,$2,$3,$4,$5,'instructor',NOW(),NOW())`,[profileId,telegramId,parts.shift()||fullName,parts.join(' ')||null,phone]);
       await c.query(`INSERT INTO instructors(id,profile_id,active,approved,approved_at,approved_by,bio,category,experience_years,settings,created_at,updated_at) VALUES($1,$2,$3,true,NOW(),$4,$5,$6,$7,$8::jsonb,NOW(),NOW())`,[instructorId,profileId,active,ownerKey,fullName,b.category||null,Math.max(0,Math.floor(num(b.experienceYears))),JSON.stringify({owner_key:ownerKey,school_id:rel.school_id,group_id:rel.group_id})]);
     }else{
       const cur=await c.query(`SELECT id,profile_id FROM instructors WHERE id=$1 FOR UPDATE`,[instructorId]);
