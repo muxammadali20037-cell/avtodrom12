@@ -1,0 +1,1 @@
+Stable frontend baseline will be restored in the next Git object commit.
