@@ -1404,7 +1404,16 @@ async function request(path, opt, kind) {
   } finally { clearTimeout(timer); }
 }
 const api = (path, opt) => request(path, opt, 'user');
-const adminApi = (path, opt) => request('/admin' + path, opt, 'admin');
+const adminApi = (path, opt) => request('/admin' + path, Object.assign({}, opt, {
+  headers: Object.assign(
+    {},
+    (opt && opt.headers) || {},
+    /* Admin paneli operator sessiyasi ichidan ochiladi. Backend shu token
+       orqali qaysi akkauntning ma'lumoti bilan ishlayotganini aniqlaydi,
+       shunda har bir akkaunt faqat o'z o'quvchilarini ko'radi. */
+    STATE.auth.token ? { 'X-Operator-Token': STATE.auth.token } : {}
+  )
+}), 'admin');
 const jsonBody = obj => JSON.stringify(obj);
 
 /* ===================== 6. AUTH ===================== */
