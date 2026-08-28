@@ -92,13 +92,14 @@ async function listStudents(req,owner){
   const add=(v,sql)=>{p.push(v);w+=` AND ${sql.replace('#',String(p.length))}`;};
   if(u.searchParams.get('schoolId')) add(u.searchParams.get('schoolId'),'st.school_id=$#');
   if(u.searchParams.get('groupId')) add(u.searchParams.get('groupId'),'st.group_id=$#');
-  const r=await pool.query(`SELECT st.*,s.name school_name,g.name group_name,COALESCE(st.manual_attendance_count,0)+(SELECT COUNT(*) FROM sessions se WHERE se.student_id=st.id AND se.status='completed')::int attendance_count FROM students st JOIN driving_schools s ON s.id=st.school_id LEFT JOIN school_groups g ON g.id=st.group_id WHERE ${w} ORDER BY LOWER(st.full_name),st.created_at DESC`,p); return r.rows;
+  /* Dars soni endi hisoblanmaydi - bazadagi yagona ustundan o'qiladi */
+  const r=await pool.query(`SELECT st.*,COALESCE(st.attendance_count,0)::int attendance_count,s.name school_name,g.name group_name FROM students st JOIN driving_schools s ON s.id=st.school_id LEFT JOIN school_groups g ON g.id=st.group_id WHERE ${w} ORDER BY LOWER(st.full_name),st.created_at DESC`,p); return r.rows;
 }
 
-/* Qo'lda kiritiladigan dars sonini o'qish. Yuborilmagan bo'lsa null qaytadi,
-   shunda UPDATE mavjud qiymatni o'zgartirmaydi. */
+/* Darslar soni - YAGONA qiymat (students.attendance_count).
+   Yuborilmagan bo'lsa null qaytadi, shunda UPDATE mavjud qiymatga tegmaydi. */
 function attendanceOf(b){
-  const v = b.manualAttendanceCount ?? b.manual_attendance_count ?? b.attendance_count;
+  const v = b.attendance_count ?? b.attendanceCount ?? b.manual_attendance_count ?? b.manualAttendanceCount;
   if (v === undefined || v === null || v === '') return null;
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null;
@@ -130,7 +131,7 @@ async function handleResource(req,res,resource,id,owner){
       if(!own.rows[0])return send(res,404,{error:'Avtoshkola topilmadi'});
       /* YANGI: qo'lda kiritilgan dars soni ham saqlanadi */
       const attendance=attendanceOf(b)??0;
-      const r=await pool.query(`INSERT INTO students(owner_key,school_id,group_id,full_name,phone,birth_date,plate,notes,active,manual_attendance_count) VALUES($1,$2,$3,$4,$5,$6,$7,$8,true,$9) RETURNING *`,[owner,schoolId,groupId,name,b.phone||null,b.birthDate||b.birth_date||null,b.plate||null,b.notes||null,attendance]);
+      const r=await pool.query(`INSERT INTO students(owner_key,school_id,group_id,full_name,phone,birth_date,plate,notes,active,attendance_count) VALUES($1,$2,$3,$4,$5,$6,$7,$8,true,$9) RETURNING *`,[owner,schoolId,groupId,name,b.phone||null,b.birthDate||b.birth_date||null,b.plate||null,b.notes||null,attendance]);
       return send(res,201,r.rows[0]);
     }
     if(!id)return send(res,400,{error:'ID kerak'});
@@ -140,7 +141,7 @@ async function handleResource(req,res,resource,id,owner){
     if(!name)return send(res,400,{error:'O‘quvchi ismi kerak'});
     const attendance=attendanceOf(b);
     const activeFlag=b.active===undefined?null:(b.active!==false);
-    const r=await pool.query(`UPDATE students SET full_name=$1,phone=$2,birth_date=$3,plate=$4,notes=$5,group_id=$6,school_id=COALESCE($7,school_id),manual_attendance_count=COALESCE($8,manual_attendance_count),active=COALESCE($9,active) WHERE id=$10 AND owner_key=$11 RETURNING *`,[name,b.phone||null,b.birthDate||b.birth_date||null,b.plate||null,b.notes||null,b.groupId||b.group_id||null,b.schoolId||b.school_id||null,attendance,activeFlag,id,owner]);
+    const r=await pool.query(`UPDATE students SET full_name=$1,phone=$2,birth_date=$3,plate=$4,notes=$5,group_id=$6,school_id=COALESCE($7,school_id),attendance_count=COALESCE($8,attendance_count),active=COALESCE($9,active) WHERE id=$10 AND owner_key=$11 RETURNING *`,[name,b.phone||null,b.birthDate||b.birth_date||null,b.plate||null,b.notes||null,b.groupId||b.group_id||null,b.schoolId||b.school_id||null,attendance,activeFlag,id,owner]);
     return r.rows[0]?send(res,200,r.rows[0]):send(res,404,{error:'O‘quvchi topilmadi'});
   }
   if(resource==='instructors'){
