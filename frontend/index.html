@@ -870,11 +870,6 @@ table.tbl td b { font-weight: 700; }
                 <input id="model" autocomplete="off" placeholder="Chevrolet Cobalt">
               </div>
 
-              <div id="driverField">
-                <label class="field-label muted-label" for="driver"><i class="fa-regular fa-user" aria-hidden="true"></i> Haydovchi</label>
-                <input id="driver" autocomplete="off" placeholder="Ism familiya">
-              </div>
-
               <div class="span-2">
                 <label class="field-label muted-label"><i class="fa-regular fa-hourglass" aria-hidden="true"></i> Foydalanish soati <span class="text-muted" style="font-weight:500">(1 soat = 1 dars)</span></label>
                 <div class="seg" id="hourSeg" role="group" aria-label="Foydalanish soati">
@@ -1821,7 +1816,6 @@ const Add = {
     });
     const isSchool = STATE.form.customerType === 'school';
     $('studentBlock').classList.toggle('hidden', !isSchool);
-    $('driverField').classList.toggle('hidden', isSchool);
     if (!isSchool) {
       STATE.form.student = null;
       if (this.comboStudent) this.comboStudent.clear(true);
@@ -1896,7 +1890,8 @@ const Add = {
       plate: body,
       plateBody: body,
       model: $('model').value.trim(),
-      driverName: type === 'school' ? (student ? stName(student) : '') : $('driver').value.trim(),
+      /* Oddiy mijoz uchun ism-familiya olinmaydi — faqat avtoshkola o'quvchisi uchun */
+      driverName: type === 'school' && student ? stName(student) : '',
       schoolId: schoolId || null,
       groupId: groupId || null,
       studentId: student ? student.id : null
@@ -2235,8 +2230,12 @@ function sessionInstructor(v) {
   const ins = id ? Data.instructorById(id) : null;
   return ins ? insName(ins) : '';
 }
+/* Faqat avtoshkola o'quvchisining ismi ko'rsatiladi.
+   Oddiy mijozdan ism-familiya olinmaydi, shuning uchun avtomobilga ilgari
+   biriktirilgan eski haydovchi ismi ham chiqarilmaydi. */
 function sessionPerson(v) {
-  return v.student_name || v.studentName || v.driver_name || v.driverName || getMeta(v.id).studentName || '';
+  if (!isSchoolSession(v)) return '';
+  return v.student_name || v.studentName || getMeta(v.id).studentName || '';
 }
 function isSchoolSession(v) {
   return !!(v.student_id || v.studentId || v.student_name || v.school_id || v.school_name || getMeta(v.id).customerType === 'school');
