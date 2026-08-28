@@ -22,12 +22,54 @@ function verifyAdmin(req){
   try{const p=jwt.verify(h.slice(7),JWT_SECRET);return p?.role==='admin'?p:null;}catch{return null;}
 }
 
-async function login(req,res){
-  if(!JWT_SECRET||!ADMIN_USERNAME||!ADMIN_PASSWORD) return send(res,503,{error:'Admin authentication sozlanmagan'});
-  const b=bodyOf(req); const u=String(b.username||'').trim(); const p=String(b.password||'');
-  if(u.toLowerCase()!==ADMIN_USERNAME.toLowerCase()||p!==ADMIN_PASSWORD) return send(res,401,{error:'Admin login yoki parol noto‘g‘ri'});
-  const token=jwt.sign({sub:'admin',role:'admin',username:ADMIN_USERNAME},JWT_SECRET,{expiresIn:'8h'});
-  return send(res,200,{token,admin:{username:ADMIN_USERNAME,role:'admin'}});
+/* =============================================================================
+   PATCH: api/admin-auth-v2.js  —  login() funksiyasini shu bilan almashtiring.
+
+   Nima o'zgaradi:
+   1. ENV qiymatlari trim qilinadi. Vercel'ga parol nusxalanganda oxiriga
+      ko'rinmas bo'sh joy yoki yangi qator tushib qolishi juda tez-tez uchraydi;
+      hozirgi kod qat'iy (===) solishtirgani uchun bu 401 beradi.
+   2. Xato sababi aniq aytiladi: login xatomi yoki parol xatomi.
+      Parolning o'zi hech qayerda qaytarilmaydi.
+   3. Diagnostika uchun serverga log yoziladi (uzunliklar, qiymatlar emas).
+   ============================================================================= */
+
+async function login(req, res) {
+  const ENV_USER = String(ADMIN_USERNAME || '').trim();
+  const ENV_PASS = String(ADMIN_PASSWORD || '').trim();
+
+  if (!JWT_SECRET || !ENV_USER || !ENV_PASS) {
+    console.error('ADMIN LOGIN: env yetishmayapti', {
+      jwt: !!JWT_SECRET, user: !!ENV_USER, pass: !!ENV_PASS
+    });
+    return send(res, 503, {
+      error: 'Admin authentication sozlanmagan. Vercel ENV: JWT_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD'
+    });
+  }
+
+  const body = bodyOf(req);
+  const username = String(body.username || '').trim();
+  const password = String(body.password || '').trim();
+
+  if (username.toLowerCase() !== ENV_USER.toLowerCase()) {
+    console.warn('ADMIN LOGIN: login mos kelmadi', {
+      kiritilgan_uzunlik: username.length, env_uzunlik: ENV_USER.length
+    });
+    return send(res, 401, { error: 'Admin login noto‘g‘ri' });
+  }
+  if (password !== ENV_PASS) {
+    console.warn('ADMIN LOGIN: parol mos kelmadi', {
+      kiritilgan_uzunlik: password.length, env_uzunlik: ENV_PASS.length
+    });
+    return send(res, 401, { error: 'Admin parol noto‘g‘ri' });
+  }
+
+  const token = jwt.sign(
+    { sub: 'admin', role: 'admin', username: ENV_USER },
+    JWT_SECRET,
+    { expiresIn: '8h' }
+  );
+  return send(res, 200, { token, admin: { username: ENV_USER, role: 'admin' } });
 }
 
 async function listSchools(){
