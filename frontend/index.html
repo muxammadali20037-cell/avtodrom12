@@ -1165,6 +1165,18 @@ const localDateISO = (off = 0) => { const d = new Date(), t = new Date(d.getFull
 const fmtDate = v => { if (!v) return '—'; const p = String(v).split('-'); return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : v; };
 const debounce = (fn, ms) => { let t; return function () { const a = arguments, c = this; clearTimeout(t); t = setTimeout(() => fn.apply(c, a), ms); }; };
 const lower = s => String(s === null || s === undefined ? '' : s).toLowerCase();
+/* <input type="date"> faqat "yyyy-MM-dd" ni qabul qiladi.
+   Postgres DATE ustuni JSON'da "2026-08-02T00:00:00.000Z" ko'rinishida kelishi
+   mumkin - o'shanda maydon bo'sh qolib, saqlaganda sana yo'qolardi. */
+const dateInput = v => {
+  if (!v) return '';
+  const str = String(v);
+  const m = str.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return '';
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+};
 
 /* --- Yagona kanonik plate normalizatsiyasi (butun loyihada shu ishlatiladi) --- */
 const normalizePlate = p => String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
@@ -1205,6 +1217,7 @@ const STATE = {
   admin: { token: '', username: '' },
   schools: [], groups: [], students: [], instructors: [],
   studentsLoaded: false, studentsLoadFailed: false,
+  adminStudents: null,
   active: [], frozen: [], queue: [], daily: null,
   activeFilter: 'all', activeQuery: '',
   page: 'add',
@@ -1683,7 +1696,11 @@ const Data = {
     const g = STATE.groups.find(x => String(x.id) === String(id));
     return g ? (g.name || g.title || '') : '';
   },
-  studentById(id) { return STATE.students.find(x => String(x.id) === String(id)) || null; },
+  studentById(id) {
+    return STATE.students.find(x => String(x.id) === String(id))
+      || (STATE.adminStudents || []).find(x => String(x.id) === String(id))
+      || null;
+  },
   instructorById(id) { return STATE.instructors.find(x => String(x.id) === String(id)) || null; },
   /* O'quvchining bugungi darslari — kunlik hisobot ma'lumotidan (server manbasi) */
   todayLessons(studentId) {
@@ -2585,7 +2602,7 @@ const Frozen = {
     } catch (e) {
       if (!silent) toast(e.message, 'error');
       const host = $('frozenList');
-      if (host && !STATE.frozen.length) host.innerHTML = emptyState('fa-triangle-exclamation', 'Yuklanmadi', e.message, true);
+      if (host && !STATE.frozen.length) host.innerHTML = emptyState('fa-triangle-exclamation', 'Yuklanmadi', e.status === 404 ? "Bu o'quvchi bazada topilmadi - ehtimol o'chirilgan. Ro'yxatni yangilang." : e.message, true);
     }
   },
   render() {
@@ -3032,7 +3049,7 @@ const Admin = {
     const c = $('adminContent');
     if (tab === 'dashboard') { c.innerHTML = this.dashboardHTML(); this.realtime(); return; }
     if (tab === 'schools') { c.innerHTML = this.schoolsHTML(); this.renderSchools(); return; }
-    if (tab === 'students') { c.innerHTML = this.studentsHTML(); this.renderStudents(); return; }
+    if (tab === 'students') { c.innerHTML = this.studentsHTML(); this.renderStudents(); this.loadStudents(true); return; }
     if (tab === 'instructors') {
       c.innerHTML = '<div class="page-header"><div><h2>Instruktorlar</h2><p class="text-muted">Qo\'shish, tahrirlash, avtomobil biriktirish</p></div>'
         + '<div class="header-actions"><button class="btn btn-light" type="button" data-act="instructorBulk"><i class="fa-solid fa-list" aria-hidden="true"></i> Ommaviy</button>'
@@ -3047,7 +3064,7 @@ const Admin = {
   refreshCounters() {
     $('adSchools').textContent = STATE.schools.length;
     $('adGroups').textContent = STATE.groups.length;
-    $('adStudents').textContent = STATE.students.length;
+    $('adStudents').textContent = (STATE.adminStudents || STATE.students).length;
   },
 
   dashboardHTML() {
@@ -3231,6 +3248,26 @@ const Admin = {
   },
 
   /* --- O'quvchilar --- */
+  async loadStudents(silent) {
+    /* Admin paneli o'z ro'yxatini admin endpointidan oladi. Operator ro'yxatida
+       o'chirilgan o'quvchilar qolib ketishi mumkin - ularni bosganda 404 chiqardi. */
+    try {
+      const r = await adminApi('/students');
+      STATE.adminStudents = Array.isArray(r) ? r : (r && r.rows) || [];
+    } catch (e) {
+      STATE.adminStudents = null;
+      if (!silent) console.error('[admin students]', e.technical);
+    }
+    Admin.renderStudents();
+    Admin.refreshCounters();
+  },
+  studentList() {
+    /* Admin ro'yxati bo'sh yoki yuklanmagan bo'lsa operator ro'yxatiga qaytamiz,
+       shunda panel hech qachon bo'sh qolib ketmaydi. */
+    const admin = Array.isArray(STATE.adminStudents) ? STATE.adminStudents : [];
+    const list = admin.length ? admin : STATE.students;
+    return list.filter(x => x.active !== false && x.status !== 'inactive');
+  },
   studentsHTML() {
     return '<div class="page-header"><div><h2>O\'quvchilar</h2><p class="text-muted">Ism, telefon yoki guruh bo\'yicha qidiring</p></div>'
       + '<div class="header-actions"><button class="btn btn-light" type="button" data-act="exportStudents"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Excel export</button>'
@@ -3245,13 +3282,14 @@ const Admin = {
     const host = $('adminStudents');
     if (!host) return;
     const q = lower($('adminStudentQ') ? $('adminStudentQ').value : '').trim();
-    const list = STATE.students.filter(s => {
+    const all = Admin.studentList();
+    const list = all.filter(s => {
       if (!q) return true;
       return lower([stName(s), s.phone, s.plate, s.group_name, s.school_name].filter(Boolean).join(' ')).indexOf(q) >= 0;
     }).slice(0, 200);
-    if (!STATE.students.length) { host.innerHTML = emptyState('fa-graduation-cap', "O'quvchi yo'q", "Excel import yoki \"O'quvchi qo'shish\" orqali kiriting."); return; }
+    if (!all.length) { host.innerHTML = emptyState('fa-graduation-cap', "O'quvchi yo'q", "Excel import yoki \"O'quvchi qo'shish\" orqali kiriting."); return; }
     if (!list.length) { host.innerHTML = emptyState('fa-magnifying-glass', "O'quvchi topilmadi", 'Boshqa so\'z bilan qidiring.'); return; }
-    host.innerHTML = '<div class="text-muted" style="font-size:12px;margin-bottom:8px">Ko\'rsatilmoqda: ' + list.length + ' / ' + STATE.students.length + '</div>'
+    host.innerHTML = '<div class="text-muted" style="font-size:12px;margin-bottom:8px">Ko\'rsatilmoqda: ' + list.length + ' / ' + all.length + '</div>'
       + list.map(s => {
         const att = num(s.attendance_count);
         const cls = att >= 12 ? 'blue' : att >= 6 ? 'red' : 'green';
@@ -3261,6 +3299,7 @@ const Admin = {
           + '<div class="text-muted" style="font-size:12px">' + esc([s.phone, s.school_name || Data.schoolName(s.school_id), s.group_name || Data.groupName(s.group_id)].filter(Boolean).join(' • ')) + '</div></div>'
           + '<div style="display:flex;gap:8px;align-items:center">'
           + '<span class="badge badge-' + cls + '">' + att + ' dars</span>'
+          + '<button class="btn btn-green btn-sm" type="button" data-act="exportStudentSessions" data-id="' + esc(s.id) + '" data-stop="1" aria-label="Excel yuklab olish" title="Excel yuklab olish"><i class="fa-solid fa-file-excel" aria-hidden="true"></i></button>'
           + '<button class="btn btn-light btn-sm" type="button" data-act="studentModal" data-id="' + esc(s.id) + '" data-stop="1" aria-label="Tahrirlash"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>'
           + '<button class="btn btn-danger btn-sm" type="button" data-act="studentDelete" data-id="' + esc(s.id) + '" data-stop="1" aria-label="O\'chirish"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>'
           + '</div></div></div>';
@@ -3314,7 +3353,7 @@ const Admin = {
       + '<div><label class="field-label" for="stGroup">Guruh</label><select id="stGroup"><option value="">Tanlanmagan</option>'
       + STATE.groups.filter(g => String(g.school_id || g.schoolId) === String(schoolId)).map(g => '<option value="' + esc(g.id) + '"' + (String(s && (s.group_id || s.groupId)) === String(g.id) ? ' selected' : '') + '>' + esc(g.name) + '</option>').join('')
       + '</select></div>'
-      + '<div><label class="field-label" for="stBirth">Tug\'ilgan sana</label><input id="stBirth" type="date" value="' + esc((s && (s.birth_date || s.birthDate)) || '') + '"></div>'
+      + '<div><label class="field-label" for="stBirth">Tug\'ilgan sana</label><input id="stBirth" type="date" value="' + esc(dateInput(s && (s.birth_date || s.birthDate))) + '"></div>'
       + '<div><label class="field-label" for="stPlate">Avtomobil</label><input id="stPlate" value="' + esc(s && s.plate) + '" placeholder="01 111 AAA"></div>'
       + '<div><label class="field-label" for="stAtt">Qatnashgan darslar</label><input id="stAtt" type="number" min="0" value="' + num(s && s.attendance_count) + '"></div>'
       + '<div><label class="field-label" for="stStatus">Holati</label><select id="stStatus">'
@@ -3366,7 +3405,7 @@ const Admin = {
         toast('Saqlandi.');
         /* Operator panelidagi kesh ham yangilanadi: o'quvchi combobox,
            tanlangan o'quvchi kartasi va admin ro'yxati bir xil qiymatni ko'rsatadi */
-        await Data.reloadStudents();
+        await Promise.all([Data.reloadStudents(), Admin.loadStudents(true)]);
         Add.syncStudentSource();
         if (STATE.form.student && String(STATE.form.student.id) === String(id)) {
           STATE.form.student = Data.studentById(id) || STATE.form.student;
@@ -3390,8 +3429,7 @@ const Admin = {
     try {
       await adminApi('/students/' + encodeURIComponent(id), { method: 'DELETE' });
       toast("O'chirildi.");
-      await Data.reloadStudents();
-      this.renderStudents();
+      await Promise.all([Data.reloadStudents(), Admin.loadStudents(true)]);
       const d = $('adminStudentDetail'); if (d) d.innerHTML = '';
       this.refreshCounters();
     } catch (e) { toast(e.message, 'error'); }
@@ -3457,11 +3495,20 @@ const Admin = {
 
   /* --- Bitta o'quvchining tashriflari Excel --- */
   detail: null,
-  exportStudentSessions(sid) {
-    const d = Admin.detail;
-    if (!d || String(d.id) !== String(sid)) { toast("Avval o'quvchi kartochkasini oching.", 'warn'); return; }
+  async exportStudentSessions(sid, btn) {
+    let d = Admin.detail;
+    /* Kartochka ochilmagan bo'lsa — ma'lumotni shu yerda yuklaymiz */
+    if (!d || String(d.id) !== String(sid)) {
+      await withBusy('stExport:' + sid, btn, async () => {
+        try {
+          const data = await adminApi('/students/' + encodeURIComponent(sid));
+          d = { id: sid, student: (data && data.student) || Data.studentById(sid) || {}, rows: (data && data.rows) || [] };
+        } catch (e) { toast(e.message, 'error'); d = null; }
+      });
+      if (!d) return;
+    }
     const rows = d.rows || [];
-    if (!rows.length) { toast("Bu o'quvchida tashrif yozuvi yo'q.", 'warn'); return; }
+    if (!rows.length) { toast("Bu o'quvchida hali tashrif yozuvi yo'q.", 'warn'); return; }
     const head = ['Sana', 'Kelgan vaqt', 'Ketgan vaqt', 'Avtodromda (soat:min:sek)', 'Daqiqa', 'Dars',
       'Avtomobil raqami', 'Rusumi', 'Avtoshkola', 'Guruh', 'To\'lov'];
     const body = rows.map(r => {
@@ -3631,8 +3678,7 @@ const Admin = {
       }
       if (prog) prog.innerHTML = '<b>' + done + '</b> ta qo\'shildi, <b>' + failed + '</b> ta xato.';
       toast(done + " ta o'quvchi qo'shildi" + (failed ? ', ' + failed + ' ta xato' : '') + '.', failed ? 'warn' : 'ok');
-      await Data.reloadStudents();
-      Admin.renderStudents();
+      await Promise.all([Data.reloadStudents(), Admin.loadStudents(true)]);
       Admin.refreshCounters();
       setTimeout(closeModal, 1400);
     });
@@ -3906,9 +3952,9 @@ const ACTIONS = {
   studentsBulk: () => Admin.studentsBulkModal(),
   studentsBulkPreview: () => Admin.studentsBulkPreview(),
   studentsBulkRun: d => Admin.studentsBulkRun(d.school, d.group),
-  exportStudentSessions: d => Admin.exportStudentSessions(d.id),
+  exportStudentSessions: (d, el) => Admin.exportStudentSessions(d.id, el),
   closeStudentDetail: () => { const el = $('adminStudentDetail'); if (el) el.innerHTML = ''; },
-  reloadStudents: async () => { await Data.reloadStudents(); Admin.renderStudents(); toast('Yangilandi.'); },
+  reloadStudents: async () => { await Promise.all([Data.reloadStudents(), Admin.loadStudents(true)]); toast('Yangilandi.'); },
 
   /* --- excel --- */
   exportStudents: () => Admin.exportStudents(),
