@@ -782,6 +782,105 @@ app.get('/api/admin/students/:id', adminAuth, async (req, res) => {
   res.json({ student: sr.rows[0], rows: rows.rows });
 });
 
+/* ==========================================================================
+   BIR MARTALIK MIGRATSIYA — darslar uchun yagona hisoblagich.
+   Neon konsoliga kirish imkoni bo'lmaganda ishlatiladi: ilova o'z ulanishi
+   orqali bajaradi. Faqat admin tokeni bilan chaqiriladi va ikki marta
+   bajarilmaydi (avtodrom_migrations jadvali orqali kuzatiladi).
+   ========================================================================== */
+const LESSONS_MIGRATION = 'lessons_single_counter_v1';
+
+app.post('/api/maintenance/lessons-migration', adminAuth, async (req, res) => {
+  const c = await pool.connect();
+  try {
+    await c.query(`CREATE TABLE IF NOT EXISTS avtodrom_migrations(
+      name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+
+    const done = await c.query(`SELECT applied_at FROM avtodrom_migrations WHERE name=$1`, [LESSONS_MIGRATION]);
+    if (done.rows[0]) {
+      return res.json({
+        ok: true, already_applied: true, applied_at: done.rows[0].applied_at,
+        message: 'Migratsiya avval bajarilgan. Qayta bajarilmadi.'
+      });
+    }
+
+    await c.query('BEGIN');
+
+    /* 1. Ustunlar */
+    await c.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS attendance_count integer NOT NULL DEFAULT 0`);
+    await c.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS manual_attendance_count integer NOT NULL DEFAULT 0`);
+    await c.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS lessons_counted integer NOT NULL DEFAULT 0`);
+
+    /* 2. Hozirgi holatni bitta songa yig'amiz */
+    const upd = await c.query(`
+      UPDATE students st
+         SET attendance_count = COALESCE(st.manual_attendance_count,0)
+           + COALESCE((SELECT COUNT(*) FROM sessions se
+                        WHERE se.student_id = st.id AND se.status='completed'),0)`);
+
+    const updSess = await c.query(`
+      UPDATE sessions
+         SET lessons_counted = GREATEST(1, ROUND(COALESCE(duration_seconds,0)/3600.0)::int)
+       WHERE status='completed' AND student_id IS NOT NULL AND lessons_counted = 0`);
+
+    /* 3. Sessiya yakunlanganda avtomatik qo'shilishi */
+    await c.query(`
+      CREATE OR REPLACE FUNCTION avtodrom_add_lessons() RETURNS trigger AS $fn$
+      DECLARE lessons integer;
+      BEGIN
+        IF new.student_id IS NULL THEN RETURN new; END IF;
+        IF new.status = 'completed'
+           AND (tg_op = 'INSERT' OR old.status IS DISTINCT FROM 'completed') THEN
+          lessons := GREATEST(1, ROUND(COALESCE(new.duration_seconds,0)/3600.0)::int);
+          UPDATE students SET attendance_count = COALESCE(attendance_count,0) + lessons
+           WHERE id = new.student_id;
+          new.lessons_counted := lessons;
+        END IF;
+        RETURN new;
+      END;
+      $fn$ LANGUAGE plpgsql`);
+
+    await c.query(`DROP TRIGGER IF EXISTS trg_avtodrom_add_lessons ON sessions`);
+    await c.query(`CREATE TRIGGER trg_avtodrom_add_lessons
+      BEFORE INSERT OR UPDATE ON sessions
+      FOR EACH ROW EXECUTE FUNCTION avtodrom_add_lessons()`);
+
+    await c.query(`INSERT INTO avtodrom_migrations(name) VALUES($1)`, [LESSONS_MIGRATION]);
+    await c.query('COMMIT');
+
+    const sample = await c.query(`
+      SELECT full_name, attendance_count FROM students
+       WHERE attendance_count > 0 ORDER BY attendance_count DESC LIMIT 5`);
+
+    res.json({
+      ok: true,
+      already_applied: false,
+      students_updated: upd.rowCount,
+      sessions_updated: updSess.rowCount,
+      trigger: 'trg_avtodrom_add_lessons o\'rnatildi',
+      sample: sample.rows
+    });
+  } catch (e) {
+    try { await c.query('ROLLBACK'); } catch (e2) { /* noop */ }
+    console.error('[migration]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  } finally { c.release(); }
+});
+
+/* Migratsiya holatini ko'rish */
+app.get('/api/maintenance/status', adminAuth, async (req, res) => {
+  const applied = await pool.query(
+    `SELECT name, applied_at FROM avtodrom_migrations ORDER BY applied_at`
+  ).catch(() => ({ rows: [] }));
+  const trg = await pool.query(
+    `SELECT tgname FROM pg_trigger WHERE tgname='trg_avtodrom_add_lessons'`
+  ).catch(() => ({ rows: [] }));
+  const top = await pool.query(
+    `SELECT full_name, attendance_count FROM students ORDER BY attendance_count DESC NULLS LAST LIMIT 5`
+  ).catch(() => ({ rows: [] }));
+  res.json({ migrations: applied.rows, trigger_installed: !!trg.rows[0], top_students: top.rows });
+});
+
 app.use(express.static(frontendPath));
 app.use((req,res,next)=>{if(req.path.startsWith('/api/'))return res.status(404).json({error:'Endpoint topilmadi'});res.sendFile(path.join(frontendPath,'index.html'))});
 
