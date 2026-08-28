@@ -22,18 +22,6 @@ function verifyAdmin(req){
   try{const p=jwt.verify(h.slice(7),JWT_SECRET);return p?.role==='admin'?p:null;}catch{return null;}
 }
 
-/* =============================================================================
-   PATCH: api/admin-auth-v2.js  —  login() funksiyasini shu bilan almashtiring.
-
-   Nima o'zgaradi:
-   1. ENV qiymatlari trim qilinadi. Vercel'ga parol nusxalanganda oxiriga
-      ko'rinmas bo'sh joy yoki yangi qator tushib qolishi juda tez-tez uchraydi;
-      hozirgi kod qat'iy (===) solishtirgani uchun bu 401 beradi.
-   2. Xato sababi aniq aytiladi: login xatomi yoki parol xatomi.
-      Parolning o'zi hech qayerda qaytarilmaydi.
-   3. Diagnostika uchun serverga log yoziladi (uzunliklar, qiymatlar emas).
-   ============================================================================= */
-
 async function login(req, res) {
   const ENV_USER = String(ADMIN_USERNAME || '').trim();
   const ENV_PASS = String(ADMIN_PASSWORD || '').trim();
@@ -86,6 +74,16 @@ async function listStudents(req){
   if(u.searchParams.get('groupId')) add(u.searchParams.get('groupId'),'st.group_id=$#');
   const r=await pool.query(`SELECT st.*,s.name school_name,g.name group_name,COALESCE(st.manual_attendance_count,0)+(SELECT COUNT(*) FROM sessions se WHERE se.student_id=st.id AND se.status='completed')::int attendance_count FROM students st JOIN driving_schools s ON s.id=st.school_id LEFT JOIN school_groups g ON g.id=st.group_id WHERE ${w} ORDER BY LOWER(st.full_name),st.created_at DESC`,p); return r.rows;
 }
+
+/* Qo'lda kiritiladigan dars sonini o'qish. Yuborilmagan bo'lsa null qaytadi,
+   shunda UPDATE mavjud qiymatni o'zgartirmaydi. */
+function attendanceOf(b){
+  const v = b.manualAttendanceCount ?? b.manual_attendance_count ?? b.attendance_count;
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null;
+}
+
 async function handleResource(req,res,resource,id){
   const method=req.method; const b=bodyOf(req);
   if(resource==='schools'){
@@ -102,14 +100,30 @@ async function handleResource(req,res,resource,id){
   }
   if(resource==='students'){
     if(method==='GET'){
-      if(id){const rows=await listStudents({...req,url:'/api/admin/students'});const s=rows.find(x=>String(x.id)===String(id));if(!s)return send(res,404,{error:'O‘quvchi topilmadi'});const h=await pool.query(`SELECT se.id,se.started_at,se.finished_at,se.duration_seconds,se.amount,se.payment_method,v.plate,v.model,ds.name school_name,g.name group_name FROM sessions se JOIN vehicles v ON v.id=se.vehicle_id LEFT JOIN driving_schools ds ON ds.id=se.school_id LEFT JOIN school_groups g ON g.id=se.group_id WHERE se.student_id=$1 AND se.status='completed' ORDER BY se.started_at DESC`,[id]);return send(res,200,{student:s,rows:h.rows});}
+      if(id){const rows=await listStudents({...req,url:'/api/admin/students'});const s=rows.find(x=>String(x.id)===String(id));if(!s)return send(res,404,{error:'O‘quvchi topilmadi'});const h=await pool.query(`SELECT se.id,se.started_at,se.finished_at,se.duration_seconds,se.amount,se.cash_amount,se.terminal_amount,se.payment_method,v.plate,v.model,ds.name school_name,g.name group_name FROM sessions se JOIN vehicles v ON v.id=se.vehicle_id LEFT JOIN driving_schools ds ON ds.id=se.school_id LEFT JOIN school_groups g ON g.id=se.group_id WHERE se.student_id=$1 AND se.status='completed' ORDER BY se.started_at DESC`,[id]);return send(res,200,{student:s,rows:h.rows});}
       return send(res,200,await listStudents(req));
     }
-    if(method==='POST'){const schoolId=String(b.schoolId||b.school_id||'').trim(),groupId=b.groupId||b.group_id||null,name=String(b.fullName||b.full_name||b.name||'').trim();if(!schoolId||!name)return send(res,400,{error:'Avtoshkola va o‘quvchi ismi kerak'});const r=await pool.query(`INSERT INTO students(owner_key,school_id,group_id,full_name,phone,birth_date,plate,notes,active) VALUES('admin',$1,$2,$3,$4,$5,$6,$7,true) RETURNING *`,[schoolId,groupId,name,b.phone||null,b.birthDate||b.birth_date||null,b.plate||null,b.notes||null]);return send(res,201,r.rows[0]);}
-    if(!id)return send(res,400,{error:'ID kerak'}); if(method==='DELETE'){const r=await pool.query(`UPDATE students SET active=false WHERE id=$1 RETURNING id`,[id]);return r.rows[0]?send(res,200,{ok:true}):send(res,404,{error:'O‘quvchi topilmadi'});} const name=String(b.fullName||b.full_name||b.name||b.fullName||'').trim();const r=await pool.query(`UPDATE students SET full_name=$1,phone=$2,birth_date=$3,plate=$4,notes=$5,group_id=$6 WHERE id=$7 RETURNING *`,[name,b.phone||null,b.birthDate||b.birth_date||null,b.plate||null,b.notes||null,b.groupId||b.group_id||null,id]);return r.rows[0]?send(res,200,r.rows[0]):send(res,404,{error:'O‘quvchi topilmadi'});
+    if(method==='POST'){
+      const schoolId=String(b.schoolId||b.school_id||'').trim(),groupId=b.groupId||b.group_id||null,name=String(b.fullName||b.full_name||b.name||'').trim();
+      if(!schoolId||!name)return send(res,400,{error:'Avtoshkola va o‘quvchi ismi kerak'});
+      /* YANGI: qo'lda kiritilgan dars soni ham saqlanadi */
+      const attendance=attendanceOf(b)??0;
+      const r=await pool.query(`INSERT INTO students(owner_key,school_id,group_id,full_name,phone,birth_date,plate,notes,active,manual_attendance_count) VALUES('admin',$1,$2,$3,$4,$5,$6,$7,true,$8) RETURNING *`,[schoolId,groupId,name,b.phone||null,b.birthDate||b.birth_date||null,b.plate||null,b.notes||null,attendance]);
+      return send(res,201,r.rows[0]);
+    }
+    if(!id)return send(res,400,{error:'ID kerak'});
+    if(method==='DELETE'){const r=await pool.query(`UPDATE students SET active=false WHERE id=$1 RETURNING id`,[id]);return r.rows[0]?send(res,200,{ok:true}):send(res,404,{error:'O‘quvchi topilmadi'});}
+    /* YANGI: avtoshkola, dars soni va holat ham yangilanadi */
+    const name=String(b.fullName||b.full_name||b.name||'').trim();
+    if(!name)return send(res,400,{error:'O‘quvchi ismi kerak'});
+    const attendance=attendanceOf(b);
+    const activeFlag=b.active===undefined?null:(b.active!==false);
+    const r=await pool.query(`UPDATE students SET full_name=$1,phone=$2,birth_date=$3,plate=$4,notes=$5,group_id=$6,school_id=COALESCE($7,school_id),manual_attendance_count=COALESCE($8,manual_attendance_count),active=COALESCE($9,active) WHERE id=$10 RETURNING *`,[name,b.phone||null,b.birthDate||b.birth_date||null,b.plate||null,b.notes||null,b.groupId||b.group_id||null,b.schoolId||b.school_id||null,attendance,activeFlag,id]);
+    return r.rows[0]?send(res,200,r.rows[0]):send(res,404,{error:'O‘quvchi topilmadi'});
   }
   if(resource==='instructors'){
-    const r=await pool.query(`SELECT i.id,i.active,i.approved,i.bio full_name,i.settings,i.created_at,i.updated_at,i.settings->>'school_id' school_id,COALESCE(i.settings->>'vehicle_plate','') vehicle_plate,COALESCE(i.settings->>'vehicle_model','') vehicle_model,ds.name school_name FROM public.instructors i LEFT JOIN driving_schools ds ON ds.id::text=i.settings->>'school_id' ORDER BY LOWER(COALESCE(i.bio,'')),i.created_at DESC`);if(method==='GET')return send(res,200,id?(r.rows.find(x=>String(x.id)===String(id))||null):r.rows);if(method==='DELETE'&&id){const d=await pool.query(`UPDATE public.instructors SET active=false,updated_at=NOW() WHERE id=$1 RETURNING id`,[id]);return d.rows[0]?send(res,200,{ok:true}):send(res,404,{error:'Instruktor topilmadi'});}if(method==='POST'||(method==='PUT'||method==='PATCH')){const name=String(b.fullName||b.full_name||b.name||'').trim(),schoolId=String(b.schoolId||b.school_id||'').trim();if(!name||!schoolId)return send(res,400,{error:'F.I.Sh. va avtoshkola kerak'});const settings={owner_key:'admin',school_id:schoolId,group_id:null,vehicle_id:null,vehicle_plate:String(b.vehiclePlate||b.vehicle_plate||b.plate||'').toUpperCase().replace(/\s+/g,' ').trim(),vehicle_model:String(b.vehicleModel||b.vehicle_model||b.model||'').trim(),driver_name:name,phone:String(b.phone||'').trim()};if(method==='POST'){const rid=crypto.randomUUID();await pool.query(`INSERT INTO public.instructors(id,active,approved,approved_at,approved_by,bio,settings,created_at,updated_at) VALUES($1,true,true,NOW(),'admin',$2,$3::jsonb,NOW(),NOW())`,[rid,name,JSON.stringify(settings)]);return send(res,201,{id:rid,full_name:name,school_id:schoolId,vehicle_plate:settings.vehicle_plate,vehicle_model:settings.vehicle_model});}await pool.query(`UPDATE public.instructors SET bio=$1,active=$2,updated_at=NOW(),settings=$3::jsonb WHERE id=$4`,[name,b.active!==false,JSON.stringify(settings),id]);return send(res,200,{ok:true});}
+    /* YANGI: o'chirilgan (active=false) instruktorlar ro'yxatda ko'rinmaydi */
+    const r=await pool.query(`SELECT i.id,i.active,i.approved,i.bio full_name,i.settings,i.created_at,i.updated_at,i.settings->>'school_id' school_id,COALESCE(i.settings->>'vehicle_plate','') vehicle_plate,COALESCE(i.settings->>'vehicle_model','') vehicle_model,COALESCE(i.settings->>'phone','') phone,ds.name school_name FROM public.instructors i LEFT JOIN driving_schools ds ON ds.id::text=i.settings->>'school_id' WHERE i.active IS NOT FALSE ORDER BY LOWER(COALESCE(i.bio,'')),i.created_at DESC`);if(method==='GET')return send(res,200,id?(r.rows.find(x=>String(x.id)===String(id))||null):r.rows);if(method==='DELETE'&&id){const d=await pool.query(`UPDATE public.instructors SET active=false,updated_at=NOW() WHERE id=$1 RETURNING id`,[id]);return d.rows[0]?send(res,200,{ok:true}):send(res,404,{error:'Instruktor topilmadi'});}if(method==='POST'||(method==='PUT'||method==='PATCH')){const name=String(b.fullName||b.full_name||b.name||'').trim(),schoolId=String(b.schoolId||b.school_id||'').trim();if(!name||!schoolId)return send(res,400,{error:'F.I.Sh. va avtoshkola kerak'});const settings={owner_key:'admin',school_id:schoolId,group_id:null,vehicle_id:null,vehicle_plate:String(b.vehiclePlate||b.vehicle_plate||b.plate||'').toUpperCase().replace(/\s+/g,' ').trim(),vehicle_model:String(b.vehicleModel||b.vehicle_model||b.model||'').trim(),driver_name:name,phone:String(b.phone||'').trim()};if(method==='POST'){const rid=crypto.randomUUID();await pool.query(`INSERT INTO public.instructors(id,active,approved,approved_at,approved_by,bio,settings,created_at,updated_at) VALUES($1,true,true,NOW(),'admin',$2,$3::jsonb,NOW(),NOW())`,[rid,name,JSON.stringify(settings)]);return send(res,201,{id:rid,full_name:name,school_id:schoolId,vehicle_plate:settings.vehicle_plate,vehicle_model:settings.vehicle_model});}await pool.query(`UPDATE public.instructors SET bio=$1,active=$2,updated_at=NOW(),settings=$3::jsonb WHERE id=$4`,[name,b.active!==false,JSON.stringify(settings),id]);return send(res,200,{ok:true});}
   }
   return send(res,404,{error:'Admin endpoint topilmadi'});
 }
