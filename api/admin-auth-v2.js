@@ -93,7 +93,7 @@ async function listStudents(req,owner){
   if(u.searchParams.get('schoolId')) add(u.searchParams.get('schoolId'),'st.school_id=$#');
   if(u.searchParams.get('groupId')) add(u.searchParams.get('groupId'),'st.group_id=$#');
   /* Dars soni endi hisoblanmaydi - bazadagi yagona ustundan o'qiladi */
-  const r=await pool.query(`SELECT st.*,COALESCE(st.attendance_count,0)::int attendance_count,s.name school_name,g.name group_name FROM students st JOIN driving_schools s ON s.id=st.school_id LEFT JOIN school_groups g ON g.id=st.group_id WHERE ${w} ORDER BY LOWER(st.full_name),st.created_at DESC`,p); return r.rows;
+  const r=await pool.query(`SELECT st.id,st.full_name,st.phone,st.plate,st.birth_date,st.school_id,st.group_id,st.active,st.notes,COALESCE(st.attendance_count,0)::int attendance_count,s.name school_name,g.name group_name FROM students st JOIN driving_schools s ON s.id=st.school_id LEFT JOIN school_groups g ON g.id=st.group_id WHERE ${w} ORDER BY LOWER(st.full_name),st.created_at DESC`,p); return r.rows;
 }
 
 /* Darslar soni - YAGONA qiymat (students.attendance_count).
