@@ -2596,6 +2596,10 @@ const Finish = {
 
   async submit(id, source, form) {
     setError('finishModalErr', '');
+    const pool = source === 'frozen' ? STATE.frozen : STATE.active;
+    const sess = pool.find(x => String(x.id) === String(id));
+    const wasSchool = !!(sess && isSchoolSession(sess));
+    const studentId = sess && (sess.student_id || sess.studentId);
     const cash = num($('finCash').value), term = num($('finTerm').value);
     if (cash < 0 || term < 0) { setError('finishModalErr', "To'lov summasi manfiy bo'lishi mumkin emas."); return; }
     const btn = $('finBtn');
@@ -2618,6 +2622,19 @@ const Finish = {
         await Promise.all([Active.load(true), Frozen.load(true)]);
         Finish.renderList();
         if (STATE.page === 'daily') Reports.loadDaily();
+        /* Dars soni serverda oshdi — o'quvchilar ro'yxatini yangilaymiz,
+           aks holda qidiruvda va kartada eski son turib qolardi. */
+        if (wasSchool) {
+          await Data.reloadStudents();
+          Add.syncStudentSource();
+          if (STATE.form.student && String(STATE.form.student.id) === String(studentId)) {
+            STATE.form.student = Data.studentById(studentId) || STATE.form.student;
+            Add.renderStudentPanel();
+          }
+          STATE.adminStudents = null;
+          Admin._listCache = null;
+          if (STATE.admin.token && !$('adminPanel').classList.contains('hidden')) Admin.loadStudents(true);
+        }
       } catch (e) { setError('finishModalErr', e.message); }
     });
   }
