@@ -3544,10 +3544,17 @@ const Admin = {
     if (!ok) return;
     try {
       await adminApi('/students/' + encodeURIComponent(id), { method: 'DELETE' });
+      /* Ekrandan darhol olib tashlaymiz — server javobini kutmaymiz */
+      const keep = x => String(x.id) !== String(id);
+      STATE.students = STATE.students.filter(keep);
+      if (Array.isArray(STATE.adminStudents)) STATE.adminStudents = STATE.adminStudents.filter(keep);
+      Admin._listCache = null;
+      this.renderStudents();
+      const d = $('adminStudentDetail'); if (d) d.innerHTML = '';
       toast("O'chirildi.");
       STATE.studentsStale = true;
       await Admin.loadStudents(true);
-      const d = $('adminStudentDetail'); if (d) d.innerHTML = '';
+      Add.syncStudentSource();
       this.refreshCounters();
     } catch (e) { toast(e.message, 'error'); }
   },
