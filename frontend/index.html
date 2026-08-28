@@ -1776,7 +1776,7 @@ const Add = {
       this.syncFallbackSchools();
     } else { fb.classList.add('hidden'); }
   },
-  syncInstructorSource() { if (this.comboInstructor) this.comboInstructor.setItems(STATE.instructors); },
+  syncInstructorSource() { if (this.comboInstructor) this.comboInstructor.setItems(STATE.instructors.filter(i => Instructors.isActive(i))); },
   syncFallbackSchools() {
     const sel = $('school'); if (!sel) return;
     sel.innerHTML = '<option value="">Tanlang</option>' + STATE.schools.map(s => '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>').join('');
@@ -2006,13 +2006,15 @@ const Add = {
   async quickStudentSave() {
     setError('qsErr', '');
     if (!STATE.admin.token) { setError('qsErr', "Yangi o'quvchi qo'shish uchun avval Admin panelga kiring."); return; }
+    const qsN = $('qsName').value.trim(), qsS = $('qsSchool').value || null, qsG = $('qsGroup').value || null;
     const payload = {
-      full_name: $('qsName').value.trim(),
+      full_name: qsN, fullName: qsN,
       phone: $('qsPhone').value.trim(),
-      school_id: $('qsSchool').value || null,
-      group_id: $('qsGroup').value || null
+      school_id: qsS, schoolId: qsS,
+      group_id: qsG, groupId: qsG
     };
     if (!payload.full_name) { setError('qsErr', 'F.I.Sh. kiriting.'); return; }
+    if (!qsS) { setError('qsErr', 'Avtoshkolani tanlang — u majburiy.'); return; }
     await withBusy('qs', $('qsBtn'), async () => {
       try {
         await adminApi('/students', { method: 'POST', body: jsonBody(payload) });
@@ -2543,9 +2545,16 @@ const Finish = {
     const btn = $('finBtn');
     await withBusy('finish:' + id, btn, async () => {
       try {
+        const total = cash + term;
+        const method = cash > 0 && term > 0 ? 'mixed' : term > 0 ? 'terminal' : 'cash';
         await api('/sessions/' + encodeURIComponent(id) + '/finish', {
           method: 'POST',
-          body: jsonBody({ cash_amount: cash, terminal_amount: term })
+          /* Ikkala backend shakli uchun: snake_case (yangi) va camelCase (eski) */
+          body: jsonBody({
+            cash_amount: cash, terminal_amount: term,
+            cashAmount: cash, terminalAmount: term,
+            amount: total, paymentMethod: method
+          })
         });
         closeModal();
         toast('Yakunlandi. Jami: ' + money(cash + term));
@@ -2724,10 +2733,18 @@ const Instructors = {
     await Data.reloadInstructors();
     this.render();
   },
+  isActive(i) {
+    /* Backend o'chirilgan instruktorni ham qaytarishi mumkin (active=false).
+       Ro'yxatda faqat faollari ko'rsatiladi. */
+    if (i.active === false || i.active === 'false') return false;
+    if (i.status === 'inactive' || i.status === 'deleted') return false;
+    return true;
+  },
   filtered() {
+    const base = STATE.instructors.filter(i => Instructors.isActive(i));
     const q = lower($('instrQ') ? $('instrQ').value : '').trim();
-    if (!q) return STATE.instructors;
-    return STATE.instructors.filter(i =>
+    if (!q) return base;
+    return base.filter(i =>
       lower(insName(i)).indexOf(q) >= 0
       || lower(i.phone).indexOf(q) >= 0
       || normalizePlate(insPlate(i)).indexOf(normalizePlate(q)) >= 0);
@@ -2763,7 +2780,7 @@ const Instructors = {
       + '<div class="form-grid">'
       + '<div><label class="field-label" for="insName">F.I.Sh.</label><input id="insName" required value="' + esc(insName(ins)) + '"></div>'
       + '<div><label class="field-label" for="insPhone">Telefon</label><input id="insPhone" value="' + esc(ins && ins.phone) + '" placeholder="+998..."></div>'
-      + '<div><label class="field-label" for="insSchool">Avtoshkola</label><select id="insSchool"><option value="">Tanlanmagan</option>'
+      + '<div><label class="field-label" for="insSchool">Avtoshkola <span class="text-red">*</span></label><select id="insSchool" required><option value="">Tanlang</option>'
       + STATE.schools.map(s => '<option value="' + esc(s.id) + '"' + (ins && String(ins.school_id || ins.schoolId) === String(s.id) ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('')
       + '</select></div>'
       + '<div><label class="field-label" for="insStatus">Holati</label><select id="insStatus">'
@@ -2772,7 +2789,7 @@ const Instructors = {
       + '<div><label class="field-label" for="insPlate">Avtomobil raqami</label><input id="insPlate" value="' + esc(insPlate(ins)) + '" placeholder="01 555 AAA"></div>'
       + '<div><label class="field-label" for="insModel">Avtomobil rusumi</label><input id="insModel" value="' + esc(insModel(ins)) + '" placeholder="Chevrolet Cobalt"></div>'
       + '</div>'
-      + '<div class="field-help">Guruh instruktor uchun majburiy emas. Raqam bazadan qidirilmaydi — siz kiritgan qiymat saqlanadi.</div>'
+      + '<div class="field-help">Avtoshkola majburiy. Guruh instruktor uchun kerak emas. Raqam bazadan qidirilmaydi — siz kiritgan qiymat saqlanadi.</div>'
       + '<div class="actions-row"><button class="btn btn-green" type="submit" id="insBtn"><span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Saqlash</span></button>'
       + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
       + '<div id="insErr" class="text-error" role="alert"></div></form>');
@@ -2781,21 +2798,34 @@ const Instructors = {
     setError('insErr', '');
     const name = $('insName').value.trim();
     if (!name) { setError('insErr', 'F.I.Sh. kiriting.'); return; }
+    if (!$('insSchool').value) { setError('insErr', 'Avtoshkolani tanlang — u instruktor uchun majburiy.'); return; }
     /* Raqam: faqat normalizatsiya, hech qanday reject yo'q */
     const plateRaw = $('insPlate').value.trim();
     const sp = splitPlate(plateRaw);
+    /* Backend snake_case yoki camelCase kutishi mumkin — ikkalasini ham yuboramiz */
+    const plateOut = plateRaw ? displayPlate(sp.region, sp.body) : '';
+    const schoolOut = $('insSchool').value || null;
     const payload = {
-      full_name: name,
+      full_name: name, fullName: name,
       phone: $('insPhone').value.trim(),
-      plate: plateRaw ? displayPlate(sp.region, sp.body) : '',
-      model: $('insModel').value.trim(),
-      school_id: $('insSchool').value || null,
+      plate: plateOut, vehicle_plate: plateOut, vehiclePlate: plateOut,
+      model: $('insModel').value.trim(), vehicle_model: $('insModel').value.trim(), vehicleModel: $('insModel').value.trim(),
+      active: $('insStatus').value !== 'inactive',
+      school_id: schoolOut, schoolId: schoolOut,
       status: $('insStatus').value
     };
     await withBusy('ins:' + (id || 'new'), $('insBtn'), async () => {
       try {
-        if (id) await api('/instructors/' + encodeURIComponent(id), { method: 'PUT', body: jsonBody(payload) });
-        else await api('/instructors', { method: 'POST', body: jsonBody(payload) });
+        const path = id ? '/instructors/' + encodeURIComponent(id) : '/instructors';
+        const method = id ? 'PUT' : 'POST';
+        try {
+          await api(path, { method: method, body: jsonBody(payload) });
+        } catch (e1) {
+          /* Ba'zi o'rnatmalarda instruktor CRUD faqat admin yo'lida ochiq */
+          if ((e1.status === 404 || e1.status === 403 || e1.status === 405) && STATE.admin.token) {
+            await adminApi(path, { method: method, body: jsonBody(payload) });
+          } else { throw e1; }
+        }
         closeModal();
         toast('Instruktor saqlandi.');
         await Data.reloadInstructors();
@@ -2812,7 +2842,16 @@ const Instructors = {
     });
     if (!ok) return;
     try {
-      await api('/instructors/' + encodeURIComponent(id), { method: 'DELETE' });
+      try {
+        await api('/instructors/' + encodeURIComponent(id), { method: 'DELETE' });
+      } catch (e1) {
+        if ((e1.status === 404 || e1.status === 403 || e1.status === 405) && STATE.admin.token) {
+          await adminApi('/instructors/' + encodeURIComponent(id), { method: 'DELETE' });
+        } else { throw e1; }
+      }
+      /* Ro'yxatdan darhol olib tashlaymiz — server keshi kechiksa ham ko'rinmaydi */
+      STATE.instructors = STATE.instructors.filter(x => String(x.id) !== String(id));
+      Instructors.render();
       toast("O'chirildi.");
       await Data.reloadInstructors();
       Instructors.render();
@@ -2836,7 +2875,8 @@ const Instructors = {
     const items = lines.map(l => {
       const p = l.split(',').map(s => s.trim());
       const sp = splitPlate(p[2] || '');
-      return { full_name: p[0] || '', phone: p[1] || '', plate: p[2] ? displayPlate(sp.region, sp.body) : '', model: p[3] || '' };
+      const pl = p[2] ? displayPlate(sp.region, sp.body) : '';
+      return { full_name: p[0] || '', fullName: p[0] || '', phone: p[1] || '', plate: pl, model: p[3] || '' };
     }).filter(x => x.full_name);
     if (!items.length) { setError('bulkErr', "Hech bo'lmasa bitta F.I.Sh. kerak."); return; }
     await withBusy('bulk', $('bulkBtn'), async () => {
@@ -3186,6 +3226,7 @@ const Admin = {
   studentsHTML() {
     return '<div class="page-header"><div><h2>O\'quvchilar</h2><p class="text-muted">Ism, telefon yoki guruh bo\'yicha qidiring</p></div>'
       + '<div class="header-actions"><button class="btn btn-light" type="button" data-act="exportStudents"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Excel export</button>'
+      + '<button class="btn btn-light" type="button" data-act="studentsBulk"><i class="fa-solid fa-list-ul" aria-hidden="true"></i> Ommaviy qo\'shish</button>'
       + '<button class="btn btn-green" type="button" data-act="studentModal"><i class="fa-solid fa-plus" aria-hidden="true"></i> O\'quvchi qo\'shish</button></div></div>'
       + '<div class="panel"><div class="search-bar"><div class="search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>'
       + '<input id="adminStudentQ" placeholder="Ism, telefon, guruh..." aria-label="O\'quvchilarni qidirish"></div>'
@@ -3210,7 +3251,11 @@ const Admin = {
           + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div>'
           + '<b>' + esc(stName(s)) + '</b>'
           + '<div class="text-muted" style="font-size:12px">' + esc([s.phone, s.school_name || Data.schoolName(s.school_id), s.group_name || Data.groupName(s.group_id)].filter(Boolean).join(' • ')) + '</div></div>'
-          + '<span class="badge badge-' + cls + '">' + att + ' dars</span></div></div>';
+          + '<div style="display:flex;gap:8px;align-items:center">'
+          + '<span class="badge badge-' + cls + '">' + att + ' dars</span>'
+          + '<button class="btn btn-light btn-sm" type="button" data-act="studentModal" data-id="' + esc(s.id) + '" data-stop="1" aria-label="Tahrirlash"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>'
+          + '<button class="btn btn-danger btn-sm" type="button" data-act="studentDelete" data-id="' + esc(s.id) + '" data-stop="1" aria-label="O\'chirish"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>'
+          + '</div></div></div>';
       }).join('');
   },
   async studentDetail(sid) {
@@ -3222,6 +3267,7 @@ const Admin = {
       const data = await adminApi('/students/' + encodeURIComponent(sid));
       const s = (data && data.student) || local;
       const rows = (data && data.rows) || [];
+      Admin.detail = { id: sid, student: s, rows: rows };
       const totalLessons = rows.reduce((a, r) => a + secondsToLessons(r.duration_seconds), 0) || num(s.attendance_count);
       const today = localDateISO(0);
       const todayLessons = rows.filter(r => String(r.started_at || '').slice(0, 10) === today)
@@ -3230,6 +3276,7 @@ const Admin = {
         + '<div class="panel-head"><div><h3 class="mb-0">' + esc(stName(s)) + '</h3>'
         + '<p class="text-muted" style="margin-top:4px">' + esc([s.phone, s.school_name || Data.schoolName(s.school_id), s.group_name || Data.groupName(s.group_id)].filter(Boolean).join(' • ')) + '</p></div>'
         + '<div class="actions-row" style="margin:0">'
+        + '<button class="btn btn-green btn-sm" type="button" data-act="exportStudentSessions" data-id="' + esc(sid) + '"><i class="fa-solid fa-file-excel" aria-hidden="true"></i> Excel</button>'
         + '<button class="btn btn-light btn-sm" type="button" data-act="studentModal" data-id="' + esc(sid) + '"><i class="fa-solid fa-pen" aria-hidden="true"></i> Tahrirlash</button>'
         + '<button class="btn btn-danger btn-sm" type="button" data-act="studentDelete" data-id="' + esc(sid) + '"><i class="fa-solid fa-trash" aria-hidden="true"></i> O\'chirish</button>'
         + '<button class="btn btn-ghost btn-sm" type="button" data-act="closeStudentDetail" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div></div>'
@@ -3253,7 +3300,7 @@ const Admin = {
       + '<div class="form-grid">'
       + '<div><label class="field-label" for="stName">F.I.Sh.</label><input id="stName" required value="' + esc(stName(s)) + '"></div>'
       + '<div><label class="field-label" for="stPhone">Telefon</label><input id="stPhone" value="' + esc(s && s.phone) + '"></div>'
-      + '<div><label class="field-label" for="stSchool">Avtoshkola</label><select id="stSchool"><option value="">Tanlanmagan</option>'
+      + '<div><label class="field-label" for="stSchool">Avtoshkola <span class="text-red">*</span></label><select id="stSchool" required><option value="">Tanlang</option>'
       + STATE.schools.map(x => '<option value="' + esc(x.id) + '"' + (String(schoolId) === String(x.id) ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('')
       + '</select></div>'
       + '<div><label class="field-label" for="stGroup">Guruh</label><select id="stGroup"><option value="">Tanlanmagan</option>'
@@ -3270,24 +3317,38 @@ const Admin = {
       + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
       + '<div id="stErr" class="text-error" role="alert"></div></form>');
     const sel = $('stSchool');
-    if (sel) sel.addEventListener('change', async () => {
+    const fillGroups = async (selectedId) => {
+      if (!sel.value) { $('stGroup').innerHTML = '<option value="">Avval avtoshkola</option>'; return; }
       const gs = await Data.reloadGroups(sel.value);
-      $('stGroup').innerHTML = '<option value="">Tanlanmagan</option>' + gs.map(g => '<option value="' + esc(g.id) + '">' + esc(g.name) + '</option>').join('');
-    });
+      $('stGroup').innerHTML = '<option value="">Tanlanmagan</option>'
+        + gs.map(g => '<option value="' + esc(g.id) + '"' + (String(selectedId) === String(g.id) ? ' selected' : '') + '>' + esc(g.name) + '</option>').join('');
+    };
+    if (sel) {
+      sel.addEventListener('change', () => fillGroups(''));
+      /* Tahrirlashda joriy guruh tanlangan holda chiqsin */
+      if (sel.value) fillGroups(s ? (s.group_id || s.groupId || '') : '');
+    }
   },
   async studentSave(id) {
     setError('stErr', '');
+    const stN = $('stName').value.trim(), stS = $('stSchool').value || null;
+    const stG = $('stGroup').value || null, stB = $('stBirth').value || null;
     const payload = {
-      full_name: $('stName').value.trim(),
+      full_name: stN, fullName: stN,
       phone: $('stPhone').value.trim(),
-      school_id: $('stSchool').value || null,
-      group_id: $('stGroup').value || null,
-      birth_date: $('stBirth').value || null,
+      school_id: stS, schoolId: stS,
+      group_id: stG, groupId: stG,
+      birth_date: stB, birthDate: stB,
       plate: $('stPlate').value.trim(),
+      /* Bazada qo'lda kiritiladigan dars soni shu ustunda saqlanadi */
       attendance_count: num($('stAtt').value),
-      status: $('stStatus').value
+      manual_attendance_count: num($('stAtt').value),
+      manualAttendanceCount: num($('stAtt').value),
+      status: $('stStatus').value,
+      active: $('stStatus').value !== 'inactive'
     };
     if (!payload.full_name) { setError('stErr', 'F.I.Sh. kiriting.'); return; }
+    if (!stS) { setError('stErr', 'Avtoshkolani tanlang — u majburiy.'); return; }
     if (payload.attendance_count < 0) { setError('stErr', 'Darslar soni manfiy bo\'lishi mumkin emas.'); return; }
     await withBusy('student:' + (id || 'new'), $('stBtn'), async () => {
       try {
@@ -3318,6 +3379,189 @@ const Admin = {
       const d = $('adminStudentDetail'); if (d) d.innerHTML = '';
       this.refreshCounters();
     } catch (e) { toast(e.message, 'error'); }
+  },
+
+  /* --- Bitta o'quvchining tashriflari Excel --- */
+  detail: null,
+  exportStudentSessions(sid) {
+    const d = Admin.detail;
+    if (!d || String(d.id) !== String(sid)) { toast("Avval o'quvchi kartochkasini oching.", 'warn'); return; }
+    const rows = d.rows || [];
+    if (!rows.length) { toast("Bu o'quvchida tashrif yozuvi yo'q.", 'warn'); return; }
+    const head = ['Sana', 'Kelgan vaqt', 'Ketgan vaqt', 'Avtodromda (soat:min:sek)', 'Daqiqa', 'Dars',
+      'Avtomobil raqami', 'Rusumi', 'Avtoshkola', 'Guruh', 'To\'lov'];
+    const body = rows.map(r => {
+      const st = r.started_at ? new Date(r.started_at) : null;
+      return [
+        st ? st.toLocaleDateString('uz-UZ', { timeZone: 'Asia/Tashkent' }) : '—',
+        timeOnly(r.started_at),
+        timeOnly(r.finished_at),
+        dur(r.duration_seconds),
+        Math.round(num(r.duration_seconds) / 60),
+        num(r.lessons_counted) || secondsToLessons(r.duration_seconds),
+        r.plate || '', r.model || '', r.school_name || '', r.group_name || '', num(r.amount)
+      ];
+    });
+    const totalSec = rows.reduce((a, r) => a + num(r.duration_seconds), 0);
+    const totalLes = rows.reduce((a, r) => a + (num(r.lessons_counted) || secondsToLessons(r.duration_seconds)), 0);
+    const aoa = [
+      ["O'quvchi", stName(d.student)],
+      ['Avtoshkola', d.student.school_name || ''],
+      ['Guruh', d.student.group_name || ''],
+      ['Telefon', d.student.phone || ''],
+      ['Jami tashrif', rows.length],
+      ['Jami vaqt', dur(totalSec)],
+      ['Jami dars', totalLes],
+      [],
+      head
+    ].concat(body);
+    Excel.save(aoa, 'oquvchi-' + String(stName(d.student)).replace(/\s+/g, '-').toLowerCase() + '-' + localDateISO(0), 'Tashriflar');
+  },
+
+  /* --- Ommaviy o'quvchi qo'shish (matn ko'chirib qo'yish) --- */
+  bulkRows: [],
+  studentsBulkModal() {
+    openModal('<div class="modal-head"><div><h2>Ommaviy o\'quvchi qo\'shish</h2>'
+      + '<p class="text-muted">Har qatorga bitta o\'quvchi. Ajratgich shart emas.</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div class="form-grid">'
+      + '<div><label class="field-label" for="bsSchool">Avtoshkola <span class="text-red">*</span></label><select id="bsSchool" required><option value="">Tanlang</option>'
+      + STATE.schools.map(x => '<option value="' + esc(x.id) + '">' + esc(x.name) + '</option>').join('') + '</select></div>'
+      + '<div><label class="field-label" for="bsGroup">Guruh <span class="text-red">*</span></label><select id="bsGroup"><option value="">Avval avtoshkola</option></select></div>'
+      + '</div>'
+      + '<div class="fg"><label class="field-label" for="bsData">Ro\'yxat</label>'
+      + '<textarea id="bsData" rows="9" placeholder="Ali Vali 12-05-1995 2&#10;Hasan Aliyev 03.11.2001 5&#10;Vali Hasanov 1999-07-24"></textarea>'
+      + '<div class="field-help">Tartib: <b>Ism Familiya</b> &bull; <b>tug\'ilgan sana</b> &bull; <b>darslar soni</b>. '
+      + 'Sana <b>kun-oy-yil</b> (12-05-1995, 03.11.2001) yoki <b>yil-oy-kun</b> ko\'rinishida. '
+      + 'Sana yoki darslar sonini yozmasangiz ham bo\'ladi.</div></div>'
+      + '<div class="actions-row"><button class="btn btn-green" type="button" data-act="studentsBulkPreview"><i class="fa-solid fa-eye" aria-hidden="true"></i> Tekshirish</button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
+      + '<div id="bsErr" class="text-error" role="alert"></div>', { wide: true });
+    const sel = $('bsSchool');
+    if (sel) sel.addEventListener('change', async () => {
+      $('bsGroup').innerHTML = '<option value="">Yuklanmoqda...</option>';
+      const gs = await Data.reloadGroups(sel.value);
+      $('bsGroup').innerHTML = '<option value="">Tanlang</option>'
+        + gs.map(g => '<option value="' + esc(g.id) + '">' + esc(g.name) + '</option>').join('');
+    });
+  },
+
+  parseStudentLine(line) {
+    const raw = String(line || '').replace(/[|;,\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!raw) return null;
+    const tokens = raw.split(' ');
+    const problems = [];
+    let attendance = 0, birth = null;
+
+    /* Oxirgi token faqat raqam bo'lsa — darslar soni */
+    if (tokens.length > 1 && /^\d{1,3}$/.test(tokens[tokens.length - 1])) attendance = num(tokens.pop());
+
+    /* Sanaga o'xshash tokenni topamiz */
+    for (let i = tokens.length - 1; i >= 0; i--) {
+      const t = tokens[i];
+      if (!/\d/.test(t)) continue;
+      const p2 = String(t).padStart(2, '0');
+      let m = t.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})$/);
+      if (m) { birth = m[3] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[1]).padStart(2, '0'); tokens.splice(i, 1); break; }
+      m = t.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})$/);
+      if (m) { birth = m[1] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[3]).padStart(2, '0'); tokens.splice(i, 1); break; }
+      if (/^[\d.\-\/]{6,}$/.test(t)) { problems.push('sana noto\'g\'ri: ' + t); tokens.splice(i, 1); break; }
+      void p2;
+    }
+    const name = tokens.join(' ').trim();
+    if (!name) problems.push('F.I.Sh. topilmadi');
+    else if (name.length < 3) problems.push('F.I.Sh. juda qisqa');
+    if (birth) {
+      const y = num(birth.slice(0, 4));
+      if (y < 1930 || y > new Date().getFullYear()) problems.push('tug\'ilgan yil noto\'g\'ri');
+    }
+    return { full_name: name, birth_date: birth, attendance: attendance, problems: problems };
+  },
+
+  studentsBulkPreview() {
+    setError('bsErr', '');
+    const schoolId = $('bsSchool').value, groupId = $('bsGroup').value;
+    if (!schoolId) { setError('bsErr', 'Avtoshkolani tanlang.'); return; }
+    if (!groupId) { setError('bsErr', 'Guruhni tanlang.'); return; }
+    const lines = $('bsData').value.split('\n').map(x => x.trim()).filter(Boolean);
+    if (!lines.length) { setError('bsErr', "Ro'yxat bo'sh."); return; }
+
+    const seen = new Set();
+    const parsed = lines.map((l, i) => {
+      const it = Admin.parseStudentLine(l);
+      const key = lower(it.full_name);
+      let status = 'ok';
+      if (it.problems.length) status = 'bad';
+      else if (seen.has(key)) { status = 'dup'; it.problems.push('ro\'yxatda takrorlangan'); }
+      else if (STATE.students.some(x => lower(stName(x)) === key
+        && String(x.group_id || x.groupId || '') === String(groupId))) {
+        status = 'dup'; it.problems.push('bu guruhda allaqachon bor');
+      }
+      seen.add(key);
+      return { n: i + 1, item: it, status: status, raw: l };
+    });
+    Admin.bulkRows = parsed;
+
+    const ok = parsed.filter(r => r.status === 'ok').length;
+    const dup = parsed.filter(r => r.status === 'dup').length;
+    const bad = parsed.filter(r => r.status === 'bad').length;
+    const body = parsed.slice(0, 200).map(r => '<tr class="' + (r.status === 'bad' ? 'row-bad' : r.status === 'dup' ? 'row-dup' : '') + '">'
+      + '<td>' + r.n + '</td><td><b>' + esc(r.item.full_name) + '</b></td>'
+      + '<td>' + esc(r.item.birth_date ? fmtDate(r.item.birth_date) : '—') + '</td>'
+      + '<td>' + r.item.attendance + '</td>'
+      + '<td>' + (r.status === 'ok' ? '<span class="badge badge-green">Yaroqli</span>'
+        : r.status === 'dup' ? '<span class="badge badge-amber">' + esc(r.item.problems.join(', ')) + '</span>'
+          : '<span class="badge badge-red">' + esc(r.item.problems.join(', ')) + '</span>') + '</td></tr>').join('');
+
+    openModal('<div class="modal-head"><div><h2>Tekshiruv natijasi</h2>'
+      + '<p class="text-muted">' + esc(Data.schoolName(schoolId)) + ' &bull; ' + esc(Data.groupName(groupId) || 'guruh') + '</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div class="import-stats">'
+      + '<div><b>' + parsed.length + '</b><span>Jami</span></div>'
+      + '<div class="ok"><b>' + ok + '</b><span>Yaroqli</span></div>'
+      + '<div class="dup"><b>' + dup + '</b><span>Takroriy</span></div>'
+      + '<div class="bad"><b>' + bad + '</b><span>Xato</span></div></div>'
+      + '<div class="import-preview"><table class="tbl"><thead><tr><th>#</th><th>F.I.Sh.</th><th>Tug\'ilgan sana</th><th>Dars</th><th>Holat</th></tr></thead>'
+      + '<tbody>' + body + '</tbody></table></div>'
+      + '<div class="actions-row">'
+      + '<button class="btn btn-green" type="button" data-act="studentsBulkRun" data-school="' + esc(schoolId) + '" data-group="' + esc(groupId) + '" id="bsRunBtn"' + (ok ? '' : ' disabled') + '>'
+      + '<span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">' + ok + ' ta o\'quvchini qo\'shish</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="studentsBulk">Orqaga</button></div>'
+      + '<div id="bsProgress" class="text-muted" style="margin-top:10px"></div>', { wide: true });
+  },
+
+  async studentsBulkRun(schoolId, groupId) {
+    const rows = Admin.bulkRows.filter(r => r.status === 'ok');
+    if (!rows.length) return;
+    await withBusy('bulkStudents', $('bsRunBtn'), async () => {
+      let done = 0, failed = 0;
+      const prog = $('bsProgress');
+      for (let i = 0; i < rows.length; i++) {
+        const it = rows[i].item;
+        try {
+          await adminApi('/students', {
+            method: 'POST',
+            body: jsonBody({
+              full_name: it.full_name, fullName: it.full_name,
+              school_id: schoolId, schoolId: schoolId,
+              group_id: groupId, groupId: groupId,
+              birth_date: it.birth_date, birthDate: it.birth_date,
+              attendance_count: it.attendance,
+              manual_attendance_count: it.attendance,
+              manualAttendanceCount: it.attendance
+            })
+          });
+          done++;
+        } catch (e) { failed++; console.error('[bulk student]', it.full_name, e.technical); }
+        if (prog) prog.textContent = 'Qo\'shilmoqda: ' + (i + 1) + ' / ' + rows.length;
+      }
+      if (prog) prog.innerHTML = '<b>' + done + '</b> ta qo\'shildi, <b>' + failed + '</b> ta xato.';
+      toast(done + " ta o'quvchi qo'shildi" + (failed ? ', ' + failed + ' ta xato' : '') + '.', failed ? 'warn' : 'ok');
+      await Data.reloadStudents();
+      Admin.renderStudents();
+      Admin.refreshCounters();
+      setTimeout(closeModal, 1400);
+    });
   },
 
   /* --- Excel bo'limi --- */
@@ -3435,9 +3679,11 @@ const Admin = {
           const items = rows.map(r => {
             const sp = splitPlate(r.item.plate);
             return {
-              full_name: r.item.full_name, phone: r.item.phone,
+              full_name: r.item.full_name, fullName: r.item.full_name,
+              phone: r.item.phone,
               plate: r.item.plate ? displayPlate(sp.region, sp.body) : '',
-              model: r.item.model, school_id: schoolByName(r.item.school)
+              model: r.item.model,
+              school_id: schoolByName(r.item.school), schoolId: schoolByName(r.item.school)
             };
           });
           await api('/instructors/bulk', { method: 'POST', body: jsonBody({ instructors: items }) });
@@ -3457,8 +3703,12 @@ const Admin = {
             await adminApi('/students', {
               method: 'POST',
               body: jsonBody({
-                full_name: it.full_name, phone: it.phone, school_id: schoolId, group_id: groupId,
-                plate: it.plate ? displayPlate(sp.region, sp.body) : '', birth_date: it.birth_date || null
+                full_name: it.full_name, fullName: it.full_name,
+                phone: it.phone,
+                school_id: schoolId, schoolId: schoolId,
+                group_id: groupId, groupId: groupId,
+                plate: it.plate ? displayPlate(sp.region, sp.body) : '',
+                birth_date: it.birth_date || null, birthDate: it.birth_date || null
               })
             });
             done++;
@@ -3571,6 +3821,10 @@ const ACTIONS = {
   studentSave: d => Admin.studentSave(d.id || ''),
   studentDelete: d => Admin.studentDelete(d.id),
   studentDetail: d => Admin.studentDetail(d.id),
+  studentsBulk: () => Admin.studentsBulkModal(),
+  studentsBulkPreview: () => Admin.studentsBulkPreview(),
+  studentsBulkRun: d => Admin.studentsBulkRun(d.school, d.group),
+  exportStudentSessions: d => Admin.exportStudentSessions(d.id),
   closeStudentDetail: () => { const el = $('adminStudentDetail'); if (el) el.innerHTML = ''; },
   reloadStudents: async () => { await Data.reloadStudents(); Admin.renderStudents(); toast('Yangilandi.'); },
 
