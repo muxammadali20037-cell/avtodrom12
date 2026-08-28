@@ -1717,6 +1717,14 @@ const Data = {
     Add.syncInstructorSource();
     return STATE.instructors;
   },
+  activeSchools() {
+    /* Backend o'chirilgan (active=false) avtoshkolani ham qaytarishi mumkin */
+    return STATE.schools.filter(x => x.active !== false && x.status !== 'inactive');
+  },
+  activeGroups(schoolId) {
+    return STATE.groups.filter(g => g.active !== false
+      && (!schoolId || String(g.school_id || g.schoolId) === String(schoolId)));
+  },
   schoolName(id) {
     const s = STATE.schools.find(x => String(x.id) === String(id));
     return s ? (s.name || s.title || '') : '';
@@ -1834,7 +1842,7 @@ const Add = {
   syncInstructorSource() { if (this.comboInstructor) this.comboInstructor.setItems(STATE.instructors.filter(i => Instructors.isActive(i))); },
   syncFallbackSchools() {
     const sel = $('school'); if (!sel) return;
-    sel.innerHTML = '<option value="">Tanlang</option>' + STATE.schools.map(s => '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>').join('');
+    sel.innerHTML = '<option value="">Tanlang</option>' + Data.activeSchools().map(s => '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>').join('');
   },
   async fallbackGroups() {
     const id = $('school').value;
@@ -2044,7 +2052,7 @@ const Add = {
       + '<div><label class="field-label" for="qsName">F.I.Sh.</label><input id="qsName" required value="' + esc(name || '') + '"></div>'
       + '<div><label class="field-label" for="qsPhone">Telefon</label><input id="qsPhone" placeholder="+998..."></div>'
       + '<div><label class="field-label" for="qsSchool">Avtoshkola</label><select id="qsSchool"><option value="">Tanlang</option>'
-      + STATE.schools.map(s => '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>').join('') + '</select></div>'
+      + Data.activeSchools().map(s => '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>').join('') + '</select></div>'
       + '<div><label class="field-label" for="qsGroup">Guruh</label><select id="qsGroup" disabled><option value="">Avval avtoshkola</option></select></div>'
       + '</div>'
       + '<div class="field-help">Yangi o\'quvchi qo\'shish uchun admin huquqi kerak. Admin panelga kirmagan bo\'lsangiz, avval admin sifatida kiring.</div>'
@@ -2854,7 +2862,7 @@ const Instructors = {
       + '<div><label class="field-label" for="insName">F.I.Sh.</label><input id="insName" required value="' + esc(insName(ins)) + '"></div>'
       + '<div><label class="field-label" for="insPhone">Telefon</label><input id="insPhone" value="' + esc(ins && ins.phone) + '" placeholder="+998..."></div>'
       + '<div><label class="field-label" for="insSchool">Avtoshkola <span class="text-red">*</span></label><select id="insSchool" required><option value="">Tanlang</option>'
-      + STATE.schools.map(s => '<option value="' + esc(s.id) + '"' + (ins && String(ins.school_id || ins.schoolId) === String(s.id) ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('')
+      + Data.activeSchools().map(s => '<option value="' + esc(s.id) + '"' + (ins && String(ins.school_id || ins.schoolId) === String(s.id) ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('')
       + '</select></div>'
       + '<div><label class="field-label" for="insStatus">Holati</label><select id="insStatus">'
       + '<option value="active"' + (ins && ins.status === 'inactive' ? '' : ' selected') + '>Faol</option>'
@@ -3118,8 +3126,8 @@ const Admin = {
   },
 
   refreshCounters() {
-    $('adSchools').textContent = STATE.schools.length;
-    $('adGroups').textContent = STATE.groups.length;
+    $('adSchools').textContent = Data.activeSchools().length;
+    $('adGroups').textContent = Data.activeGroups().length;
     $('adStudents').textContent = (STATE.adminStudents || STATE.students).length;
   },
 
@@ -3182,9 +3190,10 @@ const Admin = {
   renderSchools() {
     const c = $('adminSchoolCards');
     if (!c) return;
-    if (!STATE.schools.length) { c.innerHTML = emptyState('fa-school', "Avtoshkola yo'q", "\"Avtoshkola\" tugmasi orqali qo'shing."); return; }
-    c.innerHTML = STATE.schools.map(s => {
-      const gCount = STATE.groups.filter(g => String(g.school_id || g.schoolId) === String(s.id)).length;
+    const schools = Data.activeSchools();
+    if (!schools.length) { c.innerHTML = emptyState('fa-school', "Avtoshkola yo'q", "\"Avtoshkola\" tugmasi orqali qo'shing."); return; }
+    c.innerHTML = schools.map(s => {
+      const gCount = Data.activeGroups(s.id).length;
       const sCount = STATE.students.filter(st => String(st.school_id || st.schoolId) === String(s.id)).length;
       return '<div class="card is-clickable" data-act="schoolDetail" data-id="' + esc(s.id) + '" role="button" tabindex="0">'
         + '<h3><i class="fa-solid fa-school" style="color:var(--g)" aria-hidden="true"></i> ' + esc(s.name) + '</h3>'
@@ -3257,10 +3266,15 @@ const Admin = {
     if (!ok) return;
     try {
       await adminApi('/schools/' + encodeURIComponent(id), { method: 'DELETE' });
+      /* Server keshi kechiksa ham darhol yo'qolsin */
+      STATE.schools = STATE.schools.filter(x => String(x.id) !== String(id));
+      this.renderSchools();
+      const det = $('adminSchoolDetail'); if (det) det.innerHTML = '';
       toast("O'chirildi.");
       await Data.reloadSchools();
       this.renderSchools();
       this.refreshCounters();
+      Add.syncFallbackSchools();
     } catch (e) { toast(e.message, 'error'); }
   },
   groupModal(id, schoolId) {
@@ -3297,9 +3311,11 @@ const Admin = {
     if (!ok) return;
     try {
       await adminApi(CONFIG.ADMIN_GROUPS_PATH + '/' + encodeURIComponent(id), { method: 'DELETE' });
+      STATE.groups = STATE.groups.filter(x => String(x.id) !== String(id));
       toast("O'chirildi.");
       await Data.reloadGroups(schoolId);
       this.schoolDetail(schoolId);
+      this.renderSchools();
     } catch (e) { toast(e.message, 'error'); }
   },
 
@@ -3421,7 +3437,7 @@ const Admin = {
       + '<div><label class="field-label" for="stName">F.I.Sh.</label><input id="stName" required value="' + esc(stName(s)) + '"></div>'
       + '<div><label class="field-label" for="stPhone">Telefon</label><input id="stPhone" value="' + esc(s && s.phone) + '"></div>'
       + '<div><label class="field-label" for="stSchool">Avtoshkola <span class="text-red">*</span></label><select id="stSchool" required><option value="">Tanlang</option>'
-      + STATE.schools.map(x => '<option value="' + esc(x.id) + '"' + (String(schoolId) === String(x.id) ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('')
+      + Data.activeSchools().map(x => '<option value="' + esc(x.id) + '"' + (String(schoolId) === String(x.id) ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('')
       + '</select></div>'
       + '<div><label class="field-label" for="stGroup">Guruh</label><select id="stGroup"><option value="">Tanlanmagan</option>'
       + STATE.groups.filter(g => String(g.school_id || g.schoolId) === String(schoolId)).map(g => '<option value="' + esc(g.id) + '"' + (String(s && (s.group_id || s.groupId)) === String(g.id) ? ' selected' : '') + '>' + esc(g.name) + '</option>').join('')
@@ -3621,7 +3637,7 @@ const Admin = {
       + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
       + '<div class="form-grid">'
       + '<div><label class="field-label" for="bsSchool">Avtoshkola <span class="text-red">*</span></label><select id="bsSchool" required><option value="">Tanlang</option>'
-      + STATE.schools.map(x => '<option value="' + esc(x.id) + '">' + esc(x.name) + '</option>').join('') + '</select></div>'
+      + Data.activeSchools().map(x => '<option value="' + esc(x.id) + '">' + esc(x.name) + '</option>').join('') + '</select></div>'
       + '<div><label class="field-label" for="bsGroup">Guruh <span class="text-red">*</span></label><select id="bsGroup"><option value="">Avval avtoshkola</option></select></div>'
       + '</div>'
       + '<div class="fg"><label class="field-label" for="bsData">Ro\'yxat</label>'
