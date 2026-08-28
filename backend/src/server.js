@@ -243,6 +243,29 @@ async function ensureFeatureSchema(){
 }
 
 /* YANGI: birinchi admin hisobini .env dan yaratish (ADMIN_USERNAME + ADMIN_PASSWORD) */
+/* Ilova QAYSI bazaga ulanganini ko'rsatadi. Parol hech qachon qaytarilmaydi -
+   faqat server manzili va baza nomi. */
+function dbInfo() {
+  const raw = process.env.DATABASE_URL || process.env.POSTGRES_URL
+    || process.env.POSTGRES_PRISMA_URL || process.env.SUPABASE_DB_URL || '';
+  if (!raw) return { configured: false };
+  try {
+    const u = new URL(raw);
+    return {
+      configured: true,
+      host: u.hostname,
+      port: u.port || '5432',
+      database: (u.pathname || '').replace(/^\//, ''),
+      user: u.username || null,
+      provider: /supabase/i.test(u.hostname) ? 'supabase'
+        : /railway|rlwy/i.test(u.hostname) ? 'railway'
+        : /neon/i.test(u.hostname) ? 'neon' : 'boshqa'
+    };
+  } catch (e) {
+    return { configured: true, parse_error: true };
+  }
+}
+
 export const adminStatus = { envSet: false, created: false, error: null, username: null };
 async function ensureAdminUser() {
   const username = String(process.env.ADMIN_USERNAME || '').trim();
@@ -301,6 +324,12 @@ app.get('/api/health', async (req, res) => {
        ORDER BY table_name, column_name`
     );
     const adminAccounts = await pool.query(`SELECT username FROM users WHERE role='admin' ORDER BY username`).catch(() => ({ rows: [] }));
+    const counts = await pool.query(
+      `SELECT (SELECT COUNT(*) FROM students)::int students,
+              (SELECT COUNT(*) FROM driving_schools)::int schools,
+              (SELECT COUNT(*) FROM sessions)::int sessions,
+              (SELECT COUNT(*) FROM users)::int users`
+    ).catch(() => ({ rows: [{}] }));
     const have = cols.rows.map(r => r.table_name + '.' + r.column_name);
     const need = ['sessions.target_duration','sessions.lessons_counted','sessions.frozen_at','sessions.resumed_at','sessions.instructor_id','students.birth_date','students.status','instructors.id','instructors.owner_key','instructors.full_name','instructors.plate','instructors.model','instructors.status','instructors.active'];
     res.json({
@@ -308,6 +337,8 @@ app.get('/api/health', async (req, res) => {
       schema_ok: need.every(n => have.includes(n)),
       missing: need.filter(n => !have.includes(n)),
       types: types.rows.map(r => r.table_name + '.' + r.column_name + ' = ' + r.data_type),
+      db: dbInfo(),
+      counts: counts.rows[0],
       admin: {
         env_set: adminStatus.envSet,
         env_username: adminStatus.username,
