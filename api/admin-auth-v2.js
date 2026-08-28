@@ -111,13 +111,50 @@ async function handleResource(req,res,resource,id,owner){
     if(method==='GET') return send(res,200,await listSchools(owner));
     if(method==='POST'){const name=String(b.name||'').trim();if(!name)return send(res,400,{error:'Avtoshkola nomi kerak'});const r=await pool.query(`INSERT INTO driving_schools(owner_key,name,phone,notes,active) VALUES($1,$2,$3,$4,true) RETURNING *`,[owner,name,b.phone||null,b.notes||null]);return send(res,201,r.rows[0]);}
     if(!id)return send(res,400,{error:'ID kerak'});
-    if(method==='DELETE'){const r=await pool.query(`UPDATE driving_schools SET active=false WHERE id=$1 AND owner_key=$2 RETURNING id`,[id,owner]);return r.rows[0]?send(res,200,{ok:true}):send(res,404,{error:'Avtoshkola topilmadi'});}
+    if(method==='DELETE'){
+      /* Avtoshkola o'chirilsa ichidagi guruh, o'quvchi va instruktorlar ham
+         birga o'chadi. Yozuvlar bazadan yo'qolmaydi - active=false qilinadi,
+         shuning uchun eski sessiya tarixi buzilmaydi. */
+      const c = await pool.connect();
+      try {
+        await c.query('BEGIN');
+        const r = await c.query(`UPDATE driving_schools SET active=false WHERE id=$1 AND owner_key=$2 RETURNING id`,[id,owner]);
+        if(!r.rows[0]){ await c.query('ROLLBACK'); c.release(); return send(res,404,{error:'Avtoshkola topilmadi'}); }
+        const g = await c.query(`UPDATE school_groups SET active=false WHERE school_id=$1 AND active IS NOT FALSE`,[id]);
+        const st = await c.query(`UPDATE students SET active=false WHERE school_id=$1 AND active IS NOT FALSE`,[id]);
+        const ins = await c.query(`UPDATE public.instructors SET active=false, updated_at=NOW()
+                                    WHERE settings->>'school_id'=$1 AND active IS NOT FALSE`,[String(id)]);
+        await c.query('COMMIT');
+        c.release();
+        return send(res,200,{ok:true, groups:g.rowCount, students:st.rowCount, instructors:ins.rowCount});
+      } catch(e) {
+        try { await c.query('ROLLBACK'); } catch(e2) { /* noop */ }
+        c.release();
+        return send(res,500,{error:e.message||'O‘chirishda xatolik'});
+      }
+    }
     const name=String(b.name||'').trim();if(!name)return send(res,400,{error:'Avtoshkola nomi kerak'});const r=await pool.query(`UPDATE driving_schools SET name=$1,phone=$2,notes=$3 WHERE id=$4 AND owner_key=$5 RETURNING *`,[name,b.phone||null,b.notes||null,id,owner]);return r.rows[0]?send(res,200,r.rows[0]):send(res,404,{error:'Avtoshkola topilmadi'});
   }
   if(resource==='groups'){
     if(method==='GET')return send(res,200,await listGroups(req,owner));
     if(method==='POST'){const schoolId=String(b.schoolId||b.school_id||'').trim(),name=String(b.name||'').trim();if(!schoolId||!name)return send(res,400,{error:'Avtoshkola va guruh kerak'});const r=await pool.query(`INSERT INTO school_groups(owner_key,school_id,name,notes,active) VALUES($1,$2,$3,$4,true) RETURNING *`,[owner,schoolId,name,b.notes||null]);return send(res,201,r.rows[0]);}
-    if(!id)return send(res,400,{error:'ID kerak'}); if(method==='DELETE'){const r=await pool.query(`UPDATE school_groups SET active=false WHERE id=$1 AND owner_key=$2 RETURNING id`,[id,owner]);return r.rows[0]?send(res,200,{ok:true}):send(res,404,{error:'Guruh topilmadi'});} const name=String(b.name||'').trim();const r=await pool.query(`UPDATE school_groups SET name=$1,notes=$2 WHERE id=$3 AND owner_key=$4 RETURNING *`,[name,b.notes||null,id,owner]);return r.rows[0]?send(res,200,r.rows[0]):send(res,404,{error:'Guruh topilmadi'});
+    if(!id)return send(res,400,{error:'ID kerak'}); if(method==='DELETE'){
+      const c = await pool.connect();
+      try {
+        await c.query('BEGIN');
+        const r = await c.query(`UPDATE school_groups SET active=false WHERE id=$1 AND owner_key=$2 RETURNING id`,[id,owner]);
+        if(!r.rows[0]){ await c.query('ROLLBACK'); c.release(); return send(res,404,{error:'Guruh topilmadi'}); }
+        /* Guruh o'chirilsa undagi o'quvchilar ham o'chadi */
+        const st = await c.query(`UPDATE students SET active=false WHERE group_id=$1 AND active IS NOT FALSE`,[id]);
+        await c.query('COMMIT');
+        c.release();
+        return send(res,200,{ok:true, students:st.rowCount});
+      } catch(e) {
+        try { await c.query('ROLLBACK'); } catch(e2) { /* noop */ }
+        c.release();
+        return send(res,500,{error:e.message||'O‘chirishda xatolik'});
+      }
+    } const name=String(b.name||'').trim();const r=await pool.query(`UPDATE school_groups SET name=$1,notes=$2 WHERE id=$3 AND owner_key=$4 RETURNING *`,[name,b.notes||null,id,owner]);return r.rows[0]?send(res,200,r.rows[0]):send(res,404,{error:'Guruh topilmadi'});
   }
   if(resource==='students'){
     if(method==='GET'){
