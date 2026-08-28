@@ -437,7 +437,13 @@ app.get('/api/students',auth,async(req,res)=>{
   const p=[ownerKey(req)];let w='st.owner_key=$1 AND st.active IS NOT FALSE';
   if(req.query.schoolId){p.push(req.query.schoolId);w+=` AND st.school_id=$${p.length}`}
   if(req.query.groupId){p.push(req.query.groupId);w+=` AND st.group_id=$${p.length}`}
-  const r=await pool.query(`SELECT st.*,s.name school_name,g.name group_name,${STUDENT_ATTENDANCE_SQL} attendance_count
+  /* Faqat interfeysga kerak bo'lgan ustunlar. Avval st.* qaytarardi -
+     501 qator uchun javob bir necha barobar katta bo'lib, sekin internetda
+     sezilarli kechikish berardi. */
+  const r=await pool.query(`SELECT st.id, st.full_name, st.phone, st.plate, st.birth_date,
+      st.school_id, st.group_id, st.active,
+      COALESCE(st.attendance_count,0)::int attendance_count,
+      s.name school_name, g.name group_name
     FROM students st JOIN driving_schools s ON s.id=st.school_id LEFT JOIN school_groups g ON g.id=st.group_id
     WHERE ${w} ORDER BY st.full_name`,p);
   res.json(r.rows);
