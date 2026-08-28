@@ -1122,6 +1122,9 @@ const CONFIG = {
   TOKEN_KEY: 'avtodrom_token',
   USER_KEY: 'avtodrom_user',
   ADMIN_TOKEN_KEY: 'avtodrom_admin_token',
+  ADMIN_USER_KEY: 'avtodrom_admin_user',
+  /* Tahrirlash uchun kalit so'z necha daqiqa amal qiladi */
+  KEY_TTL_MIN: 10,
   ADMIN_FLAG_KEY: 'avtodrom_admin',
   /* Backend hali target_duration/instructor_id ni qabul qilmasa false qiling.
      false bo'lsa ham UI ishlaydi: qiymatlar lokal metadata sifatida saqlanadi. */
@@ -1199,7 +1202,7 @@ const stName = s => (s && (s.full_name || s.fullName || s.name)) || '';
 /* ===================== 3. STATE ===================== */
 const STATE = {
   auth: { token: '', user: null },
-  admin: { token: '' },
+  admin: { token: '', username: '' },
   schools: [], groups: [], students: [], instructors: [],
   studentsLoaded: false, studentsLoadFailed: false,
   active: [], frozen: [], queue: [], daily: null,
@@ -1397,7 +1400,10 @@ function loadSession() {
     STATE.auth.token = localStorage.getItem(CONFIG.TOKEN_KEY) || '';
     STATE.auth.user = JSON.parse(localStorage.getItem(CONFIG.USER_KEY) || 'null');
   } catch (e) { STATE.auth.token = ''; STATE.auth.user = null; }
-  try { STATE.admin.token = sessionStorage.getItem(CONFIG.ADMIN_TOKEN_KEY) || ''; } catch (e) { STATE.admin.token = ''; }
+  try {
+    STATE.admin.token = sessionStorage.getItem(CONFIG.ADMIN_TOKEN_KEY) || '';
+    STATE.admin.username = sessionStorage.getItem(CONFIG.ADMIN_USER_KEY) || '';
+  } catch (e) { STATE.admin.token = ''; STATE.admin.username = ''; }
 }
 function saveLogin(x) {
   if (!x || !x.token) throw ApiError('Token qaytmadi. Administratorga murojaat qiling.', 0, 'no token');
@@ -1417,7 +1423,7 @@ function hardLogout(silent) {
     sessionStorage.removeItem(CONFIG.ADMIN_TOKEN_KEY);
   } catch (e) { /* noop */ }
   STATE.auth = { token: '', user: null };
-  STATE.admin = { token: '' };
+  STATE.admin = { token: '', username: '' };
   if (!silent) location.reload(); else setTimeout(() => location.reload(), 400);
 }
 function loginMode() { $('loginBox').classList.remove('hidden'); $('registerBox').classList.add('hidden'); setError('loginErr', ''); }
@@ -2998,8 +3004,10 @@ const Admin = {
           throw ApiError("Bu hisobda admin huquqi yo'q.", 403, 'role=' + role);
         }
         STATE.admin.token = data.token;
+        STATE.admin.username = (data.admin && data.admin.username) || $('adminUser').value.trim();
         try {
           sessionStorage.setItem(CONFIG.ADMIN_TOKEN_KEY, data.token);
+          sessionStorage.setItem(CONFIG.ADMIN_USER_KEY, STATE.admin.username);
           sessionStorage.setItem(CONFIG.ADMIN_FLAG_KEY, '1');
         } catch (e) { /* noop */ }
         this.closeGate();
@@ -3356,7 +3364,15 @@ const Admin = {
         else await adminApi('/students', { method: 'POST', body: jsonBody(payload) });
         closeModal();
         toast('Saqlandi.');
+        /* Operator panelidagi kesh ham yangilanadi: o'quvchi combobox,
+           tanlangan o'quvchi kartasi va admin ro'yxati bir xil qiymatni ko'rsatadi */
         await Data.reloadStudents();
+        Add.syncStudentSource();
+        if (STATE.form.student && String(STATE.form.student.id) === String(id)) {
+          STATE.form.student = Data.studentById(id) || STATE.form.student;
+          Add.renderStudentPanel();
+        }
+        Active.render();
         this.renderStudents();
         this.refreshCounters();
         if (id) this.studentDetail(id);
@@ -3379,6 +3395,64 @@ const Admin = {
       const d = $('adminStudentDetail'); if (d) d.innerHTML = '';
       this.refreshCounters();
     } catch (e) { toast(e.message, 'error'); }
+  },
+
+  /* ==========================================================================
+     KALIT SO'Z — o'quvchi ma'lumotini o'zgartirish yoki o'chirishdan oldin.
+     Parol admin paroli bilan bir xil va SERVERDA tekshiriladi (soxta emas):
+     /api/admin/login ga so'rov yuboriladi. To'g'ri bo'lsa belgilangan
+     muddatga qulf ochiladi.
+     ========================================================================== */
+  unlockedUntil: 0,
+  isUnlocked() { return Date.now() < Admin.unlockedUntil; },
+  lock() { Admin.unlockedUntil = 0; },
+  requireKey(reason) {
+    if (Admin.isUnlocked()) return Promise.resolve(true);
+    return new Promise(resolve => {
+      openModal('<div class="modal-head"><div><h2><i class="fa-solid fa-lock" aria-hidden="true"></i> Kalit so\'z</h2>'
+        + '<p class="text-muted">' + esc(reason || "O'zgartirishni tasdiqlang") + '</p></div>'
+        + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+        + '<form data-act="keyVerify">'
+        + '<div class="fg"><label class="field-label" for="keyPass">Admin paroli</label>'
+        + '<input id="keyPass" type="password" autocomplete="current-password" required placeholder="Parolni kiriting"></div>'
+        + '<div class="field-help">Tasdiqlangandan so\'ng ' + CONFIG.KEY_TTL_MIN + ' daqiqa davomida qayta so\'ralmaydi.</div>'
+        + '<div class="actions-row"><button class="btn btn-green" type="submit" id="keyBtn">'
+        + '<span class="spinner"></span><i class="fa-solid fa-unlock btn-icon" aria-hidden="true"></i><span class="btn-text">Tasdiqlash</span></button>'
+        + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
+        + '<div id="keyErr" class="text-error" role="alert"></div></form>');
+      Admin.keyResolve = resolve;
+      /* Modal yopilsa — rad etilgan deb hisoblaymiz */
+      Admin.keyWatch = setInterval(() => {
+        if (!$('keyPass')) {
+          clearInterval(Admin.keyWatch);
+          if (Admin.keyResolve) { const r = Admin.keyResolve; Admin.keyResolve = null; r(Admin.isUnlocked()); }
+        }
+      }, 300);
+    });
+  },
+  async keyVerify() {
+    setError('keyErr', '');
+    const pass = $('keyPass').value;
+    if (!pass) { setError('keyErr', 'Parolni kiriting.'); return; }
+    const username = STATE.admin.username || $('adminUser') && $('adminUser').value.trim();
+    if (!username) { setError('keyErr', 'Admin login topilmadi. Admin paneldan qaytadan kiring.'); return; }
+    await withBusy('keyVerify', $('keyBtn'), async () => {
+      try {
+        const data = await request('/admin/login', {
+          method: 'POST', body: jsonBody({ username: username, password: pass })
+        }, 'public');
+        if (!data || !data.token) throw ApiError('Tasdiqlanmadi.', 0, 'no token');
+        /* Yangi token bilan sessiyani ham yangilaymiz */
+        STATE.admin.token = data.token;
+        try { sessionStorage.setItem(CONFIG.ADMIN_TOKEN_KEY, data.token); } catch (e) { /* noop */ }
+        Admin.unlockedUntil = Date.now() + CONFIG.KEY_TTL_MIN * 60 * 1000;
+        if (Admin.keyWatch) clearInterval(Admin.keyWatch);
+        const r = Admin.keyResolve; Admin.keyResolve = null;
+        closeModal();
+        toast('Tasdiqlandi. ' + CONFIG.KEY_TTL_MIN + ' daqiqa davomida qayta so\'ralmaydi.');
+        if (r) r(true);
+      } catch (e) { setError('keyErr', e.status === 401 ? "Parol noto'g'ri." : e.message); }
+    });
   },
 
   /* --- Bitta o'quvchining tashriflari Excel --- */
@@ -3817,9 +3891,17 @@ const ACTIONS = {
   groupModal: d => Admin.groupModal(d.id || '', d.school || ''),
   groupSave: d => Admin.groupSave(d.id || '', d.school || ''),
   groupDelete: d => Admin.groupDelete(d.id, d.school || ''),
-  studentModal: d => Admin.studentModal(d.id || ''),
+  studentModal: async d => {
+    /* Yangi qo'shishda kalit so'z shart emas, faqat mavjudini o'zgartirishda */
+    if (d.id && !(await Admin.requireKey("O'quvchi ma'lumotini tahrirlash"))) return;
+    Admin.studentModal(d.id || '');
+  },
   studentSave: d => Admin.studentSave(d.id || ''),
-  studentDelete: d => Admin.studentDelete(d.id),
+  studentDelete: async d => {
+    if (!(await Admin.requireKey("O'quvchini o'chirish"))) return;
+    Admin.studentDelete(d.id);
+  },
+  keyVerify: () => Admin.keyVerify(),
   studentDetail: d => Admin.studentDetail(d.id),
   studentsBulk: () => Admin.studentsBulkModal(),
   studentsBulkPreview: () => Admin.studentsBulkPreview(),
