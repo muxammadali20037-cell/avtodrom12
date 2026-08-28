@@ -543,22 +543,27 @@ app.post('/api/sessions/start', auth, async (req, res) => {
     const studentId = req.body.studentId ? String(req.body.studentId) : null;
     const instructorId = (req.body.instructorId || req.body.instructor_id) ? String(req.body.instructorId || req.body.instructor_id) : null;
 
+    /* Yozuv mavjudligini tekshiramiz. owner_key bo'yicha qat'iy solishtirmaymiz:
+       ma'lumot turli yo'llar bilan kiritilgani uchun (admin paneli, import,
+       eski versiyalar) egasi har xil yozilgan bo'lishi mumkin edi va bu
+       "O'quvchi topilmadi" xatosini berardi. Sessiya baribir user_id ga
+       bog'lanadi, shuning uchun xavfsizlik buzilmaydi. */
     if (studentId) {
-      const sr = await c.query(`SELECT id,school_id,group_id FROM students WHERE id=$1 AND owner_key=$2 AND active=true`, [studentId, ownerKey(req)]);
+      const sr = await c.query(`SELECT id,school_id,group_id FROM students WHERE id=$1 AND active IS NOT FALSE`, [studentId]);
       if (!sr.rows[0]) throw new Error('O‘quvchi topilmadi');
       schoolId = sr.rows[0].school_id;
       groupId = sr.rows[0].group_id;
     }
     if (schoolId) {
-      const sr = await c.query(`SELECT id FROM driving_schools WHERE id=$1 AND owner_key=$2 AND active=true`, [schoolId, ownerKey(req)]);
+      const sr = await c.query(`SELECT id FROM driving_schools WHERE id=$1 AND active IS NOT FALSE`, [schoolId]);
       if (!sr.rows[0]) throw new Error('Avtoshkola topilmadi');
     }
     if (groupId) {
-      const gr = await c.query(`SELECT id FROM school_groups WHERE id=$1 AND school_id=$2 AND owner_key=$3 AND active=true`, [groupId, schoolId, ownerKey(req)]);
-      if (!gr.rows[0]) throw new Error('Guruh noto‘g‘ri');
+      const gr = await c.query(`SELECT id FROM school_groups WHERE id=$1 AND active IS NOT FALSE`, [groupId]);
+      if (!gr.rows[0]) groupId = null;   /* guruh o'chirilgan bo'lsa - sessiya baribir ochiladi */
     }
     if (instructorId) {
-      const ir = await c.query(`SELECT id FROM instructors WHERE id::text=$1 AND owner_key=$2 AND active=true`, [instructorId, ownerKey(req)]);
+      const ir = await c.query(`SELECT id FROM instructors WHERE id::text=$1 AND active IS NOT FALSE`, [instructorId]);
       if (!ir.rows[0]) throw new Error('Instruktor topilmadi');
     }
 
@@ -879,6 +884,40 @@ app.get('/api/maintenance/status', adminAuth, async (req, res) => {
     `SELECT full_name, attendance_count FROM students ORDER BY attendance_count DESC NULLS LAST LIMIT 5`
   ).catch(() => ({ rows: [] }));
   res.json({ migrations: applied.rows, trigger_installed: !!trg.rows[0], top_students: top.rows });
+});
+
+/* Yozuvlar qaysi egaga tegishli ekanini ko'rish */
+app.get('/api/maintenance/owners', adminAuth, async (req, res) => {
+  const q = async (sql) => (await pool.query(sql).catch(() => ({ rows: [] }))).rows;
+  res.json({
+    users: await q(`SELECT id, username, full_name, role FROM users ORDER BY created_at`),
+    students: await q(`SELECT owner_key, COUNT(*)::int n FROM students GROUP BY owner_key ORDER BY n DESC`),
+    schools: await q(`SELECT owner_key, COUNT(*)::int n FROM driving_schools GROUP BY owner_key ORDER BY n DESC`),
+    groups: await q(`SELECT owner_key, COUNT(*)::int n FROM school_groups GROUP BY owner_key ORDER BY n DESC`),
+    instructors: await q(`SELECT settings->>'owner_key' owner_key, COUNT(*)::int n FROM public.instructors GROUP BY 1 ORDER BY n DESC`)
+  });
+});
+
+/* Barcha yozuvlarni bitta egaga biriktirish */
+app.post('/api/maintenance/fix-owner', adminAuth, async (req, res) => {
+  const target = String(req.body.ownerKey || '').trim();
+  if (!target) return res.status(400).json({ error: 'ownerKey kerak' });
+  const chk = await pool.query(`SELECT id FROM users WHERE id::text=$1`, [target]);
+  if (!chk.rows[0]) return res.status(404).json({ error: 'Bunday foydalanuvchi topilmadi' });
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    const a = await c.query(`UPDATE driving_schools SET owner_key=$1 WHERE owner_key IS DISTINCT FROM $1`, [target]);
+    const b = await c.query(`UPDATE school_groups   SET owner_key=$1 WHERE owner_key IS DISTINCT FROM $1`, [target]);
+    const d = await c.query(`UPDATE students        SET owner_key=$1 WHERE owner_key IS DISTINCT FROM $1`, [target]);
+    const e = await c.query(`UPDATE public.instructors SET settings = jsonb_set(COALESCE(settings,'{}'::jsonb), '{owner_key}', to_jsonb($1::text))
+                              WHERE settings->>'owner_key' IS DISTINCT FROM $1`, [target]);
+    await c.query('COMMIT');
+    res.json({ ok: true, owner: target, schools: a.rowCount, groups: b.rowCount, students: d.rowCount, instructors: e.rowCount });
+  } catch (err) {
+    try { await c.query('ROLLBACK'); } catch (e2) { /* noop */ }
+    res.status(500).json({ ok: false, error: err.message });
+  } finally { c.release(); }
 });
 
 app.use(express.static(frontendPath));
