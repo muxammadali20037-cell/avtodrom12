@@ -115,7 +115,22 @@ function plateData(body) {
 
 async function ensureAccountData(userId){ await pool.query(`INSERT INTO user_settings(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING`,[userId]); }
 
+const SCHEMA_VERSION = 'feature_schema_v4';
+
+/* Jadval o'zgarishlari BIR MARTA bajariladi. Avval bu funksiya har safar
+   server "sovuq" ko'tarilganda 50 dan ortiq ALTER/CREATE so'rovini yuborardi -
+   har biri Neon'ga alohida borib kelgani uchun birinchi so'rov bir necha
+   soniya kutib qolardi. Endi belgi qo'yiladi va keyingi safar o'tkazib
+   yuboriladi (bitta yengil SELECT bilan tekshiriladi). */
 async function ensureFeatureSchema(){
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS avtodrom_migrations(
+      name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    const done = await pool.query(`SELECT 1 FROM avtodrom_migrations WHERE name=$1`, [SCHEMA_VERSION]);
+    if (done.rows[0]) { schemaSkipped = true; return; }
+  } catch (e) { console.error('SCHEMA CHECK:', e.message); }
+
+  const started = Date.now();
   const q = async sql => { try { await pool.query(sql) } catch(e) { console.error('FEATURE SCHEMA:', e.message) } };
 
   await q(`CREATE TABLE IF NOT EXISTS driving_schools(id UUID PRIMARY KEY DEFAULT gen_random_uuid(),owner_key TEXT NOT NULL,name VARCHAR(160) NOT NULL,phone VARCHAR(50),notes TEXT,active BOOLEAN NOT NULL DEFAULT TRUE,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
@@ -240,6 +255,10 @@ async function ensureFeatureSchema(){
   await q(`CREATE INDEX IF NOT EXISTS idx_students_school_group ON students(school_id,group_id,active)`);
   await q(`CREATE INDEX IF NOT EXISTS idx_school_groups_owner_school ON school_groups(owner_key,school_id,active)`);
   await q(`CREATE INDEX IF NOT EXISTS idx_schools_owner_active ON driving_schools(owner_key,active)`);
+
+  await q(`INSERT INTO avtodrom_migrations(name) VALUES('${SCHEMA_VERSION}') ON CONFLICT (name) DO NOTHING`);
+  schemaMs = Date.now() - started;
+  console.log('FEATURE SCHEMA: bajarildi,', schemaMs, 'ms');
 }
 
 /* YANGI: birinchi admin hisobini .env dan yaratish (ADMIN_USERNAME + ADMIN_PASSWORD) */
@@ -266,6 +285,8 @@ function dbInfo() {
   }
 }
 
+let schemaSkipped = false;
+let schemaMs = 0;
 export const adminStatus = { envSet: false, created: false, error: null, username: null };
 async function ensureAdminUser() {
   const username = String(process.env.ADMIN_USERNAME || '').trim();
@@ -307,7 +328,12 @@ function elapsedSeconds(s) {
 
 app.get('/api/health', async (req, res) => {
   try {
+    const t0 = Date.now();
     await pool.query('SELECT 1');
+    const pingMs = Date.now() - t0;
+    const t1 = Date.now();
+    await pool.query('SELECT COUNT(*) FROM students');
+    const countMs = Date.now() - t1;
     const cols = await pool.query(
       `SELECT table_name, column_name FROM information_schema.columns
        WHERE table_schema='public' AND (
@@ -338,6 +364,13 @@ app.get('/api/health', async (req, res) => {
       missing: need.filter(n => !have.includes(n)),
       types: types.rows.map(r => r.table_name + '.' + r.column_name + ' = ' + r.data_type),
       db: dbInfo(),
+      timing: {
+        ping_ms: pingMs,
+        count_query_ms: countMs,
+        schema_skipped: schemaSkipped,
+        schema_ms: schemaMs,
+        izoh: pingMs > 300 ? 'Baza sekin javob beryapti (Neon uyqudan uygonayotgan bolishi mumkin)' : 'Baza tez javob beryapti'
+      },
       counts: counts.rows[0],
       admin: {
         env_set: adminStatus.envSet,
