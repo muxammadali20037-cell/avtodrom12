@@ -3258,22 +3258,39 @@ const Admin = {
   },
   async schoolDelete(id) {
     const s = STATE.schools.find(x => String(x.id) === String(id));
+    /* Guruhlar har bir avtoshkola uchun alohida yuklanadi — keshda bo'lmasa
+       ogohlantirishda 0 ko'rinib qolardi */
+    if (!Data.activeGroups(id).length) await Data.reloadGroups(id);
+    const gCount = Data.activeGroups(id).length;
+    const stCount = Admin.studentList().filter(x => String(x.school_id || x.schoolId) === String(id)).length;
     const ok = await confirmModal({
       title: "Avtoshkola o'chirilsinmi?",
-      text: (s ? s.name : 'Avtoshkola') + " o'chiriladi. Bog'liq guruh va o'quvchilar ham ta'sirlanishi mumkin.",
-      okText: "O'chirish", danger: true
+      text: (s ? s.name : 'Avtoshkola') + " va uning ichidagi hamma narsa o'chiriladi.",
+      body: '<div class="autofill" style="background:var(--red-surface);border-color:#fecaca">'
+        + '<div class="autofill-grid">'
+        + '<div class="autofill-item"><span>Guruhlar</span><b>' + gCount + ' ta</b></div>'
+        + '<div class="autofill-item"><span>O\'quvchilar</span><b>' + stCount + ' ta</b></div>'
+        + '</div><div class="field-help" style="margin-top:8px">Yozuvlar bazadan butunlay o\'chmaydi — '
+        + 'ular arxivga o\'tadi va eski sessiya tarixi saqlanib qoladi.</div></div>',
+      okText: "Ha, o'chirilsin", danger: true
     });
     if (!ok) return;
     try {
-      await adminApi('/schools/' + encodeURIComponent(id), { method: 'DELETE' });
-      /* Server keshi kechiksa ham darhol yo'qolsin */
+      const r = await adminApi('/schools/' + encodeURIComponent(id), { method: 'DELETE' });
+      /* Ekrandan darhol olib tashlaymiz */
       STATE.schools = STATE.schools.filter(x => String(x.id) !== String(id));
+      STATE.groups = STATE.groups.filter(x => String(x.school_id || x.schoolId) !== String(id));
+      const dropped = x => String(x.school_id || x.schoolId) !== String(id);
+      STATE.students = STATE.students.filter(dropped);
+      if (Array.isArray(STATE.adminStudents)) STATE.adminStudents = STATE.adminStudents.filter(dropped);
+      Admin._listCache = null;
       this.renderSchools();
       const det = $('adminSchoolDetail'); if (det) det.innerHTML = '';
-      toast("O'chirildi.");
-      await Data.reloadSchools();
+      toast("O'chirildi" + (r && r.students ? ': ' + num(r.groups) + ' guruh, ' + num(r.students) + " o'quvchi" : '') + '.');
+      await Promise.all([Data.reloadSchools(), Data.reloadStudents(), Admin.loadStudents(true)]);
       this.renderSchools();
       this.refreshCounters();
+      Add.syncStudentSource();
       Add.syncFallbackSchools();
     } catch (e) { toast(e.message, 'error'); }
   },
@@ -3307,15 +3324,25 @@ const Admin = {
     });
   },
   async groupDelete(id, schoolId) {
-    const ok = await confirmModal({ title: "Guruh o'chirilsinmi?", text: "Guruhga bog'langan o'quvchilar guruhsiz qolishi mumkin.", okText: "O'chirish", danger: true });
+    const stCount = Admin.studentList().filter(x => String(x.group_id || x.groupId) === String(id)).length;
+    const ok = await confirmModal({
+      title: "Guruh o'chirilsinmi?",
+      text: "Guruh va undagi " + stCount + " ta o'quvchi o'chiriladi.",
+      okText: "Ha, o'chirilsin", danger: true
+    });
     if (!ok) return;
     try {
-      await adminApi(CONFIG.ADMIN_GROUPS_PATH + '/' + encodeURIComponent(id), { method: 'DELETE' });
+      const r = await adminApi(CONFIG.ADMIN_GROUPS_PATH + '/' + encodeURIComponent(id), { method: 'DELETE' });
       STATE.groups = STATE.groups.filter(x => String(x.id) !== String(id));
-      toast("O'chirildi.");
-      await Data.reloadGroups(schoolId);
+      const dropped = x => String(x.group_id || x.groupId) !== String(id);
+      STATE.students = STATE.students.filter(dropped);
+      if (Array.isArray(STATE.adminStudents)) STATE.adminStudents = STATE.adminStudents.filter(dropped);
+      Admin._listCache = null;
+      toast("O'chirildi" + (r && r.students ? ': ' + num(r.students) + " o'quvchi" : '') + '.');
+      await Promise.all([Data.reloadGroups(schoolId), Data.reloadStudents(), Admin.loadStudents(true)]);
       this.schoolDetail(schoolId);
       this.renderSchools();
+      Add.syncStudentSource();
     } catch (e) { toast(e.message, 'error'); }
   },
 
