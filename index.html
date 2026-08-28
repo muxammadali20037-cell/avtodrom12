@@ -632,6 +632,14 @@ table.tbl td b { font-weight: 700; }
 .row-bad td { background: var(--red-surface); }
 .row-dup td { background: var(--amber-surface); }
 
+/* ===== 29b. O'QUVCHI QATORI (yengil markup) ===== */
+.st-row { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; cursor: pointer; transition: var(--transition); }
+.st-row:hover { box-shadow: var(--shadow-sm); border-color: #a7f3d0; }
+.st-row b { font-size: 13.5px; }
+.st-row .st-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.st-act { display: flex; gap: 8px; align-items: center; }
+.st-more { text-align: center; margin-top: 10px; }
+
 /* ===== 30. YORDAMCHI ===== */
 .hidden { display: none !important; }
 .text-muted { color: var(--muted); }
@@ -1205,6 +1213,14 @@ const displayPlate = (region, body) => [normalizePlate(region), normalizePlate(b
 /* Soatni darsga aylantirish: 1 soat = 1 dars (business rule) */
 const secondsToLessons = sec => Math.max(1, Math.round(num(sec) / CONFIG.LESSON_SECONDS));
 
+/* ==========================================================================
+   DARSLAR SONI — butun ilovada YAGONA manbadan hisoblanadi.
+   Baza ikki qismdan iborat: qo'lda kiritilgan (manual_attendance_count) va
+   tizimda yakunlangan sessiyalar. Ba'zi endpointlar qo'lda kiritilganini
+   qo'shib bermaydi — o'shanda frontend o'zi qo'shadi (pastdagi kalibrovka).
+   ========================================================================== */
+const attCount = s => num(s && s.attendance_count);
+
 /* Instruktor / o'quvchi maydonlarini backend variantlariga moslashtiruvchi adapter */
 const insName = i => (i && (i.full_name || i.fullName || i.name)) || '';
 const insPlate = i => (i && (i.plate || i.vehicle_plate || i.plateNumber || i.car_plate)) || '';
@@ -1218,6 +1234,7 @@ const STATE = {
   schools: [], groups: [], students: [], instructors: [],
   studentsLoaded: false, studentsLoadFailed: false,
   adminStudents: null,
+  studentsStale: false,
   active: [], frozen: [], queue: [], daily: null,
   activeFilter: 'all', activeQuery: '',
   page: 'add',
@@ -1659,7 +1676,10 @@ const Data = {
     STATE.schools = Array.isArray(schools) ? schools : (schools && schools.rows) || [];
     STATE.instructors = Array.isArray(instructors) ? instructors : (instructors && instructors.rows) || [];
     if (students === null) { STATE.studentsLoadFailed = true; STATE.students = []; }
-    else { STATE.students = Array.isArray(students) ? students : (students.rows || []); STATE.studentsLoaded = true; }
+    else {
+      STATE.students = Array.isArray(students) ? students : (students.rows || []);
+      STATE.studentsLoaded = true;
+    }
     Add.syncStudentSource();
     Add.syncInstructorSource();
     Instructors.render();
@@ -1741,7 +1761,7 @@ const Add = {
       createText: "Yangi o'quvchi yaratish",
       getText: it => stName(it),
       getSub: it => [it.school_name || Data.schoolName(it.school_id || it.schoolId), it.group_name || Data.groupName(it.group_id || it.groupId), it.phone].filter(Boolean).join(' • '),
-      getTag: it => num(it.attendance_count) + ' dars',
+      getTag: it => attCount(it) + ' dars',
       match: (it, q) => {
         const parts = lower(stName(it)).split(/\s+/);
         return lower(stName(it)).indexOf(q) >= 0
@@ -1795,7 +1815,10 @@ const Add = {
   onEnter() {
     if (!STATE.schools.length) Data.reloadSchools().then(() => Add.syncFallbackSchools());
     if (!STATE.instructors.length) Data.reloadInstructors();
-    if (!STATE.students.length && !STATE.studentsLoaded) Data.reloadStudents();
+    if ((!STATE.students.length && !STATE.studentsLoaded) || STATE.studentsStale) {
+      STATE.studentsStale = false;
+      Data.reloadStudents();
+    }
     Queue.render();
   },
 
@@ -1831,7 +1854,7 @@ const Add = {
       const r = await api('/students?schoolId=' + encodeURIComponent(s) + '&groupId=' + encodeURIComponent(g));
       const list = Array.isArray(r) ? r : (r && r.rows) || [];
       list.forEach(st => { if (!Data.studentById(st.id)) STATE.students.push(st); });
-      $('student').innerHTML = '<option value="">O\'quvchini tanlang</option>' + list.map(x => '<option value="' + esc(x.id) + '">' + esc(stName(x)) + ' — ' + num(x.attendance_count) + ' dars</option>').join('');
+      $('student').innerHTML = '<option value="">O\'quvchini tanlang</option>' + list.map(x => '<option value="' + esc(x.id) + '">' + esc(stName(x)) + ' — ' + attCount(x) + ' dars</option>').join('');
       $('student').disabled = false;
     } catch (e) {
       $('student').innerHTML = '<option value="">Yuklanmadi</option>';
@@ -1890,7 +1913,7 @@ const Add = {
     const box = $('studentBox');
     const s = STATE.form.student;
     if (!s) { box.innerHTML = ''; return; }
-    const total = num(s.attendance_count);
+    const total = attCount(s);
     const today = Data.todayLessons(s.id);
     const planned = Math.round(this.targetSeconds() / CONFIG.LESSON_SECONDS);
     const cls = total >= 12 ? 'blue' : total >= 6 ? 'red' : 'green';
@@ -2449,6 +2472,7 @@ const Active = {
 
   /* Har soniya faqat kerakli elementlarni yangilaymiz (full re-render emas) */
   tick() {
+    if (document.hidden) return;
     if (STATE.page !== 'active' && !$('adminActiveRows')) return;
     let needsResort = false;
     $$('.vehicle-card[data-sid]').forEach(card => {
@@ -3058,7 +3082,13 @@ const Admin = {
     const c = $('adminContent');
     if (tab === 'dashboard') { c.innerHTML = this.dashboardHTML(); this.realtime(); return; }
     if (tab === 'schools') { c.innerHTML = this.schoolsHTML(); this.renderSchools(); return; }
-    if (tab === 'students') { c.innerHTML = this.studentsHTML(); this.renderStudents(); this.loadStudents(true); return; }
+    if (tab === 'students') {
+      Admin.studentLimit = 50;
+      c.innerHTML = this.studentsHTML();
+      $('adminStudents').innerHTML = loadingLine("O'quvchilar yuklanmoqda...");
+      this.loadStudents(true);
+      return;
+    }
     if (tab === 'instructors') {
       c.innerHTML = '<div class="page-header"><div><h2>Instruktorlar</h2><p class="text-muted">Qo\'shish, tahrirlash, avtomobil biriktirish</p></div>'
         + '<div class="header-actions"><button class="btn btn-light" type="button" data-act="instructorBulk"><i class="fa-solid fa-list" aria-hidden="true"></i> Ommaviy</button>'
@@ -3166,7 +3196,7 @@ const Admin = {
         + '<button class="btn btn-danger btn-sm" type="button" data-act="groupDelete" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '"><i class="fa-solid fa-trash" aria-hidden="true"></i></button></div></div>'
         + (gst.length ? '<div style="margin-top:8px">' + gst.map(st =>
           '<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line);font-size:13px">'
-          + '<span>' + esc(stName(st)) + '</span><span class="badge badge-blue">' + num(st.attendance_count) + ' dars</span></div>').join('') + '</div>' : '');
+          + '<span>' + esc(stName(st)) + '</span><span class="badge badge-blue">' + attCount(st) + ' dars</span></div>').join('') + '</div>' : '');
     }).join('') : emptyState('fa-users', "Guruh yo'q", "Ushbu avtoshkolada guruh qo'shilmagan.");
     c.innerHTML = '<div class="panel" style="margin-top:16px">'
       + '<div class="panel-head"><h3><i class="fa-solid fa-users" style="color:var(--g)" aria-hidden="true"></i> ' + esc(school ? school.name : '') + ' — guruhlar</h3>'
@@ -3263,6 +3293,12 @@ const Admin = {
     try {
       const r = await adminApi('/students');
       STATE.adminStudents = Array.isArray(r) ? r : (r && r.rows) || [];
+      /* Qidiruv matnini oldindan tayyorlaymiz: har bosilgan harfda 500 ta
+         obyekt uchun qayta hisoblanmaydi */
+      STATE.adminStudents.forEach(x => {
+        x._adm = true;
+        x._q = lower([stName(x), x.phone, x.plate, x.group_name, x.school_name].filter(Boolean).join(' '));
+      });
     } catch (e) {
       STATE.adminStudents = null;
       if (!silent) console.error('[admin students]', e.technical);
@@ -3270,12 +3306,17 @@ const Admin = {
     Admin.renderStudents();
     Admin.refreshCounters();
   },
+  studentLimit: 50,
+  _listCache: null,
   studentList() {
     /* Admin ro'yxati bo'sh yoki yuklanmagan bo'lsa operator ro'yxatiga qaytamiz,
        shunda panel hech qachon bo'sh qolib ketmaydi. */
     const admin = Array.isArray(STATE.adminStudents) ? STATE.adminStudents : [];
-    const list = admin.length ? admin : STATE.students;
-    return list.filter(x => x.active !== false && x.status !== 'inactive');
+    const src = admin.length ? admin : STATE.students;
+    if (Admin._listCache && Admin._listCache.src === src) return Admin._listCache.rows;
+    const rows = src.filter(x => x.active !== false && x.status !== 'inactive');
+    Admin._listCache = { src: src, rows: rows };
+    return rows;
   },
   studentsHTML() {
     return '<div class="page-header"><div><h2>O\'quvchilar</h2><p class="text-muted">Ism, telefon yoki guruh bo\'yicha qidiring</p></div>'
@@ -3292,27 +3333,33 @@ const Admin = {
     if (!host) return;
     const q = lower($('adminStudentQ') ? $('adminStudentQ').value : '').trim();
     const all = Admin.studentList();
-    const list = all.filter(s => {
-      if (!q) return true;
-      return lower([stName(s), s.phone, s.plate, s.group_name, s.school_name].filter(Boolean).join(' ')).indexOf(q) >= 0;
-    }).slice(0, 200);
+    const list = q
+      ? all.filter(s => (s._q || lower([stName(s), s.phone, s.group_name, s.school_name].filter(Boolean).join(' '))).indexOf(q) >= 0)
+      : all;
     if (!all.length) { host.innerHTML = emptyState('fa-graduation-cap', "O'quvchi yo'q", "Excel import yoki \"O'quvchi qo'shish\" orqali kiriting."); return; }
     if (!list.length) { host.innerHTML = emptyState('fa-magnifying-glass', "O'quvchi topilmadi", 'Boshqa so\'z bilan qidiring.'); return; }
-    host.innerHTML = '<div class="text-muted" style="font-size:12px;margin-bottom:8px">Ko\'rsatilmoqda: ' + list.length + ' / ' + all.length + '</div>'
-      + list.map(s => {
-        const att = num(s.attendance_count);
+    /* Katta ro'yxatni bir yo'la chizmaymiz — brauzer qotib qolmasligi uchun */
+    const shown = list.slice(0, Admin.studentLimit);
+    const rest = list.length - shown.length;
+    host.innerHTML = '<div class="text-muted" style="font-size:12px;margin-bottom:8px">Ko\'rsatilmoqda: ' + shown.length + ' / ' + list.length + '</div>'
+      + shown.map(s => {
+        const att = attCount(s);
         const cls = att >= 12 ? 'blue' : att >= 6 ? 'red' : 'green';
-        return '<div class="card is-clickable" style="margin-bottom:8px" data-act="studentDetail" data-id="' + esc(s.id) + '" role="button" tabindex="0">'
-          + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div>'
-          + '<b>' + esc(stName(s)) + '</b>'
-          + '<div class="text-muted" style="font-size:12px">' + esc([s.phone, s.school_name || Data.schoolName(s.school_id), s.group_name || Data.groupName(s.group_id)].filter(Boolean).join(' • ')) + '</div></div>'
-          + '<div style="display:flex;gap:8px;align-items:center">'
+        const id = esc(s.id);
+        return '<div class="st-row" data-act="studentDetail" data-id="' + id + '" role="button" tabindex="0"><div>'
+          + '<b>' + esc(stName(s)) + '</b><div class="st-sub">'
+          + esc([s.phone, s.school_name || Data.schoolName(s.school_id), s.group_name || Data.groupName(s.group_id)].filter(Boolean).join(' • '))
+          + '</div></div><div class="st-act">'
           + '<span class="badge badge-' + cls + '">' + att + ' dars</span>'
-          + '<button class="btn btn-green btn-sm" type="button" data-act="exportStudentSessions" data-id="' + esc(s.id) + '" data-stop="1" aria-label="Excel yuklab olish" title="Excel yuklab olish"><i class="fa-solid fa-file-excel" aria-hidden="true"></i></button>'
-          + '<button class="btn btn-light btn-sm" type="button" data-act="studentModal" data-id="' + esc(s.id) + '" data-stop="1" aria-label="Tahrirlash"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>'
-          + '<button class="btn btn-danger btn-sm" type="button" data-act="studentDelete" data-id="' + esc(s.id) + '" data-stop="1" aria-label="O\'chirish"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>'
-          + '</div></div></div>';
-      }).join('');
+          + '<button class="btn btn-green btn-sm" type="button" data-act="exportStudentSessions" data-id="' + id + '" data-stop="1" title="Excel"><i class="fa-solid fa-file-excel"></i></button>'
+          + '<button class="btn btn-light btn-sm" type="button" data-act="studentModal" data-id="' + id + '" data-stop="1" title="Tahrirlash"><i class="fa-solid fa-pen"></i></button>'
+          + '<button class="btn btn-danger btn-sm" type="button" data-act="studentDelete" data-id="' + id + '" data-stop="1" title="O\'chirish"><i class="fa-solid fa-trash"></i></button>'
+          + '</div></div>';
+      }).join('')
+      + (rest > 0
+        ? '<div class="st-more"><button class="btn btn-light" type="button" data-act="studentsMore">'
+          + '<i class="fa-solid fa-chevron-down" aria-hidden="true"></i> Yana 50 ta ko\'rsatish (' + rest + ' ta qoldi)</button></div>'
+        : '');
   },
   async studentDetail(sid) {
     const c = $('adminStudentDetail');
@@ -3337,8 +3384,8 @@ const Admin = {
         + '<button class="btn btn-danger btn-sm" type="button" data-act="studentDelete" data-id="' + esc(sid) + '"><i class="fa-solid fa-trash" aria-hidden="true"></i> O\'chirish</button>'
         + '<button class="btn btn-ghost btn-sm" type="button" data-act="closeStudentDetail" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div></div>'
         + '<div class="att-grid">'
-        + '<div class="att-item"><b>' + num(s.attendance_count) + '</b><span>Bazadagi darslar</span></div>'
-        + '<div class="att-item"><b>' + totalLessons + '</b><span>Tarixdan hisoblangan</span></div>'
+        + '<div class="att-item"><b>' + attCount(s) + '</b><span>Jami darslar</span></div>'
+        + '<div class="att-item"><b>' + totalLessons + '</b><span>Tashriflardan hisoblangan</span></div>'
         + '<div class="att-item"><b>' + todayLessons + '</b><span>Bugungi dars</span></div>'
         + '<div class="att-item"><b>' + rows.length + '</b><span>Tashriflar</span></div>'
         + '</div>'
@@ -3364,7 +3411,8 @@ const Admin = {
       + '</select></div>'
       + '<div><label class="field-label" for="stBirth">Tug\'ilgan sana</label><input id="stBirth" type="date" value="' + esc(dateInput(s && (s.birth_date || s.birthDate))) + '"></div>'
       + '<div><label class="field-label" for="stPlate">Avtomobil</label><input id="stPlate" value="' + esc(s && s.plate) + '" placeholder="01 111 AAA"></div>'
-      + '<div><label class="field-label" for="stAtt">Qatnashgan darslar</label><input id="stAtt" type="number" min="0" value="' + num(s && s.attendance_count) + '"></div>'
+      + '<div><label class="field-label" for="stAtt">Kelgan darslar</label><input id="stAtt" type="number" min="0" value="' + attCount(s) + '">'
+      + '<div class="field-help">Shu son hamma joyda ko\'rinadi. Vaqt ochilib yakunlanganda ustiga avtomatik qo\'shiladi (1 soat = 1 dars).</div></div>'
       + '<div><label class="field-label" for="stStatus">Holati</label><select id="stStatus">'
       + '<option value="active"' + (s && s.status === 'inactive' ? '' : ' selected') + '>Faol</option>'
       + '<option value="inactive"' + (s && s.status === 'inactive' ? ' selected' : '') + '>Faol emas</option></select></div>'
@@ -3396,10 +3444,9 @@ const Admin = {
       group_id: stG, groupId: stG,
       birth_date: stB, birthDate: stB,
       plate: $('stPlate').value.trim(),
-      /* Bazada qo'lda kiritiladigan dars soni shu ustunda saqlanadi */
+      /* Darslar soni - yagona qiymat */
       attendance_count: num($('stAtt').value),
-      manual_attendance_count: num($('stAtt').value),
-      manualAttendanceCount: num($('stAtt').value),
+      attendanceCount: num($('stAtt').value),
       status: $('stStatus').value,
       active: $('stStatus').value !== 'inactive'
     };
@@ -3414,8 +3461,8 @@ const Admin = {
         toast('Saqlandi.');
         /* Operator panelidagi kesh ham yangilanadi: o'quvchi combobox,
            tanlangan o'quvchi kartasi va admin ro'yxati bir xil qiymatni ko'rsatadi */
-        await Promise.all([Data.reloadStudents(), Admin.loadStudents(true)]);
-        Add.syncStudentSource();
+        STATE.studentsStale = true;
+        await Admin.loadStudents(true);
         if (STATE.form.student && String(STATE.form.student.id) === String(id)) {
           STATE.form.student = Data.studentById(id) || STATE.form.student;
           Add.renderStudentPanel();
@@ -3438,7 +3485,8 @@ const Admin = {
     try {
       await adminApi('/students/' + encodeURIComponent(id), { method: 'DELETE' });
       toast("O'chirildi.");
-      await Promise.all([Data.reloadStudents(), Admin.loadStudents(true)]);
+      STATE.studentsStale = true;
+      await Admin.loadStudents(true);
       const d = $('adminStudentDetail'); if (d) d.innerHTML = '';
       this.refreshCounters();
     } catch (e) { toast(e.message, 'error'); }
@@ -3677,8 +3725,7 @@ const Admin = {
               group_id: groupId, groupId: groupId,
               birth_date: it.birth_date, birthDate: it.birth_date,
               attendance_count: it.attendance,
-              manual_attendance_count: it.attendance,
-              manualAttendanceCount: it.attendance
+              attendanceCount: it.attendance
             })
           });
           done++;
@@ -3687,7 +3734,8 @@ const Admin = {
       }
       if (prog) prog.innerHTML = '<b>' + done + '</b> ta qo\'shildi, <b>' + failed + '</b> ta xato.';
       toast(done + " ta o'quvchi qo'shildi" + (failed ? ', ' + failed + ' ta xato' : '') + '.', failed ? 'warn' : 'ok');
-      await Promise.all([Data.reloadStudents(), Admin.loadStudents(true)]);
+      STATE.studentsStale = true;
+      await Admin.loadStudents(true);
       Admin.refreshCounters();
       setTimeout(closeModal, 1400);
     });
@@ -3716,7 +3764,7 @@ const Admin = {
   exportStudents() {
     if (!STATE.students.length) { toast("Eksport uchun o'quvchi yo'q.", 'warn'); return; }
     const aoa = [["F.I.Sh.", 'Telefon', 'Avtoshkola', 'Guruh', 'Avtomobil', 'Darslar', 'Holati']].concat(
-      STATE.students.map(s => [stName(s), s.phone || '', s.school_name || Data.schoolName(s.school_id), s.group_name || Data.groupName(s.group_id), s.plate || '', num(s.attendance_count), s.status === 'inactive' ? 'Faol emas' : 'Faol'])
+      Admin.studentList().map(s => [stName(s), s.phone || '', s.school_name || Data.schoolName(s.school_id), s.group_name || Data.groupName(s.group_id), s.plate || '', attCount(s), s.status === 'inactive' ? 'Faol emas' : 'Faol'])
     );
     Excel.save(aoa, 'oquvchilar-' + localDateISO(0), "O'quvchilar");
   },
@@ -3958,12 +4006,13 @@ const ACTIONS = {
   },
   keyVerify: () => Admin.keyVerify(),
   studentDetail: d => Admin.studentDetail(d.id),
+  studentsMore: () => { Admin.studentLimit += 50; Admin.renderStudents(); },
   studentsBulk: () => Admin.studentsBulkModal(),
   studentsBulkPreview: () => Admin.studentsBulkPreview(),
   studentsBulkRun: d => Admin.studentsBulkRun(d.school, d.group),
   exportStudentSessions: (d, el) => Admin.exportStudentSessions(d.id, el),
   closeStudentDetail: () => { const el = $('adminStudentDetail'); if (el) el.innerHTML = ''; },
-  reloadStudents: async () => { await Promise.all([Data.reloadStudents(), Admin.loadStudents(true)]); toast('Yangilandi.'); },
+  reloadStudents: async () => { STATE.studentsStale = true; await Admin.loadStudents(true); toast('Yangilandi.'); },
 
   /* --- excel --- */
   exportStudents: () => Admin.exportStudents(),
@@ -4043,7 +4092,7 @@ function wireInputs() {
   if ($('reportDate')) $('reportDate').addEventListener('change', () => Reports.loadDaily());
   /* Admin ichidagi maydonlar dinamik yaratiladi — delegatsiya orqali */
   document.addEventListener('input', debounce(e => {
-    if (e.target && e.target.id === 'adminStudentQ') Admin.renderStudents();
+    if (e.target && e.target.id === 'adminStudentQ') { Admin.studentLimit = 50; Admin.renderStudents(); }
   }, CONFIG.DEBOUNCE));
 }
 
@@ -4062,8 +4111,11 @@ function startPolling() {
   pollTimer = setInterval(() => {
     if (document.hidden) return;
     if (!STATE.auth.token) return;
-    if (STATE.page === 'active' || STATE.page === 'finish' || STATE.page === 'queue') Active.load(true);
-    if (STATE.page === 'frozen') Frozen.load(true);
+    const adminOpen = !$('adminPanel').classList.contains('hidden');
+    if (!adminOpen) {
+      if (STATE.page === 'active' || STATE.page === 'finish' || STATE.page === 'queue') Active.load(true);
+      if (STATE.page === 'frozen') Frozen.load(true);
+    }
     if (STATE.admin.token && Admin.tab === 'dashboard' && !$('adminPanel').classList.contains('hidden')) Admin.realtime();
   }, CONFIG.POLL_ACTIVE_MS);
 }
