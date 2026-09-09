@@ -594,6 +594,70 @@ table.tbl td b { font-weight: 700; }
 .live-dot { display: inline-flex; align-items: center; gap: 5px; color: #34d399; font-weight: 700; font-size: 12px; }
 .live-dot::before { content: ''; width: 8px; height: 8px; background: #34d399; border-radius: 50%; animation: pulse-dot 1.5s ease-in-out infinite; }
 
+/* ===== 24b. ADMIN PANEL — TO'LIQ EKRAN ===== */
+body.admin-open { overflow: hidden; }
+
+#adminPanel > .admin-overlay {
+  display: block;
+  padding: 0;
+  background: var(--bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  z-index: 80;
+}
+
+#adminPanel .admin-card {
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  max-height: none;
+  overflow: visible;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--bg);
+  padding: 0 24px 40px;
+  animation: fadeIn 0.25s ease-out both;
+}
+
+#adminPanel .admin-topbar {
+  margin: 0 -24px 22px;
+  border-radius: 0;
+  padding: 16px 24px;
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  box-shadow: 0 2px 14px rgba(0,0,0,0.18);
+}
+
+#adminPanel #adminTabs {
+  position: sticky;
+  top: 84px;
+  z-index: 11;
+  background: var(--bg);
+  padding: 8px 0;
+  margin-bottom: 16px;
+  width: 100%;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+}
+#adminPanel #adminTabs::-webkit-scrollbar { display: none; }
+#adminPanel #adminTabs .seg-btn { flex-shrink: 0; }
+
+#adminPanel .admin-card > *:not(.admin-topbar) {
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (max-width: 860px) {
+  #adminPanel .admin-card { padding: 0 14px 32px; }
+  #adminPanel .admin-topbar { margin: 0 -14px 16px; padding: 14px; }
+  #adminPanel #adminTabs { top: 76px; }
+}
+
 /* ===== 25. HISOBOT ===== */
 .report-filters { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-bottom: 16px; }
 .report-filters .fg { margin: 0; min-width: 180px; }
@@ -1392,6 +1456,7 @@ async function request(path, opt, kind) {
             const panel = document.getElementById('adminPanel');
             const gate = document.getElementById('adminGate');
             if (panel) panel.classList.add('hidden');
+            document.body.classList.remove('admin-open');
             if (gate) gate.classList.remove('hidden');
           } catch (e2) { /* noop */ }
           throw ApiError('Admin sessiyasi tugadi. Qaytadan kiring.', 401, serverMsg);
@@ -1463,6 +1528,7 @@ function hardLogout(silent) {
   } catch (e) { /* noop */ }
   STATE.auth = { token: '', user: null };
   STATE.admin = { token: '', username: '' };
+  document.body.classList.remove('admin-open');
   if (!silent) location.reload(); else setTimeout(() => location.reload(), 400);
 }
 function loginMode() { $('loginBox').classList.remove('hidden'); $('registerBox').classList.add('hidden'); setError('loginErr', ''); }
@@ -1486,9 +1552,13 @@ function bootInner() {
   Data.preload();
   go('add');
   startPolling();
+  /* Kunlik hisobotni bir marta oldindan yuklaymiz — "Bugungi tushum" KPI va
+     o'quvchining bugungi darslari shu ma'lumotdan olinadi. */
+  Reports.loadDaily();
   if (sessionStorage.getItem(CONFIG.ADMIN_FLAG_KEY) === '1' && STATE.admin.token) {
     $('adminPanel').classList.remove('hidden');
-    adminTab('dashboard');
+    document.body.classList.add('admin-open');
+    Admin.setTab('dashboard');
   }
 }
 function showLoginScreen() {
@@ -2629,7 +2699,7 @@ const Finish = {
         delete STATE.meta[id]; saveMeta();
         await Promise.all([Active.load(true), Frozen.load(true)]);
         Finish.renderList();
-        if (STATE.page === 'daily') Reports.loadDaily();
+        Reports.loadDaily();
         /* Dars soni serverda oshdi — o'quvchilar ro'yxatini yangilaymiz,
            aks holda qidiruvda va kartada eski son turib qolardi. */
         if (wasSchool) {
@@ -2759,7 +2829,7 @@ const Reports = {
       Active.renderKpi();
     } catch (e) {
       if (host) host.innerHTML = emptyState('fa-triangle-exclamation', 'Hisobot yuklanmadi', e.message, true);
-      toast(e.message, 'error');
+      if (STATE.page === 'daily') toast(e.message, 'error');
     }
   },
   exportDaily() {
@@ -2989,7 +3059,7 @@ const Excel = {
       const html = '<html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:6px;font-size:12px}</style></head><body><table>'
         + aoa.map((row, i) => '<tr>' + row.map(c => (i === 0 ? '<th>' : '<td>') + esc(c) + (i === 0 ? '</th>' : '</td>')).join('') + '</tr>').join('')
         + '</table></body></html>';
-      const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+      const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = filename + '.xls';
@@ -3087,6 +3157,8 @@ const Admin = {
         } catch (e) { /* noop */ }
         this.closeGate();
         $('adminPanel').classList.remove('hidden');
+        document.body.classList.add('admin-open');
+        window.scrollTo({ top: 0 });
         this.setTab('dashboard');
         this.refreshCounters();
       } catch (e) { setError('adminErr', e.message); }
@@ -3099,6 +3171,7 @@ const Admin = {
     } catch (e) { /* noop */ }
     STATE.admin.token = '';
     $('adminPanel').classList.add('hidden');
+    document.body.classList.remove('admin-open');
   },
 
   setTab(tab) {
@@ -3363,6 +3436,7 @@ const Admin = {
       STATE.adminStudents = null;
       if (!silent) console.error('[admin students]', e.technical);
     }
+    Admin._listCache = null;
     Admin.renderStudents();
     Admin.refreshCounters();
   },
@@ -3596,7 +3670,7 @@ const Admin = {
     setError('keyErr', '');
     const pass = $('keyPass').value;
     if (!pass) { setError('keyErr', 'Parolni kiriting.'); return; }
-    const username = STATE.admin.username || $('adminUser') && $('adminUser').value.trim();
+    const username = STATE.admin.username || ($('adminUser') && $('adminUser').value.trim());
     if (!username) { setError('keyErr', 'Admin login topilmadi. Admin paneldan qaytadan kiring.'); return; }
     await withBusy('keyVerify', $('keyBtn'), async () => {
       try {
@@ -3705,13 +3779,11 @@ const Admin = {
     for (let i = tokens.length - 1; i >= 0; i--) {
       const t = tokens[i];
       if (!/\d/.test(t)) continue;
-      const p2 = String(t).padStart(2, '0');
       let m = t.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})$/);
       if (m) { birth = m[3] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[1]).padStart(2, '0'); tokens.splice(i, 1); break; }
       m = t.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})$/);
       if (m) { birth = m[1] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[3]).padStart(2, '0'); tokens.splice(i, 1); break; }
       if (/^[\d.\-\/]{6,}$/.test(t)) { problems.push('sana noto\'g\'ri: ' + t); tokens.splice(i, 1); break; }
-      void p2;
     }
     const name = tokens.join(' ').trim();
     if (!name) problems.push('F.I.Sh. topilmadi');
@@ -3829,7 +3901,7 @@ const Admin = {
       + '<div class="search-hint" style="margin-top:16px"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Import qilishdan oldin tizim har bir qatorni tekshiradi: yaroqli, takroriy va xato qatorlar alohida ko\'rsatiladi. Faqat siz tasdiqlaganingizdan keyin bazaga yoziladi.</div>';
   },
   exportStudents() {
-    if (!STATE.students.length) { toast("Eksport uchun o'quvchi yo'q.", 'warn'); return; }
+    if (!Admin.studentList().length) { toast("Eksport uchun o'quvchi yo'q.", 'warn'); return; }
     const aoa = [["F.I.Sh.", 'Telefon', 'Avtoshkola', 'Guruh', 'Avtomobil', 'Darslar', 'Holati']].concat(
       Admin.studentList().map(s => [stName(s), s.phone || '', s.school_name || Data.schoolName(s.school_id), s.group_name || Data.groupName(s.group_id), s.plate || '', attCount(s), s.status === 'inactive' ? 'Faol emas' : 'Faol'])
     );
@@ -3850,6 +3922,10 @@ const Admin = {
     const head = rows[0].map(c => lower(c));
     const hasHeader = head.some(h => h.indexOf('f.i.sh') >= 0 || h.indexOf('ism') >= 0 || h.indexOf('name') >= 0);
     const dataRows = hasHeader ? rows.slice(1) : rows;
+    const schoolByName = name => {
+      const s = STATE.schools.find(x => lower(x.name).trim() === lower(name).trim());
+      return s ? s.id : null;
+    };
     return dataRows.map((r, idx) => {
       const cells = r.map(c => String(c === null || c === undefined ? '' : c).trim());
       const item = kind === 'students'
@@ -3858,7 +3934,10 @@ const Admin = {
       const problems = [];
       if (!item.full_name) problems.push("F.I.Sh. bo'sh");
       else if (item.full_name.length < 3) problems.push('F.I.Sh. juda qisqa');
-      const pool = kind === 'students' ? STATE.students : STATE.instructors;
+      /* Avtoshkola nomi bazada topilmasa — jimgina yo'qotmaymiz, ogohlantiramiz */
+      if (!item.school) problems.push("avtoshkola ko'rsatilmagan");
+      else if (!schoolByName(item.school)) problems.push('avtoshkola topilmadi: ' + item.school);
+      const pool = kind === 'students' ? Admin.studentList() : STATE.instructors;
       const dup = pool.some(x => lower(kind === 'students' ? stName(x) : insName(x)) === lower(item.full_name)
         && (!item.phone || lower(x.phone) === lower(item.phone)));
       let status = 'ok';
@@ -3915,7 +3994,7 @@ const Admin = {
       let done = 0, failed = 0;
       const prog = $('impProgress');
       const schoolByName = name => {
-        const s = STATE.schools.find(x => lower(x.name) === lower(name));
+        const s = STATE.schools.find(x => lower(x.name).trim() === lower(name).trim());
         return s ? s.id : null;
       };
       if (kind === 'instructors') {
@@ -3962,7 +4041,7 @@ const Admin = {
       }
       if (prog) prog.innerHTML = '<b>' + done + '</b> ta muvaffaqiyatli, <b>' + failed + '</b> ta xato.';
       toast(done + ' ta yozuv import qilindi' + (failed ? ', ' + failed + ' ta xato' : '') + '.', failed ? 'warn' : 'ok');
-      if (kind === 'students') { await Data.reloadStudents(); this.renderStudents(); }
+      if (kind === 'students') { await Data.reloadStudents(); await Admin.loadStudents(true); }
       else { await Data.reloadInstructors(); Instructors.render(); }
       this.refreshCounters();
       setTimeout(closeModal, 1200);
@@ -4183,7 +4262,7 @@ function startPolling() {
       if (STATE.page === 'active' || STATE.page === 'finish' || STATE.page === 'queue') Active.load(true);
       if (STATE.page === 'frozen') Frozen.load(true);
     }
-    if (STATE.admin.token && Admin.tab === 'dashboard' && !$('adminPanel').classList.contains('hidden')) Admin.realtime();
+    if (STATE.admin.token && Admin.tab === 'dashboard' && adminOpen) Admin.realtime();
   }, CONFIG.POLL_ACTIVE_MS);
 }
 document.addEventListener('visibilitychange', () => {
