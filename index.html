@@ -964,6 +964,7 @@ body.admin-open { overflow: hidden; }
                 <i class="fa-solid fa-play btn-icon" aria-hidden="true"></i>
                 <span class="btn-text">Vaqt ochish</span>
               </button>
+              <button class="btn btn-light btn-lg" type="button" data-act="printEntryForm"><i class="fa-solid fa-print" aria-hidden="true"></i> Kirish taloni — 80 mm</button>
               <button class="btn btn-light btn-lg" id="queueBtn" type="button" data-act="addToQueue">
                 <span class="spinner" aria-hidden="true"></span>
                 <i class="fa-regular fa-clock btn-icon" aria-hidden="true"></i>
@@ -2112,6 +2113,7 @@ const Add = {
 
   reset() {
     $('startForm').reset();
+    EntryTicket80.draft = null; EntryTicket80.draftKey = ''; // New visit gets a new draft ticket.
     $('plateBody').value = '';
     setError('plateErr', '');
     setError('startErr', '');
@@ -2343,6 +2345,72 @@ const Queue = {
   }
 };
 
+
+/* ENTRY TICKET 80mm: print-only; no API writes, timer or payment changes. */
+const EntryTicket80 = {
+  draftKey: '', draft: null,
+  fromForm() {
+    const d = Add.collect();
+    const error = Add.validate(d);
+    if (error) { setError('startErr', error); return; }
+    const student = d.student;
+    const data = {
+      plate: displayPlate(d.payload.regionCode, d.body),
+      model: d.payload.model,
+      school: student ? (student.school_name || Data.schoolName(d.payload.schoolId)) : '',
+      group: student ? (student.group_name || Data.groupName(d.payload.groupId)) : '',
+      person: student ? stName(student) : '',
+      instructor: d.instructor ? insName(d.instructor) : '',
+      type: d.type === 'school' ? "Avtoshkola o'quvchisi" : 'Oddiy mijoz',
+      minutes: d.targetSeconds / 60,
+      state: 'Mashg‘ulot hali boshlanmagan'
+    };
+    const key = JSON.stringify(data);
+    if (!this.draft || this.draftKey !== key) {
+      this.draftKey = key;
+      this.draft = Object.assign({}, data, {
+        id: 'K-' + (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)),
+        issued: new Date().toISOString()
+      });
+    }
+    this.open(this.draft);
+  },
+  fromSession(id) {
+    const v = STATE.active.find(x => String(x.id) === String(id));
+    if (!v) { toast('Sessiya topilmadi. Ro‘yxatni yangilang.', 'error'); return; }
+    const student = v.student_id ? Data.studentById(v.student_id) : null;
+    this.open({
+      id: 'S-' + String(v.id), issued: v.started_at,
+      plate: v.plate || displayPlate(v.region_code, v.plate_body), model: v.model,
+      type: isSchoolSession(v) ? "Avtoshkola o'quvchisi" : 'Oddiy mijoz',
+      person: sessionPerson(v), instructor: sessionInstructor(v),
+      school: v.school_name || (student && student.school_name) || Data.schoolName(v.school_id),
+      group: v.group_name || (student && student.group_name) || Data.groupName(v.group_id),
+      minutes: sessionTiming(v).target / 60,
+      state: 'Mashg‘ulot boshlangan'
+    });
+  },
+  open(data) {
+    const w = window.open('', '_blank', 'width=440,height=760');
+    if (!w) { toast('Talon uchun brauzerda yangi oynalarga ruxsat bering.', 'error'); return; }
+    const row = (label, value) => value ? '<div class="row"><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong></div>' : '';
+    const time = new Date(data.issued);
+    const when = Number.isNaN(time.getTime()) ? '—' : time.toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent', year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit' });
+    const html = '<!doctype html><html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>INDEX — Kirish taloni</title><style>'
+      + '*{box-sizing:border-box}body{margin:0;background:#eee;color:#000;font-family:Arial,sans-serif}.toolbar{padding:16px;text-align:center;font-size:14px}.toolbar button{padding:12px 20px;font-size:16px;cursor:pointer}.ticket{width:80mm;padding:4mm;margin:12px auto;background:white;font-size:15px;line-height:1.35}.brand{font-size:23px;font-weight:900;text-align:center}.title{text-align:center;font-size:20px;margin:8px 0;font-weight:800}.plate{text-align:center;font-weight:900;font-size:29px;border:2px solid black;padding:8px 2px;margin:12px 0;overflow-wrap:anywhere}.type{text-align:center;font-size:18px;font-weight:700}.row{padding:7px 0;border-bottom:1px dashed #777;break-inside:avoid}.row span{display:block;font-size:12px}.row strong{display:block;font-size:17px;overflow-wrap:anywhere}.code{font-size:11px;overflow-wrap:anywhere;margin-top:12px}.footer{text-align:center;font-size:13px;margin-top:12px}@media print{@page{size:auto;margin:0}html,body{width:80mm;background:white}.toolbar{display:none}.ticket{margin:0;width:80mm;padding:4mm}}'
+      + '</style></head><body><div class="toolbar"><button id="printTicket" type="button">Chop etish — 80 mm</button><p>USB printer • 80 mm • Masshtab 100%<br>Sarlavha va pastki yozuvlarni o‘chiring.</p></div><main class="ticket"><div class="brand">INDEX AVTODROM</div><div class="title">KIRISH TALONI</div><div class="type">' + esc(data.type) + '</div><div class="plate">' + esc(data.plate) + '</div>'
+      + row('Kelish maqsadi', 'Amaliy haydash mashg‘uloti') + row('Ism-familiya', data.person)
+      + row('Avtomobil modeli', data.model) + row('Avtoshkola', data.school) + row('Guruh', data.group)
+      + row('Instruktor', data.instructor) + row('Ajratilgan vaqt', data.minutes > 0 ? Math.round(data.minutes) + ' daqiqa' : '')
+      + row(data.id.startsWith('S-') ? 'Sessiya boshlangan vaqt (Toshkent)' : 'Talon berilgan vaqt (Toshkent)', when)
+      + row('Talon tayyorlangan paytdagi holat', data.state)
+      + '<div class="code">Talon ID: ' + esc(data.id) + '</div><div class="footer">Kirishda nazoratchiga ko‘rsating.<br>Bu talon to‘lovni tasdiqlamaydi.</div></main></body></html>';
+    w.document.open(); w.document.write(html); w.document.close();
+    w.document.getElementById('printTicket').addEventListener('click', () => { w.focus(); w.print(); });
+  }
+};
+/* END ENTRY TICKET 80mm */
+
 /* ===================== 12. SESSIYA VAQTI (server autoritet) =====================
    Frontend timer faqat ko'rsatish uchun. Hisob started_at / resumed_at /
    duration_seconds server qiymatlaridan olinadi.                                 */
@@ -2534,6 +2602,7 @@ const Active = {
 
     const actions = opts.readonly ? '' : '<div class="vehicle-actions">'
       + '<button class="btn btn-green" type="button" data-act="openFinish" data-id="' + esc(v.id) + '"><i class="fa-solid fa-check" aria-hidden="true"></i> Tugatish</button>'
+      + '<button class="btn btn-light" type="button" data-act="printEntrySession" data-id="' + esc(v.id) + '"><i class="fa-solid fa-print" aria-hidden="true"></i> Kirish taloni</button>'
       + '<button class="btn btn-light" type="button" data-act="freeze" data-id="' + esc(v.id) + '"><span class="spinner"></span><i class="fa-regular fa-snowflake btn-icon" aria-hidden="true"></i><span class="btn-text">Muzlatish</span></button>'
       + '</div>';
 
@@ -4151,6 +4220,8 @@ const ACTIONS = {
   setType: d => Add.setType(d.type),
   setHours: d => { Add.setHours(d.h === 'custom' ? 'custom' : Number(d.h)); Add.renderStudentPanel(); },
   startSubmit: () => Add.submit(),
+  printEntryForm: () => EntryTicket80.fromForm(),
+  printEntrySession: d => EntryTicket80.fromSession(d.id),
   addToQueue: () => Queue.addFromForm(),
   resetStart: () => { Add.reset(); toast('Forma tozalandi.'); },
   quickStudentSave: () => Add.quickStudentSave(),
@@ -4359,3 +4430,4 @@ else init();
 </script>
 </body>
 </html>
+
