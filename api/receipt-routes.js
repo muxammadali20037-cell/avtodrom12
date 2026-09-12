@@ -431,7 +431,23 @@ async function redeemReceipt(req, res) {
        ko'rinsin. Avtomobil raqami bo'lmasa sessiya ochilmaydi, ammo chek
        baribir ishlatilgan bo'ladi (Avtodrom tomonda dars boshlanadi). */
     let sessionId = null, note = null;
-    const p = splitPlate(rawPlate || rec.vehicle_plate);
+
+    /* Avtomobil raqami: Avtodrom yuborgani -> chekdagisi -> shu yerdagi
+       instruktorlar ro'yxatidan ism bo'yicha topilgani.
+       Uchinchisi kerak, chunki Avtodrom tomonda instruktor profiliga
+       avtomobil raqami kiritilmagan bo'lishi mumkin — o'shanda sessiya
+       umuman ochilmasdi va dars avtodrom12 hisobotiga tushmasdi. */
+    let plateSrc = rawPlate || rec.vehicle_plate;
+    if (!splitPlate(plateSrc) && insName) {
+      const byName = await c.query(
+        `SELECT vehicle_plate FROM instructors
+          WHERE owner_key=$1
+            AND LOWER(TRIM(full_name)) = LOWER(TRIM($2))
+            AND COALESCE(vehicle_plate,'') <> ''
+          LIMIT 1`, [rec.user_id, insName]);
+      if (byName.rows[0]) plateSrc = byName.rows[0].vehicle_plate;
+    }
+    const p = splitPlate(plateSrc);
     if (p) {
       /* Avtomobil operatorning o'z yozuvi bo'lsin — user_id siz yozuv
          asosiy ilovaga ko'rinmaydi va ikkinchi nusxa paydo bo'lardi. */
@@ -471,7 +487,8 @@ async function redeemReceipt(req, res) {
         sessionId = ins.rows[0].id;
       }
     } else {
-      note = 'Avtomobil raqami kelmadi — avtodrom12 da sessiya ochilmadi.';
+      note = 'Avtomobil raqami topilmadi — avtodrom12 da sessiya ochilmadi. '
+           + 'Instruktorga avtomobil raqamini biriktiring (Avtodrom yoki avtodrom12 → Instruktorlar).';
     }
 
     await c.query(`
