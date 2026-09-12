@@ -1831,7 +1831,7 @@ document.addEventListener('click', e => { if (!host.contains(e.target)) hide(); 
    Dars TEKIN: summa ham, to'lov turi ham yo'q, kunlik hisobotga pul
    yozilmaydi — faqat vaqt va dars soni qayd etiladi. */
 const Kassa = {
-  schoolId: '', minutes: 60, student: null, list: [], lastCode: '',
+  schoolId: '', minutes: 60, student: null, list: [], lastCode: '', busy: false,
 
   onEnter() {
     if (!STATE.studentsLoaded) Data.reloadStudents().then(() => this.renderSuggest());
@@ -1936,10 +1936,12 @@ const Kassa = {
   async issue() {
     const err = m => { $('kzErr').innerHTML = '<div class="err-box" style="background:#fff0f0;color:#a52b2b;border:1px solid #ffd6d6;border-radius:12px;padding:12px;margin-top:12px">' + esc(m) + '</div>'; };
     $('kzErr').innerHTML = '';
+    if (this.busy) return;                       // ikkinchi bosish o'tmaydi
     if (!this.schoolId) return err('Avval chek beriladigan avtoshkolani tanlang');
     if (!this.student) return err("O'quvchini tanlang");
 
-    const btn = $('kzIssueBtn'); btn.disabled = true; const old = btn.textContent; btn.textContent = 'Chiqarilmoqda…';
+    this.busy = true;
+    const btn = $('kzIssueBtn'); btn.disabled = true; btn.textContent = 'Chiqarilmoqda…';
     try {
       const d = await api('/receipts', { method: 'POST', body: jsonBody({
         student_id: this.student.id, planned_minutes: this.minutes
@@ -1948,7 +1950,7 @@ const Kassa = {
       this.reset();
       this.load();
     } catch (e) { err(e.message || 'Chek chiqarilmadi'); }
-    finally { btn.disabled = false; btn.textContent = old; }
+    finally { this.busy = false; btn.disabled = false; btn.textContent = 'QR chek chiqarish'; }
   },
 
   reset() {
@@ -2036,7 +2038,9 @@ const Kassa = {
 document.addEventListener('keydown', e => {
   if (STATE.page !== 'kassa') return;
   if ($('modal') && $('modal').innerHTML) return;
-  if (e.key === 'Enter' && Kassa.student) { e.preventDefault(); Kassa.issue(); }
+  /* Tugma bosilgan holatda bo'lsa Enter ikkinchi so'rov yubormaydi —
+     aks holda ikkita chek chiqib, bazadagi cheklov xatosi ko'rinardi. */
+  if (e.key === 'Enter' && Kassa.student && !Kassa.busy) { e.preventDefault(); Kassa.issue(); }
 });
 document.addEventListener('input', e => {
   if (e.target && e.target.id === 'kzSearch') Kassa.renderSuggest();
