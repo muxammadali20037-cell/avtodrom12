@@ -460,6 +460,19 @@ async function redeemReceipt(req, res) {
     }
     const p = splitPlate(plateSrc);
     if (p) {
+      /* ====================================================================
+         SESSIYA OCHISH — SAVEPOINT ICHIDA.
+
+         Bu blok QO'SHIMCHA ish: dars Avtodrom tomonda boshlanadi, bu yerda
+         faqat avtodrom12 hisobotiga tushishi uchun sessiya ochiladi.
+         Shuning uchun u yiqilsa CHEK BARIBIR ISHLATILISHI kerak.
+
+         Ilgari savepoint yo'q edi: bu yerdagi istalgan xato (yo'q ustun,
+         cheklov, boshqacha sxema) butun tranzaksiyani yiqitar va
+         «Chek ishlatilmadi (server xatosi)» chiqardi.
+         ==================================================================== */
+      try {
+      await c.query('SAVEPOINT sp_session');
       /* Avtomobil operatorning o'z yozuvi bo'lsin — user_id siz yozuv
          asosiy ilovaga ko'rinmaydi va ikkinchi nusxa paydo bo'lardi. */
       let vr = await c.query(`SELECT id FROM vehicles WHERE plate=$1 AND user_id::text=$2`, [p.plate, rec.user_id]);
@@ -497,6 +510,16 @@ async function redeemReceipt(req, res) {
            Math.max(0, Math.round(Number(rec.planned_minutes || 60))) * 60]);
         sessionId = ins.rows[0].id;
       }
+      await c.query('RELEASE SAVEPOINT sp_session');
+      } catch (err) {
+        /* Sessiya ochilmadi — chek baribir ishlatiladi. Sababni
+           instruktorga ham, jurnalga ham yozamiz. */
+        try { await c.query('ROLLBACK TO SAVEPOINT sp_session'); } catch {}
+        sessionId = null;
+        note = 'avtodrom12 da sessiya ochilmadi: '
+             + String((err && err.message) || 'nomalum xato').slice(0, 200);
+        console.error('[receipt] sessiya ochish:', err);
+      }
     } else {
       note = 'Avtomobil raqami topilmadi — avtodrom12 da sessiya ochilmadi. '
            + 'Instruktorga avtomobil raqamini biriktiring (Avtodrom yoki avtodrom12 → Instruktorlar).';
@@ -529,7 +552,14 @@ async function redeemReceipt(req, res) {
   } catch (e) {
     try { await c.query('ROLLBACK'); } catch {}
     console.error('REDEEM:', e);
-    return send(res, 500, { ok: false, error: 'Chek ishlatilmadi (server xatosi)' });
+    /* Sababni ham qaytaramiz — bo'lmasa administrator nimani
+       tuzatishni bilmaydi va xato qayta-qayta takrorlanadi. */
+    const why = String((e && e.message) || '').slice(0, 200);
+    return send(res, 500, {
+      ok: false,
+      error: 'Chek ishlatilmadi (server xatosi)' + (why ? ': ' + why : ''),
+      detail: why,
+    });
   } finally { c.release(); }
 }
 
