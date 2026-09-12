@@ -439,13 +439,24 @@ async function redeemReceipt(req, res) {
        umuman ochilmasdi va dars avtodrom12 hisobotiga tushmasdi. */
     let plateSrc = rawPlate || rec.vehicle_plate;
     if (!splitPlate(plateSrc) && insName) {
-      const byName = await c.query(
-        `SELECT vehicle_plate FROM instructors
-          WHERE owner_key=$1
-            AND LOWER(TRIM(full_name)) = LOWER(TRIM($2))
-            AND COALESCE(vehicle_plate,'') <> ''
-          LIMIT 1`, [rec.user_id, insName]);
-      if (byName.rows[0]) plateSrc = byName.rows[0].vehicle_plate;
+      /* SAVEPOINT shart: bu QIDIRUV, asosiy amal emas. Postgres'da
+         tranzaksiya ichidagi har qanday xato butun tranzaksiyani
+         yiqitadi — jadval topilmasa ham chek ishlatilmay qolardi.
+         Savepoint bilan qidiruv yiqilsa ham chek ishlatilaveradi. */
+      try {
+        await c.query('SAVEPOINT sp_plate');
+        const byName = await c.query(
+          `SELECT vehicle_plate FROM instructors
+            WHERE owner_key=$1
+              AND LOWER(TRIM(full_name)) = LOWER(TRIM($2))
+              AND COALESCE(vehicle_plate,'') <> ''
+            LIMIT 1`, [String(rec.user_id), insName]);
+        await c.query('RELEASE SAVEPOINT sp_plate');
+        if (byName.rows[0]) plateSrc = byName.rows[0].vehicle_plate;
+      } catch (err) {
+        try { await c.query('ROLLBACK TO SAVEPOINT sp_plate'); } catch {}
+        console.error('[receipt] instruktor raqamini qidirish:', err && err.message);
+      }
     }
     const p = splitPlate(plateSrc);
     if (p) {
