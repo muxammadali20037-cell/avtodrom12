@@ -13,7 +13,7 @@ import { pool } from '../backend/src/db.js';
        hisobotiga tushadi, shu bilan birga bu yerda ham yoziladi.
 
    OQIM:
-     1) Operator chek chiqaradi → receipts (status='issued', AVD-1234)
+     1) Operator chek chiqaradi → receipts (status='issued', AVS-12345)
      2) O'quvchi chekni instruktorga beradi
      3) Avtodrom instruktor paneli QR ni skanerlaydi va shu yerdagi
         /api/receipts/redeem ga murojaat qiladi (maxfiy kalit bilan):
@@ -30,6 +30,7 @@ import { pool } from '../backend/src/db.js';
        GET     /api/receipts/verify?code= — chekni tekshirish (ishlatmaydi)
        POST    /api/receipts/redeem       — chekni ishlatish + sessiya
        POST    /api/receipts/complete     — darsni yakunlash
+       POST    /api/receipts/release      — dars ochilmadi, chekni qaytarish
    ========================================================================= */
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
@@ -72,8 +73,11 @@ async function readBody(req) {
 let schemaPromise = null;
 function ensureSchema() {
   if (schemaPromise) return schemaPromise;
+  /* Xato bo'lsa keshlamaymiz: sovuq startda baza uyqudan uyg'onayotgan
+     bo'lsa hamma DDL yiqiladi va shu instansiya umrbod 500 berardi. */
+  const first = [];
   schemaPromise = (async () => {
-    const q = async sql => { try { await pool.query(sql); } catch (e) { console.error('RECEIPT SCHEMA:', e.message); } };
+    const q = async sql => { try { await pool.query(sql); } catch (e) { first.push(e); console.error('RECEIPT SCHEMA:', e.message); } };
     await q(`
       CREATE TABLE IF NOT EXISTS receipts(
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -121,7 +125,12 @@ function ensureSchema() {
     await q(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS scanned_by_name TEXT`);
     await q(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS scanned_by_ref TEXT`);
     await q(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS external_booking_id TEXT`);
-  })();
+    /* OCHIQ chek kodi butun bazada yagona — Avtodrom tomoni chekni
+       faqat kod bo'yicha topadi, operatorni bilmaydi. */
+    await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_receipts_open_code
+             ON receipts(code) WHERE status='issued'`);
+    if (first.length) { schemaPromise = null; throw first[0]; }
+  })().catch(e => { schemaPromise = null; throw e; });
   return schemaPromise;
 }
 
@@ -129,33 +138,53 @@ function ensureSchema() {
 
 function normalizePlate(v) { return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 
-/** "01 111QQQ" yoki "111QQQ" dan vehicles uchun qismlarni ajratadi. */
+/** Raqamni vehicles uchun qismlarga ajratadi.
+    MUHIM: `plate` matni asosiy ilovadagi plateData() bilan AYNAN bir xil
+    yoziladi ("01 111 QQQ" / "01 A 555 AA"). Aks holda o'sha avtomobil
+    uchun ikkinchi yozuv paydo bo'lib, band-avtomobil tekshiruvi ishlamay
+    qolardi va "Jarayonda" ro'yxatida bitta mashina ikki marta turardi. */
 function splitPlate(raw) {
   const s = String(raw || '').toUpperCase().trim();
-  let region = '01', body = normalizePlate(s);
+  let region = '', body = normalizePlate(s);
   const m = s.match(/^(\d{2})\s*([A-Z0-9]{6})$/);
   if (m) { region = m[1]; body = m[2]; }
   else if (body.length === 8 && /^\d{2}/.test(body)) { region = body.slice(0, 2); body = body.slice(2); }
   if (!REGIONS.includes(region)) region = '01';
-  if (!/^[A-Z0-9]{6}$/.test(body)) return null;
-  if (/^\d{3}[A-Z]{3}$/.test(body)) return { region, body, firstLetter: body[3], number: body.slice(0,3), lastLetters: body.slice(4,6), plate: `${region} ${body}` };
-  return { region, body, firstLetter: body[0], number: body.slice(1,4), lastLetters: body.slice(4,6), plate: `${region} ${body}` };
+  if (/^[A-Z]\d{3}[A-Z]{2}$/.test(body)) {
+    const firstLetter = body[0], number = body.slice(1, 4), lastLetters = body.slice(4, 6);
+    return { region, body, firstLetter, number, lastLetters, plate: `${region} ${firstLetter} ${number} ${lastLetters}` };
+  }
+  if (/^\d{3}[A-Z]{3}$/.test(body)) {
+    const number = body.slice(0, 3), lastLetters = body.slice(3, 6);
+    return { region, body, firstLetter: null, number, lastLetters, plate: `${region} ${number} ${lastLetters}` };
+  }
+  return null;
 }
 
-/** Chek raqami — operator ichida takrorlanmaydi. */
+/* Chek kodi prefiksi. "AVD-" ISHLATILMAYDI: Avtodrom loyihasida mijozga
+   beriladigan pickup_code aynan AVD-1234 ko'rinishida va ikkalasi
+   aralashib ketardi — instruktor birovning chekini ishlatib yuborishi
+   mumkin edi. "AVS" = avtoshkola. */
+const CODE_PREFIX = 'AVS-';
+const CODE_RE = /^AVS-\d{5}$/;
+
+/** Chek raqami. OCHIQ cheklar orasida GLOBAL takrorlanmaydi — chunki
+    Avtodrom tomoni chekni faqat kod bo'yicha qidiradi, operatorni
+    bilmaydi. Ishlatilgan kod keyinchalik qayta berilishi mumkin. */
 async function nextCode(user) {
-  for (let i = 0; i < 60; i++) {
-    const code = 'AVD-' + String(1000 + Math.floor(Math.random() * 9000));
-    const r = await pool.query(`SELECT 1 FROM receipts WHERE user_id=$1 AND code=$2`, [user, code]);
+  for (let i = 0; i < 80; i++) {
+    const code = CODE_PREFIX + String(10000 + Math.floor(Math.random() * 90000));
+    const r = await pool.query(
+      `SELECT 1 FROM receipts WHERE code=$1 AND status='issued' LIMIT 1`, [code]);
     if (!r.rows[0]) return code;
   }
-  return 'AVD-' + String(10000 + Math.floor(Math.random() * 90000));
+  throw new Error('Bo‘sh chek raqami topilmadi. Eski cheklarni yoping yoki administratorga ayting.');
 }
 
-/** Kodni bir ko'rinishga keltiradi: "1234" → "AVD-1234" */
+/** Kodni bir ko'rinishga keltiradi: "12345" → "AVS-12345" */
 function normCode(v) {
   const s = String(v || '').toUpperCase().replace(/\s+/g, '');
-  if (/^\d{4,5}$/.test(s)) return 'AVD-' + s;
+  if (/^\d{5}$/.test(s)) return CODE_PREFIX + s;
   return s;
 }
 
@@ -174,7 +203,7 @@ async function readConfig(req, res, user) {
   const cfg = await getConfig(user);
   let school = null;
   if (cfg.school_id) {
-    const s = await pool.query(`SELECT id, name FROM driving_schools WHERE id=$1`, [cfg.school_id]);
+    const s = await pool.query(`SELECT id, name FROM driving_schools WHERE id=$1 AND owner_key=$2`, [cfg.school_id, user]);
     school = s.rows[0] || null;
   }
   return send(res, 200, { school_id: cfg.school_id, school, default_minutes: Number(cfg.default_minutes || 60) });
@@ -185,7 +214,7 @@ async function writeConfig(req, res, user) {
   const schoolId = text(b.school_id || b.schoolId) || null;
   const minutes = Math.min(600, Math.max(15, Math.round(num(b.default_minutes || b.defaultMinutes) || 60)));
   if (schoolId) {
-    const s = await pool.query(`SELECT id FROM driving_schools WHERE id=$1`, [schoolId]);
+    const s = await pool.query(`SELECT id FROM driving_schools WHERE id=$1 AND owner_key=$2`, [schoolId, user]);
     if (!s.rows[0]) return send(res, 404, { error: 'Avtoshkola topilmadi' });
   }
   await pool.query(`
@@ -270,10 +299,9 @@ async function listReceipts(req, res, user, search) {
   if (status) { params.push(status); where += ` AND r.status=$${params.length}`; }
 
   const r = await pool.query(`
-    SELECT r.*, i.full_name AS instructor_name, st.full_name AS student_name,
+    SELECT r.*, r.scanned_by_name AS instructor_name, st.full_name AS student_name,
            ds.name AS school_name, g.name AS group_name
       FROM receipts r
-      LEFT JOIN instructors i     ON i.id  = r.instructor_id
       LEFT JOIN students st       ON st.id = r.student_id
       LEFT JOIN driving_schools ds ON ds.id = r.school_id
       LEFT JOIN school_groups g   ON g.id  = r.group_id
@@ -323,21 +351,26 @@ function checkKey(req) {
 /** Chekni ishlatmasdan tekshiradi (skaner darhol ko'rsatishi uchun). */
 async function verifyReceipt(req, res, search) {
   const code = normCode(search.get('code'));
-  if (!/^AVD-\d{4,5}$/.test(code)) return send(res, 400, { ok: false, error: 'Kod formati: AVD-1234' });
+  if (!CODE_RE.test(code)) return send(res, 400, { ok: false, error: 'Kod formati: AVS-12345' });
 
-  const r = await pool.query(`
+  /* Ochiq chek kodi global yagona — avval o'shani qidiramiz. Topilmasa
+     oxirgi holatni ko'rsatamiz ("allaqachon ishlatilgan" deyish uchun). */
+  const sql = `
     SELECT r.*, st.full_name AS student_name, ds.name AS school_name, g.name AS group_name
       FROM receipts r
       LEFT JOIN students st        ON st.id = r.student_id
       LEFT JOIN driving_schools ds ON ds.id = r.school_id
       LEFT JOIN school_groups g    ON g.id  = r.group_id
-     WHERE r.code=$1 ORDER BY r.issued_at DESC LIMIT 1`, [code]);
+     WHERE r.code=$1`;
+  let r = await pool.query(`${sql} AND r.status='issued' LIMIT 1`, [code]);
+  if (!r.rows[0]) r = await pool.query(`${sql} ORDER BY r.issued_at DESC LIMIT 1`, [code]);
   const rec = r.rows[0];
   if (!rec) return send(res, 404, { ok: false, error: `${code} — bunday chek topilmadi` });
 
   return send(res, 200, {
     ok: true,
     receipt: {
+      id: rec.id,
       code: rec.code,
       status: rec.status,
       student_name: rec.student_name || rec.customer_name || null,
@@ -358,7 +391,7 @@ async function verifyReceipt(req, res, search) {
 async function redeemReceipt(req, res) {
   const b = await readBody(req);
   const code = normCode(b.code);
-  if (!/^AVD-\d{4,5}$/.test(code)) return send(res, 400, { ok: false, error: 'Kod formati: AVD-1234' });
+  if (!CODE_RE.test(code)) return send(res, 400, { ok: false, error: 'Kod formati: AVS-12345' });
 
   const insName  = text(b.instructor_name);
   const insRef   = text(b.instructor_ref || b.external_instructor_id);
@@ -368,14 +401,20 @@ async function redeemReceipt(req, res) {
   const c = await pool.connect();
   try {
     await c.query('BEGIN');
-    const rr = await c.query(`SELECT * FROM receipts WHERE code=$1 ORDER BY issued_at DESC LIMIT 1 FOR UPDATE`, [code]);
-    const rec = rr.rows[0];
-    if (!rec)                        { await c.query('ROLLBACK'); return send(res, 404, { ok: false, error: `${code} — bunday chek topilmadi` }); }
-    if (rec.status === 'cancelled')  { await c.query('ROLLBACK'); return send(res, 409, { ok: false, error: 'Bu chek bekor qilingan' }); }
-    if (rec.status === 'scanned')    {
+    /* Ochiq chek kodi global yagona, shuning uchun aynan o'shani
+       bloklaymiz — boshqa operatorning cheki bilan adashmaydi. */
+    let rr = await c.query(
+      `SELECT * FROM receipts WHERE code=$1 AND status='issued' LIMIT 1 FOR UPDATE`, [code]);
+    let rec = rr.rows[0];
+    if (!rec) {
+      /* Ochiq chek yo'q — nima bo'lganini aniq aytamiz */
+      const last = (await c.query(
+        `SELECT status, scanned_by_name FROM receipts WHERE code=$1 ORDER BY issued_at DESC LIMIT 1`, [code])).rows[0];
       await c.query('ROLLBACK');
+      if (!last) return send(res, 404, { ok: false, error: `${code} — bunday chek topilmadi` });
+      if (last.status === 'cancelled') return send(res, 409, { ok: false, error: 'Bu chek bekor qilingan' });
       return send(res, 409, { ok: false, error: 'Bu chek allaqachon ishlatilgan'
-        + (rec.scanned_by_name ? ` (${rec.scanned_by_name})` : '') });
+        + (last.scanned_by_name ? ` (${last.scanned_by_name})` : '') });
     }
 
     /* O'quvchi ma'lumoti */
@@ -394,12 +433,14 @@ async function redeemReceipt(req, res) {
     let sessionId = null, note = null;
     const p = splitPlate(rawPlate || rec.vehicle_plate);
     if (p) {
-      let vr = await c.query(`SELECT id FROM vehicles WHERE plate=$1`, [p.plate]);
+      /* Avtomobil operatorning o'z yozuvi bo'lsin — user_id siz yozuv
+         asosiy ilovaga ko'rinmaydi va ikkinchi nusxa paydo bo'lardi. */
+      let vr = await c.query(`SELECT id FROM vehicles WHERE plate=$1 AND user_id::text=$2`, [p.plate, rec.user_id]);
       if (!vr.rows[0]) {
         vr = await c.query(
-          `INSERT INTO vehicles(region_code, first_letter, number, last_letters, plate)
-           VALUES($1,$2,$3,$4,$5) RETURNING id`,
-          [p.region, p.firstLetter, p.number, p.lastLetters, p.plate]);
+          `INSERT INTO vehicles(user_id, region_code, first_letter, number, last_letters, plate)
+           VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+          [rec.user_id, p.region, p.firstLetter, p.number, p.lastLetters, p.plate]);
       }
       const vehicleId = vr.rows[0].id;
       const busy = await c.query(
@@ -419,13 +460,14 @@ async function redeemReceipt(req, res) {
         const ins = await c.query(`
           INSERT INTO sessions(user_id, vehicle_id, hourly_rate, minimum_payment, calculation_mode,
                                school_id, group_id, student_id, instructor_id, planned_minutes,
-                               manual_price, receipt_id, customer_type, driver_name,
+                               manual_price, receipt_id, customer_type, driver_name, target_duration,
                                amount, cash_amount, terminal_amount, payment_method, duration_seconds)
-          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11,'school',$12,0,0,0,'cash',0)
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11,'school',$12,$13,0,0,0,'cash',0)
           RETURNING id, started_at`,
           [rec.user_id, vehicleId, st.hourly_rate, st.minimum_payment, st.calculation_mode,
            rec.school_id, rec.group_id, rec.student_id, mine.rows[0]?.id || null,
-           rec.planned_minutes, rec.id, personName]);
+           rec.planned_minutes, rec.id, personName,
+           Math.max(0, Math.round(Number(rec.planned_minutes || 60))) * 60]);
         sessionId = ins.rows[0].id;
       }
     } else {
@@ -434,14 +476,17 @@ async function redeemReceipt(req, res) {
 
     await c.query(`
       UPDATE receipts SET status='scanned', scanned_at=NOW(), session_id=$1,
-             scanned_by_name=$2, scanned_by_ref=$3, external_booking_id=$4, vehicle_plate=COALESCE($5, vehicle_plate)
-       WHERE id=$6`,
-      [sessionId, insName || null, insRef || null, extBooking, p ? p.plate : null, rec.id]);
+             scanned_by_name=$2, scanned_by_ref=$3, external_booking_id=$4,
+             vehicle_plate=COALESCE($5, vehicle_plate),
+             note=COALESCE($6, note)
+       WHERE id=$7`,
+      [sessionId, insName || null, insRef || null, extBooking, p ? p.plate : null, note, rec.id]);
 
     await c.query('COMMIT');
     return send(res, 200, {
       ok: true,
       receipt: {
+        id: rec.id,
         code: rec.code,
         student_name: personName,
         student_phone: rec.customer_phone || null,
@@ -456,7 +501,7 @@ async function redeemReceipt(req, res) {
   } catch (e) {
     try { await c.query('ROLLBACK'); } catch {}
     console.error('REDEEM:', e);
-    return send(res, 500, { ok: false, error: e.message || 'Chek ishlatilmadi' });
+    return send(res, 500, { ok: false, error: 'Chek ishlatilmadi (server xatosi)' });
   } finally { c.release(); }
 }
 
@@ -465,9 +510,15 @@ async function redeemReceipt(req, res) {
 async function completeReceipt(req, res) {
   const b = await readBody(req);
   const code = normCode(b.code);
-  if (!/^AVD-\d{4,5}$/.test(code)) return send(res, 400, { ok: false, error: 'Kod formati: AVD-1234' });
+  if (!CODE_RE.test(code) && !text(b.receipt_id)) return send(res, 400, { ok: false, error: 'Kod formati: AVS-12345' });
 
-  const r = await pool.query(`SELECT * FROM receipts WHERE code=$1 ORDER BY issued_at DESC LIMIT 1`, [code]);
+  /* receipt_id — redeem javobidan keladi va aynan o'sha chekni topadi.
+     Kod bo'yicha qidirish faqat zaxira yo'l. */
+  const rid = text(b.receipt_id);
+  const r = rid
+    ? await pool.query(`SELECT * FROM receipts WHERE id=$1`, [rid])
+    : await pool.query(
+        `SELECT * FROM receipts WHERE code=$1 AND status='scanned' ORDER BY scanned_at DESC LIMIT 1`, [code]);
   const rec = r.rows[0];
   if (!rec) return send(res, 404, { ok: false, error: 'Chek topilmadi' });
   if (!rec.session_id) return send(res, 200, { ok: true, note: 'Bu chek bo‘yicha avtodrom12 da sessiya yo‘q' });
@@ -478,9 +529,15 @@ async function completeReceipt(req, res) {
   if (s.status === 'completed') return send(res, 200, { ok: true, note: 'Allaqachon yakunlangan' });
 
   const end = new Date();
-  const seconds = Number.isFinite(Number(b.duration_seconds))
-    ? Math.max(0, Math.round(Number(b.duration_seconds)))
-    : Math.max(0, Math.round((end - new Date(s.started_at)) / 1000) - Number(s.frozen_seconds || 0));
+  /* Vaqt: muzlatish hisobga olingan holda, asosiy ilovadagi
+     elapsedSeconds() bilan bir xil mantiq. */
+  const base = Number(s.duration_seconds || 0);
+  const since = s.resumed_at ? new Date(s.resumed_at) : new Date(s.started_at);
+  const live = s.status === 'frozen' ? 0 : Math.max(0, Math.round((end - since) / 1000));
+  const given = Number(b.duration_seconds);
+  const seconds = (b.duration_seconds !== undefined && b.duration_seconds !== null && Number.isFinite(given) && given > 0)
+    ? Math.round(given)
+    : Math.max(0, base + live);
   const lessons = s.student_id ? Math.max(1, Math.round(seconds / 3600)) : 0;
 
   await pool.query(`
@@ -489,6 +546,51 @@ async function completeReceipt(req, res) {
      WHERE id=$4`, [end, seconds, lessons, s.id]);
 
   return send(res, 200, { ok: true, minutes: Math.round(seconds / 60), lessons });
+}
+
+/** Chekni QAYTARADI. Avtodrom chekni ishlatib bo'lib, o'z tomonida
+    darsni ocholmasa (instruktor vaqti band va h.k.) shu chaqiriladi:
+    chek yana 'issued' bo'ladi va o'quvchi darsini yo'qotmaydi. */
+async function releaseReceipt(req, res) {
+  const b = await readBody(req);
+  const rid = text(b.receipt_id);
+  const code = normCode(b.code);
+  if (!rid && !CODE_RE.test(code)) return send(res, 400, { ok: false, error: 'receipt_id yoki kod kerak' });
+
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    const rr = rid
+      ? await c.query(`SELECT * FROM receipts WHERE id=$1 FOR UPDATE`, [rid])
+      : await c.query(`SELECT * FROM receipts WHERE code=$1 AND status='scanned' ORDER BY scanned_at DESC LIMIT 1 FOR UPDATE`, [code]);
+    const rec = rr.rows[0];
+    if (!rec) { await c.query('ROLLBACK'); return send(res, 404, { ok: false, error: 'Chek topilmadi' }); }
+    if (rec.status !== 'scanned') { await c.query('ROLLBACK'); return send(res, 200, { ok: true, note: 'Chek allaqachon ochiq yoki bekor' }); }
+
+    /* Shu chek bo'yicha ochilgan sessiyani ham yopamiz — bo'sh dars
+       "Jarayonda" ro'yxatida osilib qolmasin. */
+    if (rec.session_id) {
+      await c.query(
+        `DELETE FROM sessions WHERE id=$1 AND receipt_id=$2 AND status IN ('active','paused','frozen')`,
+        [rec.session_id, rec.id]);
+    }
+    /* Ochiq kod global yagona: shu kod boshqa ochiq chekda bo'lsa yangi
+       raqam beramiz, aks holda eskisi qaytadi. */
+    const taken = (await c.query(
+      `SELECT 1 FROM receipts WHERE code=$1 AND status='issued' AND id<>$2 LIMIT 1`, [rec.code, rec.id])).rows[0];
+    const newCode = taken ? await nextCode(rec.user_id) : rec.code;
+    await c.query(`
+      UPDATE receipts SET status='issued', code=$1, scanned_at=NULL, session_id=NULL,
+             scanned_by_name=NULL, scanned_by_ref=NULL, external_booking_id=NULL,
+             note=COALESCE($2, note)
+       WHERE id=$3`, [newCode, text(b.reason) || null, rec.id]);
+    await c.query('COMMIT');
+    return send(res, 200, { ok: true, code: newCode, changed: newCode !== rec.code });
+  } catch (e) {
+    try { await c.query('ROLLBACK'); } catch {}
+    console.error('RELEASE:', e);
+    return send(res, 500, { ok: false, error: 'Chek qaytarilmadi' });
+  } finally { c.release(); }
 }
 
 /* =========================================================================
@@ -506,6 +608,7 @@ export async function handleReceiptRequest(req, res) {
     path === '/api/receipts/verify' ||
     path === '/api/receipts/redeem' ||
     path === '/api/receipts/complete' ||
+    path === '/api/receipts/release' ||
     /^\/api\/receipts\/[^/]+\/cancel$/.test(path);
   if (!isOurs) return false;
 
@@ -513,12 +616,14 @@ export async function handleReceiptRequest(req, res) {
     await ensureSchema();
 
     /* --- Avtodrom serveri (maxfiy kalit; JWT yo'q) --- */
-    if (path === '/api/receipts/verify' || path === '/api/receipts/redeem' || path === '/api/receipts/complete') {
+    if (path === '/api/receipts/verify' || path === '/api/receipts/redeem'
+        || path === '/api/receipts/complete' || path === '/api/receipts/release') {
       if (!SHARED_KEY) return send(res, 503, { ok: false, error: 'RECEIPT_SHARED_KEY sozlanmagan' });
       if (!checkKey(req)) return send(res, 401, { ok: false, error: 'Kalit noto‘g‘ri' });
       if (path === '/api/receipts/verify'   && method === 'GET')  return await verifyReceipt(req, res, url.searchParams);
       if (path === '/api/receipts/redeem'   && method === 'POST') return await redeemReceipt(req, res);
       if (path === '/api/receipts/complete' && method === 'POST') return await completeReceipt(req, res);
+      if (path === '/api/receipts/release'  && method === 'POST') return await releaseReceipt(req, res);
       return send(res, 405, { ok: false, error: 'Bu manzil bu usulni qabul qilmaydi' });
     }
 
@@ -538,6 +643,10 @@ export async function handleReceiptRequest(req, res) {
     return send(res, 405, { error: 'Bu manzil bu usulni qabul qilmaydi' });
   } catch (e) {
     console.error('RECEIPT ROUTES:', e);
-    return send(res, 500, { error: e.message || 'Server xatosi' });
+    /* Xom baza xabari (constraint nomi va h.k.) kassirga ko'rsatilmaydi */
+    const msg = /duplicate key|violates|relation|column|syntax|operator does not exist/i.test(String(e.message))
+      ? 'Server xatosi. Qayta urinib ko‘ring yoki administratorga ayting.'
+      : (e.message || 'Server xatosi');
+    return send(res, 500, { error: msg });
   }
 }
