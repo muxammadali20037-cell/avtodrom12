@@ -775,6 +775,32 @@ body.admin-open { overflow: hidden; }
   .side, .top-bar, .btn, .filter-bar { display: none !important; }
   .main { margin: 0; }
 }
+
+/* ===== KASSA (QR chek) ===== */
+.kz-suggest{border:1px solid var(--line,#e1e9e5);border-radius:12px;margin-top:8px;overflow:hidden;max-height:240px;overflow-y:auto;background:#fff}
+.kz-suggest button{display:block;width:100%;text-align:left;border:0;background:#fff;padding:12px 14px;border-bottom:1px solid #eef2f0;cursor:pointer;font:inherit}
+.kz-suggest button:hover{background:#f2f8f5}
+.kz-suggest button b{display:block;font-size:14.5px}
+.kz-suggest button span{display:block;font-size:12px;color:#71827b;margin-top:2px}
+.kz-picked{margin-top:10px;border:1.5px solid #0b5b3e;background:#f1f8f4;border-radius:14px;padding:13px}
+.kz-picked b{font-size:15.5px}
+.kz-picked span{display:block;font-size:12.5px;color:#5c6b64;margin-top:3px}
+.kz-row{display:flex;align-items:center;gap:11px;border:1px solid #e1e9e5;border-radius:12px;padding:11px 13px;margin-bottom:8px;background:#fff}
+.kz-row b{min-width:78px;font-family:ui-monospace,Menlo,monospace;font-weight:800;color:#0b5b3e}
+.kz-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kz-row .am{font-weight:800;white-space:nowrap}
+.kz-row .st{font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:99px;background:#fff4d7;color:#9a6800}
+.kz-row .st.used{background:#eaf6f0;color:#0b5b3e}
+.kz-row .st.cx{background:#f3eeee;color:#8a5555}
+#kzReceipt{width:76mm;margin:auto;font-family:ui-monospace,"Courier New",monospace;color:#000;font-size:14px;line-height:1.55;font-weight:600}
+#kzReceipt h3{text-align:center;margin:0 0 4px;font-size:19px;font-weight:900}
+#kzReceipt .c{text-align:center}
+#kzReceipt .hr{border-top:2px dashed #000;margin:9px 0}
+#kzReceipt .r{display:flex;justify-content:space-between;gap:8px}
+#kzReceipt .big{font-size:18px;font-weight:900}
+#kzReceipt .code{text-align:center;font-size:22px;font-weight:900;letter-spacing:.14em;margin-top:6px}
+@media print{body *{visibility:hidden!important}#kzReceipt,#kzReceipt *{visibility:visible!important}
+ #kzReceipt{position:absolute;left:0;top:0}@page{size:80mm auto;margin:2mm}}
 </style>
 </head>
 <body>
@@ -859,6 +885,7 @@ body.admin-open { overflow: hidden; }
 
     <div class="nav-section">Asosiy</div>
     <button class="nav-btn" type="button" data-p="add"><i class="fa-solid fa-plus" aria-hidden="true"></i> Yangi avtomobil</button>
+    <button class="nav-btn" type="button" data-p="kassa"><i class="fa-solid fa-qrcode" aria-hidden="true"></i> QR chek <span id="kassaCount" class="nav-badge amber"></span></button>
     <button class="nav-btn" type="button" data-p="active"><i class="fa-solid fa-circle-play" aria-hidden="true"></i> Jarayonda <span id="activeCount" class="nav-badge"></span></button>
     <button class="nav-btn" type="button" data-p="queue"><i class="fa-regular fa-clock" aria-hidden="true"></i> Kutish rejimi <span id="queueCount" class="nav-badge amber"></span></button>
     <button class="nav-btn" type="button" data-p="finish"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Tugatish</button>
@@ -980,6 +1007,45 @@ body.admin-open { overflow: hidden; }
       </section>
 
       <!-- ===== JARAYONDA ===== -->
+      <section id="p-kassa" class="page hidden">
+        <div class="page-header">
+          <div><h1>QR chek</h1><p>Belgilangan avtoshkola o'quvchisiga QR kodli chek beriladi. O'quvchi chekni instruktorga beradi — instruktor uni <b>Avtodrom ilovasidagi o'z panelida</b> skanerlaydi va dars o'sha yerda boshlanadi. Avtoshkola darslari <b>tekin</b>.</p></div>
+        </div>
+
+        <div class="panel">
+          <label class="field-label" for="kzSchool"><i class="fa-solid fa-school" aria-hidden="true"></i> Chek beriladigan avtoshkola</label>
+          <select id="kzSchool"><option value="">Tanlang</option></select>
+          <div class="field-help" id="kzSchoolHint">Chek faqat shu avtoshkola o'quvchilariga chiqadi. Tanlov saqlanadi.</div>
+        </div>
+
+        <div class="panel" style="margin-top:16px">
+          <div id="kzStudentWrap">
+            <label class="field-label" for="kzSearch"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> O'quvchi (F.I.Sh. bo'yicha qidiring)</label>
+            <input id="kzSearch" autocomplete="off" placeholder="Ism yozing...">
+            <div id="kzSuggest" class="kz-suggest hidden"></div>
+            <div id="kzPicked" class="kz-picked hidden"></div>
+          </div>
+
+          <label class="field-label muted-label" style="margin-top:14px;display:block">Dars davomiyligi</label>
+          <div class="seg full" id="kzMinSeg">
+            <button class="seg-btn" type="button" data-act="kzMin" data-m="30">30 daq</button>
+            <button class="seg-btn active" type="button" data-act="kzMin" data-m="60">1 soat</button>
+            <button class="seg-btn" type="button" data-act="kzMin" data-m="90">1.5 soat</button>
+            <button class="seg-btn" type="button" data-act="kzMin" data-m="120">2 soat</button>
+          </div>
+
+          <div id="kzErr"></div>
+          <button class="btn btn-green btn-block" type="button" data-act="kzIssue" id="kzIssueBtn" style="margin-top:16px">QR chek chiqarish</button>
+          <p class="muted" style="margin-top:8px;text-align:center;font-size:12px">O'quvchini tanlang va <b>Enter</b> bosing. Instruktor tanlanmaydi — chekni Avtodrom da kim skanerlasa o'sha biriktiriladi.</p>
+        </div>
+
+        <div class="panel" style="margin-top:16px">
+          <h3 style="margin:0 0 10px">Bugungi cheklar</h3>
+          <div id="kzSummary" class="muted" style="margin-bottom:10px"></div>
+          <div id="kzList"></div>
+        </div>
+      </section>
+
       <section id="p-active" class="page hidden">
         <div class="page-header">
           <div><h1>Jarayonda</h1><p>Hozir avtodromdagi avtomobillar — vaqti tugayotganlari yuqorida</p></div>
@@ -1233,7 +1299,9 @@ const $$ = (sel, root) => Array.prototype.slice.call((root || document).querySel
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const esc = s => String(s === null || s === undefined ? '' : s)
   .replace(/[&<>"']/g, x => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[x]));
-const money = n => num(n).toLocaleString('uz-UZ') + " so'm";
+/* Pul: har doim bo'sh joy bilan ajratiladi. uz-UZ ICU ba'zi qurilmalarda
+   vergul qo'yadi — chek bilan ekran bir xil ko'rinishi uchun qo'lda yozamiz */
+const money = n => String(Math.round(num(n))).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + " so'm";
 const dur = n => {
   n = Math.max(0, Math.floor(num(n)));
   const h = Math.floor(n / 3600), m = Math.floor(n % 3600 / 60), s = n % 60;
@@ -1374,6 +1442,8 @@ function closeModal() {
   $('modal').innerHTML = '';
   if (modalPrevFocus && modalPrevFocus.focus) { try { modalPrevFocus.focus(); } catch (e) { /* noop */ } }
   modalPrevFocus = null;
+  /* Kassada navbat tez ketishi uchun kursor darhol birinchi maydonga qaytadi */
+  if (typeof STATE !== 'undefined' && STATE.page === 'kassa' && typeof Kassa !== 'undefined') Kassa.focusFirst();
 }
 /* confirm() o'rniga professional modal */
 function confirmModal(opts) {
@@ -1583,7 +1653,8 @@ function showLoginScreen() {
 /* ===================== 7. NAVIGATSIYA ===================== */
 const PAGE_TITLES = {
   add: 'Yangi avtomobil', active: 'Jarayonda', queue: 'Kutish rejimi', finish: 'Tugatish',
-  frozen: 'Muzlatilgan', daily: 'Kunlik hisobot', history: 'Tarix', instructors: 'Instruktorlar'
+  frozen: 'Muzlatilgan', daily: 'Kunlik hisobot', history: 'Tarix', instructors: 'Instruktorlar',
+  kassa: 'QR chek — avtoshkola'
 };
 function go(page) {
   const el = $('p-' + page);
@@ -1606,6 +1677,7 @@ function go(page) {
   if (page === 'frozen') Frozen.load();
   if (page === 'daily') Reports.loadDaily();
   if (page === 'instructors') Instructors.load();
+  if (page === 'kassa') Kassa.onEnter();
 }
 function closeSidebar() {
   $('side').classList.remove('open');
@@ -1732,7 +1804,9 @@ function Combobox(hostId, options) {
     if (filtered[i]) pick(filtered[i]);
   });
   clearBtn.addEventListener('click', () => { clear(false); input.focus(); });
-  document.addEventListener('click', e => { if (!host.contains(e.target)) hide(); });
+  
+
+document.addEventListener('click', e => { if (!host.contains(e.target)) hide(); });
 
   return {
     setItems(arr) { items = Array.isArray(arr) ? arr : []; if (open) render(input.value); },
@@ -1745,6 +1819,231 @@ function Combobox(hostId, options) {
     setDisabled(v) { input.disabled = !!v; }
   };
 }
+
+/* ===================== QR CHEK (avtoshkola) =====================
+   Bazada bir nechta avtoshkola bor, lekin chek FAQAT bittasiga beriladi
+   va uni operator o'zi belgilaydi (yuqoridagi tanlov saqlanadi).
+
+   Oqim: o'quvchi keladi -> operator QR chek chiqaradi -> o'quvchi chekni
+   istagan instruktorga beradi -> instruktor o'z panelida skanerlaydi ->
+   dars shu zahoti ochiladi va instruktor ro'yxatiga tushadi.
+
+   Dars TEKIN: summa ham, to'lov turi ham yo'q, kunlik hisobotga pul
+   yozilmaydi — faqat vaqt va dars soni qayd etiladi. */
+const Kassa = {
+  schoolId: '', minutes: 60, student: null, list: [], lastCode: '',
+
+  onEnter() {
+    if (!STATE.studentsLoaded) Data.reloadStudents().then(() => this.renderSuggest());
+    if (!(STATE.schools || []).length) Data.reloadSchools ? Data.reloadSchools().then(() => this.fillSchools()) : null;
+    this.fillSchools();
+    this.loadConfig();
+    this.load();
+    this.focusFirst();
+  },
+
+  fillSchools() {
+    const sel = $('kzSchool'); if (!sel) return;
+    const list = Data.activeSchools();
+    sel.innerHTML = '<option value="">Tanlang</option>' + list.map(s =>
+      '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>').join('');
+    if (this.schoolId) sel.value = this.schoolId;
+  },
+
+  async loadConfig() {
+    try {
+      const d = await api('/receipts/config');
+      this.schoolId = d.school_id ? String(d.school_id) : '';
+      if (d.default_minutes) this.setMinutes(d.default_minutes);
+      this.fillSchools();
+      this.paintSchoolHint();
+    } catch (e) { /* sozlama hali yo'q */ }
+  },
+
+  async setSchool(id) {
+    this.schoolId = String(id || '');
+    this.student = null;
+    $('kzPicked').classList.add('hidden');
+    $('kzSearch').value = '';
+    this.renderSuggest();
+    this.paintSchoolHint();
+    if (!this.schoolId) return;
+    try {
+      await api('/receipts/config', { method: 'PUT', body: jsonBody({ school_id: this.schoolId, default_minutes: this.minutes }) });
+      toast('Avtoshkola saqlandi.');
+    } catch (e) { toast(e.message || 'Saqlanmadi', 'error'); }
+  },
+
+  paintSchoolHint() {
+    const el = $('kzSchoolHint'); if (!el) return;
+    if (!this.schoolId) {
+      el.innerHTML = '<b class="text-red">Avtoshkola tanlanmagan</b> — chek chiqarish uchun avval uni belgilang.';
+      return;
+    }
+    const s = STATE.schools.find(x => String(x.id) === String(this.schoolId));
+    const n = STATE.students.filter(x => String(x.school_id || x.schoolId) === String(this.schoolId)).length;
+    el.innerHTML = 'Chek faqat <b>' + esc(s ? s.name : '—') + '</b> o\'quvchilariga chiqadi (' + n + ' o\'quvchi). Tanlov saqlanadi.';
+  },
+
+  setMinutes(m) {
+    this.minutes = Math.max(15, Number(m) || 60);
+    $$('#kzMinSeg .seg-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.m) === this.minutes));
+  },
+
+  focusFirst() {
+    setTimeout(() => { const el = $('kzSearch'); if (el) { try { el.focus(); } catch (e) {} } }, 60);
+  },
+
+  /* Faqat belgilangan avtoshkola o'quvchilari qidiriladi */
+  pool() {
+    if (!this.schoolId) return [];
+    return STATE.students.filter(s => String(s.school_id || s.schoolId) === String(this.schoolId) && s.active !== false);
+  },
+
+  renderSuggest() {
+    const box = $('kzSuggest'); if (!box) return;
+    const q = lower($('kzSearch') ? $('kzSearch').value : '').trim();
+    if (!this.schoolId) { box.classList.add('hidden'); return; }
+    if (!q) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    const list = this.pool().filter(s => lower(s.full_name || s.fullName).indexOf(q) >= 0).slice(0, 8);
+    if (!list.length) {
+      box.classList.remove('hidden');
+      box.innerHTML = '<div class="muted" style="padding:10px">Bu avtoshkolada bunday o\'quvchi topilmadi.</div>';
+      return;
+    }
+    box.classList.remove('hidden');
+    box.innerHTML = list.map(s =>
+      '<button type="button" data-act="kzPick" data-id="' + esc(s.id) + '">'
+      + '<b>' + esc(s.full_name || s.fullName) + '</b>'
+      + '<small>' + esc(s.group_name || s.groupName || 'guruhsiz') + '</small></button>').join('');
+  },
+
+  pick(id) {
+    const s = this.pool().find(x => String(x.id) === String(id));
+    if (!s) return;
+    this.student = s;
+    $('kzSearch').value = '';
+    $('kzSuggest').classList.add('hidden');
+    const box = $('kzPicked');
+    box.classList.remove('hidden');
+    box.innerHTML = '<div><b>' + esc(s.full_name || s.fullName) + '</b>'
+      + '<div class="muted" style="font-size:12px">' + esc(s.school_name || s.schoolName || '')
+      + (s.group_name || s.groupName ? ' · ' + esc(s.group_name || s.groupName) : '') + '</div></div>'
+      + '<button class="btn btn-light btn-sm" type="button" data-act="kzPick" data-id="">O\'zgartirish</button>';
+    setTimeout(() => { const b = $('kzIssueBtn'); if (b) b.focus(); }, 60);
+  },
+
+  async issue() {
+    const err = m => { $('kzErr').innerHTML = '<div class="err-box" style="background:#fff0f0;color:#a52b2b;border:1px solid #ffd6d6;border-radius:12px;padding:12px;margin-top:12px">' + esc(m) + '</div>'; };
+    $('kzErr').innerHTML = '';
+    if (!this.schoolId) return err('Avval chek beriladigan avtoshkolani tanlang');
+    if (!this.student) return err("O'quvchini tanlang");
+
+    const btn = $('kzIssueBtn'); btn.disabled = true; const old = btn.textContent; btn.textContent = 'Chiqarilmoqda…';
+    try {
+      const d = await api('/receipts', { method: 'POST', body: jsonBody({
+        student_id: this.student.id, planned_minutes: this.minutes
+      }) });
+      this.showReceipt(d.receipt);
+      this.reset();
+      this.load();
+    } catch (e) { err(e.message || 'Chek chiqarilmadi'); }
+    finally { btn.disabled = false; btn.textContent = old; }
+  },
+
+  reset() {
+    this.student = null;
+    $('kzSearch').value = '';
+    $('kzPicked').classList.add('hidden');
+    $('kzSuggest').classList.add('hidden');
+    this.focusFirst();
+  },
+
+  showReceipt(r) {
+    const rows = [
+      ["O'quvchi", r.student_name || r.customer_name || '—'],
+      ['Avtoshkola', r.school_name || '—'],
+      ['Guruh', r.group_name || '—'],
+      ['Davomiylik', (r.planned_minutes || 60) + ' daqiqa']
+    ];
+    openModal('<div id="kzReceipt"><h3>AVTODROM</h3>' +
+        '<div class="c" style="font-size:11px">Amaliy haydash · avtoshkola</div><div class="hr"></div>' +
+        rows.map(x => '<div class="r"><span>' + esc(x[0]) + '</span><b>' + esc(x[1]) + '</b></div>').join('') +
+        '<div class="hr"></div><div class="r big"><span>To\'lov</span><span>TEKIN</span></div>' +
+        '<div class="hr"></div><div class="c" id="kzQr"></div><div class="code">' + esc(r.code) + '</div>' +
+        '<div class="c" style="font-size:10px;margin-top:6px">Chekni instruktorga bering — u Avtodrom ilovasida QR ni skanerlaydi</div></div>' +
+        '<div style="display:flex;gap:8px;margin-top:16px">' +
+        '<button class="btn btn-light" style="flex:1" data-act="closeModal">Yopish</button>' +
+        '<button class="btn btn-green" style="flex:1" data-act="kzPrint">Chop etish</button></div>', { noFocus: true });
+    this.lastCode = r.code;
+    setTimeout(() => this.drawQr(r.code), 60);
+  },
+
+  drawQr(code) {
+    const box = document.getElementById('kzQr'); if (!box) return;
+    this.lastCode = code;
+    try {
+      if (typeof qrcode !== 'function') { box.innerHTML = '<div style="font-size:10px">QR yuklanmadi — kodni qo\'lda kiriting</div>'; return; }
+      const qr = qrcode(0, 'M'); qr.addData(String(code)); qr.make();
+      box.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 8, scalable: false });
+      const svg = box.querySelector('svg');
+      if (svg) { svg.style.width = '46mm'; svg.style.height = 'auto'; svg.style.display = 'block'; svg.style.margin = '0 auto'; }
+    } catch (e) { box.innerHTML = ''; }
+  },
+
+  async load() {
+    try {
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent' }).format(new Date());
+      const d = await api('/receipts?date=' + today);
+      this.list = d.receipts || [];
+      const s = d.summary || {};
+      const badge = $('kassaCount'); if (badge) badge.textContent = s.open ? String(s.open) : '';
+      $('kzSummary').innerHTML = 'Jami <b>' + (s.total || 0) + '</b> · kutilmoqda <b>' + (s.open || 0) +
+        '</b> · ishlatilgan <b>' + (s.scanned || 0) + '</b> · bekor <b>' + (s.cancelled || 0) + '</b>';
+      this.renderList();
+    } catch (e) {
+      $('kzSummary').textContent = '';
+      $('kzList').innerHTML = '<div class="muted">Cheklar yuklanmadi.</div>';
+    }
+  },
+
+  renderList() {
+    const host = $('kzList'); if (!host) return;
+    if (!this.list.length) { host.innerHTML = emptyState('fa-receipt', "Bugun chek chiqarilmagan", "O'quvchini tanlab chek chiqaring."); return; }
+    const stName = { issued: 'kutilmoqda', scanned: 'ishlatilgan', cancelled: 'bekor' };
+    const stCls = { issued: 'badge-amber', scanned: 'badge-green', cancelled: 'badge-grey' };
+    host.innerHTML = this.list.map(r =>
+      '<div class="kz-row">'
+      + '<div><b>' + esc(r.code) + '</b><div class="muted" style="font-size:12px">'
+      + esc(r.student_name || r.customer_name || '—')
+      + (r.instructor_name ? ' · ' + esc(r.instructor_name) : '')
+      + ' · ' + (r.planned_minutes || 60) + ' daq</div></div>'
+      + '<div style="display:flex;align-items:center;gap:8px">'
+      + '<span class="badge ' + (stCls[r.status] || 'badge-grey') + '">' + (stName[r.status] || r.status) + '</span>'
+      + (r.status === 'issued' ? '<button class="btn btn-light btn-sm" type="button" data-act="kzCancel" data-id="' + esc(r.id) + '">Bekor</button>' : '')
+      + '</div></div>').join('');
+  },
+
+  async cancel(id) {
+    const ok = await confirmModal({ title: 'Chekni bekor qilasizmi?', text: 'Bekor qilingan chek bilan dars boshlanmaydi.', okText: 'Bekor qilish' });
+    if (!ok) return;
+    try { await api('/receipts/' + encodeURIComponent(id) + '/cancel', { method: 'POST', body: '{}' }); toast('Chek bekor qilindi.'); this.load(); }
+    catch (e) { toast(e.message || 'Bekor qilinmadi', 'error'); }
+  }
+};
+
+/* Chek oynasi: Enter bosilsa darhol chek chiqadi */
+document.addEventListener('keydown', e => {
+  if (STATE.page !== 'kassa') return;
+  if ($('modal') && $('modal').innerHTML) return;
+  if (e.key === 'Enter' && Kassa.student) { e.preventDefault(); Kassa.issue(); }
+});
+document.addEventListener('input', e => {
+  if (e.target && e.target.id === 'kzSearch') Kassa.renderSuggest();
+});
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'kzSchool') Kassa.setSchool(e.target.value);
+});
 
 /* ===================== 9. DATA (yuklash va kesh) ===================== */
 const Data = {
@@ -4226,6 +4525,14 @@ const ACTIONS = {
   resetStart: () => { Add.reset(); toast('Forma tozalandi.'); },
   quickStudentSave: () => Add.quickStudentSave(),
 
+  /* --- QR chek (avtoshkola) --- */
+  kzMin: d => Kassa.setMinutes(d.m),
+  kzPick: d => (d.id ? Kassa.pick(d.id) : Kassa.reset()),
+  kzIssue: () => Kassa.issue(),
+  kzCancel: d => Kassa.cancel(d.id),
+  kzPrint: () => window.print(),
+  closeModal: () => closeModal(),
+
   /* --- navbat --- */
   queueStart: (d, el) => Queue.start(d.id, el),
   queueRemove: d => Queue.remove(d.id),
@@ -4423,11 +4730,16 @@ window.addEventListener('error', e => { console.error('[global error]', e.messag
 window.addEventListener('unhandledrejection', e => { console.error('[unhandled promise]', e.reason); });
 
 /* Debug uchun (maxfiy ma'lumot yo'q) */
-window.AVTODROM = { STATE: STATE, CONFIG: CONFIG, go: go, Active: Active, Queue: Queue, Admin: Admin, Data: Data };
+window.AVTODROM = { STATE: STATE, CONFIG: CONFIG, go: go, Active: Active, Queue: Queue, Admin: Admin, Data: Data, Kassa: Kassa };
+window.Kassa = Kassa;   /* QR kutubxonasi kech yuklansa chekni qayta chizish uchun */
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
 else init();
 </script>
+<!-- QR generator. Birinchi manba ishlamasa ikkinchisi yuklanadi — kassa
+     internetining bir qismi to'silgan bo'lsa ham chek QR bilan chiqadi. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"
+        onerror="(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js';s.onload=function(){if(window.Kassa&&Kassa.lastCode)Kassa.drawQr(Kassa.lastCode);};document.head.appendChild(s);})()"></script>
 </body>
 </html>
 
