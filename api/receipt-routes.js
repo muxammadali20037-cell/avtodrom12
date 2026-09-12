@@ -161,6 +161,52 @@ function splitPlate(raw) {
   return null;
 }
 
+/* ---------------- SXEMANI O'QIB OLISH ----------------
+   avtodrom12 ning turli versiyalarida jadvallar turlicha: instruktor
+   avtomobili `instructors.vehicle_plate`, `instructors.plate`,
+   `instructors.vehicle_id -> vehicles.plate` yoki
+   `instructors.settings->>'vehicle_plate'` da bo'lishi mumkin.
+
+   Ustun nomini qattiq yozib qo'ysak, boshqacha sxemadagi bazada
+   «column vehicle_plate does not exist» chiqadi — va Postgres'da bu xato
+   BUTUN tranzaksiyani yiqitadi, ya'ni chek ham ishlatilmay qoladi.
+
+   Shuning uchun ustunlarni bir marta o'qib olamiz (tranzaksiyadan
+   TASHQARIDA — shu sabab u hech qachon chekni buza olmaydi) va SQL ni
+   shunga qarab yig'amiz. */
+const colCache = new Map();
+function tableColumns(name) {
+  if (colCache.has(name)) return colCache.get(name);
+  const pr = pool.query(
+    `SELECT column_name, data_type FROM information_schema.columns
+      WHERE table_schema='public' AND table_name=$1`, [name])
+    .then(r => new Map(r.rows.map(x => [x.column_name, x.data_type])))
+    .catch(e => { colCache.delete(name); throw e; });
+  colCache.set(name, pr);
+  return pr;
+}
+
+/** instructors jadvalida avtomobil raqami qaysi ustunda — SQL ifodasi. */
+async function instructorsShape() {
+  const ins = await tableColumns('instructors');
+  if (!ins.size) return null;                       // jadval umuman yo'q
+  const veh = await tableColumns('vehicles');
+  const parts = [];
+  if (ins.has('vehicle_plate')) parts.push(`NULLIF(i.vehicle_plate::text,'')`);
+  if (ins.has('plate'))         parts.push(`NULLIF(i.plate::text,'')`);
+  const jsonb = /json/.test(String(ins.get('settings') || ''));
+  if (jsonb) parts.push(`NULLIF(i.settings->>'vehicle_plate','')`);
+  const join = (ins.has('vehicle_id') && veh.has('plate'))
+    ? ` LEFT JOIN vehicles v ON v.id = i.vehicle_id` : '';
+  if (join) parts.push(`NULLIF(v.plate::text,'')`);
+  return {
+    plate: parts.length ? `COALESCE(${parts.join(',')})` : null,
+    join,
+    owner: ins.has('owner_key') ? 'owner_key' : (ins.has('user_id') ? 'user_id' : null),
+    name:  ins.has('full_name') ? 'full_name' : (ins.has('name') ? 'name' : null),
+  };
+}
+
 /* Chek kodi prefiksi. "AVD-" ISHLATILMAYDI: Avtodrom loyihasida mijozga
    beriladigan pickup_code aynan AVD-1234 ko'rinishida va ikkalasi
    aralashib ketardi — instruktor birovning chekini ishlatib yuborishi
@@ -444,15 +490,19 @@ async function redeemReceipt(req, res) {
          yiqitadi — jadval topilmasa ham chek ishlatilmay qolardi.
          Savepoint bilan qidiruv yiqilsa ham chek ishlatilaveradi. */
       try {
-        await c.query('SAVEPOINT sp_plate');
-        const byName = await c.query(
-          `SELECT vehicle_plate FROM instructors
-            WHERE owner_key=$1
-              AND LOWER(TRIM(full_name)) = LOWER(TRIM($2))
-              AND COALESCE(vehicle_plate,'') <> ''
-            LIMIT 1`, [String(rec.user_id), insName]);
-        await c.query('RELEASE SAVEPOINT sp_plate');
-        if (byName.rows[0]) plateSrc = byName.rows[0].vehicle_plate;
+        const sh = await instructorsShape();
+        if (sh && sh.plate && sh.owner && sh.name) {
+          await c.query('SAVEPOINT sp_plate');
+          const byName = await c.query(
+            `SELECT ${sh.plate} AS plate
+               FROM instructors i${sh.join}
+              WHERE i.${sh.owner}::text = $1
+                AND LOWER(TRIM(i.${sh.name})) = LOWER(TRIM($2))
+                AND COALESCE(${sh.plate},'') <> ''
+              LIMIT 1`, [String(rec.user_id), insName]);
+          await c.query('RELEASE SAVEPOINT sp_plate');
+          if (byName.rows[0]) plateSrc = byName.rows[0].plate;
+        }
       } catch (err) {
         try { await c.query('ROLLBACK TO SAVEPOINT sp_plate'); } catch {}
         console.error('[receipt] instruktor raqamini qidirish:', err && err.message);
@@ -475,12 +525,21 @@ async function redeemReceipt(req, res) {
       await c.query('SAVEPOINT sp_session');
       /* Avtomobil operatorning o'z yozuvi bo'lsin — user_id siz yozuv
          asosiy ilovaga ko'rinmaydi va ikkinchi nusxa paydo bo'lardi. */
+      const vcol = await tableColumns('vehicles');
       let vr = await c.query(`SELECT id FROM vehicles WHERE plate=$1 AND user_id::text=$2`, [p.plate, rec.user_id]);
       if (!vr.rows[0]) {
+        const vc = [
+          ['user_id', rec.user_id],
+          ['region_code', p.region],
+          ['first_letter', p.firstLetter],
+          ['number', p.number],
+          ['last_letters', p.lastLetters],
+          ['plate', p.plate],
+        ].filter(([k]) => vcol.has(k));
         vr = await c.query(
-          `INSERT INTO vehicles(user_id, region_code, first_letter, number, last_letters, plate)
-           VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
-          [rec.user_id, p.region, p.firstLetter, p.number, p.lastLetters, p.plate]);
+          `INSERT INTO vehicles(${vc.map(([k]) => k).join(', ')})
+           VALUES(${vc.map((_, i) => '$' + (i + 1)).join(',')}) RETURNING id`,
+          vc.map(([, v]) => v));
       }
       const vehicleId = vr.rows[0].id;
       const busy = await c.query(
@@ -488,27 +547,78 @@ async function redeemReceipt(req, res) {
       if (busy.rows[0]) {
         note = 'Bu avtomobilda avtodrom12 da tugallanmagan dars bor — bu yerda sessiya ochilmadi.';
       } else {
-        /* avtodrom12 dagi o'z instruktorini raqam bo'yicha topamiz */
-        const mine = await c.query(`
-          SELECT id FROM instructors
-           WHERE owner_key=$1 AND REGEXP_REPLACE(UPPER(COALESCE(vehicle_plate,'')), '[^A-Z0-9]', '', 'g')=$2
-           LIMIT 1`, [rec.user_id, normalizePlate(p.plate)]);
-        const st = (await c.query(
-          `SELECT hourly_rate, minimum_payment, calculation_mode FROM user_settings WHERE user_id::text=$1`,
-          [rec.user_id])).rows[0] || { hourly_rate: 30000, minimum_payment: 0, calculation_mode: 'hour' };
+        /* avtodrom12 dagi o'z instruktorini raqam bo'yicha topamiz.
+           Bu ham QO'SHIMCHA ish — topilmasa sessiya instruktorsiz
+           ochilaveradi, shuning uchun o'z savepoint'ida. */
+        let mineId = null;
+        try {
+          const sh = await instructorsShape();
+          if (sh && sh.plate && sh.owner) {
+            await c.query('SAVEPOINT sp_ins');
+            const mine = await c.query(
+              `SELECT i.id FROM instructors i${sh.join}
+                WHERE i.${sh.owner}::text = $1
+                  AND REGEXP_REPLACE(UPPER(COALESCE(${sh.plate},'')), '[^A-Z0-9]', '', 'g') = $2
+                LIMIT 1`, [String(rec.user_id), normalizePlate(p.plate)]);
+            await c.query('RELEASE SAVEPOINT sp_ins');
+            mineId = mine.rows[0] ? mine.rows[0].id : null;
+          }
+        } catch (err) {
+          try { await c.query('ROLLBACK TO SAVEPOINT sp_ins'); } catch {}
+          console.error('[receipt] instruktorni raqam bo‘yicha topish:', err && err.message);
+        }
 
-        const ins = await c.query(`
-          INSERT INTO sessions(user_id, vehicle_id, hourly_rate, minimum_payment, calculation_mode,
-                               school_id, group_id, student_id, instructor_id, planned_minutes,
-                               manual_price, receipt_id, customer_type, driver_name, target_duration,
-                               amount, cash_amount, terminal_amount, payment_method, duration_seconds)
-          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11,'school',$12,$13,0,0,0,'cash',0)
-          RETURNING id, started_at`,
-          [rec.user_id, vehicleId, st.hourly_rate, st.minimum_payment, st.calculation_mode,
-           rec.school_id, rec.group_id, rec.student_id, mine.rows[0]?.id || null,
-           rec.planned_minutes, rec.id, personName,
-           Math.max(0, Math.round(Number(rec.planned_minutes || 60))) * 60]);
-        sessionId = ins.rows[0].id;
+        /* Tarif. user_settings bo'lmasa — odatdagi qiymatlar. */
+        let st = { hourly_rate: 30000, minimum_payment: 0, calculation_mode: 'hour' };
+        try {
+          await c.query('SAVEPOINT sp_cfg');
+          const sr = await c.query(
+            `SELECT hourly_rate, minimum_payment, calculation_mode FROM user_settings WHERE user_id::text=$1`,
+            [rec.user_id]);
+          await c.query('RELEASE SAVEPOINT sp_cfg');
+          if (sr.rows[0]) st = sr.rows[0];
+        } catch (err) {
+          try { await c.query('ROLLBACK TO SAVEPOINT sp_cfg'); } catch {}
+          console.error('[receipt] tarif o‘qilmadi:', err && err.message);
+        }
+
+        /* INSERT ni ham sxemaga qarab yig'amiz: sessions jadvalida
+           yo'q ustunni yozsak, yana o'sha «column does not exist». */
+        const scol = await tableColumns('sessions');
+        const mins = Math.max(0, Math.round(Number(rec.planned_minutes || 60)));
+        const cand = [
+          ['user_id', rec.user_id],
+          ['vehicle_id', vehicleId],
+          ['hourly_rate', st.hourly_rate],
+          ['minimum_payment', st.minimum_payment],
+          ['calculation_mode', st.calculation_mode],
+          ['school_id', rec.school_id],
+          ['group_id', rec.group_id],
+          ['student_id', rec.student_id],
+          ['instructor_id', mineId],
+          ['planned_minutes', mins],
+          ['manual_price', true],
+          ['receipt_id', rec.id],
+          ['customer_type', 'school'],
+          ['driver_name', personName],
+          ['target_duration', mins * 60],
+          ['amount', 0],
+          ['cash_amount', 0],
+          ['terminal_amount', 0],
+          ['payment_method', 'cash'],
+          ['duration_seconds', 0],
+        ].filter(([k]) => scol.has(k));
+
+        if (!scol.has('user_id') || !scol.has('vehicle_id')) {
+          note = 'avtodrom12 da sessiya ochilmadi: sessions jadvali kutilganidan farq qiladi.';
+        } else {
+          const cols = cand.map(([k]) => k).join(', ');
+          const hold = cand.map((_, i) => '$' + (i + 1)).join(',');
+          const ins = await c.query(
+            `INSERT INTO sessions(${cols}) VALUES(${hold}) RETURNING id`,
+            cand.map(([, v]) => v));
+          sessionId = ins.rows[0].id;
+        }
       }
       await c.query('RELEASE SAVEPOINT sp_session');
       } catch (err) {
