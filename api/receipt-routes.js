@@ -523,10 +523,27 @@ async function redeemReceipt(req, res) {
          ==================================================================== */
       try {
       await c.query('SAVEPOINT sp_session');
-      /* Avtomobil operatorning o'z yozuvi bo'lsin — user_id siz yozuv
-         asosiy ilovaga ko'rinmaydi va ikkinchi nusxa paydo bo'lardi. */
+      /* AVTOMOBILNI TOPISH — user_id bo'yicha CHEGARALAMASDAN.
+
+         `vehicles.plate` butun bazada yagona (vehicles_plate_key).
+         Ilgari qidiruvda `AND user_id=...` shart bor edi: raqam
+         boshqa egalik bilan yoki umuman egasiz yozilgan bo'lsa
+         topilmasdi, keyingi INSERT esa o'sha yagonalik cheklovga
+         urilib «duplicate key value violates unique constraint
+         "vehicles_plate_key"» berardi va sessiya ochilmasdi.
+
+         Raqam yozilishi ham farq qilishi mumkin ("01 111 QQQ" /
+         "01111QQQ"), shuning uchun normallashtirilgan solishtirish
+         ham bor. */
       const vcol = await tableColumns('vehicles');
-      let vr = await c.query(`SELECT id FROM vehicles WHERE plate=$1 AND user_id::text=$2`, [p.plate, rec.user_id]);
+      const vsel = `SELECT id${vcol.has('user_id') ? ', user_id' : ''} FROM vehicles`;
+      let vr = await c.query(
+        `${vsel}
+          WHERE plate = $1
+             OR REGEXP_REPLACE(UPPER(COALESCE(plate,'')), '[^A-Z0-9]', '', 'g') = $2
+          ORDER BY (plate = $1) DESC
+          LIMIT 1`, [p.plate, normalizePlate(p.plate)]);
+
       if (!vr.rows[0]) {
         const vc = [
           ['user_id', rec.user_id],
@@ -536,10 +553,35 @@ async function redeemReceipt(req, res) {
           ['last_letters', p.lastLetters],
           ['plate', p.plate],
         ].filter(([k]) => vcol.has(k));
-        vr = await c.query(
-          `INSERT INTO vehicles(${vc.map(([k]) => k).join(', ')})
-           VALUES(${vc.map((_, i) => '$' + (i + 1)).join(',')}) RETURNING id`,
-          vc.map(([, v]) => v));
+        try {
+          await c.query('SAVEPOINT sp_veh');
+          vr = await c.query(
+            `INSERT INTO vehicles(${vc.map(([k]) => k).join(', ')})
+             VALUES(${vc.map((_, i) => '$' + (i + 1)).join(',')}) RETURNING id`,
+            vc.map(([, v]) => v));
+          await c.query('RELEASE SAVEPOINT sp_veh');
+        } catch (err) {
+          /* Poyga: shu oraliqda boshqa so'rov yozib ulgurgan bo'lishi
+             mumkin. Qayta qidiramiz; topilmasa — haqiqiy xato. */
+          try { await c.query('ROLLBACK TO SAVEPOINT sp_veh'); } catch {}
+          vr = await c.query(`${vsel} WHERE plate=$1 LIMIT 1`, [p.plate]);
+          if (!vr.rows[0]) throw err;
+        }
+      } else if (vcol.has('user_id') && !vr.rows[0].user_id) {
+        /* Egasiz yozuv — operatorga biriktiramiz, aks holda avtomobil
+           asosiy ilovada ko'rinmaydi. Boshqa operatorniki bo'lsa
+           tegmaymiz. */
+        try {
+          await c.query('SAVEPOINT sp_vown');
+          await c.query(
+            `UPDATE vehicles SET user_id=$1
+              WHERE id=$2 AND (user_id IS NULL OR user_id::text='')`,
+            [rec.user_id, vr.rows[0].id]);
+          await c.query('RELEASE SAVEPOINT sp_vown');
+        } catch (err) {
+          try { await c.query('ROLLBACK TO SAVEPOINT sp_vown'); } catch {}
+          console.error('[receipt] avtomobil egasini yozish:', err && err.message);
+        }
       }
       const vehicleId = vr.rows[0].id;
       const busy = await c.query(
@@ -708,10 +750,25 @@ async function completeReceipt(req, res) {
     : Math.max(0, base + live);
   const lessons = s.student_id ? Math.max(1, Math.round(seconds / 3600)) : 0;
 
-  await pool.query(`
-    UPDATE sessions SET finished_at=$1, duration_seconds=$2, amount=0, cash_amount=0,
-           terminal_amount=0, lessons_counted=$3, status='completed'
-     WHERE id=$4`, [end, seconds, lessons, s.id]);
+  /* Bu yerda ham ustunlar sxemaga qarab tanlanadi: `cash_amount`,
+     `lessons_counted` kabi ustunlar eski bazalarda yo'q va ularsiz
+     UPDATE butunlay yiqilardi — dars «Jarayonda» da osilib qolardi. */
+  const scol = await tableColumns('sessions');
+  const set = [
+    ['finished_at', end],
+    ['duration_seconds', seconds],
+    ['amount', 0],
+    ['cash_amount', 0],
+    ['terminal_amount', 0],
+    ['lessons_counted', lessons],
+  ].filter(([k]) => scol.has(k));
+
+  if (scol.has('status')) {
+    const cols = set.map(([k], i) => `${k}=$${i + 1}`).join(', ');
+    await pool.query(
+      `UPDATE sessions SET ${cols}${cols ? ', ' : ''}status='completed' WHERE id=$${set.length + 1}`,
+      [...set.map(([, v]) => v), s.id]);
+  }
 
   return send(res, 200, { ok: true, minutes: Math.round(seconds / 60), lessons });
 }
