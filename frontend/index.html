@@ -555,6 +555,26 @@ table.tbl td b { font-weight: 700; }
   animation: scaleIn 0.3s ease-out both;
 }
 .modal-box.wide { width: min(980px, 100%); }
+/* Avtoshkola ichida guruhlar alohida kartalar, o'quvchilar alohida oynada. */
+.admin-group-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 14px; }
+.admin-group-card { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); overflow: hidden; }
+.admin-group-open { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 112px; padding: 20px; text-align: left; color: var(--text); }
+.admin-group-open:hover { background: var(--g-surface); }
+.admin-group-open:focus-visible { outline: 3px solid var(--g); outline-offset: -3px; }
+.admin-group-icon { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; background: var(--g-surface); color: var(--g); font-size: 20px; }
+.admin-group-name { flex: 1; min-width: 0; }
+.admin-group-name b { display: block; font-size: 18px; overflow-wrap: anywhere; margin-bottom: 8px; }
+.admin-group-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); background: #f8fafc; }
+.admin-school-heading { margin-top: 18px; }
+.admin-school-heading h2, #adminGroupTitle, #adminGroupSchool { overflow-wrap: anywhere; }
+.admin-group-search { margin-bottom: 16px; }
+.admin-group-status { margin-bottom: 12px; font-size: 13px; }
+#adminGroupStudents .tbl td { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  #adminGroupStudents .tbl td { min-width: 0; }
+  #adminGroupStudents .tbl td > span { min-width: 0; }
+  #adminGroupStudents .tbl td::before { flex-shrink: 0; }
+}
 .modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 20px; }
 .modal-head h2 { font-size: 18px; font-weight: 800; }
 .modal-head p { font-size: 13px; color: var(--muted); margin-top: 2px; }
@@ -3551,6 +3571,8 @@ const Excel = {
 /* ===================== 21. ADMIN ===================== */
 const Admin = {
   tab: 'dashboard',
+  schoolView: null,
+  groupView: null,
   importRows: [],
   importKind: '',
 
@@ -3607,6 +3629,9 @@ const Admin = {
   },
 
   setTab(tab) {
+    this.schoolView = null;
+    this.groupView = null;
+    if ($('adminGroupStudents')) closeModal();
     this.tab = tab;
     $$('#adminTabs .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     const c = $('adminContent');
@@ -3688,9 +3713,9 @@ const Admin = {
 
   /* --- Avtoshkolalar + guruhlar --- */
   schoolsHTML() {
-    return '<div class="page-header"><div><h2>Avtoshkolalar</h2><p class="text-muted">Avtoshkola → guruh → o\'quvchi</p></div>'
+    return '<div id="adminSchoolOverview"><div class="page-header"><div><h2>Avtoshkolalar</h2><p class="text-muted">Avtoshkola → guruh → o\'quvchi</p></div>'
       + '<button class="btn btn-green" type="button" data-act="schoolModal"><i class="fa-solid fa-plus" aria-hidden="true"></i> Avtoshkola</button></div>'
-      + '<div id="adminSchoolCards" class="cards-grid"></div><div id="adminSchoolDetail"></div>';
+      + '<div id="adminSchoolCards" class="cards-grid"></div></div><div id="adminSchoolDetail"></div>';
   },
   renderSchools() {
     const c = $('adminSchoolCards');
@@ -3712,27 +3737,143 @@ const Admin = {
   },
   async schoolDetail(sid) {
     const c = $('adminSchoolDetail');
-    if (!c) return;
-    c.innerHTML = '<div class="panel">' + loadingLine('Guruhlar yuklanmoqda...') + '</div>';
-    const groups = await Data.reloadGroups(sid);
-    const students = STATE.students.filter(s => String(s.school_id || s.schoolId) === String(sid));
-    const school = STATE.schools.find(s => String(s.id) === String(sid));
-    let body = groups.length ? groups.map(g => {
-      const gst = students.filter(s => String(s.group_id || s.groupId) === String(g.id));
-      return '<div style="margin:12px 0;padding:12px;background:#f8fafc;border-radius:10px;border:1px solid var(--line)">'
-        + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">'
-        + '<b>' + esc(g.name) + '</b>'
-        + '<div style="display:flex;gap:8px;align-items:center"><span class="badge badge-green">' + gst.length + " o'quvchi</span>"
-        + '<button class="btn btn-light btn-sm" type="button" data-act="groupModal" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>'
-        + '<button class="btn btn-danger btn-sm" type="button" data-act="groupDelete" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '"><i class="fa-solid fa-trash" aria-hidden="true"></i></button></div></div>'
-        + (gst.length ? '<div style="margin-top:8px">' + gst.map(st =>
-          '<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line);font-size:13px">'
-          + '<span>' + esc(stName(st)) + '</span><span class="badge badge-blue">' + attCount(st) + ' dars</span></div>').join('') + '</div>' : '');
-    }).join('') : emptyState('fa-users', "Guruh yo'q", "Ushbu avtoshkolada guruh qo'shilmagan.");
-    c.innerHTML = '<div class="panel" style="margin-top:16px">'
-      + '<div class="panel-head"><h3><i class="fa-solid fa-users" style="color:var(--g)" aria-hidden="true"></i> ' + esc(school ? school.name : '') + ' — guruhlar</h3>'
-      + '<button class="btn btn-green btn-sm" type="button" data-act="groupModal" data-school="' + esc(sid) + '"><i class="fa-solid fa-plus" aria-hidden="true"></i> Guruh qo\'shish</button></div>'
-      + body + '</div>';
+    if (!c || this.tab !== 'schools') return;
+    const view = { schoolId: String(sid), groups: [], host: c };
+    this.schoolView = view;
+    $('adminSchoolOverview').classList.add('hidden');
+    c.innerHTML = '<button class="btn btn-light" type="button" data-act="schoolsBack"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Avtoshkolalar</button>'
+      + '<div class="page-header admin-school-heading"><div><h2>' + esc(Data.schoolName(sid)) + '</h2><p class="text-muted">Guruhlar — o\'quvchilarni ko\'rish uchun guruhni tanlang.</p></div>'
+      + '<button class="btn btn-green" type="button" data-act="groupModal" data-school="' + esc(sid) + '"><i class="fa-solid fa-plus" aria-hidden="true"></i> Guruh qo\'shish</button></div>'
+      + '<div class="panel"><div class="search-bar admin-group-search"><div class="search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>'
+      + '<input id="adminGroupQ" placeholder="Guruh nomini qidiring..." aria-label="Guruhlarni qidirish"></div>'
+      + '<button class="btn btn-ghost" type="button" data-act="schoolDetail" data-id="' + esc(sid) + '"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Yangilash</button></div>'
+      + '<div id="adminGroupsStatus" class="text-muted admin-group-status" role="status"></div><div id="adminGroupCards">' + loadingLine('Guruhlar yuklanmoqda...') + '</div></div>';
+    c.querySelector('[data-act="schoolsBack"]').focus({ preventScroll: true });
+    // Admin API o'quvchilar sonini serverdan, operator hisobining doirasida beradi.
+    try {
+      const r = await adminApi('/groups?schoolId=' + encodeURIComponent(sid));
+      if (this.schoolView !== view || !c.isConnected || !STATE.admin.token) return;
+      const rows = Array.isArray(r) ? r : r && r.rows;
+      if (!Array.isArray(rows)) throw new Error('Guruhlar ro\'yxati yuklanmadi. Qayta urinib ko\'ring.');
+      view.groups = rows.filter(g => g.active !== false && g.status !== 'inactive'
+        && String(g.school_id || g.schoolId) === view.schoolId)
+        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'uz', { numeric: true, sensitivity: 'base' }));
+      STATE.groups = STATE.groups.filter(g => String(g.school_id || g.schoolId) !== view.schoolId).concat(view.groups);
+      view.loaded = true;
+      this.renderSchoolGroups();
+      this.renderSchools();
+      this.refreshCounters();
+    } catch (e) {
+      if (this.schoolView !== view || !c.isConnected || !STATE.admin.token) return;
+      $('adminGroupCards').innerHTML = '<div class="text-error" role="alert">' + esc(e.message) + '</div>'
+        + '<div class="actions-row"><button class="btn btn-light" type="button" data-act="schoolDetail" data-id="' + esc(sid) + '">Qayta urinish</button></div>';
+    }
+  },
+  schoolsBack() {
+    const sid = this.schoolView && this.schoolView.schoolId;
+    this.schoolView = null;
+    const c = $('adminSchoolDetail');
+    if (c) c.innerHTML = '';
+    const overview = $('adminSchoolOverview');
+    if (overview) {
+      overview.classList.remove('hidden');
+      this.renderSchools();
+      const card = $$('[data-act="schoolDetail"]', overview).find(el => el.dataset.id === sid);
+      if (card) card.focus({ preventScroll: true });
+    }
+  },
+  renderSchoolGroups() {
+    const view = this.schoolView, host = $('adminGroupCards');
+    if (!view || !view.loaded || !host || !view.host.isConnected) return;
+    const q = lower($('adminGroupQ').value).trim();
+    const groups = view.groups.filter(g => lower(g.name).includes(q));
+    $('adminGroupsStatus').textContent = q ? groups.length + ' / ' + view.groups.length + ' ta guruh' : view.groups.length + ' ta guruh';
+    if (!groups.length) {
+      host.innerHTML = emptyState(q ? 'fa-magnifying-glass' : 'fa-users', q ? 'Guruh topilmadi' : "Guruh yo'q",
+        q ? 'Boshqa nom bilan qidiring.' : "Ushbu avtoshkolaga guruh qo'shing.");
+      return;
+    }
+    host.innerHTML = '<div class="admin-group-grid" role="list">' + groups.map(g => {
+      const id = esc(g.id), sid = esc(view.schoolId);
+      const count = g.student_count == null ? "O'quvchilarni ko'rish" : num(g.student_count) + " o'quvchi";
+      return '<article class="admin-group-card" role="listitem">'
+        + '<button class="admin-group-open" type="button" data-act="groupDetail" data-id="' + id + '" data-school="' + sid + '">'
+        + '<span class="admin-group-icon"><i class="fa-solid fa-users" aria-hidden="true"></i></span>'
+        + '<span class="admin-group-name"><b>' + esc(g.name) + '</b><span class="badge badge-green">' + count + '</span></span>'
+        + '<i class="fa-solid fa-chevron-right text-muted" aria-hidden="true"></i></button>'
+        + '<div class="admin-group-actions"><button class="btn btn-light btn-sm" type="button" data-act="groupModal" data-id="' + id + '" data-school="' + sid + '" aria-label="' + esc(g.name) + ' guruhini tahrirlash"><i class="fa-solid fa-pen" aria-hidden="true"></i> Tahrirlash</button>'
+        + '<button class="btn btn-danger btn-sm" type="button" data-act="groupDelete" data-id="' + id + '" data-school="' + sid + '" aria-label="' + esc(g.name) + ' guruhini o\'chirish"><i class="fa-solid fa-trash" aria-hidden="true"></i> O\'chirish</button></div></article>';
+    }).join('') + '</div>';
+  },
+  async groupDetail(id, schoolId) {
+    const schoolView = this.schoolView;
+    if (!schoolView || schoolView.schoolId !== String(schoolId)) return;
+    const g = schoolView.groups.find(x => String(x.id) === String(id));
+    if (!g) return;
+    openModal('<div class="modal-head"><div><h2 id="adminGroupTitle">' + esc(g.name) + ' — o\'quvchilar</h2><p id="adminGroupSchool">' + esc(Data.schoolName(schoolId)) + '</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><span aria-hidden="true">×</span></button></div>'
+      + '<div class="search-bar"><div class="search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>'
+      + '<input id="adminGroupStudentQ" placeholder="Ism, telefon yoki avtomobil..." aria-label="Guruh o\'quvchilarini qidirish"></div>'
+      + '<button class="btn btn-ghost" type="button" data-act="groupDetail" data-id="' + esc(id) + '" data-school="' + esc(schoolId) + '"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Yangilash</button></div>'
+      + '<div id="adminGroupStudentStatus" class="text-muted admin-group-status" role="status"></div>'
+      + '<div id="adminGroupStudents">' + loadingLine("O'quvchilar yuklanmoqda...") + '</div>'
+      + '<div class="actions-row"><button class="btn btn-light" type="button" data-act="closeModal"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Guruhlarga qaytish</button></div>', { wide: true });
+    const host = $('adminGroupStudents');
+    const trigger = $$('[data-act="groupDetail"]', schoolView.host).find(el => el.dataset.id === String(id));
+    if (trigger) modalPrevFocus = trigger;
+    const view = { id: String(id), schoolId: String(schoolId), host: host, rows: [], limit: 50 };
+    this.groupView = view;
+    const overlay = host.closest('.modal-overlay');
+    overlay.setAttribute('aria-labelledby', 'adminGroupTitle');
+    overlay.setAttribute('aria-describedby', 'adminGroupSchool');
+    overlay.addEventListener('keydown', e => {
+      if (e.key !== 'Tab') return;
+      const items = $$('button:not([disabled]), input:not([disabled]), [tabindex="0"]', overlay);
+      const first = items[0], last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+    try {
+      const r = await adminApi('/students?schoolId=' + encodeURIComponent(schoolId) + '&groupId=' + encodeURIComponent(id));
+      if (this.groupView !== view || this.schoolView !== schoolView || !host.isConnected) return;
+      if (!STATE.admin.token) { closeModal(); this.groupView = null; return; }
+      const rows = Array.isArray(r) ? r : r && r.rows;
+      if (!Array.isArray(rows)) throw new Error("O'quvchilar ro'yxati yuklanmadi. Qayta urinib ko'ring.");
+      view.rows = rows.filter(s => s.active !== false && s.status !== 'inactive'
+        && String(s.school_id || s.schoolId) === view.schoolId && String(s.group_id || s.groupId) === view.id)
+        .sort((a, b) => stName(a).localeCompare(stName(b), 'uz', { sensitivity: 'base', numeric: true }));
+      view.loaded = true;
+      g.student_count = view.rows.length;
+      const badge = trigger && trigger.querySelector('.badge');
+      if (badge) badge.textContent = view.rows.length + " o'quvchi";
+      this.renderGroupStudents();
+    } catch (e) {
+      if (this.groupView !== view || !host.isConnected) return;
+      if (!STATE.admin.token) { closeModal(); this.groupView = null; return; }
+      host.innerHTML = '<div class="text-error" role="alert">' + esc(e.message) + '</div>'
+        + '<div class="actions-row"><button class="btn btn-light" type="button" data-act="groupDetail" data-id="' + esc(id) + '" data-school="' + esc(schoolId) + '">Qayta urinish</button></div>';
+    }
+  },
+  renderGroupStudents() {
+    const view = this.groupView;
+    if (!view || !view.loaded || !view.host.isConnected) return;
+    const q = lower($('adminGroupStudentQ').value).trim();
+    const rows = view.rows.filter(s => lower([stName(s), s.phone, s.plate].filter(Boolean).join(' ')).includes(q));
+    const shown = rows.slice(0, view.limit);
+    $('adminGroupStudentStatus').textContent = q || rows.length > shown.length
+      ? shown.length + ' / ' + rows.length + " o'quvchi (jami: " + view.rows.length + ')'
+      : view.rows.length + " o'quvchi";
+    if (!rows.length) {
+      view.host.innerHTML = emptyState(q ? 'fa-magnifying-glass' : 'fa-graduation-cap', q ? "O'quvchi topilmadi" : "Bu guruhda o'quvchi yo'q",
+        q ? 'Boshqa ism yoki telefon bilan qidiring.' : "O'quvchilar bo'limidan ushbu guruhga o'quvchi qo'shishingiz mumkin.");
+      return;
+    }
+    view.host.innerHTML = '<div class="table-wrap responsive"><table class="tbl"><thead><tr><th>№</th><th>F.I.Sh.</th><th>Telefon</th><th>Avtomobil</th><th>Darslar</th></tr></thead><tbody>'
+      + shown.map((s, i) => '<tr><td data-label="№"><span>' + (i + 1) + '</span></td><td data-label="F.I.Sh."><span>' + esc(stName(s)) + '</span></td>'
+        + '<td data-label="Telefon"><span>' + esc(s.phone || '—') + '</span></td><td data-label="Avtomobil"><span>' + esc(s.plate || '—') + '</span></td>'
+        + '<td data-label="Darslar"><span class="badge badge-blue">' + attCount(s) + ' dars</span></td></tr>').join('')
+      + '</tbody></table></div>'
+      + (rows.length > shown.length ? '<div class="st-more"><button class="btn btn-light" type="button" data-act="groupStudentsMore">Yana 50 ta ko\'rsatish (' + (rows.length - shown.length) + ' ta qoldi)</button></div>' : '');
   },
   schoolModal(id) {
     const s = id ? STATE.schools.find(x => String(x.id) === String(id)) : null;
@@ -3789,6 +3930,7 @@ const Admin = {
       STATE.students = STATE.students.filter(dropped);
       if (Array.isArray(STATE.adminStudents)) STATE.adminStudents = STATE.adminStudents.filter(dropped);
       Admin._listCache = null;
+      if (this.schoolView && this.schoolView.schoolId === String(id)) this.schoolsBack();
       this.renderSchools();
       const det = $('adminSchoolDetail'); if (det) det.innerHTML = '';
       toast("O'chirildi" + (r && r.students ? ': ' + num(r.groups) + ' guruh, ' + num(r.students) + " o'quvchi" : '') + '.');
@@ -3823,13 +3965,16 @@ const Admin = {
         closeModal();
         toast('Saqlandi.');
         await Data.reloadGroups(schoolId);
-        this.schoolDetail(schoolId);
+        if (this.schoolView && this.schoolView.schoolId === String(schoolId)) this.schoolDetail(schoolId);
         this.refreshCounters();
       } catch (e) { setError('grpErr', e.message); }
     });
   },
   async groupDelete(id, schoolId) {
-    const stCount = Admin.studentList().filter(x => String(x.group_id || x.groupId) === String(id)).length;
+    const group = this.schoolView && this.schoolView.schoolId === String(schoolId)
+      && this.schoolView.groups.find(g => String(g.id) === String(id));
+    const stCount = group && group.student_count != null ? num(group.student_count)
+      : Admin.studentList().filter(x => String(x.group_id || x.groupId) === String(id)).length;
     const ok = await confirmModal({
       title: "Guruh o'chirilsinmi?",
       text: "Guruh va undagi " + stCount + " ta o'quvchi o'chiriladi.",
@@ -3845,7 +3990,7 @@ const Admin = {
       Admin._listCache = null;
       toast("O'chirildi" + (r && r.students ? ': ' + num(r.students) + " o'quvchi" : '') + '.');
       await Promise.all([Data.reloadGroups(schoolId), Data.reloadStudents(), Admin.loadStudents(true)]);
-      this.schoolDetail(schoolId);
+      if (this.schoolView && this.schoolView.schoolId === String(schoolId)) this.schoolDetail(schoolId);
       this.renderSchools();
       Add.syncStudentSource();
     } catch (e) { toast(e.message, 'error'); }
@@ -4579,6 +4724,9 @@ const ACTIONS = {
   schoolSave: d => Admin.schoolSave(d.id || ''),
   schoolDelete: d => Admin.schoolDelete(d.id),
   schoolDetail: d => Admin.schoolDetail(d.id),
+  schoolsBack: () => Admin.schoolsBack(),
+  groupDetail: d => Admin.groupDetail(d.id, d.school),
+  groupStudentsMore: () => { if (Admin.groupView) { Admin.groupView.limit += 50; Admin.renderGroupStudents(); } },
   groupModal: d => Admin.groupModal(d.id || '', d.school || ''),
   groupSave: d => Admin.groupSave(d.id || '', d.school || ''),
   groupDelete: d => Admin.groupDelete(d.id, d.school || ''),
@@ -4681,6 +4829,11 @@ function wireInputs() {
   /* Admin ichidagi maydonlar dinamik yaratiladi — delegatsiya orqali */
   document.addEventListener('input', debounce(e => {
     if (e.target && e.target.id === 'adminStudentQ') { Admin.studentLimit = 50; Admin.renderStudents(); }
+    if (e.target && e.target.id === 'adminGroupQ') Admin.renderSchoolGroups();
+    if (e.target && e.target.id === 'adminGroupStudentQ' && Admin.groupView) {
+      Admin.groupView.limit = 50;
+      Admin.renderGroupStudents();
+    }
   }, CONFIG.DEBOUNCE));
 }
 
@@ -4746,4 +4899,3 @@ else init();
         onerror="(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js';s.onload=function(){if(window.Kassa&&Kassa.lastCode)Kassa.drawQr(Kassa.lastCode);};document.head.appendChild(s);})()"></script>
 </body>
 </html>
-
