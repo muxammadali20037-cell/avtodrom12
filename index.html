@@ -2450,14 +2450,17 @@ const Add = {
           }) });
           const n = num(res && res.lessons) || d.lessons;
 
-          /* Natija DARHOL ko'rinsin: o'quvchi kartochkasidagi darslar
-             soni yangilanadi. Ilgari forma tozalanib ketardi va
-             "yozildimi yo'qmi" bilinmasdi. */
-          await Data.reloadStudents();
-          const fresh = Data.studentById(d.student.id);
-          if (fresh) STATE.form.student = fresh;
-          else STATE.form.student = Object.assign({}, d.student,
-            { attendance_count: attCount(d.student) + n });
+          /* Natija DARHOL ko'rinsin — lekin BUTUN ro'yxatni qayta
+             yuklamaymiz. 3000 o'quvchida u ~1 MB bo'ladi va har bir
+             davomatdan keyin qayta yuklansa ilova sekinlashardi.
+             Serverdan kelgan `total` bilan faqat shu o'quvchini
+             yangilaymiz. */
+          const jami = (res && res.total !== null && res.total !== undefined)
+            ? num(res.total) : attCount(d.student) + n;
+          const fresh = Object.assign({}, d.student, { attendance_count: jami });
+          STATE.form.student = fresh;
+          const idx = (STATE.students || []).findIndex(x => String(x.id) === String(d.student.id));
+          if (idx >= 0) STATE.students[idx] = Object.assign({}, STATE.students[idx], { attendance_count: jami });
           this.renderStudentPanel();
 
           if ($('comboInstructorInput')) $('comboInstructorInput').value = '';
@@ -2467,8 +2470,7 @@ const Add = {
           EntryTicket80.draft = null; EntryTicket80.draftKey = '';
 
           setError('startErr', '');
-          toast('Davomat yozildi: ' + stName(d.student) + ' — ' + n + ' dars. Jami: '
-            + attCount(STATE.form.student) + ' dars');
+          toast('Davomat yozildi: ' + stName(d.student) + ' — ' + n + ' dars. Jami: ' + jami + ' dars');
         } catch (e) {
           const m = /404|topilmadi|not found/i.test(String(e.message))
             ? 'Server hali yangilanmagan: /api/attendance topilmadi. '
