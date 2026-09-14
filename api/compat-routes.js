@@ -259,6 +259,20 @@ export async function handleCompatRequest(req, res) {
             + '(ALTER TABLE sessions ALTER COLUMN vehicle_id DROP NOT NULL)');
         }
 
+        /* Darslar sonini qulflab olamiz: bir vaqtda ikkita davomat
+           yozilsa ham son to'g'ri chiqadi. */
+        let before = null;
+        try {
+          await c.query('SAVEPOINT sp_att');
+          const b = await c.query(
+            `SELECT COALESCE(attendance_count,0)::int n FROM students WHERE id=$1 FOR UPDATE`, [st.id]);
+          await c.query('RELEASE SAVEPOINT sp_att');
+          if (b.rows[0]) before = b.rows[0].n;
+        } catch (e) {
+          try { await c.query('ROLLBACK TO SAVEPOINT sp_att'); } catch {}
+          console.error('[attendance] darslar soni o‘qilmadi:', e && e.message);
+        }
+
         const now = Date.now();
         const HOUR = 3600;
         const ids = [];
@@ -299,8 +313,36 @@ export async function handleCompatRequest(req, res) {
           ids.push(r.rows[0].id);
         }
 
+        /* KAFOLAT: darslar soni aniq oshadi.
+           Odatda buni trigger qiladi. Ammo trigger yo'q bo'lsa yoki uni
+           yaratishga huquq yetmagan bo'lsa, son o'zgarmay qolardi —
+           shuning uchun natijani TEKSHIRAMIZ va yetmagan qismini
+           o'zimiz qo'shamiz. Trigger ishlagan bo'lsa bu yerda hech
+           narsa qilinmaydi, ya'ni ikki marta sanalmaydi. */
+        let total = null;
+        if (before !== null) {
+          try {
+            await c.query('SAVEPOINT sp_att2');
+            const a = await c.query(
+              `SELECT COALESCE(attendance_count,0)::int n FROM students WHERE id=$1`, [st.id]);
+            let now2 = a.rows[0] ? a.rows[0].n : null;
+            if (now2 !== null && now2 - before < lessons) {
+              const r2 = await c.query(
+                `UPDATE students SET attendance_count=$1 WHERE id=$2 RETURNING attendance_count`,
+                [before + lessons, st.id]);
+              now2 = r2.rows[0] ? Number(r2.rows[0].attendance_count) : now2;
+            }
+            await c.query('RELEASE SAVEPOINT sp_att2');
+            total = now2;
+          } catch (e) {
+            try { await c.query('ROLLBACK TO SAVEPOINT sp_att2'); } catch {}
+            console.error('[attendance] darslar sonini to‘g‘rilash:', e && e.message);
+          }
+        }
+
         await c.query('COMMIT');
-        send(res, 201, { ok: true, lessons, ids, studentId: st.id, studentName: st.full_name, instructorName: insName });
+        send(res, 201, { ok: true, lessons, ids, total,
+                         studentId: st.id, studentName: st.full_name, instructorName: insName });
         return true;
       } catch (e) {
         try { await c.query('ROLLBACK'); } catch {}
