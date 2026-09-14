@@ -4,6 +4,7 @@ import { handleCompatRequest } from "./compat-routes.js";
 import { handleV3Request } from "./v3-routes.js";
 import { handleAdminRequest } from "./admin-auth-v2.js";
 import { handleReceiptRequest } from "./receipt-routes.js";
+import { handleControlRequest } from "./control-routes.js";
 import instructorHandler from "./instructor.js";
 import { readFile } from "node:fs/promises";
 
@@ -23,6 +24,9 @@ export default async function handler(req, res) {
   /* QR chek (avtoshkola). Avtodrom instruktor paneli ham shu yerga
      murojaat qiladi — /api/receipts/verify|redeem|complete. */
   const receiptHandled = await handleReceiptRequest(req, res); if (receiptHandled) return receiptHandled;
+
+  /* NAZORAT — «Xatoliklar va aniqliklar» */
+  const controlHandled = await handleControlRequest(req, res); if (controlHandled) return controlHandled;
 
   const adminHandled = await handleAdminRequest(req, res); if (adminHandled) return adminHandled;
   const v3Handled = await handleV3Request(req, res); if (v3Handled) return v3Handled;

@@ -44,6 +44,11 @@ function ensureCompatSchema() {
       await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS instructor_name TEXT`);
       /* Davomat yozuvlarini ajratib olish uchun */
       await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS customer_type VARCHAR(20)`);
+      /* NAZORAT: vaqt kim uchun ochilgani va necha soatga ochilgani */
+      await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS instructor_id TEXT`);
+      await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS target_duration INTEGER`);
+      await q(`CREATE INDEX IF NOT EXISTS idx_sessions_instructor_day
+               ON sessions(instructor_id, started_at)`);
       await q(`CREATE INDEX IF NOT EXISTS idx_sessions_student_done
                ON sessions(student_id, status) WHERE student_id IS NOT NULL`);
       /* Katta hajm uchun: 3000 o'quvchi va yuz minglab dars yozuvida
@@ -199,13 +204,64 @@ export async function handleCompatRequest(req, res) {
 
         const set = await c.query(`SELECT hourly_rate,minimum_payment,calculation_mode FROM user_settings WHERE user_id=$1`, [user]);
         const s = set.rows[0] || {hourly_rate:30000,minimum_payment:0,calculation_mode:'hour'};
-        const r = await c.query(`
-          INSERT INTO sessions(user_id,vehicle_id,hourly_rate,minimum_payment,calculation_mode,school_id,group_id,student_id,manual_price)
-          VALUES($1,$2,$3,$4,$5,$6,$7,$8,true) RETURNING id,started_at
-        `,[user,v.id,s.hourly_rate,s.minimum_payment,s.calculation_mode,schoolId,groupId,studentId]);
+
+        /* =================================================================
+           NAZORAT UCHUN MUHIM
+           Vaqt KIM uchun ochilayotgani ham yozib qo'yiladi. Ilgari bu
+           yerda instruktor saqlanmasdi va «Nazorat > Xatoliklar va
+           aniqliklar» bo'limida ochilgan soatni o'quvchilar davomati
+           bilan solishtirib bo'lmasdi: instruktor 2 soat ochtirib,
+           3 ta o'quvchisini uchirsa ham farq ko'rinmasdi.
+
+           Ustunlar to'plami o'rnatmadan o'rnatmaga farq qilgani uchun
+           faqat mavjud ustunlar yoziladi.
+           ================================================================= */
+        const instructorId = String(body.instructorId || body.instructor_id || '').trim() || null;
+        const instructorName = String(body.instructorName || body.instructor_name || '').trim() || null;
+        const customerType = String(body.customerType || body.customer_type || '').trim()
+          || (studentId ? 'school' : 'regular');
+        let target = Number(body.targetDuration || body.target_duration || 0);
+        if (!target && Number(body.targetHours || body.target_hours)) {
+          target = Number(body.targetHours || body.target_hours) * 3600;
+        }
+        if (!target) target = 3600;
+        target = Math.min(12 * 3600, Math.max(900, Math.round(target)));
+
+        if (instructorId) {
+          const ir = await c.query(
+            `SELECT id FROM instructors WHERE id::text=$1 AND COALESCE(active,TRUE)=TRUE`, [instructorId]);
+          if (!ir.rows[0]) throw new Error('Instruktor topilmadi');
+        }
+
+        const sessCols = new Set((await c.query(
+          `SELECT column_name FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='sessions'`)).rows.map(x => x.column_name));
+
+        const cand = [
+          ['user_id', user],
+          ['vehicle_id', v.id],
+          ['hourly_rate', s.hourly_rate],
+          ['minimum_payment', s.minimum_payment],
+          ['calculation_mode', s.calculation_mode],
+          ['school_id', schoolId],
+          ['group_id', groupId],
+          ['student_id', studentId],
+          ['instructor_id', instructorId],
+          ['instructor_name', instructorName],
+          ['customer_type', customerType],
+          ['target_duration', target],
+          ['driver_name', body.driverName || null],
+          ['manual_price', true]
+        ].filter(([k]) => sessCols.has(k));
+
+        const r = await c.query(
+          `INSERT INTO sessions(${cand.map(([k]) => k).join(',')})
+           VALUES(${cand.map((_, i) => '$' + (i + 1)).join(',')}) RETURNING id,started_at`,
+          cand.map(([, val]) => val));
 
         await c.query('COMMIT');
-        send(res,201,{id:r.rows[0].id,plate:p.plate,plateBody:p.body,startedAt:r.rows[0].started_at,schoolId,groupId,studentId});
+        send(res,201,{id:r.rows[0].id,plate:p.plate,plateBody:p.body,startedAt:r.rows[0].started_at,
+                      schoolId,groupId,studentId,instructorId,target_duration:target});
         return true;
       } catch (e) {
         try { await c.query('ROLLBACK'); } catch {}
