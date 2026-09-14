@@ -4149,6 +4149,7 @@ const Admin = {
   studentsHTML() {
     return '<div class="page-header"><div><h2>O\'quvchilar</h2><p class="text-muted">Ism, telefon yoki guruh bo\'yicha qidiring</p></div>'
       + '<div class="header-actions"><button class="btn btn-light" type="button" data-act="exportStudents"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Excel export</button>'
+      + '<button class="btn btn-light" type="button" data-act="dupScan"><i class="fa-solid fa-clone" aria-hidden="true"></i> Takrorlarni tozalash</button>'
       + '<button class="btn btn-light" type="button" data-act="studentsBulk"><i class="fa-solid fa-list-ul" aria-hidden="true"></i> Ommaviy qo\'shish</button>'
       + '<button class="btn btn-green" type="button" data-act="studentModal"><i class="fa-solid fa-plus" aria-hidden="true"></i> O\'quvchi qo\'shish</button></div></div>'
       + '<div class="panel"><div class="search-bar"><div class="search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>'
@@ -4465,6 +4466,85 @@ const Admin = {
       const gs = await Data.reloadGroups(sel.value);
       $('bsGroup').innerHTML = '<option value="">Tanlang</option>'
         + gs.map(g => '<option value="' + esc(g.id) + '">' + esc(g.name) + '</option>').join('');
+    });
+  },
+
+  /* ===================== TAKRORLANGAN O'QUVCHILAR =====================
+     Ro'yxat ikki marta yopishtirilsa yoki Excel qayta import qilinsa,
+     bitta o'quvchi bazada bir necha nusxa bo'lib qoladi: qidiruvda
+     uchtasi chiqadi, davomat esa faqat bittasiga yoziladi.
+
+     Bu yerda avval NIMA topilgani ko'rsatiladi — birlashtirish faqat
+     operator tasdiqlaganidan keyin bajariladi. */
+  dupFound: null,
+  async dupScan() {
+    openModal('<div class="modal-head"><div><h2>Takrorlangan o\'quvchilar</h2>'
+      + '<p class="text-muted">Baza tekshirilmoqda...</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div id="dupBody">' + loadingLine('Qidirilmoqda...') + '</div>', { wide: true });
+    let r;
+    try {
+      r = await api('/duplicates');
+    } catch (e) {
+      const eski = e && (e.status === 404 || e.status === 405);
+      const b0 = $('dupBody');
+      if (b0) b0.innerHTML = '<div class="text-error">' + esc(eski
+        ? 'Server hali yangilanmagan: api/compat-routes.js ni deploy qiling.'
+        : (e && e.message) || 'Tekshirib bo\'lmadi.') + '</div>';
+      return;
+    }
+    const groups = (r && r.groups) || [];
+    Admin.dupFound = groups;
+    if (!groups.length) {
+      const b1 = $('dupBody');
+      if (b1) b1.innerHTML = '<div class="search-hint"><i class="fa-solid fa-circle-check" style="color:var(--g)" aria-hidden="true"></i> '
+        + 'Takrorlangan o\'quvchi topilmadi — baza toza.</div>';
+      return;
+    }
+    const ortiqcha = r.extra || 0;
+    const body = groups.slice(0, 200).map(g => {
+      const rows = g.nusxalar || [];
+      const darslar = rows.map(x => num(x.att)).join(' / ');
+      return '<tr><td><b>' + esc(rows[0] ? rows[0].name : '') + '</b></td>'
+        + '<td>' + esc([g.school_name, g.group_name].filter(Boolean).join(' • ') || '—') + '</td>'
+        + '<td><span class="badge badge-amber">' + g.cnt + ' nusxa</span></td>'
+        + '<td>' + esc(darslar) + '</td></tr>';
+    }).join('');
+    const host = $('dupBody');
+    if (!host) return;
+    host.innerHTML =
+      '<div class="import-stats">'
+      + '<div><b>' + groups.length + '</b><span>Takror ism</span></div>'
+      + '<div class="dup"><b>' + ortiqcha + '</b><span>Ortiqcha yozuv</span></div></div>'
+      + '<div class="import-preview"><table class="tbl"><thead><tr><th>F.I.Sh.</th><th>Joyi</th><th>Nusxa</th><th>Darslar</th></tr></thead>'
+      + '<tbody>' + body + '</tbody></table></div>'
+      + '<div class="search-hint" style="margin-top:12px"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> '
+      + 'Har bir ismdan <b>eng eski yozuv qoladi</b>. Nusxalarga yozilgan darslar, cheklar va tarix unga ko\'chiriladi. '
+      + 'Darslar soni qo\'shilib ketmaydi: qo\'lda kiritilgani bir marta olinadi. '
+      + 'Ortiqcha yozuvlar <b>o\'chirilmaydi</b> — ro\'yxatdan olinadi, kerak bo\'lsa qaytarish mumkin.</div>'
+      + '<div class="actions-row"><button class="btn btn-green" type="button" data-act="dupMerge" id="dupBtn">'
+      + '<span class="spinner"></span><i class="fa-solid fa-object-group btn-icon" aria-hidden="true"></i>'
+      + '<span class="btn-text">' + ortiqcha + ' ta ortiqcha yozuvni birlashtirish</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
+      + '<div id="dupProgress" class="text-muted" style="margin-top:10px"></div>';
+  },
+  async dupMerge() {
+    await withBusy('dupMerge', $('dupBtn'), async () => {
+      const r = await api('/duplicates/merge', { method: 'POST', body: jsonBody({}) });
+      const prog = $('dupProgress');
+      const xato = (r && r.failed) || [];
+      if (prog) {
+        prog.innerHTML = '<b>' + num(r && r.merged) + '</b> ta ism birlashtirildi, '
+          + '<b>' + num(r && r.removed) + '</b> ta ortiqcha yozuv ro\'yxatdan olindi, '
+          + '<b>' + num(r && r.moved) + '</b> ta yozuv ko\'chirildi.'
+          + (xato.length ? '<br><span class="text-error">' + xato.length + ' tasi birlashmadi: '
+              + esc(xato.map(x => x.name).join(', ')) + '</span>' : '');
+      }
+      toast(num(r && r.removed) + ' ta takror yozuv tozalandi.', xato.length ? 'warn' : 'ok');
+      STATE.studentsStale = true;
+      await Admin.loadStudents(true);
+      Admin.refreshCounters();
+      try { if (Admin.schoolShown) Admin.renderSchoolDetail(); } catch (e) {}
     });
   },
 
@@ -4880,6 +4960,8 @@ const ACTIONS = {
   studentsBulk: d => Admin.studentsBulkModal(d.school || '', d.id || ''),
   studentsBulkPreview: () => Admin.studentsBulkPreview(),
   studentsBulkRun: d => Admin.studentsBulkRun(d.school, d.group),
+  dupScan: () => Admin.dupScan(),
+  dupMerge: () => Admin.dupMerge(),
   exportStudentSessions: (d, el) => Admin.exportStudentSessions(d.id, el),
   closeStudentDetail: () => { const el = $('adminStudentDetail'); if (el) el.innerHTML = ''; },
   reloadStudents: async () => { STATE.studentsStale = true; await Admin.loadStudents(true); toast('Yangilandi.'); },
