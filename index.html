@@ -816,6 +816,7 @@ body.admin-open { overflow: hidden; }
 .grp-st{display:flex;justify-content:space-between;align-items:center;gap:10px;
         padding:8px 12px 8px 38px;font-size:13px;border-bottom:1px solid var(--line)}
 .grp-st:last-child{border-bottom:0}
+.grp-tools{padding:9px 12px;border-bottom:1px solid var(--line);background:#f4faf7}
 @media (max-width:640px){.grp-st{padding-left:16px}.grp-head{flex-wrap:wrap}}
 </style>
 </head>
@@ -3900,7 +3901,9 @@ const Admin = {
         + '<button class="btn btn-danger btn-sm" type="button" data-act="groupDelete" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '" data-stop="1" title="O\'chirish"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>'
         + '</span></div>'
         + (open
-            ? '<div class="grp-body">' + (gst.length
+            ? '<div class="grp-body"><div class="grp-tools">'
+              + '<button class="btn btn-green btn-sm" type="button" data-act="bulkStudents" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '"><i class="fa-solid fa-user-plus" aria-hidden="true"></i> Ommaviy o\'quvchi qo\'shish</button>'
+              + '</div>' + (gst.length
                 ? gst.slice().sort((a, b) => stName(a).localeCompare(stName(b), 'uz')).map(st =>
                     '<div class="grp-st"><span>' + esc(stName(st)) + '</span>'
                     + '<span class="badge badge-blue">' + attCount(st) + ' dars</span></div>').join('')
@@ -3919,7 +3922,9 @@ const Admin = {
       + '<div class="panel-head"><h3><i class="fa-solid fa-users" style="color:var(--g)" aria-hidden="true"></i> '
       + esc(school ? school.name : '') + ' — guruhlar <span class="text-muted" style="font-weight:500">('
       + all.length + ' ta)</span></h3>'
-      + '<button class="btn btn-green btn-sm" type="button" data-act="groupModal" data-school="' + esc(sid) + '"><i class="fa-solid fa-plus" aria-hidden="true"></i> Guruh qo\'shish</button></div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+      + '<button class="btn btn-light btn-sm" type="button" data-act="bulkGroups" data-school="' + esc(sid) + '"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> Ommaviy guruh</button>'
+      + '<button class="btn btn-green btn-sm" type="button" data-act="groupModal" data-school="' + esc(sid) + '"><i class="fa-solid fa-plus" aria-hidden="true"></i> Guruh qo\'shish</button></div></div>'
       + (all.length > 6
           ? '<div class="search-field" style="margin-bottom:10px"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>'
             + '<input id="grpQ" placeholder="Guruh raqami yoki nomi..." value="' + esc(this.groupQuery || '') + '" aria-label="Guruhlar orasidan qidirish"></div>'
@@ -3931,6 +3936,126 @@ const Admin = {
       gq.oninput = e => this.filterGroups(e.target.value);
       if (keepFocus) { gq.focus(); gq.setSelectionRange(gq.value.length, gq.value.length); }
     }
+  },
+
+  /* ================= OMMAVIY GURUH YARATISH =================
+     Oraliq: 23 dan 43 gacha => 23, 24, ... 43. Mavjudlari
+     o'tkazib yuboriladi. */
+  bulkGroups(sid) {
+    const school = STATE.schools.find(x => String(x.id) === String(sid));
+    openModal('<div class="modal-head"><div><h2>Ommaviy guruh yaratish</h2>'
+      + '<p class="text-muted">' + esc(school ? school.name : '') + '</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div class="form-grid">'
+      + '<div class="fg"><label class="field-label" for="bgFrom">Qaysi guruhdan</label>'
+      + '<input id="bgFrom" type="number" min="0" max="9999" value="23"></div>'
+      + '<div class="fg"><label class="field-label" for="bgTo">Qaysi guruhgacha</label>'
+      + '<input id="bgTo" type="number" min="0" max="9999" value="43"></div>'
+      + '</div>'
+      + '<div id="bgPrev" class="field-help" style="margin:4px 0 12px"></div>'
+      + '<div class="actions-row"><button class="btn btn-green" type="button" id="bgBtn" data-act="bulkGroupsRun" data-school="' + esc(sid) + '">'
+      + '<span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Yaratish</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
+      + '<div id="bgErr" class="text-error" role="alert"></div>');
+
+    const prev = () => {
+      const a = num($('bgFrom').value), b = num($('bgTo').value);
+      const lo = Math.min(a, b), hi = Math.max(a, b), n = hi - lo + 1;
+      const bor = Data.activeGroups(sid).map(g => String(g.name).trim());
+      let yangi = 0; const misol = [];
+      for (let i = lo; i <= hi && i - lo < 500; i++) {
+        if (bor.indexOf(String(i)) < 0) { yangi++; if (misol.length < 6) misol.push(String(i)); }
+      }
+      $('bgPrev').innerHTML = (n > 0 && n <= 200)
+        ? '<b>' + n + '</b> ta guruh: ' + lo + ', ' + (lo + 1) + ', … ' + hi
+          + '<br>Yangi yaratiladi: <b>' + yangi + '</b> ta'
+          + (misol.length ? ' (' + esc(misol.join(', ')) + (yangi > misol.length ? ', …' : '') + ')' : '')
+          + (n - yangi > 0 ? ' · <span class="text-muted">' + (n - yangi) + ' tasi allaqachon bor</span>' : '')
+        : '<span class="text-error">Oraliq 1–200 ta guruh bo‘lsin.</span>';
+    };
+    ['bgFrom', 'bgTo'].forEach(id => $(id).addEventListener('input', prev));
+    prev();
+  },
+
+  async bulkGroupsRun(sid) {
+    setError('bgErr', '');
+    const from = num($('bgFrom').value), to = num($('bgTo').value);
+    const n = Math.abs(to - from) + 1;
+    if (!(n >= 1 && n <= 200)) { setError('bgErr', 'Oraliq 1–200 ta guruh bo‘lsin.'); return; }
+    await withBusy('bulkGroups', $('bgBtn'), async () => {
+      try {
+        const r = await api('/group-bulk', { method: 'POST', body: jsonBody({ schoolId: sid, from: from, to: to }) });
+        closeModal();
+        toast('Yaratildi: ' + num(r.created) + ' ta guruh'
+          + (num(r.exists) ? ' · ' + num(r.exists) + ' tasi allaqachon bor edi' : ''));
+        await Data.reloadGroups(sid);
+        this.renderSchoolDetail();
+        this.renderSchools();
+        this.refreshCounters();
+      } catch (e) { setError('bgErr', e.message); }
+    });
+  },
+
+  /* ================= OMMAVIY O'QUVCHI QO'SHISH =================
+     Ro'yxatni yopishtiramiz — har qatorda bitta F.I.Sh. */
+  bulkStudents(gid, sid) {
+    const g = STATE.groups.find(x => String(x.id) === String(gid));
+    const school = STATE.schools.find(x => String(x.id) === String(sid));
+    openModal('<div class="modal-head"><div><h2>Ommaviy o\'quvchi qo\'shish</h2>'
+      + '<p class="text-muted">' + esc(school ? school.name : '') + ' · ' + esc(g ? g.name : '') + '-guruh</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div class="fg"><label class="field-label" for="bsList">F.I.Sh. ro\'yxati — har qatorda bittadan</label>'
+      + '<textarea id="bsList" rows="10" placeholder="ABDUMUMINOVA MUQADDAS ABDULAZIZ QIZI\nABDUVALIYEVA MADINA G‘ANIJON QIZI\nABROROVA MUBINA ABBOS QIZI"></textarea></div>'
+      + '<div id="bsPrev" class="field-help" style="margin-bottom:12px"></div>'
+      + '<div class="actions-row"><button class="btn btn-green" type="button" id="bsRunBtn" data-act="bulkStudentsRun" data-id="' + esc(gid) + '" data-school="' + esc(sid) + '">'
+      + '<span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Qo\'shish</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
+      + '<div id="bsErr" class="text-error" role="alert"></div>');
+
+    const prev = () => {
+      const rows = Admin.bulkNames($('bsList').value);
+      $('bsPrev').innerHTML = rows.length
+        ? '<b>' + rows.length + '</b> ta ism o‘qildi. Bo‘sh qatorlar va takrorlar hisobga olinmaydi.'
+        : 'Har qatorga bitta F.I.Sh. yozing yoki ro‘yxatni yopishtiring.';
+    };
+    $('bsList').addEventListener('input', prev);
+    prev();
+    setTimeout(() => $('bsList').focus(), 50);
+  },
+
+  /** Matndan ismlar: bo'sh qatorlar, tartib raqamlari va takrorlar tozalanadi */
+  bulkNames(text) {
+    const out = [], seen = {};
+    String(text || '').split(/\r?\n/).forEach(line => {
+      /* "1. Ism", "12) Ism", "3 - Ism" kabi tartib raqamlari olib tashlanadi */
+      let v = line.replace(/^\s*\d{1,3}\s*[.)\-–]\s*/, '').replace(/\s+/g, ' ').trim();
+      if (!v) return;
+      const key = lower(v);
+      if (seen[key]) return;
+      seen[key] = 1;
+      out.push(v);
+    });
+    return out;
+  },
+
+  async bulkStudentsRun(gid, sid) {
+    setError('bsErr', '');
+    const names = Admin.bulkNames($('bsList').value);
+    if (!names.length) { setError('bsErr', 'Kamida bitta F.I.Sh. kiriting.'); return; }
+    if (names.length > 500) { setError('bsErr', 'Bir marta ko‘pi bilan 500 ta o‘quvchi.'); return; }
+    await withBusy('bulkStudents', $('bsRunBtn'), async () => {
+      try {
+        const r = await api('/student-bulk', { method: 'POST', body: jsonBody({
+          schoolId: sid, groupId: gid, rows: names.map(n => ({ fullName: n, lessons: 0 })) }) });
+        closeModal();
+        toast("Qo'shildi: " + num(r.added) + " ta o'quvchi"
+          + (num(r.skipped) ? ' · ' + num(r.skipped) + ' tasi allaqachon bor edi' : ''));
+        await Data.reloadStudents();
+        this.renderSchoolDetail();
+        this.renderSchools();
+        this.refreshCounters();
+      } catch (e) { setError('bsErr', e.message); }
+    });
   },
 
   schoolModal(id) {
@@ -4779,6 +4904,10 @@ const ACTIONS = {
   schoolDelete: d => Admin.schoolDelete(d.id),
   schoolDetail: d => Admin.schoolDetail(d.id),
   toggleGroup: d => Admin.toggleGroup(d.id),
+  bulkGroups: d => Admin.bulkGroups(d.school),
+  bulkGroupsRun: d => Admin.bulkGroupsRun(d.school),
+  bulkStudents: d => Admin.bulkStudents(d.id, d.school),
+  bulkStudentsRun: d => Admin.bulkStudentsRun(d.id, d.school),
   groupModal: d => Admin.groupModal(d.id || '', d.school || ''),
   groupSave: d => Admin.groupSave(d.id || '', d.school || ''),
   groupDelete: d => Admin.groupDelete(d.id, d.school || ''),
