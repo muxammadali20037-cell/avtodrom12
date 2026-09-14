@@ -324,7 +324,17 @@ export async function handleCompatRequest(req, res) {
       if(q.get('groupId')){params.push(q.get('groupId'));where+=` AND st.group_id=$${params.length}`;}
       const r=await pool.query(`
         SELECT st.id,st.owner_key,st.school_id,st.group_id,st.full_name,st.birth_date,st.phone,st.plate,st.notes,st.active,st.created_at,
-               s.name school_name,g.name group_name,COALESCE(st.manual_attendance_count,0) attendance_count
+               s.name school_name,g.name group_name,
+               /* DARSLAR SONI = qo'lda kiritilgani + tizimda yakunlangan darslar.
+                  Ilgari bu yerda FAQAT manual_attendance_count qaytarardi —
+                  shuning uchun davomat yozilsa ham o'quvchi kartochkasidagi
+                  son o'zgarmasdi (bazada yozuv bor, ekranda ko'rinmaydi). */
+               COALESCE(st.manual_attendance_count,0) manual_attendance_count,
+               (SELECT COUNT(*) FROM sessions se
+                 WHERE se.student_id=st.id AND se.status='completed')::int session_attendance_count,
+               COALESCE(st.manual_attendance_count,0)
+                 + (SELECT COUNT(*) FROM sessions se
+                     WHERE se.student_id=st.id AND se.status='completed')::int AS attendance_count
         FROM students st JOIN driving_schools s ON s.id=st.school_id LEFT JOIN school_groups g ON g.id=st.group_id
         WHERE ${where} ORDER BY st.full_name
       `,params);
