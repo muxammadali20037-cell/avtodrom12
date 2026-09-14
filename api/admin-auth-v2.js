@@ -189,6 +189,33 @@ async function handleResource(req,res,resource,id,owner){
       if(!own.rows[0])return send(res,404,{error:'Avtoshkola topilmadi'});
       /* YANGI: qo'lda kiritilgan dars soni ham saqlanadi */
       const attendance=attendanceOf(b)??0;
+
+      /* AYNI GURUHDA AYNI ISM IKKI MARTA YOZILMASIN.
+         Ro'yxat ikki marta kiritilganda yoki o'quvchi o'chirib qayta
+         qo'shilganda bazada nusxalar to'planib qolardi. Katta-kichik
+         harf, ortiqcha bo'sh joy va tinish belgilari hisobga olinmaydi. */
+      const NORM=`btrim(regexp_replace(regexp_replace(upper(coalesce(full_name,'')),'[^[:alnum:][:space:]]','','g'),'[[:space:]]+',' ','g'))`;
+      const NORMQ=`btrim(regexp_replace(regexp_replace(upper($4::text),'[^[:alnum:][:space:]]','','g'),'[[:space:]]+',' ','g'))`;
+      const bor=await pool.query(`
+        SELECT id,active FROM students
+         WHERE owner_key=$1 AND school_id=$2
+           AND COALESCE(group_id::text,'')=COALESCE($3::text,'')
+           AND ${NORM}=${NORMQ}
+         ORDER BY active DESC, created_at LIMIT 1
+      `,[owner,schoolId,groupId?String(groupId):null,name]);
+      if(bor.rows[0]&&bor.rows[0].active)
+        return send(res,409,{error:'Bu guruhda shu ismli o‘quvchi allaqachon bor',id:bor.rows[0].id,duplicate:true});
+      if(bor.rows[0]){
+        /* Avval o'chirilgan ekan — yangi qator emas, o'shani qaytaramiz */
+        const rev=await pool.query(`
+          UPDATE students SET active=true,group_id=$1,phone=COALESCE($2,phone),
+                 birth_date=COALESCE($3,birth_date),plate=COALESCE($4,plate),
+                 notes=COALESCE($5,notes),attendance_count=$6
+           WHERE id=$7 AND owner_key=$8 RETURNING *
+        `,[groupId||null,b.phone||null,b.birthDate||b.birth_date||null,b.plate||null,b.notes||null,attendance,bor.rows[0].id,owner]);
+        return send(res,201,rev.rows[0]);
+      }
+
       const r=await pool.query(`INSERT INTO students(owner_key,school_id,group_id,full_name,phone,birth_date,plate,notes,active,attendance_count) VALUES($1,$2,$3,$4,$5,$6,$7,$8,true,$9) RETURNING *`,[owner,schoolId,groupId,name,b.phone||null,b.birthDate||b.birth_date||null,b.plate||null,b.notes||null,attendance]);
       return send(res,201,r.rows[0]);
     }
