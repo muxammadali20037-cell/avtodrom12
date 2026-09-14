@@ -126,6 +126,8 @@ export async function handleCompatRequest(req, res) {
     (req.method === 'POST' && (pathname === '/api/sessions/start' || pathname === '/api/student-bulk')) ||
     (req.method === 'POST' && pathname === '/api/attendance') ||
     (req.method === 'POST' && pathname === '/api/group-bulk') ||
+    (req.method === 'GET' && pathname === '/api/duplicates') ||
+    (req.method === 'POST' && pathname === '/api/duplicates/merge') ||
     (req.method === 'GET' && pathname === '/api/students') ||
     (req.method === 'PATCH' && !!schoolMatch) ||
     (req.method === 'PATCH' && !!studentMatch);
@@ -458,6 +460,156 @@ export async function handleCompatRequest(req, res) {
       }catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}
       send(res,201,{ok:true,created:created.length,createdNames:created,
                     exists:exists.length,existsNames:exists.slice(0,30)});
+      return true;
+    }
+
+    /* =====================================================================
+       TAKRORLANGAN O'QUVCHILAR
+
+       Ro'yxat bir necha marta yopishtirilganda yoki Excel ikki marta
+       import qilinganda bitta o'quvchi bazada bir necha nusxa bo'lib
+       qoladi. Operator paneli qidiruvida uchtasi ham chiqadi, davomat
+       esa faqat bittasiga yoziladi — qolgan ikkitasi «darsga kelmagan»
+       bo'lib ko'rinadi.
+
+       Takror deb faqat AYNI avtoshkola + AYNI guruh + AYNI ism
+       hisoblanadi. Ism solishtirishda katta-kichik harf, ortiqcha
+       bo'sh joy va tinish belgilari (O'/O‘, nuqta, vergul) e'tiborga
+       olinmaydi. Harflar o'chirilmaydi, shuning uchun kirill yozuvdagi
+       ismlar ham to'g'ri solishtiriladi.
+       ===================================================================== */
+    const NORM_NAME = `btrim(regexp_replace(
+        regexp_replace(upper(coalesce(full_name,'')), '[^[:alnum:][:space:]]', '', 'g'),
+        '[[:space:]]+', ' ', 'g'))`;
+
+    async function topDuplicates(owner){
+      const r = await pool.query(`
+        WITH n AS (
+          SELECT st.id, st.school_id, st.group_id, st.full_name, st.birth_date,
+                 st.created_at, COALESCE(st.attendance_count,0)::int AS att,
+                 ${NORM_NAME} AS nkey
+            FROM students st
+           WHERE st.owner_key=$1 AND st.active=true
+        )
+        SELECT n.nkey, n.school_id, n.group_id,
+               MIN(s.name) AS school_name, MIN(g.name) AS group_name,
+               COUNT(*)::int AS cnt,
+               json_agg(json_build_object(
+                 'id', n.id, 'name', n.full_name, 'att', n.att,
+                 'birth', n.birth_date, 'created', n.created_at
+               ) ORDER BY n.created_at, n.id) AS nusxalar
+          FROM n
+          LEFT JOIN driving_schools s ON s.id=n.school_id
+          LEFT JOIN school_groups  g ON g.id=n.group_id
+         GROUP BY n.nkey, n.school_id, n.group_id
+        HAVING COUNT(*) > 1
+         ORDER BY COUNT(*) DESC, MIN(n.full_name)
+         LIMIT 500
+      `,[owner]);
+      return r.rows;
+    }
+
+    if(req.method==='GET'&&pathname==='/api/duplicates'){
+      const guruhlar = await topDuplicates(user);
+      const ortiqcha = guruhlar.reduce((a,g)=>a+(g.cnt-1),0);
+      send(res,200,{ok:true,groups:guruhlar,total:guruhlar.length,extra:ortiqcha});
+      return true;
+    }
+
+    if(req.method==='POST'&&pathname==='/api/duplicates/merge'){
+      const guruhlar = await topDuplicates(user);
+      if(!guruhlar.length){send(res,200,{ok:true,merged:0,removed:0,message:'Takror topilmadi'});return true;}
+
+      /* students ga ishora qiluvchi BARCHA jadvallarni bazadan so'raymiz.
+         Qo'lda ro'yxat yozsak, kelajakda qo'shilgan jadval e'tibordan
+         chetda qolib, yozuvlar yo'qolgandek ko'rinardi. */
+      const fk = await pool.query(`
+        SELECT c.conrelid::regclass::text AS tbl, a.attname AS col
+          FROM pg_constraint c
+          JOIN unnest(c.conkey) WITH ORDINALITY AS k(attnum, ord) ON true
+          JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=k.attnum
+         WHERE c.contype='f'
+           AND c.confrelid='public.students'::regclass
+           AND array_length(c.conkey,1)=1
+      `);
+      const links = fk.rows;
+
+      const c = await pool.connect();
+      let merged=0, removed=0, moved=0;
+      const failed=[];
+      try{
+        await c.query('BEGIN');
+        for(const g of guruhlar){
+          const rows = g.nusxalar || [];
+          if(rows.length<2) continue;
+          const keeper = rows[0].id;                 /* eng eski yozuv qoladi */
+          const others = rows.slice(1).map(x=>x.id);
+          await c.query('SAVEPOINT sp_dup');
+          try{
+            /* 1) Har bir nusxaning «qo'lda kiritilgan» darsi: umumiy
+                  sondan shu nusxaga yozilgan haqiqiy darslarni ayiramiz. */
+            const all=[keeper,...others];
+            const sess=await c.query(
+              `SELECT student_id, COUNT(*)::int n FROM sessions
+                WHERE student_id = ANY($1::uuid[]) AND status='completed'
+                GROUP BY student_id`,[all]);
+            const sesMap=new Map(sess.rows.map(r=>[String(r.student_id),r.n]));
+            let baza=0;
+            for(const r of rows){
+              const own=sesMap.get(String(r.id))||0;
+              baza=Math.max(baza, Math.max(0, Number(r.att||0)-own));
+            }
+
+            /* 2) Barcha bog'liq yozuvlarni qoladigan o'quvchiga ko'chiramiz */
+            for(const l of links){
+              const u=await c.query(
+                `UPDATE ${l.tbl} SET ${l.col}=$1 WHERE ${l.col}=ANY($2::uuid[])`,[keeper,others]);
+              moved+=u.rowCount||0;
+            }
+
+            /* 3) Bo'sh maydonlarni nusxalardan to'ldiramiz */
+            await c.query(`
+              UPDATE students k SET
+                birth_date = COALESCE(k.birth_date, d.birth_date),
+                phone      = COALESCE(NULLIF(k.phone,''),      NULLIF(d.phone,'')),
+                plate      = COALESCE(NULLIF(k.plate,''),      NULLIF(d.plate,'')),
+                notes      = COALESCE(NULLIF(k.notes,''),      NULLIF(d.notes,''))
+              FROM (SELECT MIN(birth_date) birth_date, MIN(phone) phone,
+                           MIN(plate) plate, MIN(notes) notes
+                      FROM students WHERE id=ANY($2::uuid[])) d
+              WHERE k.id=$1
+            `,[keeper,others]);
+
+            /* 4) Darslar soni: qo'lda kiritilgani BIR MARTA + ko'chirilgan
+                  barcha haqiqiy darslar. Nusxalarning bir xil boshlang'ich
+                  soni qo'shilib ketmaydi. */
+            const jami=await c.query(
+              `SELECT COUNT(*)::int n FROM sessions WHERE student_id=$1 AND status='completed'`,[keeper]);
+            const yangi=baza+(jami.rows[0]?jami.rows[0].n:0);
+            await c.query(
+              `UPDATE students SET attendance_count=$1, manual_attendance_count=$2 WHERE id=$3`,
+              [yangi,baza,keeper]);
+
+            /* 5) Ortiqcha nusxalar ro'yxatdan olinadi. O'CHIRILMAYDI —
+                  active=false bo'ladi, ya'ni kerak bo'lsa qaytarish mumkin. */
+            const del=await c.query(
+              `UPDATE students SET active=false WHERE id=ANY($1::uuid[]) AND owner_key=$2`,[others,user]);
+            removed+=del.rowCount||0;
+            merged++;
+            await c.query('RELEASE SAVEPOINT sp_dup');
+          }catch(e){
+            await c.query('ROLLBACK TO SAVEPOINT sp_dup');
+            failed.push({name:(rows[0]&&rows[0].name)||g.nkey,reason:e.message});
+            console.error('[duplicates] birlashtirilmadi:',g.nkey,e.message);
+          }
+        }
+        await c.query('COMMIT');
+      }catch(e){
+        try{await c.query('ROLLBACK');}catch{}
+        throw e;
+      }finally{c.release();}
+
+      send(res,200,{ok:true,merged,removed,moved,failed:failed.slice(0,20)});
       return true;
     }
 
