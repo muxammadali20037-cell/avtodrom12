@@ -233,6 +233,10 @@ async function ensureFeatureSchema(){
      saqlanardi va shu raqam bilan ochilgan har bir yangi sessiyada eski ism
      avtomatik chiqib qolardi. */
   await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS driver_name VARCHAR(160)`);
+  /* QR chek: sessiya qaysi chekdan ochilgani. Ustun shu yerda ham
+     yaratiladi — SESSION_SELECT uni o'qiydi, chek routelari hali bir marta
+     ham chaqirilmagan sovuq startda ham so'rov buzilmasin. */
+  await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS receipt_id UUID`);
   /* instructors.id bazada TEXT bo'lishi mumkin — instructor_id ni ham TEXT ga
      keltiramiz, shunda "operator does not exist: text = uuid" xatosi chiqmaydi */
   await q(`ALTER TABLE sessions ALTER COLUMN instructor_id TYPE TEXT USING instructor_id::text`);
@@ -531,11 +535,12 @@ app.post('/api/instructors/bulk', auth, async (req, res) => {
 const SESSION_SELECT = `SELECT s.id, v.plate, v.model, COALESCE(s.driver_name, v.driver_name) driver_name, s.started_at, s.status,
     COALESCE(s.duration_seconds,0) duration_seconds, s.resumed_at, s.frozen_at, s.target_duration,
     s.hourly_rate, s.minimum_payment, s.calculation_mode,
-    s.school_id, s.group_id, s.student_id, s.instructor_id,
+    s.school_id, s.group_id, s.student_id, s.instructor_id, s.receipt_id,
+    s.amount, s.cash_amount, s.terminal_amount, s.payment_method,
     ds.name school_name, g.name group_name, st.full_name student_name,
     i.full_name instructor_name
   FROM sessions s
-  JOIN vehicles v ON v.id = s.vehicle_id
+  LEFT JOIN vehicles v ON v.id = s.vehicle_id
   LEFT JOIN driving_schools ds ON ds.id::text = s.school_id::text
   LEFT JOIN school_groups g ON g.id::text = s.group_id::text
   LEFT JOIN students st ON st.id::text = s.student_id::text
@@ -666,7 +671,7 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
     await c.query('BEGIN');
     const r = await c.query(
       `SELECT s.*, v.plate, ds.name school_name, g.name group_name, st.full_name student_name
-       FROM sessions s JOIN vehicles v ON v.id=s.vehicle_id
+       FROM sessions s LEFT JOIN vehicles v ON v.id=s.vehicle_id
        LEFT JOIN driving_schools ds ON ds.id=s.school_id
        LEFT JOIN school_groups g ON g.id=s.group_id
        LEFT JOIN students st ON st.id=s.student_id
@@ -687,7 +692,25 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
     }
     if (cash < 0 || terminal < 0 || amount < 0) { await c.query('ROLLBACK'); return res.status(400).json({ error: 'To‘lov summasi noto‘g‘ri' }); }
     amount = cash + terminal;
-    const method = terminal > 0 && cash > 0 ? 'mixed' : terminal > 0 ? 'terminal' : 'cash';
+    let method = terminal > 0 && cash > 0 ? 'mixed' : terminal > 0 ? 'terminal' : 'cash';
+
+    /* QR CHEK (avtoshkola darsi): dars TEKIN. Sessiya chekdan ochilgan
+       bo'lsa summani bu yerda yozmaymiz — chekdagi qiymat (0) qoladi,
+       aks holda kunlik hisobotga yo'q pul tushib qolardi. */
+    if (s.receipt_id) {
+      try {
+        const rc = await c.query(
+          `SELECT amount, cash_amount, terminal_amount, payment_method
+             FROM receipts WHERE id=$1`, [s.receipt_id]);
+        const rec = rc.rows[0];
+        if (rec) {
+          amount = Number(rec.amount || 0);
+          cash = Number(rec.cash_amount || 0);
+          terminal = Number(rec.terminal_amount || 0);
+          method = String(rec.payment_method || 'cash');
+        }
+      } catch (e) { console.error('FINISH receipt:', e.message); }
+    }
 
     /* 1 soat = 1 dars. Faqat avtoshkola o'quvchisi uchun hisoblanadi. */
     const lessons = s.student_id ? Math.max(1, Math.round(seconds / LESSON_SECONDS)) : 0;
@@ -716,7 +739,7 @@ const REPORT_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,v.driv
     s.amount,s.cash_amount,s.terminal_amount,s.payment_method,s.lessons_counted,s.student_id,
     ds.name school_name,g.name group_name,st.full_name student_name,i.full_name instructor_name,
     ${STUDENT_ATTENDANCE_SQL} attendance_count
-  FROM sessions s JOIN vehicles v ON v.id=s.vehicle_id
+  FROM sessions s LEFT JOIN vehicles v ON v.id=s.vehicle_id
   LEFT JOIN driving_schools ds ON ds.id::text=s.school_id::text
   LEFT JOIN school_groups g ON g.id::text=s.group_id::text
   LEFT JOIN students st ON st.id::text=s.student_id::text
