@@ -3902,7 +3902,7 @@ const Admin = {
         + '</span></div>'
         + (open
             ? '<div class="grp-body"><div class="grp-tools">'
-              + '<button class="btn btn-green btn-sm" type="button" data-act="bulkStudents" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '"><i class="fa-solid fa-user-plus" aria-hidden="true"></i> Ommaviy o\'quvchi qo\'shish</button>'
+              + '<button class="btn btn-green btn-sm" type="button" data-act="studentsBulk" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '"><i class="fa-solid fa-user-plus" aria-hidden="true"></i> Ommaviy o\'quvchi qo\'shish</button>'
               + '</div>' + (gst.length
                 ? gst.slice().sort((a, b) => stName(a).localeCompare(stName(b), 'uz')).map(st =>
                     '<div class="grp-st"><span>' + esc(stName(st)) + '</span>'
@@ -3993,68 +3993,6 @@ const Admin = {
         this.renderSchools();
         this.refreshCounters();
       } catch (e) { setError('bgErr', e.message); }
-    });
-  },
-
-  /* ================= OMMAVIY O'QUVCHI QO'SHISH =================
-     Ro'yxatni yopishtiramiz — har qatorda bitta F.I.Sh. */
-  bulkStudents(gid, sid) {
-    const g = STATE.groups.find(x => String(x.id) === String(gid));
-    const school = STATE.schools.find(x => String(x.id) === String(sid));
-    openModal('<div class="modal-head"><div><h2>Ommaviy o\'quvchi qo\'shish</h2>'
-      + '<p class="text-muted">' + esc(school ? school.name : '') + ' · ' + esc(g ? g.name : '') + '-guruh</p></div>'
-      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
-      + '<div class="fg"><label class="field-label" for="bsList">F.I.Sh. ro\'yxati — har qatorda bittadan</label>'
-      + '<textarea id="bsList" rows="10" placeholder="ABDUMUMINOVA MUQADDAS ABDULAZIZ QIZI\nABDUVALIYEVA MADINA G‘ANIJON QIZI\nABROROVA MUBINA ABBOS QIZI"></textarea></div>'
-      + '<div id="bsPrev" class="field-help" style="margin-bottom:12px"></div>'
-      + '<div class="actions-row"><button class="btn btn-green" type="button" id="bsRunBtn" data-act="bulkStudentsRun" data-id="' + esc(gid) + '" data-school="' + esc(sid) + '">'
-      + '<span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Qo\'shish</span></button>'
-      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
-      + '<div id="bsErr" class="text-error" role="alert"></div>');
-
-    const prev = () => {
-      const rows = Admin.bulkNames($('bsList').value);
-      $('bsPrev').innerHTML = rows.length
-        ? '<b>' + rows.length + '</b> ta ism o‘qildi. Bo‘sh qatorlar va takrorlar hisobga olinmaydi.'
-        : 'Har qatorga bitta F.I.Sh. yozing yoki ro‘yxatni yopishtiring.';
-    };
-    $('bsList').addEventListener('input', prev);
-    prev();
-    setTimeout(() => $('bsList').focus(), 50);
-  },
-
-  /** Matndan ismlar: bo'sh qatorlar, tartib raqamlari va takrorlar tozalanadi */
-  bulkNames(text) {
-    const out = [], seen = {};
-    String(text || '').split(/\r?\n/).forEach(line => {
-      /* "1. Ism", "12) Ism", "3 - Ism" kabi tartib raqamlari olib tashlanadi */
-      let v = line.replace(/^\s*\d{1,3}\s*[.)\-–]\s*/, '').replace(/\s+/g, ' ').trim();
-      if (!v) return;
-      const key = lower(v);
-      if (seen[key]) return;
-      seen[key] = 1;
-      out.push(v);
-    });
-    return out;
-  },
-
-  async bulkStudentsRun(gid, sid) {
-    setError('bsErr', '');
-    const names = Admin.bulkNames($('bsList').value);
-    if (!names.length) { setError('bsErr', 'Kamida bitta F.I.Sh. kiriting.'); return; }
-    if (names.length > 500) { setError('bsErr', 'Bir marta ko‘pi bilan 500 ta o‘quvchi.'); return; }
-    await withBusy('bulkStudents', $('bsRunBtn'), async () => {
-      try {
-        const r = await api('/student-bulk', { method: 'POST', body: jsonBody({
-          schoolId: sid, groupId: gid, rows: names.map(n => ({ fullName: n, lessons: 0 })) }) });
-        closeModal();
-        toast("Qo'shildi: " + num(r.added) + " ta o'quvchi"
-          + (num(r.skipped) ? ' · ' + num(r.skipped) + ' tasi allaqachon bor edi' : ''));
-        await Data.reloadStudents();
-        this.renderSchoolDetail();
-        this.renderSchools();
-        this.refreshCounters();
-      } catch (e) { setError('bsErr', e.message); }
     });
   },
 
@@ -4495,14 +4433,21 @@ const Admin = {
 
   /* --- Ommaviy o'quvchi qo'shish (matn ko'chirib qo'yish) --- */
   bulkRows: [],
-  studentsBulkModal() {
+  /* Guruh ichidan chaqirilsa avtoshkola va guruh oldindan tanlanadi
+     va o'zgartirilmaydi — kassir adashib boshqa guruhga yozib
+     yubormaydi. Bo'limdan chaqirilsa ikkalasi ham tanlanadi. */
+  studentsBulkModal(schoolId, groupId) {
+    const lock = !!(schoolId && groupId);
     openModal('<div class="modal-head"><div><h2>Ommaviy o\'quvchi qo\'shish</h2>'
       + '<p class="text-muted">Har qatorga bitta o\'quvchi. Ajratgich shart emas.</p></div>'
       + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
       + '<div class="form-grid">'
-      + '<div><label class="field-label" for="bsSchool">Avtoshkola <span class="text-red">*</span></label><select id="bsSchool" required><option value="">Tanlang</option>'
-      + Data.activeSchools().map(x => '<option value="' + esc(x.id) + '">' + esc(x.name) + '</option>').join('') + '</select></div>'
-      + '<div><label class="field-label" for="bsGroup">Guruh <span class="text-red">*</span></label><select id="bsGroup"><option value="">Avval avtoshkola</option></select></div>'
+      + '<div><label class="field-label" for="bsSchool">Avtoshkola <span class="text-red">*</span></label><select id="bsSchool" required' + (lock ? ' disabled' : '') + '><option value="">Tanlang</option>'
+      + Data.activeSchools().map(x => '<option value="' + esc(x.id) + '"' + (lock && String(x.id) === String(schoolId) ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '</select></div>'
+      + '<div><label class="field-label" for="bsGroup">Guruh <span class="text-red">*</span></label><select id="bsGroup"' + (lock ? ' disabled' : '') + '>'
+      + (lock
+          ? Data.activeGroups(schoolId).map(g => '<option value="' + esc(g.id) + '"' + (String(g.id) === String(groupId) ? ' selected' : '') + '>' + esc(g.name) + '</option>').join('')
+          : '<option value="">Avval avtoshkola</option>') + '</select></div>'
       + '</div>'
       + '<div class="fg"><label class="field-label" for="bsData">Ro\'yxat</label>'
       + '<textarea id="bsData" rows="9" placeholder="Ali Vali 12-05-1995 2&#10;Hasan Aliyev 03.11.2001 5&#10;Vali Hasanov 1999-07-24"></textarea>'
@@ -4512,7 +4457,9 @@ const Admin = {
       + '<div class="actions-row"><button class="btn btn-green" type="button" data-act="studentsBulkPreview"><i class="fa-solid fa-eye" aria-hidden="true"></i> Tekshirish</button>'
       + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
       + '<div id="bsErr" class="text-error" role="alert"></div>', { wide: true });
-    const sel = $('bsSchool');
+    if (lock) { $('bsSchool').value = schoolId; $('bsGroup').value = groupId; }
+    setTimeout(() => { const t = $('bsData'); if (t) t.focus(); }, 60);
+    const sel = lock ? null : $('bsSchool');
     if (sel) sel.addEventListener('change', async () => {
       $('bsGroup').innerHTML = '<option value="">Yuklanmoqda...</option>';
       const gs = await Data.reloadGroups(sel.value);
@@ -4545,8 +4492,14 @@ const Admin = {
     if (!name) problems.push('F.I.Sh. topilmadi');
     else if (name.length < 3) problems.push('F.I.Sh. juda qisqa');
     if (birth) {
-      const y = num(birth.slice(0, 4));
-      if (y < 1930 || y > new Date().getFullYear()) problems.push('tug\'ilgan yil noto\'g\'ri');
+      /* Sana HAQIQATDAN ham mavjudmi: 45-99-1995 kabi qatorlar
+         ilgari "yaroqli" hisoblanib, bazaga yuborilardi. */
+      const y = num(birth.slice(0, 4)), mo = num(birth.slice(5, 7)), d = num(birth.slice(8, 10));
+      const dt = new Date(Date.UTC(y, mo - 1, d));
+      const haqiqiy = mo >= 1 && mo <= 12 && d >= 1 && d <= 31
+        && dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
+      if (!haqiqiy) { problems.push('sana noto\'g\'ri'); birth = null; }
+      else if (y < 1930 || y > new Date().getFullYear()) problems.push('tug\'ilgan yil noto\'g\'ri');
     }
     return { full_name: name, birth_date: birth, attendance: attendance, problems: problems };
   },
@@ -4632,6 +4585,8 @@ const Admin = {
       STATE.studentsStale = true;
       await Admin.loadStudents(true);
       Admin.refreshCounters();
+      /* Guruh ichidan qo'shilgan bo'lsa — o'sha ro'yxat darhol yangilansin */
+      try { if (Admin.schoolShown) { Admin.openGroup = String(groupId); Admin.renderSchoolDetail(); } } catch (e) {}
       setTimeout(closeModal, 1400);
     });
   },
@@ -4906,8 +4861,6 @@ const ACTIONS = {
   toggleGroup: d => Admin.toggleGroup(d.id),
   bulkGroups: d => Admin.bulkGroups(d.school),
   bulkGroupsRun: d => Admin.bulkGroupsRun(d.school),
-  bulkStudents: d => Admin.bulkStudents(d.id, d.school),
-  bulkStudentsRun: d => Admin.bulkStudentsRun(d.id, d.school),
   groupModal: d => Admin.groupModal(d.id || '', d.school || ''),
   groupSave: d => Admin.groupSave(d.id || '', d.school || ''),
   groupDelete: d => Admin.groupDelete(d.id, d.school || ''),
@@ -4924,7 +4877,7 @@ const ACTIONS = {
   keyVerify: () => Admin.keyVerify(),
   studentDetail: d => Admin.studentDetail(d.id),
   studentsMore: () => { Admin.studentLimit += 50; Admin.renderStudents(); },
-  studentsBulk: () => Admin.studentsBulkModal(),
+  studentsBulk: d => Admin.studentsBulkModal(d.school || '', d.id || ''),
   studentsBulkPreview: () => Admin.studentsBulkPreview(),
   studentsBulkRun: d => Admin.studentsBulkRun(d.school, d.group),
   exportStudentSessions: (d, el) => Admin.exportStudentSessions(d.id, el),
