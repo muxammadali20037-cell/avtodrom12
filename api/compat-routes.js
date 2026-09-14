@@ -125,6 +125,7 @@ export async function handleCompatRequest(req, res) {
   const isCompatRoute =
     (req.method === 'POST' && (pathname === '/api/sessions/start' || pathname === '/api/student-bulk')) ||
     (req.method === 'POST' && pathname === '/api/attendance') ||
+    (req.method === 'POST' && pathname === '/api/group-bulk') ||
     (req.method === 'GET' && pathname === '/api/students') ||
     (req.method === 'PATCH' && !!schoolMatch) ||
     (req.method === 'PATCH' && !!studentMatch);
@@ -415,6 +416,51 @@ export async function handleCompatRequest(req, res) {
     }
 
     // ===== OMMAVIY O‘QUVCHI QO‘SHISH: FAQAT F.I.SH. + SANA + DARSLAR =====
+    /* =====================================================================
+       GURUHLARNI OMMAVIY YARATISH — oraliq bo'yicha
+
+       Misol: 23 dan 43 gacha => 23, 24, ... 43 (21 ta guruh) bir marta
+       yaratiladi. Mavjudlari o'tkazib yuboriladi, ya'ni qayta bosilsa
+       nusxa paydo bo'lmaydi.
+       ===================================================================== */
+    if(req.method==='POST'&&pathname==='/api/group-bulk'){
+      const body=bodyOf(req);
+      const schoolId=String(body.schoolId||'').trim();
+      const from=Math.floor(Number(body.from));
+      const to=Math.floor(Number(body.to));
+      const prefix=String(body.prefix||'').trim();
+
+      if(!schoolId){send(res,400,{error:'Avtoshkola tanlanmagan'});return true;}
+      if(!Number.isFinite(from)||!Number.isFinite(to)){send(res,400,{error:'Oraliqni raqam bilan kiriting'});return true;}
+      const a=Math.min(from,to), b=Math.max(from,to);
+      if(a<0||b>9999){send(res,400,{error:'Guruh raqami 0–9999 oralig‘ida bo‘lsin'});return true;}
+      if(b-a+1>200){send(res,400,{error:'Bir marta ko‘pi bilan 200 ta guruh yaratish mumkin'});return true;}
+
+      const school=await pool.query(`SELECT id FROM driving_schools WHERE id=$1 AND owner_key=$2 AND active=true`,[schoolId,user]);
+      if(!school.rows[0]){send(res,404,{error:'Avtoshkola topilmadi'});return true;}
+
+      const c=await pool.connect();
+      const created=[],exists=[];
+      try{
+        await c.query('BEGIN');
+        for(let n=a;n<=b;n++){
+          const name=prefix?`${prefix}${n}`:String(n);
+          const bor=await c.query(
+            `SELECT 1 FROM school_groups
+              WHERE owner_key=$1 AND school_id=$2
+                AND LOWER(TRIM(name))=LOWER(TRIM($3)) AND active=true
+              LIMIT 1`,[user,schoolId,name]);
+          if(bor.rows[0]){exists.push(name);continue;}
+          await c.query(`INSERT INTO school_groups(owner_key,school_id,name) VALUES($1,$2,$3)`,[user,schoolId,name]);
+          created.push(name);
+        }
+        await c.query('COMMIT');
+      }catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}
+      send(res,201,{ok:true,created:created.length,createdNames:created,
+                    exists:exists.length,existsNames:exists.slice(0,30)});
+      return true;
+    }
+
     if(req.method==='POST'&&pathname==='/api/student-bulk'){
       const body=bodyOf(req);
       const schoolId=String(body.schoolId||'').trim();
@@ -436,21 +482,36 @@ export async function handleCompatRequest(req, res) {
         const birthDate=String(row.birthDate??'').trim();
         const lessons=Number(row.lessons??row.attendanceCount??0);
         if(!fullName){errors.push(`${index+1}-qator: F.I.Sh. kiritilmagan`);return;}
-        if(!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)){errors.push(`${index+1}-qator: tug‘ilgan sana noto‘g‘ri`);return;}
+        /* Tug'ilgan sana IXTIYORIY: ro'yxat ko'pincha faqat ismlardan
+           iborat bo'ladi. Berilsa formati tekshiriladi. */
+        if(birthDate && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)){
+          errors.push(`${index+1}-qator: tug‘ilgan sana noto‘g‘ri`);return;
+        }
         if(!Number.isInteger(lessons)||lessons<0){errors.push(`${index+1}-qator: darslar soni noto‘g‘ri`);return;}
-        valid.push({fullName,birthDate,lessons});
+        valid.push({fullName,birthDate:birthDate||null,lessons});
       });
       if(!valid.length){send(res,400,{error:'Saqlash uchun to‘g‘ri ma’lumot topilmadi',errors});return true;}
 
       const c=await pool.connect();
+      const added=[],skipped=[];
       try{
         await c.query('BEGIN');
         for(const row of valid){
+          /* Shu guruhda AYNAN shunday ism bor bo'lsa qayta yozmaymiz —
+             ro'yxat ikki marta yopishtirilsa nusxa paydo bo'lmaydi. */
+          const bor=await c.query(
+            `SELECT 1 FROM students
+              WHERE owner_key=$1 AND school_id=$2
+                AND COALESCE(group_id::text,'')=COALESCE($3::text,'')
+                AND LOWER(TRIM(full_name))=LOWER(TRIM($4)) AND active=true
+              LIMIT 1`,[user,schoolId,groupId,row.fullName]);
+          if(bor.rows[0]){skipped.push(row.fullName);continue;}
           await c.query(`INSERT INTO students(owner_key,school_id,group_id,full_name,birth_date,manual_attendance_count) VALUES($1,$2,$3,$4,$5,$6)`,[user,schoolId,groupId,row.fullName,row.birthDate,row.lessons]);
+          added.push(row.fullName);
         }
         await c.query('COMMIT');
       }catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}
-      send(res,201,{ok:true,added:valid.length,errors});return true;
+      send(res,201,{ok:true,added:added.length,skipped:skipped.length,skippedNames:skipped.slice(0,20),errors});return true;
     }
 
     return false;
