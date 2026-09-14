@@ -7,9 +7,9 @@ const { Pool } = pg;
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  },
+  /* Bulutdagi baza SSL talab qiladi. Kompyuterda lokal Postgres bilan
+     ishlaganda esa SSL yo'q — shunda PGNOSSL=1 qo'yiladi. */
+  ssl: process.env.PGNOSSL === '1' ? false : { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000
