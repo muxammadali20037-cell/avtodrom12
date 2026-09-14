@@ -191,8 +191,9 @@ export async function handleCompatRequest(req, res) {
       const insId = String(body.instructorId || body.instructor_id || '').trim() || null;
       const lessons = Math.max(1, Math.min(12, Math.round(Number(body.lessons || 1)) || 1));
 
+      /* Instruktor IXTIYORIY: yozilsa saqlanadi, yozilmasa davomat
+         baribir yoziladi. O'quvchi esa shart. */
       if (!studentId) { send(res, 400, { error: 'O‘quvchini tanlang' }); return true; }
-      if (!insName) { send(res, 400, { error: 'Instruktorning ism-familiyasini yozing' }); return true; }
 
       const c = await pool.connect();
       try {
@@ -250,7 +251,7 @@ export async function handleCompatRequest(req, res) {
             ['group_id', st.group_id],
             ['student_id', st.id],
             ['instructor_id', insId],
-            ['instructor_name', insName],
+            ['instructor_name', insName || null],
             ['driver_name', st.full_name],
             ['customer_type', 'school'],
             ['planned_minutes', 60],
