@@ -801,6 +801,22 @@ body.admin-open { overflow: hidden; }
 #kzReceipt .code{text-align:center;font-size:22px;font-weight:900;letter-spacing:.14em;margin-top:6px}
 @media print{body *{visibility:hidden!important}#kzReceipt,#kzReceipt *{visibility:visible!important}
  #kzReceipt{position:absolute;left:0;top:0}@page{size:80mm auto;margin:2mm}}
+
+/* ---- Avtoshkola -> guruh -> o'quvchi (yig'iladigan ro'yxat) ---- */
+.grp{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:#fff;overflow:hidden}
+.grp.open{border-color:var(--g);box-shadow:0 2px 10px rgba(16,132,80,.08)}
+.grp-head{display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer;user-select:none}
+.grp-head:hover{background:#f6faf8}
+.grp.open .grp-head{background:#f1f8f4}
+.grp-ico{width:16px;color:var(--muted);flex:none;text-align:center}
+.grp.open .grp-ico{color:var(--g)}
+.grp-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grp-act{display:flex;gap:6px;flex:none}
+.grp-body{border-top:1px solid var(--line);background:#fbfdfc;max-height:420px;overflow:auto}
+.grp-st{display:flex;justify-content:space-between;align-items:center;gap:10px;
+        padding:8px 12px 8px 38px;font-size:13px;border-bottom:1px solid var(--line)}
+.grp-st:last-child{border-bottom:0}
+@media (max-width:640px){.grp-st{padding-left:16px}.grp-head{flex-wrap:wrap}}
 </style>
 </head>
 <body>
@@ -3825,30 +3841,98 @@ const Admin = {
         + '</div></div>';
     }).join('');
   },
+  /* ================= AVTOSHKOLA -> GURUH -> O'QUVCHI =================
+     Ilgari avtoshkola bosilganda BARCHA guruhlar va ularning barcha
+     o'quvchilari birdaniga ochilib ketardi: 40+ guruh, har birida
+     20-25 nom — ekran uzun ro'yxatga aylanib, kerakli guruhni topib
+     bo'lmasdi.
+
+     Endi: avtoshkola bosilsa faqat GURUHLAR ro'yxati chiqadi,
+     guruh bosilsa o'sha guruhning o'quvchilari ochiladi.
+     Bir vaqtda bitta guruh ochiq turadi. */
+  openGroup: null,
+
   async schoolDetail(sid) {
     const c = $('adminSchoolDetail');
     if (!c) return;
+    /* Boshqa avtoshkolaga o'tilsa ochiq guruh yopiladi */
+    if (String(this.schoolShown || '') !== String(sid)) this.openGroup = null;
+    this.schoolShown = sid;
     c.innerHTML = '<div class="panel">' + loadingLine('Guruhlar yuklanmoqda...') + '</div>';
-    const groups = await Data.reloadGroups(sid);
-    const students = STATE.students.filter(s => String(s.school_id || s.schoolId) === String(sid));
-    const school = STATE.schools.find(s => String(s.id) === String(sid));
-    let body = groups.length ? groups.map(g => {
-      const gst = students.filter(s => String(s.group_id || s.groupId) === String(g.id));
-      return '<div style="margin:12px 0;padding:12px;background:#f8fafc;border-radius:10px;border:1px solid var(--line)">'
-        + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">'
-        + '<b>' + esc(g.name) + '</b>'
-        + '<div style="display:flex;gap:8px;align-items:center"><span class="badge badge-green">' + gst.length + " o'quvchi</span>"
-        + '<button class="btn btn-light btn-sm" type="button" data-act="groupModal" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>'
-        + '<button class="btn btn-danger btn-sm" type="button" data-act="groupDelete" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '"><i class="fa-solid fa-trash" aria-hidden="true"></i></button></div></div>'
-        + (gst.length ? '<div style="margin-top:8px">' + gst.map(st =>
-          '<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line);font-size:13px">'
-          + '<span>' + esc(stName(st)) + '</span><span class="badge badge-blue">' + attCount(st) + ' dars</span></div>').join('') + '</div>' : '');
-    }).join('') : emptyState('fa-users', "Guruh yo'q", "Ushbu avtoshkolada guruh qo'shilmagan.");
-    c.innerHTML = '<div class="panel" style="margin-top:16px">'
-      + '<div class="panel-head"><h3><i class="fa-solid fa-users" style="color:var(--g)" aria-hidden="true"></i> ' + esc(school ? school.name : '') + ' — guruhlar</h3>'
-      + '<button class="btn btn-green btn-sm" type="button" data-act="groupModal" data-school="' + esc(sid) + '"><i class="fa-solid fa-plus" aria-hidden="true"></i> Guruh qo\'shish</button></div>'
-      + body + '</div>';
+    await Data.reloadGroups(sid);
+    this.renderSchoolDetail();
+    /* Ro'yxatga silliq o'tamiz — pastda qolib ketmasin */
+    try { c.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
   },
+
+  /** Guruhni ochish/yopish */
+  toggleGroup(gid) {
+    this.openGroup = String(this.openGroup || '') === String(gid) ? null : String(gid);
+    this.renderSchoolDetail();
+  },
+
+  /** Guruhlar ro'yxatidagi qidiruv */
+  filterGroups(q) {
+    this.groupQuery = String(q || '');
+    this.renderSchoolDetail(true);
+  },
+
+  renderSchoolDetail(keepFocus) {
+    const c = $('adminSchoolDetail');
+    const sid = this.schoolShown;
+    if (!c || !sid) return;
+    const school = STATE.schools.find(s => String(s.id) === String(sid));
+    const students = STATE.students.filter(s => String(s.school_id || s.schoolId) === String(sid));
+    const all = Data.activeGroups(sid);
+    const q = lower(this.groupQuery || '');
+    const groups = q ? all.filter(g => lower(g.name).indexOf(q) >= 0) : all;
+
+    const rows = groups.map(g => {
+      const gst = students.filter(s => String(s.group_id || s.groupId) === String(g.id));
+      const open = String(this.openGroup || '') === String(g.id);
+      return '<div class="grp' + (open ? ' open' : '') + '">'
+        + '<div class="grp-head" data-act="toggleGroup" data-id="' + esc(g.id) + '" role="button" tabindex="0">'
+        + '<span class="grp-ico"><i class="fa-solid fa-chevron-' + (open ? 'down' : 'right') + '" aria-hidden="true"></i></span>'
+        + '<b class="grp-name">' + esc(g.name) + '</b>'
+        + '<span class="badge badge-green">' + gst.length + " o'quvchi</span>"
+        + '<span class="grp-act">'
+        + '<button class="btn btn-light btn-sm" type="button" data-act="groupModal" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '" data-stop="1" title="Tahrirlash"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>'
+        + '<button class="btn btn-danger btn-sm" type="button" data-act="groupDelete" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '" data-stop="1" title="O\'chirish"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>'
+        + '</span></div>'
+        + (open
+            ? '<div class="grp-body">' + (gst.length
+                ? gst.slice().sort((a, b) => stName(a).localeCompare(stName(b), 'uz')).map(st =>
+                    '<div class="grp-st"><span>' + esc(stName(st)) + '</span>'
+                    + '<span class="badge badge-blue">' + attCount(st) + ' dars</span></div>').join('')
+                : '<div class="grp-st text-muted">Bu guruhda o\'quvchi yo\'q.</div>')
+              + '</div>'
+            : '')
+        + '</div>';
+    }).join('');
+
+    const body = all.length
+      ? (groups.length ? rows
+          : '<div class="grp-st text-muted">«' + esc(this.groupQuery) + '» bo\'yicha guruh topilmadi.</div>')
+      : emptyState('fa-users', "Guruh yo'q", "Ushbu avtoshkolada guruh qo'shilmagan.");
+
+    c.innerHTML = '<div class="panel" style="margin-top:16px">'
+      + '<div class="panel-head"><h3><i class="fa-solid fa-users" style="color:var(--g)" aria-hidden="true"></i> '
+      + esc(school ? school.name : '') + ' — guruhlar <span class="text-muted" style="font-weight:500">('
+      + all.length + ' ta)</span></h3>'
+      + '<button class="btn btn-green btn-sm" type="button" data-act="groupModal" data-school="' + esc(sid) + '"><i class="fa-solid fa-plus" aria-hidden="true"></i> Guruh qo\'shish</button></div>'
+      + (all.length > 6
+          ? '<div class="search-field" style="margin-bottom:10px"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>'
+            + '<input id="grpQ" placeholder="Guruh raqami yoki nomi..." value="' + esc(this.groupQuery || '') + '" aria-label="Guruhlar orasidan qidirish"></div>'
+          : '')
+      + body + '</div>';
+
+    const gq = $('grpQ');
+    if (gq) {
+      gq.oninput = e => this.filterGroups(e.target.value);
+      if (keepFocus) { gq.focus(); gq.setSelectionRange(gq.value.length, gq.value.length); }
+    }
+  },
+
   schoolModal(id) {
     const s = id ? STATE.schools.find(x => String(x.id) === String(id)) : null;
     openModal('<div class="modal-head"><div><h2>' + (s ? 'Avtoshkolani tahrirlash' : 'Yangi avtoshkola') + '</h2></div>'
@@ -4694,6 +4778,7 @@ const ACTIONS = {
   schoolSave: d => Admin.schoolSave(d.id || ''),
   schoolDelete: d => Admin.schoolDelete(d.id),
   schoolDetail: d => Admin.schoolDetail(d.id),
+  toggleGroup: d => Admin.toggleGroup(d.id),
   groupModal: d => Admin.groupModal(d.id || '', d.school || ''),
   groupSave: d => Admin.groupSave(d.id || '', d.school || ''),
   groupDelete: d => Admin.groupDelete(d.id, d.school || ''),
