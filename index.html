@@ -4640,7 +4640,7 @@ const Admin = {
     const rows = Admin.bulkRows.filter(r => r.status === 'ok');
     if (!rows.length) return;
     await withBusy('bulkStudents', $('bsRunBtn'), async () => {
-      let done = 0, failed = 0;
+      let done = 0, failed = 0, bor = 0;
       const prog = $('bsProgress');
       for (let i = 0; i < rows.length; i++) {
         const it = rows[i].item;
@@ -4657,11 +4657,20 @@ const Admin = {
             })
           });
           done++;
-        } catch (e) { failed++; console.error('[bulk student]', it.full_name, e.technical); }
+        } catch (e) {
+          /* Server «bu guruhda shu ismli o'quvchi bor» desa — bu xato
+             emas, o'tkazib yuborilgan qator. Nusxa yaratilmagani yaxshi. */
+          if (e && e.status === 409) bor++;
+          else { failed++; console.error('[bulk student]', it.full_name, e.technical); }
+        }
         if (prog) prog.textContent = 'Qo\'shilmoqda: ' + (i + 1) + ' / ' + rows.length;
       }
-      if (prog) prog.innerHTML = '<b>' + done + '</b> ta qo\'shildi, <b>' + failed + '</b> ta xato.';
-      toast(done + " ta o'quvchi qo'shildi" + (failed ? ', ' + failed + ' ta xato' : '') + '.', failed ? 'warn' : 'ok');
+      if (prog) prog.innerHTML = '<b>' + done + '</b> ta qo\'shildi'
+        + (bor ? ', <b>' + bor + '</b> tasi allaqachon bor edi' : '')
+        + ', <b>' + failed + '</b> ta xato.';
+      toast(done + " ta o'quvchi qo'shildi"
+        + (bor ? ', ' + bor + ' tasi allaqachon bor edi' : '')
+        + (failed ? ', ' + failed + ' ta xato' : '') + '.', failed ? 'warn' : 'ok');
       STATE.studentsStale = true;
       await Admin.loadStudents(true);
       Admin.refreshCounters();
