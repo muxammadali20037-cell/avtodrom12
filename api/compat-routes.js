@@ -46,6 +46,39 @@ function ensureCompatSchema() {
       await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS customer_type VARCHAR(20)`);
       await q(`CREATE INDEX IF NOT EXISTS idx_sessions_student_done
                ON sessions(student_id, status) WHERE student_id IS NOT NULL`);
+
+      /* ================= DARSLAR SONI =================
+         `students.attendance_count` — haqiqiy ustun, uni trigger
+         yuritadi. Mavjud trigger FAQAT UPDATE da ishlaydi:
+             AFTER UPDATE OF status ... WHEN OLD.status <> 'completed'
+         chunki oddiy sessiya avval 'active' bo'lib ochiladi, keyin
+         yakunlanadi.
+
+         Davomat esa darhol 'completed' bo'lib YOZILADI — UPDATE
+         umuman bo'lmaydi, shuning uchun trigger ishlamas va darslar
+         soni o'zgarmasdi.
+
+         Quyidagi INSERT triggeri aynan shu holatni qoplaydi. Ikki
+         marta sanalmaydi: 'active' bo'lib ochilgan sessiyada bu
+         trigger jim turadi, yakunlanganda esa eski UPDATE triggeri
+         ishlaydi. */
+      await q(`ALTER TABLE students ADD COLUMN IF NOT EXISTS attendance_count INTEGER NOT NULL DEFAULT 0`);
+      await q(`
+        CREATE OR REPLACE FUNCTION public.avtodrom_attendance_on_insert()
+        RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $fn$
+        BEGIN
+          IF NEW.student_id IS NOT NULL AND UPPER(COALESCE(NEW.status,'')) = 'COMPLETED' THEN
+            UPDATE public.students
+               SET attendance_count = COALESCE(attendance_count,0) + 1
+             WHERE id = NEW.student_id;
+          END IF;
+          RETURN NEW;
+        END; $fn$;
+      `);
+      await q(`DROP TRIGGER IF EXISTS trg_avtodrom_student_attendance_ins ON public.sessions`);
+      await q(`CREATE TRIGGER trg_avtodrom_student_attendance_ins
+               AFTER INSERT ON public.sessions
+               FOR EACH ROW EXECUTE FUNCTION public.avtodrom_attendance_on_insert()`);
     })().catch(error => {
       schemaPromise = null;
       throw error;
@@ -325,16 +358,8 @@ export async function handleCompatRequest(req, res) {
       const r=await pool.query(`
         SELECT st.id,st.owner_key,st.school_id,st.group_id,st.full_name,st.birth_date,st.phone,st.plate,st.notes,st.active,st.created_at,
                s.name school_name,g.name group_name,
-               /* DARSLAR SONI = qo'lda kiritilgani + tizimda yakunlangan darslar.
-                  Ilgari bu yerda FAQAT manual_attendance_count qaytarardi —
-                  shuning uchun davomat yozilsa ham o'quvchi kartochkasidagi
-                  son o'zgarmasdi (bazada yozuv bor, ekranda ko'rinmaydi). */
-               COALESCE(st.manual_attendance_count,0) manual_attendance_count,
-               (SELECT COUNT(*) FROM sessions se
-                 WHERE se.student_id=st.id AND se.status='completed')::int session_attendance_count,
-               COALESCE(st.manual_attendance_count,0)
-                 + (SELECT COUNT(*) FROM sessions se
-                     WHERE se.student_id=st.id AND se.status='completed')::int AS attendance_count
+               /* Darslar sonini trigger yuritadi (api/students.js ga qarang) */
+               COALESCE(st.attendance_count,0)::int attendance_count
         FROM students st JOIN driving_schools s ON s.id=st.school_id LEFT JOIN school_groups g ON g.id=st.group_id
         WHERE ${where} ORDER BY st.full_name
       `,params);
