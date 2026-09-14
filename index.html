@@ -2113,8 +2113,10 @@ const Add = {
   validate(d) {
     /* Avtoshkola davomati: avtomobil raqami so'ralmaydi */
     if (d.type === 'school') {
+      /* Instruktor IXTIYORIY — yozilsa saqlanadi, yozilmasa ham davomat
+         yoziladi. O'quvchi esa shart, aks holda dars kimga yozilishi
+         noma'lum bo'lardi. */
       if (!d.student) return "O'quvchini tanlang yoki oddiy mijoz rejimiga o'ting.";
-      if (!d.instructorName) return "Instruktorning ism-familiyasini yozing.";
       return '';
     }
     if (!d.body) return "Avtomobil raqamini kiriting.";
@@ -2145,10 +2147,39 @@ const Add = {
             lessons: d.lessons
           }) });
           const n = num(res && res.lessons) || d.lessons;
-          toast('Davomat yozildi: ' + stName(d.student) + ' — ' + n + ' dars');
+
+          /* Natija DARHOL ko'rinsin: o'quvchi kartochkasidagi darslar
+             soni yangilanadi. Ilgari forma tozalanib ketardi va
+             "yozildimi yo'qmi" bilinmasdi. */
           await Data.reloadStudents();
-          this.reset();
-        } catch (e) { setError('startErr', e.message); }
+          const fresh = Data.studentById(d.student.id);
+          if (fresh) STATE.form.student = fresh;
+          else STATE.form.student = Object.assign({}, d.student,
+            { attendance_count: attCount(d.student) + n });
+          this.renderStudentPanel();
+
+          /* Keyingi yozuv uchun tozalaymiz — o'quvchi tanlangan qoladi
+             (odatda ketma-ket bir necha o'quvchi kiritiladi, lekin
+             tasodifan ikki marta bosilmasin uchun instruktor va dars
+             soni boshlang'ich holatga qaytadi). */
+          if ($('comboInstructorInput')) $('comboInstructorInput').value = '';
+          STATE.form.instructor = null;
+          $('instructorBox').innerHTML = '';
+          this.setHours(1);
+          EntryTicket80.draft = null; EntryTicket80.draftKey = '';
+
+          setError('startErr', '');
+          toast('Davomat yozildi: ' + stName(d.student) + ' — ' + n + ' dars. Jami: '
+            + attCount(STATE.form.student) + ' dars');
+        } catch (e) {
+          /* Endpoint topilmasa sabab aniq aytilsin — server eski
+             bo'lsa shu xato chiqadi. */
+          const m = /404|topilmadi|not found/i.test(String(e.message))
+            ? 'Server hali yangilanmagan: /api/attendance topilmadi. '
+              + 'api/compat-routes.js ni deploy qiling.'
+            : e.message;
+          setError('startErr', m);
+        }
       });
       return;
     }
