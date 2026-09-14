@@ -3320,7 +3320,8 @@ const REPORT_COLS = ['Raqam', 'Kirish', 'Chiqish', 'Vaqt', 'Avtoshkola', 'Guruh'
 function reportRowCells(r) {
   const att = num(r.attendance_count);
   return [
-    '<b>' + esc(r.plate || '') + '</b>',
+    /* Avtomobilsiz yozuv — avtoshkola davomati (vaqt o'lchanmagan) */
+    '<b>' + esc(r.plate || 'Davomat') + '</b>',
     esc(dt(r.started_at)),
     esc(dt(r.finished_at)),
     dur(r.duration_seconds),
@@ -3381,7 +3382,7 @@ const Reports = {
     if (!rows.length) { toast("Eksport uchun ma'lumot yo'q.", 'warn'); return; }
     const date = ($('reportDate') && $('reportDate').value) || localDateISO(0);
     const aoa = [REPORT_COLS].concat(rows.map(r => [
-      r.plate || '', dt(r.started_at), dt(r.finished_at), dur(r.duration_seconds),
+      r.plate || 'Davomat', dt(r.started_at), dt(r.finished_at), dur(r.duration_seconds),
       r.school_name || '', r.group_name || '', r.student_name || '',
       r.student_name ? num(r.attendance_count) : '', num(r.cash_amount), num(r.terminal_amount), num(r.amount)
     ]));
@@ -4262,7 +4263,7 @@ const Admin = {
         dur(r.duration_seconds),
         Math.round(num(r.duration_seconds) / 60),
         num(r.lessons_counted) || secondsToLessons(r.duration_seconds),
-        r.plate || '', r.model || '', r.school_name || '', r.group_name || '', num(r.amount)
+        r.plate || 'Davomat', r.model || '', r.school_name || '', r.group_name || '', num(r.amount)
       ];
     });
     const totalSec = rows.reduce((a, r) => a + num(r.duration_seconds), 0);
