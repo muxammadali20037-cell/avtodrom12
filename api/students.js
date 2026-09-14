@@ -52,7 +52,11 @@ export default async function handler(req,res){
     const owner=uid(req);
 
     if(req.method==='GET'){
-      const p=[owner];let w='st.owner_key=$1';
+      /* O'CHIRILGAN O'QUVCHI RO'YXATGA TUSHMASIN.
+         DELETE `active=false` qiladi, lekin bu ro'yxat uni filtrlamasdi:
+         o'quvchi o'chirilgach ham operator qidiruvida chiqib turardi va
+         bir necha marta o'chirilsa ham qaytaverardi. */
+      const p=[owner];let w='st.owner_key=$1 AND st.active=true';
       if(req.query.schoolId){p.push(String(req.query.schoolId));w+=` AND st.school_id=$${p.length}`;}
       if(req.query.groupId){p.push(String(req.query.groupId));w+=` AND st.group_id=$${p.length}`;}
       const r=await pool.query(`
@@ -91,6 +95,41 @@ export default async function handler(req,res){
         const g=await pool.query(`SELECT id FROM school_groups WHERE id=$1 AND school_id=$2 AND owner_key=$3 AND active=true`,[groupId,schoolId,owner]);
         if(!g.rows[0])return json(res,400,{error:'Guruh noto‘g‘ri'});
       }
+      /* AYNI GURUHDA AYNI ISM IKKI MARTA YOZILMASIN.
+         Ro'yxat ikki marta kiritilganda yoki o'chirib qayta qo'shilganda
+         bazada nusxalar to'planib qolardi. Solishtirishda katta-kichik
+         harf, ortiqcha bo'sh joy va tinish belgilari hisobga olinmaydi. */
+      const NORM=`btrim(regexp_replace(
+        regexp_replace(upper(coalesce(full_name,'')), '[^[:alnum:][:space:]]', '', 'g'),
+        '[[:space:]]+', ' ', 'g'))`;
+      const NORMQ=`btrim(regexp_replace(
+        regexp_replace(upper($4::text), '[^[:alnum:][:space:]]', '', 'g'),
+        '[[:space:]]+', ' ', 'g'))`;
+      const bor=await pool.query(`
+        SELECT id,active FROM students
+         WHERE owner_key=$1 AND school_id=$2
+           AND COALESCE(group_id::text,'')=COALESCE($3::text,'')
+           AND ${NORM}=${NORMQ}
+         ORDER BY active DESC, created_at
+         LIMIT 1
+      `,[owner,schoolId,groupId,name]);
+
+      if(bor.rows[0] && bor.rows[0].active){
+        return json(res,409,{error:'Bu guruhda shu ismli o‘quvchi allaqachon bor',
+                             id:bor.rows[0].id,duplicate:true});
+      }
+      if(bor.rows[0]){
+        /* Avval o'chirilgan ekan — yangi qator yaratmaymiz, o'shani
+           qaytaramiz. Shunda o'lik yozuvlar to'planib ketmaydi. */
+        const rev=await pool.query(`
+          UPDATE students SET active=true,group_id=$1,birth_date=COALESCE($2,birth_date),
+                 phone=COALESCE($3,phone),plate=COALESCE($4,plate),
+                 notes=COALESCE($5,notes),attendance_count=$6
+           WHERE id=$7 AND owner_key=$8 RETURNING *
+        `,[groupId,birthDate,phone,plate,notes||null,attendanceCount,bor.rows[0].id,owner]);
+        return json(res,201,rev.rows[0]);
+      }
+
       const r=await pool.query(`
         INSERT INTO students(owner_key,school_id,group_id,full_name,birth_date,phone,plate,notes,attendance_count)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
