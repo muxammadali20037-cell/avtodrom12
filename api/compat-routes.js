@@ -32,6 +32,20 @@ function ensureCompatSchema() {
           ADD COLUMN IF NOT EXISTS manual_attendance_count INTEGER NOT NULL DEFAULT 0
       `);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_students_birth_date ON students(birth_date)`);
+
+      /* DAVOMAT uchun: avtoshkola darsida avtomobil qatnashmaydi,
+         shuning uchun sessiya avtomobilsiz ham yozilishi kerak.
+         Mavjud yozuvlarga ta'sir qilmaydi — faqat majburiylik olinadi. */
+      const q = async sql => {
+        try { await pool.query(sql); } catch (e) { console.error('COMPAT SCHEMA:', e.message); }
+      };
+      await q(`ALTER TABLE sessions ALTER COLUMN vehicle_id DROP NOT NULL`);
+      /* Instruktor ro'yxatdan tanlanmasa ham ismi saqlansin */
+      await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS instructor_name TEXT`);
+      /* Davomat yozuvlarini ajratib olish uchun */
+      await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS customer_type VARCHAR(20)`);
+      await q(`CREATE INDEX IF NOT EXISTS idx_sessions_student_done
+               ON sessions(student_id, status) WHERE student_id IS NOT NULL`);
     })().catch(error => {
       schemaPromise = null;
       throw error;
@@ -71,6 +85,7 @@ export async function handleCompatRequest(req, res) {
   const studentMatch = pathname.match(/^\/api\/students\/([^/]+)$/);
   const isCompatRoute =
     (req.method === 'POST' && (pathname === '/api/sessions/start' || pathname === '/api/student-bulk')) ||
+    (req.method === 'POST' && pathname === '/api/attendance') ||
     (req.method === 'GET' && pathname === '/api/students') ||
     (req.method === 'PATCH' && !!schoolMatch) ||
     (req.method === 'PATCH' && !!studentMatch);
@@ -153,6 +168,110 @@ export async function handleCompatRequest(req, res) {
       } catch (e) {
         try { await c.query('ROLLBACK'); } catch {}
         send(res,e.code==='23505'?409:400,{error:e.code==='23505'?'Bu avtomobil hozir jarayonda':(e.message||'START bajarilmadi')});
+        return true;
+      } finally { c.release(); }
+    }
+
+    /* =====================================================================
+       DAVOMAT — avtoshkola o'quvchisi uchun
+
+       Avtoshkola darsida vaqt OCHILMAYDI: o'quvchi instruktori bilan
+       keladi, darsi shu yerda belgilanadi va tugadi. Shuning uchun
+       avtomobil raqami ham so'ralmaydi.
+
+       Har bir dars ALOHIDA yozuv bo'ladi (2 soat = 2 yozuv). Sababi:
+       darslar soni butun ilovada `SELECT COUNT(*) FROM sessions ...`
+       bilan hisoblanadi — bitta yozuvga 2 soat yozsak, u 1 dars bo'lib
+       ko'rinardi.
+       ===================================================================== */
+    if (req.method === 'POST' && pathname === '/api/attendance') {
+      const body = bodyOf(req);
+      const studentId = String(body.studentId || body.student_id || '').trim();
+      const insName = String(body.instructorName || body.instructor_name || '').trim();
+      const insId = String(body.instructorId || body.instructor_id || '').trim() || null;
+      const lessons = Math.max(1, Math.min(12, Math.round(Number(body.lessons || 1)) || 1));
+
+      if (!studentId) { send(res, 400, { error: 'O‘quvchini tanlang' }); return true; }
+      if (!insName) { send(res, 400, { error: 'Instruktorning ism-familiyasini yozing' }); return true; }
+
+      const c = await pool.connect();
+      try {
+        await c.query('BEGIN');
+
+        const sr = await c.query(
+          `SELECT id, school_id, group_id, full_name FROM students
+            WHERE id=$1 AND owner_key=$2 AND active=true`, [studentId, user]);
+        const st = sr.rows[0];
+        if (!st) throw new Error('O‘quvchi topilmadi');
+
+        const set = await c.query(
+          `SELECT hourly_rate, minimum_payment, calculation_mode FROM user_settings WHERE user_id=$1`, [user]);
+        const cfg = set.rows[0] || { hourly_rate: 30000, minimum_payment: 0, calculation_mode: 'hour' };
+
+        /* Ustunlar to'plami o'rnatmadan o'rnatmaga farq qiladi —
+           bor ustunlarnigina yozamiz, aks holda «column ... does not
+           exist» butun amalni yiqitardi. */
+        const cols = new Set((await c.query(
+          `SELECT column_name FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='sessions'`)).rows.map(r => r.column_name));
+
+        /* vehicle_id majburiy bo'lsa davomat yozib bo'lmaydi —
+           administratorga aniq aytamiz (migratsiya kerak). */
+        const vreq = (await c.query(
+          `SELECT is_nullable FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='sessions' AND column_name='vehicle_id'`)).rows[0];
+        if (vreq && vreq.is_nullable === 'NO') {
+          throw new Error('Baza tayyor emas: sessions.vehicle_id bo‘sh bo‘lishiga ruxsat bering '
+            + '(ALTER TABLE sessions ALTER COLUMN vehicle_id DROP NOT NULL)');
+        }
+
+        const now = Date.now();
+        const HOUR = 3600;
+        const ids = [];
+        for (let i = 0; i < lessons; i++) {
+          const startedAt = new Date(now + i * HOUR * 1000).toISOString();
+          const finishedAt = new Date(now + (i + 1) * HOUR * 1000).toISOString();
+          const cand = [
+            ['user_id', user],
+            ['vehicle_id', null],
+            ['started_at', startedAt],
+            ['finished_at', finishedAt],
+            ['duration_seconds', HOUR],
+            ['hourly_rate', cfg.hourly_rate],
+            ['minimum_payment', cfg.minimum_payment],
+            ['calculation_mode', cfg.calculation_mode],
+            ['manual_price', true],
+            ['amount', 0],
+            ['cash_amount', 0],
+            ['terminal_amount', 0],
+            ['payment_method', 'cash'],
+            ['status', 'completed'],
+            ['school_id', st.school_id],
+            ['group_id', st.group_id],
+            ['student_id', st.id],
+            ['instructor_id', insId],
+            ['instructor_name', insName],
+            ['driver_name', st.full_name],
+            ['customer_type', 'school'],
+            ['planned_minutes', 60],
+            ['target_duration', HOUR],
+            ['lessons_counted', 1],
+          ].filter(([k]) => cols.has(k));
+
+          const r = await c.query(
+            `INSERT INTO sessions(${cand.map(([k]) => k).join(', ')})
+             VALUES(${cand.map((_, n) => '$' + (n + 1)).join(',')}) RETURNING id`,
+            cand.map(([, v]) => v));
+          ids.push(r.rows[0].id);
+        }
+
+        await c.query('COMMIT');
+        send(res, 201, { ok: true, lessons, ids, studentId: st.id, studentName: st.full_name, instructorName: insName });
+        return true;
+      } catch (e) {
+        try { await c.query('ROLLBACK'); } catch {}
+        console.error('[attendance]', e);
+        send(res, 400, { error: e.message || 'Davomat yozilmadi' });
         return true;
       } finally { c.release(); }
     }
