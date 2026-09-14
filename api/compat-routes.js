@@ -46,6 +46,12 @@ function ensureCompatSchema() {
       await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS customer_type VARCHAR(20)`);
       await q(`CREATE INDEX IF NOT EXISTS idx_sessions_student_done
                ON sessions(student_id, status) WHERE student_id IS NOT NULL`);
+      /* Katta hajm uchun: 3000 o'quvchi va yuz minglab dars yozuvida
+         hisobotlar jadvalni boshdan-oxir o'qib chiqmasin. */
+      await q(`CREATE INDEX IF NOT EXISTS idx_sessions_user_status_started
+               ON sessions(user_id, status, started_at DESC)`);
+      await q(`CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON sessions(started_at)`);
+      await q(`CREATE INDEX IF NOT EXISTS idx_students_owner_name ON students(owner_key, full_name)`);
 
       /* ================= DARSLAR SONI =================
          `students.attendance_count` — haqiqiy ustun, uni trigger
