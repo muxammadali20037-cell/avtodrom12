@@ -1195,7 +1195,13 @@ body.admin-open { overflow: hidden; }
           <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-credit-card" aria-hidden="true"></i></div><div class="stat-label">Terminal</div><div class="stat-value green" id="rdterm">0</div></div>
           <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i></div><div class="stat-label">Jami vaqt</div><div class="stat-value" id="rdtime">0</div></div>
         </div>
-        <div class="panel"><div id="dailyTableWrap" aria-live="polite"></div></div>
+        <div class="panel"><div id="dailyTableWrap" aria-live="polite"></div>
+          <div class="search-hint" style="margin-top:12px">
+            <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+            «Davomat» qatorlarida vaqt o'lchanmaydi: <b>Kirish</b> — dars qayd etilgan payt, <b>Chiqish</b> esa noma'lum bo'lgani uchun «—» turadi.
+            Haqiqiy boshlanish va tugash vaqti faqat instruktor QR chekni skanerlab, darsni yakunlaganda yoziladi.
+          </div>
+        </div>
       </section>
 
       <!-- ===== TARIX ===== -->
@@ -1364,7 +1370,7 @@ body.admin-open { overflow: hidden; }
 
 <div id="modal"></div>
 <div id="toastBox" class="toast-container" aria-live="polite" aria-atomic="false"></div>
-<input type="file" id="importFile" accept=".xlsx,.xls,.csv" class="hidden" aria-hidden="true">
+<input type="file" id="importFile" accept=".xlsx,.xls,.csv,.docx" class="hidden" aria-hidden="true">
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
@@ -2311,6 +2317,52 @@ const Data = {
       || null;
   },
   instructorById(id) { return STATE.instructors.find(x => String(x.id) === String(id)) || null; },
+
+  /* BUGUNGI DARSLAR MANBASI
+     «Bugun» ko'rsatkichi kunlik hisobotdan o'qiladi. Ilgari u faqat
+     «Kunlik hisobot» sahifasi ochilganda yuklanardi — «Yangi avtomobil»
+     sahifasida esa bo'sh bo'lgani uchun har doim «0 dars» chiqardi.
+     Endi kerak bo'lganda o'zi yuklab oladi (bir daqiqa keshlanadi). */
+  dailyLoading: null,
+  async ensureToday(force) {
+    const today = localDateISO(0);
+    const fresh = STATE.daily && STATE.daily.date === today
+      && STATE.dailyAt && (Date.now() - STATE.dailyAt) < 60000;
+    if (!force && fresh) return STATE.daily;
+    if (this.dailyLoading) return this.dailyLoading;
+    this.dailyLoading = (async () => {
+      try {
+        const d = await api('/reports/daily?date=' + encodeURIComponent(today));
+        STATE.daily = d && d.rows ? d : { date: today, rows: [] };
+        STATE.daily.date = today;
+        STATE.dailyAt = Date.now();
+      } catch (e) {
+        /* Xato bo'lsa ham vaqtni belgilaymiz — har renderda qayta
+           so'rov yuborilib, server bejiz yuklanmasin. */
+        if (!STATE.daily || STATE.daily.date !== today) STATE.daily = { date: today, rows: [] };
+        STATE.dailyAt = Date.now();
+        console.error('[daily]', e.technical || e.message);
+      } finally { this.dailyLoading = null; }
+      return STATE.daily;
+    })();
+    return this.dailyLoading;
+  },
+  /* Davomat yozilgach darhol ko'rinsin — serverni qayta so'ramaymiz */
+  addTodayLessons(studentId, lessons) {
+    const today = localDateISO(0);
+    if (!STATE.daily || STATE.daily.date !== today || !Array.isArray(STATE.daily.rows)) {
+      STATE.daily = { date: today, rows: [] };
+      STATE.dailyAt = Date.now();
+    }
+    const now = new Date().toISOString();
+    for (let i = 0; i < num(lessons); i++) {
+      STATE.daily.rows.push({
+        student_id: studentId, duration_seconds: CONFIG.LESSON_SECONDS,
+        lessons_counted: 1, started_at: now
+      });
+    }
+  },
+
   /* O'quvchining bugungi darslari — kunlik hisobot ma'lumotidan (server manbasi) */
   todayLessons(studentId) {
     const rows = (STATE.daily && STATE.daily.rows) || [];
@@ -2390,6 +2442,8 @@ const Add = {
       STATE.studentsStale = false;
       Data.reloadStudents();
     }
+    /* «Bugun» ko'rsatkichi uchun bugungi hisobot kerak */
+    Data.ensureToday().then(() => { if (STATE.form.student) Add.renderStudentPanel(); });
     Queue.render();
   },
 
@@ -2641,6 +2695,8 @@ const Add = {
           STATE.form.student = fresh;
           const idx = (STATE.students || []).findIndex(x => String(x.id) === String(d.student.id));
           if (idx >= 0) STATE.students[idx] = Object.assign({}, STATE.students[idx], { attendance_count: jami });
+          /* «Bugun» ko'rsatkichi darhol yangilansin */
+          Data.addTodayLessons(d.student.id, n);
           this.renderStudentPanel();
 
           if ($('comboInstructorInput')) $('comboInstructorInput').value = '';
@@ -3547,6 +3603,9 @@ const Reports = {
       if (host) host.innerHTML = loadingLine('Hisobot yuklanmoqda...');
       const data = await api('/reports/daily?date=' + encodeURIComponent(date));
       STATE.daily = data || {};
+      /* «Bugun» ko'rsatkichi shu ma'lumotdan foydalanadi */
+      if (!STATE.daily.date) STATE.daily.date = date;
+      STATE.dailyAt = Date.now();
       const s = STATE.daily.summary || {};
       const rows = Array.isArray(STATE.daily.rows) ? STATE.daily.rows : [];
       $('rdc').textContent = s.count !== undefined && s.count !== null ? s.count : rows.length;
@@ -4230,7 +4289,100 @@ const Excel = {
       toast('Excel faylni yaratishda xatolik yuz berdi.', 'error');
     }
   },
+  /* ===== WORD (.docx) O'QISH =====
+     .docx — bu ichida XML bo'lgan ZIP arxiv. Qo'shimcha kutubxona
+     ulamaslik uchun arxivni o'zimiz ochamiz: ZIP katalogini o'qib,
+     `word/document.xml` ni brauzerning DecompressionStream'i bilan
+     yozamiz. Keyin jadval qatorlari va sarlavha paragraflari
+     Excel'dagi kabi «qator -> kataklar» ro'yxatiga aylantiriladi. */
+  xmlText(v) {
+    return String(v)
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+      .replace(/&#(\d+);/g, (m, d) => String.fromCharCode(Number(d)))
+      .replace(/&#x([0-9a-f]+);/gi, (m, d) => String.fromCharCode(parseInt(d, 16)))
+      .replace(/&amp;/g, '&');
+  },
+  async unzipEntry(buf, wanted) {
+    const dv = new DataView(buf);
+    const u8 = new Uint8Array(buf);
+    /* Arxiv oxiridagi katalog belgisini (EOCD) orqadan qidiramiz */
+    let eocd = -1;
+    for (let i = u8.length - 22; i >= 0 && i > u8.length - 66000; i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error('Fayl .docx emas yoki buzilgan.');
+    const count = dv.getUint16(eocd + 10, true);
+    let p = dv.getUint32(eocd + 16, true);
+    for (let n = 0; n < count; n++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) break;
+      const method = dv.getUint16(p + 10, true);
+      const compSize = dv.getUint32(p + 20, true);
+      const nameLen = dv.getUint16(p + 28, true);
+      const extraLen = dv.getUint16(p + 30, true);
+      const cmtLen = dv.getUint16(p + 32, true);
+      const local = dv.getUint32(p + 42, true);
+      const name = new TextDecoder('utf-8').decode(u8.subarray(p + 46, p + 46 + nameLen));
+      if (name === wanted) {
+        const lNameLen = dv.getUint16(local + 26, true);
+        const lExtraLen = dv.getUint16(local + 28, true);
+        const start = local + 30 + lNameLen + lExtraLen;
+        const raw = u8.subarray(start, start + compSize);
+        if (method === 0) return new TextDecoder('utf-8').decode(raw);
+        if (method !== 8) throw new Error('Word fayl siqilishi qo\'llab-quvvatlanmaydi.');
+        if (typeof DecompressionStream !== 'function') {
+          throw new Error('Brauzeringiz Word faylni ocha olmaydi. Faylni Excel (.xlsx) ga saqlang.');
+        }
+        const ds = new DecompressionStream('deflate-raw');
+        const stream = new Blob([raw]).stream().pipeThrough(ds);
+        return await new Response(stream).text();
+      }
+      p += 46 + nameLen + extraLen + cmtLen;
+    }
+    throw new Error('Word fayl ichidan matn topilmadi.');
+  },
+  docxToRows(xml) {
+    const rows = [];
+    let row = null, cell = null, para = [];
+    const re = /<w:tr[\s>]|<\/w:tr>|<w:tc[\s>]|<\/w:tc>|<\/w:p>|<w:tab\b[^>]*\/?>|<w:br\b[^>]*\/?>|<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g;
+    let m;
+    while ((m = re.exec(xml)) !== null) {
+      const tag = m[0];
+      if (m[1] !== undefined) {
+        const txt = this.xmlText(m[1]);
+        if (cell) cell.push(txt); else para.push(txt);
+        continue;
+      }
+      if (tag.indexOf('<w:tr') === 0) { row = []; continue; }
+      if (tag === '</w:tr>') { if (row) rows.push(row); row = null; continue; }
+      if (tag.indexOf('<w:tc') === 0) { cell = []; continue; }
+      if (tag === '</w:tc>') {
+        if (row) row.push(cell ? cell.join(' ').replace(/\s+/g, ' ').trim() : '');
+        cell = null; continue;
+      }
+      if (tag === '</w:p>') {
+        if (cell) { cell.push(' '); continue; }
+        const t = para.join('').replace(/\s+/g, ' ').trim();
+        if (t) rows.push([t]);
+        para = [];
+        continue;
+      }
+      /* <w:tab/> va <w:br/> — bo'sh joy */
+      if (cell) cell.push(' '); else para.push(' ');
+    }
+    return rows;
+  },
+  async readDocx(file) {
+    const buf = await file.arrayBuffer();
+    const xml = await this.unzipEntry(buf, 'word/document.xml');
+    return this.docxToRows(xml);
+  },
+
   readFile(file) {
+    if (/\.docx$/i.test(file && file.name || '')) return this.readDocx(file);
+    if (/\.doc$/i.test(file && file.name || '')) {
+      return Promise.reject(new Error('Eski .doc formati o\'qilmaydi. Word\'da «Save As» qilib .docx yoki .xlsx saqlang.'));
+    }
     return new Promise((resolve, reject) => {
       const fr = new FileReader();
       fr.onerror = () => reject(new Error('Faylni o\'qib bo\'lmadi.'));
@@ -4270,6 +4422,279 @@ const Excel = {
   templateInstructors() {
     this.save([["F.I.Sh.", 'Telefon', 'Avtoshkola', 'Avtomobil raqami', 'Avtomobil rusumi', 'Holati'],
       ['Sharif Rashidov', '+998901234567', 'AVTODROM', '01 555 AAA', 'Chevrolet Cobalt', 'Faol']], 'instruktorlar-shablon', 'Instruktorlar');
+  }
+};
+
+/* ===================== 20b. GURUHLI RO'YXAT IMPORTI =====================
+   Avtoshkolalar ro'yxatni bitta Word yoki Excel faylda beradi:
+
+       11-2026гр.  ТашАвтоСкул
+       1 | ABDUMAJIDOV ABDULLO ABDUSALIM O'G'LI | 22.09.1994 | 7
+       2 | ABDUVALIYEVA MUSLIMA ABDURASUL QIZI  | 27.06.2008 | 8
+       ...
+       12-2026гр.  ТашАвтоСкул
+       1 | ...
+
+   Ya'ni bitta faylda bir nechta guruh. Bu yerda sarlavhalar topiladi,
+   ostidagi o'quvchilar o'sha guruhga biriktiriladi, guruh bazada
+   bo'lmasa import paytida yaratiladi.
+
+   Avtoshkola sarlavhadan olinmaydi — uni operator import oynasida
+   tanlaydi (kirill/lotin nomi mos kelmay qolmasligi uchun). */
+const Roster = {
+  file: null,
+  groups: [],     /* [{name, rows:[{fullName, birthDate, lessons}], skipped:[]}] */
+  skipped: [],
+  schoolId: '',
+
+  /* «11-2026гр.», «11-guruh», «Guruh 11», «11 гр» -> "11"
+     Sanalar (22.09.1994) noto'g'ri tushib qolmasligi uchun nuqta bilan
+     yozilgan qatorlar guruh deb qabul qilinmaydi. */
+  groupOf(text) {
+    const t = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!t || t.length > 90) return null;
+    /* Tug'ilgan sana guruh deb olinmasin */
+    if (/^\d{1,2}[./-]\d{1,2}[./-]\d{4}$/.test(t)) return null;
+
+    /* «11-2026гр.», «11-2026 гр», «11-2026 guruh» */
+    let m = t.match(/(?:^|[^\d.])(\d{1,3})\s*[-–—]\s*\d{2,4}\s*(?:гр|гp|группа|guruh|guruhi|g)\.?/i);
+    if (m) return m[1];
+    /* «12-guruh», «7 гр.», «7-гр» */
+    m = t.match(/(?:^|[^\d.])(\d{1,3})\s*[-–—\s]\s*(?:гр|гp|группа|группы|guruh|guruhi)\.?/i);
+    if (m) return m[1];
+    /* «Guruh № 5», «группа 5» */
+    m = t.match(/(?:гр|гp|группа|guruh|guruhi)\.?\s*[№#]?\s*(\d{1,3})(?!\d)/i);
+    if (m) return m[1];
+    /* Yolg'iz «11-2026» — butun matn shundan iborat bo'lsagina */
+    m = t.match(/^(\d{1,3})\s*[-–—]\s*(?:19|20)\d{2}\s*\.?$/);
+    if (m) return m[1];
+    return null;
+  },
+
+  isDate(v) {
+    const t = String(v || '').trim();
+    return /^\d{1,2}[./-]\d{1,2}[./-]\d{4}$/.test(t) || /^\d{4}-\d{2}-\d{2}/.test(t);
+  },
+  toISO(v) {
+    const t = String(v || '').trim();
+    if (!t) return '';
+    let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[1] + '-' + m[2] + '-' + m[3];
+    m = t.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+    if (m) {
+      const d = m[1].padStart(2, '0'), mo = m[2].padStart(2, '0');
+      if (Number(mo) < 1 || Number(mo) > 12 || Number(d) < 1 || Number(d) > 31) return '';
+      return m[3] + '-' + mo + '-' + d;
+    }
+    return '';
+  },
+  /* Jadval sarlavhasi («№ | Ф.И.О. | Туғилган сана | Дарслар») o'quvchi
+     deb hisoblanmasligi kerak — «Туғилган сана» ham ikki so'zli matn.
+     Shuning uchun katakni sarlavha so'zlari bilan solishtiramiz. */
+  HEAD_WORDS: ['n', 'no', 'nn', 'tr', 'fish', 'fio', 'фио', 'ism', 'ismi', 'familiya',
+    'sana', 'сана', 'дата', 'dars', 'darslar', 'дарс', 'дарслар', 'soni', 'jami',
+    'telefon', 'телефон', 'izoh', 'примечание', 'guruh', 'группа'],
+  headerish(v) {
+    const k = searchNorm(v).replace(/\s+/g, '');
+    if (!k) return false;
+    if (this.HEAD_WORDS.indexOf(k) >= 0) return true;
+    return /sana$/.test(k) || /дарс/.test(k) || /дата/.test(k) || /фио/.test(k) || /^ту[гғ]/.test(k);
+  },
+  isHeaderRow(cells) {
+    return cells.filter(c => this.headerish(c)).length >= 2;
+  },
+
+  /* Kamida ikkita so'zdan iborat, harflardan tashkil topgan katak */
+  isName(v) {
+    const t = String(v || '').replace(/\s+/g, ' ').trim();
+    if (t.length < 6 || t.length > 120) return false;
+    if (/\d/.test(t)) return false;
+    const words = t.split(' ').filter(w => w.length > 1);
+    return words.length >= 2 && /[a-zA-ZЀ-ӿ]/.test(t);
+  },
+
+  parse(aoa) {
+    const groups = [];
+    const skipped = [];
+    let cur = null;
+    const openGroup = name => {
+      let g = groups.find(x => x.name === name);
+      if (!g) { g = { name: name, rows: [], dups: 0 }; groups.push(g); }
+      return g;
+    };
+
+    (aoa || []).forEach((raw, i) => {
+      const cells = (Array.isArray(raw) ? raw : [raw])
+        .map(c => String(c === null || c === undefined ? '' : c).replace(/\s+/g, ' ').trim());
+      const joined = cells.join(' ').trim();
+      if (!joined) return;
+
+      /* 1) Guruh sarlavhasimi? */
+      const gname = this.groupOf(joined);
+      if (gname && !cells.some(c => this.isName(c))) { cur = openGroup(gname); return; }
+
+      /* 2) Jadval sarlavhasi bo'lsa — o'tkazib yuboramiz */
+      if (this.isHeaderRow(cells)) return;
+
+      /* 3) O'quvchi qatorimi? */
+      const nameIdx = cells.findIndex(c => this.isName(c));
+      if (nameIdx < 0) return;                       /* sarlavha, izoh, bo'sh qator */
+      const fullName = cells[nameIdx];
+
+      let birthDate = '';
+      let lessons = 0;
+      for (let k = nameIdx + 1; k < cells.length; k++) {
+        const c = cells[k];
+        if (!c) continue;
+        if (!birthDate && this.isDate(c)) { birthDate = this.toISO(c); continue; }
+        if (/^\d{1,3}$/.test(c)) { lessons = Number(c); break; }
+      }
+
+      if (!cur) { skipped.push({ n: i + 1, name: fullName, why: 'guruh sarlavhasi topilmadi' }); return; }
+      const norm = searchNorm(fullName);
+      if (cur.rows.some(r => searchNorm(r.fullName) === norm)) { cur.dups++; return; }
+      cur.rows.push({ fullName: fullName, birthDate: birthDate, lessons: lessons });
+    });
+
+    this.groups = groups.filter(g => g.rows.length);
+    this.skipped = skipped;
+    return this.groups;
+  },
+
+  /* ---------- fayl tanlash ---------- */
+  pick() {
+    const input = $('importFile');
+    input.value = '';
+    input.onchange = async () => {
+      const f = input.files && input.files[0];
+      if (!f) return;
+      try {
+        toast('Fayl o\'qilmoqda...');
+        const aoa = await Excel.readFile(f);
+        const groups = this.parse(aoa);
+        if (!groups.length) {
+          toast('Faylda guruh va o\'quvchi topilmadi. Sarlavha «11-2026гр.» ko\'rinishida bo\'lishi kerak.', 'error');
+          return;
+        }
+        this.preview();
+      } catch (e) { toast(e.message, 'error'); }
+    };
+    input.click();
+  },
+
+  /* ---------- ko'rib chiqish ---------- */
+  preview() {
+    const schools = Data.activeSchools();
+    if (!schools.length) { toast('Avval avtoshkola qo\'shing.', 'error'); return; }
+    this.schoolId = String(this.schoolId || schools[0].id);
+
+    const totalStudents = this.groups.reduce((a, g) => a + g.rows.length, 0);
+    const totalDups = this.groups.reduce((a, g) => a + g.dups, 0);
+
+    const rowsHTML = this.groups.map(g => {
+      const withDate = g.rows.filter(r => r.birthDate).length;
+      const withLessons = g.rows.filter(r => r.lessons > 0).length;
+      return '<tr><td><b>' + esc(g.name) + '</b></td>'
+        + '<td>' + g.rows.length + '</td>'
+        + '<td>' + withDate + '</td>'
+        + '<td>' + withLessons + '</td>'
+        + '<td class="rosterState" data-g="' + esc(g.name) + '"></td></tr>';
+    }).join('');
+
+    openModal('<div class="modal-head"><div><h2>Guruhli ro\'yxatni import qilish</h2>'
+      + '<p class="text-muted">' + this.groups.length + ' ta guruh, ' + totalStudents + ' ta o\'quvchi topildi</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div class="fg"><label class="field-label muted-label" for="rosterSchool">Qaysi avtoshkolaga yozilsin?</label>'
+      + '<select id="rosterSchool" data-act="rosterSchool">'
+      + schools.map(s => '<option value="' + esc(s.id) + '"' + (String(s.id) === String(this.schoolId) ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('')
+      + '</select>'
+      + '<div class="field-help">Fayldagi avtoshkola nomi emas, shu ro\'yxatdan tanlangani ishlatiladi.</div></div>'
+      + '<div class="import-preview" style="margin-top:12px"><table class="tbl"><thead><tr>'
+      + '<th>Guruh</th><th>O\'quvchi</th><th>Tug\'ilgan sana bor</th><th>Darsi bor</th><th>Bazada</th>'
+      + '</tr></thead><tbody>' + rowsHTML + '</tbody></table></div>'
+      + (totalDups ? '<div class="field-help">Faylning o\'zida ' + totalDups + ' ta takroriy ism bor edi — bir marta olinadi.</div>' : '')
+      + (this.skipped.length ? '<div class="field-help">' + this.skipped.length + ' ta qator guruhsiz qolgani uchun tashlab ketildi.</div>' : '')
+      + '<div class="actions-row"><button class="btn btn-green" type="button" data-act="rosterRun" id="rosterBtn">'
+      + '<span class="spinner"></span><i class="fa-solid fa-file-import btn-icon" aria-hidden="true"></i>'
+      + '<span class="btn-text">' + totalStudents + ' ta o\'quvchini import qilish</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
+      + '<div id="rosterProgress" class="text-muted" style="margin-top:10px"></div>', { wide: true });
+    this.markExisting();
+  },
+  /* Qaysi guruh bazada bor, qaysisi yangi ochiladi */
+  markExisting() {
+    const sid = this.schoolId;
+    document.querySelectorAll('.rosterState').forEach(td => {
+      const name = td.dataset.g;
+      const g = (STATE.groups || []).find(x => String(x.school_id || x.schoolId) === String(sid)
+        && lower(String(x.name).trim()) === lower(String(name).trim()));
+      td.innerHTML = g
+        ? '<span class="badge badge-green">Bor</span>'
+        : '<span class="badge badge-blue">Yangi ochiladi</span>';
+    });
+  },
+  async setSchool(id) {
+    this.schoolId = String(id);
+    /* Tanlangan avtoshkolaning guruhlari hali yuklanmagan bo'lishi mumkin */
+    await Data.reloadGroups(this.schoolId).catch(() => null);
+    this.markExisting();
+  },
+
+  /* ---------- saqlash ---------- */
+  async run() {
+    const sid = this.schoolId;
+    if (!sid) { toast('Avtoshkolani tanlang.', 'error'); return; }
+    await withBusy('roster', $('rosterBtn'), async () => {
+      const prog = $('rosterProgress');
+      await Data.reloadGroups(sid).catch(() => null);
+      let added = 0, skipped = 0, madeGroups = 0, failed = 0, lastError = '';
+
+      for (let i = 0; i < this.groups.length; i++) {
+        const g = this.groups[i];
+        if (prog) prog.textContent = 'Guruh ' + g.name + ' (' + (i + 1) + '/' + this.groups.length + ')...';
+        try {
+          /* Guruh bor-yo'qligini tekshiramiz, bo'lmasa ochamiz */
+          let found = (STATE.groups || []).find(x => String(x.school_id || x.schoolId) === String(sid)
+            && lower(String(x.name).trim()) === lower(String(g.name).trim()));
+          if (!found) {
+            const created = await api('/groups', {
+              method: 'POST',
+              body: jsonBody({ schoolId: sid, school_id: sid, name: g.name })
+            });
+            if (created && created.id) {
+              STATE.groups.push(created);
+              found = created;
+              madeGroups++;
+            }
+          }
+          if (!found) throw new Error('guruh yaratilmadi');
+
+          const res = await api('/student-bulk', {
+            method: 'POST',
+            body: jsonBody({ schoolId: sid, groupId: found.id, rows: g.rows })
+          });
+          added += num(res && res.added);
+          skipped += num(res && res.skipped);
+        } catch (e) {
+          failed += g.rows.length;
+          lastError = (g.name + '-guruh: ' + (e.message || 'xato'));
+          console.error('[roster]', g.name, e.technical || e.message);
+        }
+      }
+
+      if (prog) {
+        prog.innerHTML = '<b>' + added + '</b> ta o\'quvchi qo\'shildi, '
+          + '<b>' + skipped + '</b> tasi bazada bor edi, '
+          + '<b>' + madeGroups + '</b> ta yangi guruh ochildi'
+          + (failed ? ', <b>' + failed + '</b> tasida xato' : '') + '.'
+          + (lastError ? '<div class="text-error" style="margin-top:6px">' + esc(lastError) + '</div>' : '');
+      }
+      toast(added + ' ta o\'quvchi import qilindi.', failed ? 'warn' : 'ok');
+      STATE.studentsStale = true;
+      await Data.reloadStudents().catch(() => null);
+      if (typeof GroupPick !== 'undefined') { GroupPick.index = null; GroupPick.stamp = ''; }
+      if (typeof Admin !== 'undefined' && Admin.refreshCounters) Admin.refreshCounters();
+    });
   }
 };
 
@@ -5287,6 +5712,9 @@ const Admin = {
       + '<div class="actions-row"><button class="btn btn-light btn-sm" type="button" data-act="exportInstructors"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export</button>'
       + '<button class="btn btn-green btn-sm" type="button" data-act="importInstructors"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Import</button>'
       + '<button class="btn btn-ghost btn-sm" type="button" data-act="templateInstructors"><i class="fa-solid fa-download" aria-hidden="true"></i> Shablon</button></div></div>'
+      + '<div class="card"><h3><i class="fa-solid fa-users-rectangle" style="color:var(--g)" aria-hidden="true"></i> Guruhli ro\'yxat</h3>'
+      + '<p class="text-muted" style="font-size:12.5px">Word yoki Excel fayl — bir nechta guruh birdaniga, guruhlar avtomat ochiladi</p>'
+      + '<div class="actions-row"><button class="btn btn-green btn-sm" type="button" data-act="rosterPick"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Fayldan import</button></div></div>'
       + '<div class="card"><h3><i class="fa-solid fa-chart-bar" style="color:var(--g)" aria-hidden="true"></i> Kunlik hisobot</h3>'
       + '<p class="text-muted" style="font-size:12.5px">Operator panelidagi tanlangan sana bo\'yicha</p>'
       + '<div class="actions-row"><button class="btn btn-light btn-sm" type="button" data-act="exportDaily"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export</button></div></div>'
@@ -5548,6 +5976,11 @@ const ACTIONS = {
   adminLogin: () => Admin.login(),
   closeAdminPanel: () => Admin.closePanel(),
   adminTab: d => Admin.setTab(d.tab),
+
+  /* --- guruhli ro'yxat importi (Word / Excel) --- */
+  rosterPick: () => Roster.pick(),
+  rosterSchool: (d, el) => Roster.setSchool(el.value),
+  rosterRun: () => Roster.run(),
   adminRefresh: () => Admin.realtime(),
   schoolModal: d => Admin.schoolModal(d.id || ''),
   schoolSave: d => Admin.schoolSave(d.id || ''),
@@ -5623,6 +6056,13 @@ document.addEventListener('click', e => {
   if (el.dataset.stop === '1') e.stopPropagation();
   if (el.tagName === 'A') e.preventDefault();
   runAction(act, el.dataset, el, e);
+});
+
+/* <select data-act="..."> uchun: bosish emas, o'zgarish hodisasi kerak */
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (!el || el.tagName !== 'SELECT' || !el.dataset || !el.dataset.act) return;
+  runAction(el.dataset.act, el.dataset, el, e);
 });
 
 document.addEventListener('submit', e => {
