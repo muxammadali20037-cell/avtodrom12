@@ -131,12 +131,21 @@ async function discrepancies(req, res, userId, search) {
                                      THEN 'name:' || LOWER(n.ins_name_raw) END, 'none') AS k
       FROM norm n
     ),
-    opened AS (
+    /* PLATNIY — oddiy mijoz bo'lib kelganlar. Pul shular uchun olinadi.
+       Yakunlanmagan (jarayondagi) sessiya uchun pul hali to'lanmagan,
+       shuning uchun «to'lashi kerak» faqat yakunlanganlari bo'yicha
+       hisoblanadi, jarayondagisi alohida ko'rsatiladi. */
+    paid AS (
       SELECT k,
-             COUNT(*)::int AS opened_sessions,
+             COUNT(*)::int AS paid_sessions,
+             COUNT(DISTINCT COALESCE(NULLIF(student_id, ''), 'sess:' || id::text))::int AS paid_students,
              SUM(GREATEST(1, CEIL(
                NULLIF(GREATEST(target_duration, duration_seconds), 0)::numeric / ${LESSON_SECONDS}
-             )))::int AS opened_hours,
+             )))::int AS paid_hours,
+             SUM(CASE WHEN status = 'completed' THEN GREATEST(1, CEIL(
+               NULLIF(GREATEST(target_duration, duration_seconds), 0)::numeric / ${LESSON_SECONDS}
+             )) ELSE 0 END)::int AS billable_hours,
+             COUNT(*) FILTER (WHERE status <> 'completed')::int AS pending_sessions,
              SUM(amount)::numeric  AS amount,
              SUM(cash_amount)::numeric AS cash_amount,
              SUM(terminal_amount)::numeric AS terminal_amount
@@ -144,26 +153,30 @@ async function discrepancies(req, res, userId, search) {
        WHERE customer_type <> 'school'
        GROUP BY k
     ),
+    /* BEPUL — avtoshkola davomati. Pul olinmaydi, lekin soni ko'rinadi. */
     att AS (
       SELECT k,
-             SUM(GREATEST(1, lessons_counted))::int AS lesson_hours,
+             SUM(GREATEST(1, lessons_counted))::int AS free_hours,
              COUNT(*)::int AS attendance_rows,
-             COUNT(DISTINCT student_id)::int AS students
+             COUNT(DISTINCT student_id)::int AS free_students
         FROM keyed
        WHERE customer_type = 'school'
        GROUP BY k
     ),
     merged AS (
       SELECT COALESCE(o.k, a.k) AS k,
-             COALESCE(o.opened_sessions, 0) AS opened_sessions,
-             COALESCE(o.opened_hours, 0)    AS opened_hours,
-             COALESCE(o.amount, 0)          AS amount,
-             COALESCE(o.cash_amount, 0)     AS cash_amount,
-             COALESCE(o.terminal_amount, 0) AS terminal_amount,
-             COALESCE(a.lesson_hours, 0)    AS lesson_hours,
-             COALESCE(a.attendance_rows, 0) AS attendance_rows,
-             COALESCE(a.students, 0)        AS students
-        FROM opened o
+             COALESCE(o.paid_sessions, 0)    AS paid_sessions,
+             COALESCE(o.paid_students, 0)    AS paid_students,
+             COALESCE(o.paid_hours, 0)       AS paid_hours,
+             COALESCE(o.billable_hours, 0)   AS billable_hours,
+             COALESCE(o.pending_sessions, 0) AS pending_sessions,
+             COALESCE(o.amount, 0)           AS amount,
+             COALESCE(o.cash_amount, 0)      AS cash_amount,
+             COALESCE(o.terminal_amount, 0)  AS terminal_amount,
+             COALESCE(a.free_hours, 0)       AS free_hours,
+             COALESCE(a.attendance_rows, 0)  AS attendance_rows,
+             COALESCE(a.free_students, 0)    AS free_students
+        FROM paid o
         FULL OUTER JOIN att a ON a.k = o.k
     )
     SELECT m.*,
@@ -171,47 +184,17 @@ async function discrepancies(req, res, userId, search) {
                     (SELECT MAX(kk.ins_name_raw) FROM keyed kk WHERE kk.k = m.k)) AS instructor_name,
            i.id::text  AS instructor_id,
            i.phone     AS instructor_phone,
-           i.plate     AS instructor_plate,
-           (m.lesson_hours - m.opened_hours) AS diff
+           i.plate     AS instructor_plate
       FROM merged m
       LEFT JOIN instructors i
              ON i.id::text = m.k AND i.owner_key = $3
-     ORDER BY (m.lesson_hours - m.opened_hours) DESC,
-              COALESCE(i.full_name, '') ASC`;
+     ORDER BY COALESCE(i.full_name, '') ASC`;
 
   const owner = String(req.__ownerKey || userId);
   const r = await pool.query(sql, [userId, date, owner]);
 
-  const rows = r.rows.map(x => {
-    const opened = Number(x.opened_hours) || 0;
-    const lessons = Number(x.lesson_hours) || 0;
-    const diff = lessons - opened;
-    const unknown = x.k === 'none';
-    return {
-      key: x.k,
-      instructorId: x.instructor_id || null,
-      instructorName: unknown ? null : (x.instructor_name || null),
-      phone: x.instructor_phone || null,
-      plate: x.instructor_plate || null,
-      unknown,
-      openedSessions: Number(x.opened_sessions) || 0,
-      openedHours: opened,
-      lessonHours: lessons,
-      attendanceRows: Number(x.attendance_rows) || 0,
-      students: Number(x.students) || 0,
-      amount: Number(x.amount) || 0,
-      cashAmount: Number(x.cash_amount) || 0,
-      terminalAmount: Number(x.terminal_amount) || 0,
-      diff,
-      /* under  — kam ochilgan (pul yetmagan), asosiy xatolik
-         over   — ortiqcha ochilgan
-         ok     — mos
-         info   — faqat aniqlik kiritish kerak (instruktor noma'lum) */
-      state: unknown ? 'info' : (diff > 0 ? 'under' : diff < 0 ? 'over' : 'ok')
-    };
-  });
-
-  /* Bir soatning narxi — kam to'langan pulni taxminlash uchun */
+  /* Bir soatning narxi — sozlamalardagi «soatlik narx» (masalan 100 000).
+     Narx o'zgarsa, faqat sozlamadan o'zgartiriladi, kodga tegilmaydi. */
   let hourlyRate = 0;
   try {
     const s = await pool.query(
@@ -219,22 +202,103 @@ async function discrepancies(req, res, userId, search) {
     hourlyRate = Number(s.rows[0]?.hourly_rate || 0);
   } catch { /* sozlama bo'lmasa 0 */ }
 
-  const summary = rows.reduce((a, x) => {
-    a.openedHours += x.openedHours;
-    a.lessonHours += x.lessonHours;
-    a.students += x.students;
-    a.amount += x.amount;
-    if (x.state === 'under') { a.underCount++; a.underHours += x.diff; }
-    if (x.state === 'over')  { a.overCount++;  a.overHours  += -x.diff; }
-    if (x.state === 'ok')    a.okCount++;
-    if (x.state === 'info')  { a.unknownCount++; a.unknownHours += x.lessonHours; }
-    return a;
-  }, { openedHours: 0, lessonHours: 0, students: 0, amount: 0,
-       underCount: 0, underHours: 0, overCount: 0, overHours: 0,
-       okCount: 0, unknownCount: 0, unknownHours: 0 });
+  /* Bepul o'quvchi juda ko'payib, pullikdan bittasi ham bo'lmasa —
+     instruktor hammasini «avtoshkola» deb yozib ketayotgan bo'lishi
+     mumkin. Shuni alohida belgilaymiz. */
+  const FREE_WARN_HOURS = 3;
 
+  const rows = r.rows.map(x => {
+    const unknown = x.k === 'none';
+    const paidHours = Number(x.paid_hours) || 0;
+    const billableHours = Number(x.billable_hours) || 0;
+    const freeHours = Number(x.free_hours) || 0;
+    const paidStudents = Number(x.paid_students) || 0;
+    const freeStudents = Number(x.free_students) || 0;
+    const amount = Number(x.amount) || 0;
+    const pendingSessions = Number(x.pending_sessions) || 0;
+
+    /* To'lashi kerak = uchgan pullik soat × soatlik narx.
+       Jarayondagi sessiya hali yakunlanmagani uchun hisobga olinmaydi. */
+    const expected = billableHours * hourlyRate;
+    const payDiff = amount - expected;   /* manfiy = kam to'lagan */
+
+    const freeWarn = !unknown && freeHours >= FREE_WARN_HOURS && paidHours === 0;
+
+    let state;
+    if (unknown) state = 'info';
+    else if (payDiff < 0) state = 'unpaid';
+    else if (freeWarn) state = 'freewarn';
+    else if (payDiff > 0) state = 'over';
+    else state = 'ok';
+
+    return {
+      key: x.k,
+      instructorId: x.instructor_id || null,
+      instructorName: unknown ? null : (x.instructor_name || null),
+      phone: x.instructor_phone || null,
+      plate: x.instructor_plate || null,
+      unknown,
+
+      /* o'quvchilar */
+      paidStudents,
+      freeStudents,
+      totalStudents: paidStudents + freeStudents,
+
+      /* soatlar */
+      paidHours,
+      billableHours,
+      freeHours,
+      totalHours: paidHours + freeHours,
+
+      /* pul */
+      expected,
+      amount,
+      cashAmount: Number(x.cash_amount) || 0,
+      terminalAmount: Number(x.terminal_amount) || 0,
+      payDiff,
+
+      paidSessions: Number(x.paid_sessions) || 0,
+      pendingSessions,
+      attendanceRows: Number(x.attendance_rows) || 0,
+      freeWarn,
+
+      /* unpaid   — kam to'lagan (asosiy xatolik)
+         freewarn — hammasi bepul yozilgan, tekshirish kerak
+         over     — ortiqcha to'langan
+         ok       — to'g'ri
+         info     — instruktor ko'rsatilmagan, aniqlik kerak */
+      state
+    };
+  });
+
+  /* E'tibor talab qiladiganlari tepada tursin */
+  const orderOf = s => ({ unpaid: 0, freewarn: 1, info: 2, over: 3, ok: 4 }[s] ?? 5);
+  rows.sort((a, b) => orderOf(a.state) - orderOf(b.state)
+    || (a.payDiff - b.payDiff)
+    || String(a.instructorName || '').localeCompare(String(b.instructorName || '')));
+
+  const summary = rows.reduce((a, x) => {
+    a.paidStudents += x.paidStudents;
+    a.freeStudents += x.freeStudents;
+    a.paidHours += x.paidHours;
+    a.freeHours += x.freeHours;
+    a.expected += x.expected;
+    a.amount += x.amount;
+    a.pendingSessions += x.pendingSessions;
+    if (x.payDiff < 0) { a.unpaidCount++; a.missingAmount += -x.payDiff; }
+    if (x.state === 'over') a.overCount++;
+    if (x.state === 'ok') a.okCount++;
+    if (x.state === 'freewarn') a.freeWarnCount++;
+    if (x.state === 'info') { a.unknownCount++; a.unknownHours += x.totalHours; }
+    return a;
+  }, { paidStudents: 0, freeStudents: 0, paidHours: 0, freeHours: 0,
+       expected: 0, amount: 0, pendingSessions: 0,
+       unpaidCount: 0, missingAmount: 0, overCount: 0, okCount: 0,
+       freeWarnCount: 0, unknownCount: 0, unknownHours: 0 });
+
+  summary.totalStudents = summary.paidStudents + summary.freeStudents;
+  summary.totalHours = summary.paidHours + summary.freeHours;
   summary.hourlyRate = hourlyRate;
-  summary.missingAmount = summary.underHours * hourlyRate;
 
   send(res, 200, { date, hourlyRate, summary, rows });
   return true;
@@ -264,6 +328,9 @@ async function details(req, res, userId, search) {
              COALESCE(${cTarget},0)::int  AS target_duration,
              COALESCE(${cLessons},0)::int AS lessons_counted,
              COALESCE(${cCustomer},'regular') AS customer_type,
+             COALESCE(s.amount,0)::numeric AS amount,
+             COALESCE(s.cash_amount,0)::numeric AS cash_amount,
+             COALESCE(s.terminal_amount,0)::numeric AS terminal_amount,
              NULLIF(TRIM(COALESCE(${cInsName},'')),'') AS ins_name_raw,
              NULLIF(${cStudent}::text,'') AS student_id,
              ${cDriver} AS driver_name,
@@ -295,7 +362,12 @@ async function details(req, res, userId, search) {
      ORDER BY n.started_at`;
 
   const r = await pool.query(sql, [userId, date, owner, key]);
-  send(res, 200, { date, key, rows: r.rows });
+  let hourlyRate = 0;
+  try {
+    const s = await pool.query(`SELECT hourly_rate FROM user_settings WHERE user_id=$1`, [userId]);
+    hourlyRate = Number(s.rows[0]?.hourly_rate || 0);
+  } catch { /* sozlama bo'lmasa 0 */ }
+  send(res, 200, { date, key, hourlyRate, rows: r.rows });
   return true;
 }
 
