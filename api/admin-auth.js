@@ -1,4 +1,9 @@
 import jwt from 'jsonwebtoken';
+
+/* Admin sessiyasi muddati. Ilgari 8 soat edi — har kuni qayta
+   parol so'rardi. Endi 30 kun: bir marta kirasiz, brauzer yopilsa
+   ham saqlanadi. ADMIN_TOKEN_TTL bilan o'zgartirish mumkin. */
+const ADMIN_TOKEN_TTL = process.env.ADMIN_TOKEN_TTL || '30d';
 import bcrypt from 'bcryptjs';
 import { pool } from '../backend/src/db.js';
 
@@ -45,7 +50,7 @@ async function login(req, res) {
   const password = String(body.password || '');
   const ok = username.toLowerCase() === ADMIN_USERNAME.toLowerCase() && password === ADMIN_PASSWORD;
   if (!ok) return send(res, 401, { error: 'Admin login yoki parol noto‘g‘ri' });
-  const token = jwt.sign({ sub: 'admin', role: 'admin', username: ADMIN_USERNAME }, JWT_SECRET, { expiresIn: '8h' });
+  const token = jwt.sign({ sub: 'admin', role: 'admin', username: ADMIN_USERNAME }, JWT_SECRET, { expiresIn: ADMIN_TOKEN_TTL });
   return send(res, 200, { token, admin: { username: ADMIN_USERNAME, role: 'admin' } });
 }
 
