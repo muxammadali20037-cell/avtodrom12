@@ -1184,7 +1184,7 @@ body.admin-open { overflow: hidden; }
         <div class="page-header">
           <div>
             <h1>Xatoliklar va aniqliklar</h1>
-            <p>Instruktor ochtirgan soat bilan haqiqiy o'quvchilar davomatini solishtirish</p>
+            <p>Har bir instruktor: nechta o'quvchi uchirgan, nechtasi platniy, nech soat va qancha pul to'lagan</p>
           </div>
           <button class="btn btn-green" type="button" data-act="exportControl"><i class="fa-solid fa-file-excel" aria-hidden="true"></i> Excel</button>
         </div>
@@ -1200,18 +1200,19 @@ body.admin-open { overflow: hidden; }
           </div>
           <div class="search-hint">
             <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
-            Ochilgan soat — instruktor uchun ochilgan va to'langan vaqt. Davomat soati — o'sha instruktor bilan uchgan o'quvchilar darsi (1 dars = 1 soat).
-            Farq musbat bo'lsa, instruktor kam soat ochtirgan.
+            Avtoshkola o'quvchisi davomatga yoziladi va bepul. Oddiy mijoz bo'lib kelgan o'quvchi uchun har soatga to'lov olinadi.
+            «To'lashi kerak» = platniy soat × soatlik narx. Farq qizil bo'lsa, instruktor kam to'lagan.
           </div>
-          <div class="text-muted" style="font-size:13px">Tanlangan sana: <b id="ctrlDateLabel">—</b></div>
+          <div class="text-muted" style="font-size:13px">Tanlangan sana: <b id="ctrlDateLabel">—</b> · Soatlik narx: <b id="ctrlRate">—</b></div>
         </div>
 
         <div class="stats-grid">
-          <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i></div><div class="stat-label">Kam ochtirilgan</div><div class="stat-value" id="ctrlUnder">0</div></div>
-          <div class="stat-card"><div class="stat-icon red"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i></div><div class="stat-label">Yetmagan soat</div><div class="stat-value" id="ctrlUnderH">0</div></div>
-          <div class="stat-card"><div class="stat-icon red"><i class="fa-solid fa-coins" aria-hidden="true"></i></div><div class="stat-label">Taxminiy yetmagan summa</div><div class="stat-value" id="ctrlMoney">0</div></div>
-          <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></div><div class="stat-label">Instruktorsiz davomat</div><div class="stat-value" id="ctrlUnknown">0</div></div>
-          <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-circle-check" aria-hidden="true"></i></div><div class="stat-label">To'g'ri chiqqan</div><div class="stat-value" id="ctrlOk">0</div></div>
+          <div class="stat-card"><div class="stat-icon red"><i class="fa-solid fa-coins" aria-hidden="true"></i></div><div class="stat-label">To'lanmagan summa</div><div class="stat-value" id="ctrlMoney">0</div></div>
+          <div class="stat-card"><div class="stat-icon red"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i></div><div class="stat-label">Kam to'lagan instruktor</div><div class="stat-value" id="ctrlUnder">0</div></div>
+          <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i></div><div class="stat-label">Platniy soat</div><div class="stat-value" id="ctrlPaidH">0</div></div>
+          <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i></div><div class="stat-label">Bepul (avtoshkola) soat</div><div class="stat-value" id="ctrlFreeH">0</div></div>
+          <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-users" aria-hidden="true"></i></div><div class="stat-label">Jami o'quvchi</div><div class="stat-value" id="ctrlStudents">0</div></div>
+          <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></div><div class="stat-label">Instruktorsiz yozuv</div><div class="stat-value" id="ctrlUnknown">0</div></div>
         </div>
 
         <div class="panel"><div id="ctrlTableWrap" aria-live="polite"></div></div>
@@ -3471,7 +3472,8 @@ const Reports = {
    Farq musbat bo'lsa — instruktor kam ochtirgan (qizil qator).
    Instruktor ko'rsatilmagan davomat alohida «aniqlik» qatorida chiqadi.
    ================================================================================ */
-const CONTROL_COLS = ['Instruktor', 'Avtomobil', 'Ochilgan soat', 'Davomat soati', "O'quvchilar", 'Farq', 'Holat', "To'langan"];
+const CONTROL_COLS = ['Instruktor', 'Avtomobil', "Jami o'quvchi", 'Platniy', 'Avtoshkola',
+  'Platniy soat', 'Bepul soat', "To'lashi kerak", "To'lagan", 'Farq', 'Holat'];
 const Control = {
   data: null,
 
@@ -3485,11 +3487,19 @@ const Control = {
     this.load();
   },
 
+  stateText(r) {
+    if (r.state === 'info') return 'Aniqlik kerak';
+    if (r.state === 'unpaid') return "Kam to'lagan";
+    if (r.state === 'freewarn') return 'Hammasi bepul';
+    if (r.state === 'over') return "Ortiqcha to'langan";
+    return "To'g'ri";
+  },
   stateBadge(r) {
-    if (r.state === 'info') return '<span class="badge badge-blue">Aniqlik kerak</span>';
-    if (r.state === 'under') return '<span class="badge badge-red">Kam ochtirgan</span>';
-    if (r.state === 'over') return '<span class="badge badge-amber">Ortiqcha ochilgan</span>';
-    return '<span class="badge badge-green">To\'g\'ri</span>';
+    const cls = r.state === 'info' ? 'badge-blue'
+      : r.state === 'unpaid' ? 'badge-red'
+      : r.state === 'freewarn' ? 'badge-amber'
+      : r.state === 'over' ? 'badge-amber' : 'badge-green';
+    return '<span class="badge ' + cls + '">' + esc(this.stateText(r)) + '</span>';
   },
   rowName(r) {
     if (r.unknown) return '<b>Instruktor ko\'rsatilmagan</b>';
@@ -3499,26 +3509,33 @@ const Control = {
 
   tableHTML(rows) {
     if (!rows.length) {
-      return emptyState('fa-circle-check', 'Xatolik topilmadi',
-        'Tanlangan kunda ochilgan soat va davomat mos kelgan.');
+      return emptyState('fa-circle-check', 'Yozuv yo\'q',
+        'Tanlangan kunda hech qanday dars yoki vaqt ochilmagan.');
     }
     return '<div class="table-wrap responsive"><table class="tbl"><thead><tr>'
       + CONTROL_COLS.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
       + rows.map(r => {
-        const cls = r.state === 'under' ? 'row-att-red' : r.state === 'info' ? 'row-att-blue' : '';
-        const diff = r.diff > 0 ? '+' + r.diff : String(r.diff);
-        const diffHtml = r.state === 'info' ? '—'
-          : '<b style="color:' + (r.diff > 0 ? 'var(--red)' : r.diff < 0 ? 'var(--amber)' : 'var(--g-dark)') + '">'
-            + esc(diff) + ' soat</b>';
+        const cls = r.state === 'unpaid' ? 'row-att-red'
+          : r.state === 'info' ? 'row-att-blue' : '';
+        /* Farq: manfiy bo'lsa instruktor kam to'lagan */
+        const d = num(r.payDiff);
+        const diffHtml = r.unknown ? '—'
+          : '<b style="color:' + (d < 0 ? 'var(--red)' : d > 0 ? 'var(--amber)' : 'var(--g-dark)') + '">'
+            + (d > 0 ? '+' : '') + esc(money(d)) + '</b>';
+        const pending = num(r.pendingSessions) > 0
+          ? '<div class="text-muted" style="font-size:12px">' + num(r.pendingSessions) + ' ta jarayonda</div>' : '';
         const cells = [
           this.rowName(r),
           esc(r.plate || '—'),
-          String(r.openedHours),
-          String(r.lessonHours),
-          String(r.students),
+          '<b>' + num(r.totalStudents) + '</b>',
+          num(r.paidStudents),
+          num(r.freeStudents),
+          num(r.paidHours) + pending,
+          num(r.freeHours),
+          money(r.expected),
+          money(r.amount),
           diffHtml,
-          this.stateBadge(r),
-          money(r.amount)
+          this.stateBadge(r)
         ];
         return '<tr class="' + cls + '" data-act="controlDetails" data-key="' + esc(r.key) + '" role="button" tabindex="0" style="cursor:pointer">'
           + cells.map((c, i) => '<td data-label="' + esc(CONTROL_COLS[i]) + '">' + c + '</td>').join('')
@@ -3543,16 +3560,19 @@ const Control = {
       const s = this.data.summary || {};
       const rows = Array.isArray(this.data.rows) ? this.data.rows : [];
 
-      if ($('ctrlUnder')) $('ctrlUnder').textContent = num(s.underCount);
-      if ($('ctrlUnderH')) $('ctrlUnderH').textContent = num(s.underHours);
       if ($('ctrlMoney')) $('ctrlMoney').textContent = money(s.missingAmount);
-      if ($('ctrlUnknown')) $('ctrlUnknown').textContent = num(s.unknownHours);
-      if ($('ctrlOk')) $('ctrlOk').textContent = num(s.okCount);
+      if ($('ctrlUnder')) $('ctrlUnder').textContent = num(s.unpaidCount);
+      if ($('ctrlPaidH')) $('ctrlPaidH').textContent = num(s.paidHours);
+      if ($('ctrlFreeH')) $('ctrlFreeH').textContent = num(s.freeHours);
+      if ($('ctrlStudents')) $('ctrlStudents').textContent = num(s.totalStudents);
+      if ($('ctrlUnknown')) $('ctrlUnknown').textContent = num(s.unknownCount);
+      if ($('ctrlRate')) {
+        $('ctrlRate').textContent = num(s.hourlyRate) > 0
+          ? money(s.hourlyRate) + ' / soat' : 'narx sozlanmagan';
+      }
 
-      /* Faqat e'tibor talab qiladigan qatorlar tepada turadi, lekin
-         hammasi ko'rinadi — operator o'zi solishtira olsin. */
       if (host) host.innerHTML = this.tableHTML(rows);
-      this.renderBadge(num(s.underCount) + num(s.unknownCount));
+      this.renderBadge(num(s.unpaidCount) + num(s.freeWarnCount) + num(s.unknownCount));
     } catch (e) {
       if (host) host.innerHTML = emptyState('fa-triangle-exclamation', 'Tekshiruv bajarilmadi', e.message, true);
       if (STATE.page === 'control') toast(e.message, 'error');
@@ -3569,19 +3589,31 @@ const Control = {
     const date = ($('ctrlDate') && $('ctrlDate').value) || localDateISO(0);
     const row = ((this.data && this.data.rows) || []).find(x => String(x.key) === String(key));
     const title = row ? (row.unknown ? 'Instruktor ko\'rsatilmagan' : (row.instructorName || 'Instruktor')) : 'Tafsilot';
+    const head = row
+      ? '<div class="autofill"><div class="autofill-grid">'
+        + '<div class="autofill-item"><span>Jami o\'quvchi</span><b>' + num(row.totalStudents) + '</b></div>'
+        + '<div class="autofill-item"><span>Platniy / Avtoshkola</span><b>' + num(row.paidStudents) + ' / ' + num(row.freeStudents) + '</b></div>'
+        + '<div class="autofill-item"><span>Platniy soat</span><b>' + num(row.paidHours) + '</b></div>'
+        + '<div class="autofill-item"><span>Bepul soat</span><b>' + num(row.freeHours) + '</b></div>'
+        + '<div class="autofill-item"><span>To\'lashi kerak</span><b>' + esc(money(row.expected)) + '</b></div>'
+        + '<div class="autofill-item"><span>To\'lagan</span><b>' + esc(money(row.amount)) + '</b></div>'
+        + '</div></div>'
+      : '';
     openModal('<div class="modal-head"><div><h2>' + esc(title) + '</h2>'
       + '<p class="text-muted">' + esc(fmtDate(date)) + ' kungi barcha yozuvlar</p></div>'
       + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + head
       + '<div id="ctrlDetailBody">' + loadingLine('Yuklanmoqda...') + '</div>'
       + '<div class="actions-row"><button class="btn btn-ghost" type="button" data-act="closeModal">Yopish</button></div>',
       { wide: true });
     try {
       const data = await api('/control/details?date=' + encodeURIComponent(date) + '&key=' + encodeURIComponent(key));
       const rows = (data && data.rows) || [];
+      const rate = num(data && data.hourlyRate);
       const body = $('ctrlDetailBody');
       if (!body) return;
       if (!rows.length) { body.innerHTML = emptyState('fa-inbox', 'Yozuv yo\'q', ''); return; }
-      const cols = ['Turi', 'Vaqt', "O'quvchi / Haydovchi", 'Avtomobil', 'Soat', 'Holat'];
+      const cols = ['Turi', 'Vaqt', "O'quvchi / Haydovchi", 'Avtomobil', 'Soat', "To'lashi kerak", "To'lagan", 'Holat'];
       body.innerHTML = '<div class="table-wrap responsive"><table class="tbl"><thead><tr>'
         + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
         + rows.map(r => {
@@ -3589,12 +3621,16 @@ const Control = {
           const hours = isAtt
             ? Math.max(1, num(r.lessons_counted))
             : Math.max(1, Math.ceil(Math.max(num(r.target_duration), num(r.duration_seconds)) / 3600));
+          const done = String(r.status) === 'completed';
           const cells = [
-            isAtt ? '<span class="badge badge-blue">Davomat</span>' : '<span class="badge badge-green">Vaqt ochilgan</span>',
+            isAtt ? '<span class="badge badge-blue">Avtoshkola — bepul</span>'
+                  : '<span class="badge badge-green">Platniy</span>',
             esc(dt(r.started_at)),
             esc(r.student_name || r.driver_name || '—'),
             esc(r.plate || '—'),
             String(hours),
+            isAtt ? '—' : (done ? money(hours * rate) : '<span class="text-muted">jarayonda</span>'),
+            isAtt ? '—' : money(r.amount),
             esc(r.status || '—')
           ];
           return '<tr>' + cells.map((c, i) => '<td data-label="' + esc(cols[i]) + '">' + c + '</td>').join('') + '</tr>';
@@ -3610,13 +3646,11 @@ const Control = {
     const rows = (this.data && this.data.rows) || [];
     if (!rows.length) { toast("Eksport uchun ma'lumot yo'q.", 'warn'); return; }
     const date = ($('ctrlDate') && $('ctrlDate').value) || localDateISO(0);
-    const stateText = r => r.state === 'info' ? 'Aniqlik kerak'
-      : r.state === 'under' ? 'Kam ochtirgan'
-      : r.state === 'over' ? 'Ortiqcha ochilgan' : "To'g'ri";
     const aoa = [CONTROL_COLS].concat(rows.map(r => [
       r.unknown ? "Instruktor ko'rsatilmagan" : (r.instructorName || ''),
-      r.plate || '', r.openedHours, r.lessonHours, r.students,
-      r.diff, stateText(r), num(r.amount)
+      r.plate || '', num(r.totalStudents), num(r.paidStudents), num(r.freeStudents),
+      num(r.paidHours), num(r.freeHours), num(r.expected), num(r.amount),
+      num(r.payDiff), this.stateText(r)
     ]));
     Excel.save(aoa, 'nazorat-' + date, 'Xatoliklar');
   }
