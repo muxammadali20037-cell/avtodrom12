@@ -1,5 +1,10 @@
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
+
+/* Admin sessiyasi muddati. Ilgari 8 soat edi — har kuni qayta
+   parol so'rardi. Endi 30 kun: bir marta kirasiz, brauzer yopilsa
+   ham saqlanadi. ADMIN_TOKEN_TTL bilan o'zgartirish mumkin. */
+const ADMIN_TOKEN_TTL = process.env.ADMIN_TOKEN_TTL || '30d';
 import { pool } from '../backend/src/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -73,7 +78,7 @@ async function login(req, res) {
   const token = jwt.sign(
     { sub: 'admin', role: 'admin', username: ENV_USER },
     JWT_SECRET,
-    { expiresIn: '8h' }
+    { expiresIn: ADMIN_TOKEN_TTL }
   );
   return send(res, 200, { token, admin: { username: ENV_USER, role: 'admin' } });
 }
