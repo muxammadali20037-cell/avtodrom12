@@ -341,9 +341,33 @@ export async function handleCompatRequest(req, res) {
         const now = Date.now();
         const HOUR = 3600;
         const ids = [];
+        /* ==================================================================
+           VAQT O'YLAB TOPILMAYDI
+
+           Davomatda soat o'lchanmaydi: operator bir marta bosadi, xolos.
+           Shuning uchun yagona ANIQ ma'lum narsa — qayd etilgan payt.
+           U `started_at` ga yoziladi. Dars qachon tugaganini hech kim
+           bilmaydi, shuning uchun `finished_at` BO'SH qoldiriladi va
+           hisobotda «—» ko'rinadi.
+
+           Ilgari bu yerda soat qo'shib yozilardi: avval oldinga
+           (17:14 -> 18:14, 19:14, 20:14 — hali kelmagan vaqt), keyin
+           orqaga. Ikkalasi ham to'qima edi: 2 soatga yozilgan o'quvchi
+           «24:00 dan 26:00 gacha» bo'lib chiqardi, aslida darsi o'sha
+           payt boshlanmagan.
+
+           Haqiqiy boshlanish va tugash vaqti kerak bo'lsa, uni faqat
+           instruktor tomoni bera oladi (QR chekni skanerlash va darsni
+           yakunlash) — operator stolida bu bilinmaydi.
+
+           `duration_seconds` 1 soatligicha qoladi: butun ilovada
+           «1 soat = 1 dars» hisobi shunga bog'liq.
+           ================================================================== */
         for (let i = 0; i < lessons; i++) {
-          const startedAt = new Date(now + i * HOUR * 1000).toISOString();
-          const finishedAt = new Date(now + (i + 1) * HOUR * 1000).toISOString();
+          /* Bir bosishda bir nechta dars yozilsa, tartibi saqlanishi
+             uchun soniya bilan ajratamiz — soat bilan emas. */
+          const startedAt = new Date(now + i * 1000).toISOString();
+          const finishedAt = null;
           const cand = [
             ['user_id', user],
             ['vehicle_id', null],
@@ -714,7 +738,11 @@ export async function handleCompatRequest(req, res) {
                 AND LOWER(TRIM(full_name))=LOWER(TRIM($4)) AND active=true
               LIMIT 1`,[user,schoolId,groupId,row.fullName]);
           if(bor.rows[0]){skipped.push(row.fullName);continue;}
-          await c.query(`INSERT INTO students(owner_key,school_id,group_id,full_name,birth_date,manual_attendance_count) VALUES($1,$2,$3,$4,$5,$6)`,[user,schoolId,groupId,row.fullName,row.birthDate,row.lessons]);
+          /* Darslar soni IKKALA ustunga ham yoziladi. Ilgari faqat
+             `manual_attendance_count` to'ldirilardi, ilova esa hamma
+             joyda `attendance_count` ni ko'rsatadi — import qilingan
+             o'quvchilarning darsi 0 bo'lib turardi. */
+          await c.query(`INSERT INTO students(owner_key,school_id,group_id,full_name,birth_date,manual_attendance_count,attendance_count) VALUES($1,$2,$3,$4,$5,$6,$6)`,[user,schoolId,groupId,row.fullName,row.birthDate,row.lessons]);
           added.push(row.fullName);
         }
         await c.query('COMMIT');
