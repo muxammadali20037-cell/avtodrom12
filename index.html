@@ -173,6 +173,20 @@ input[readonly] { background: #f8fafc; }
 select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; }
 textarea { resize: vertical; min-height: 90px; }
 .field-help { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+/* O'quvchi maydoni sarlavhasi: yorliq chapda, «Guruh bo'yicha» tugmasi o'ngda */
+.student-pick-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.student-pick-head .field-label { margin: 0; }
+/* Guruh bo'yicha tanlash oynasi */
+.pick-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.pick-chip { border: 1px solid var(--line); background: var(--card); border-radius: 999px;
+  padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text); }
+.pick-chip:hover { border-color: var(--g); }
+.pick-chip.active { background: var(--g-surface); border-color: var(--g); color: var(--g-dark); }
+.pick-students { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 10px; }
+.pick-student { text-align: left; border: 1px solid var(--line); background: var(--card); border-radius: 12px;
+  padding: 10px 12px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pick-student:hover { border-color: var(--g); background: var(--g-surface); }
+.pick-student b { font-size: 14px; }
 
 /* ===== 7. TUGMALAR ===== */
 .btn {
@@ -955,8 +969,12 @@ body.admin-open { overflow: hidden; }
 
             <!-- O'quvchi bloki -->
             <div id="studentBlock" class="hidden">
-              <label class="field-label" for="comboStudentInput"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> O'quvchi (F.I.Sh. bo'yicha qidiring)</label>
+              <div class="student-pick-head">
+                <label class="field-label" for="comboStudentInput"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> O'quvchi</label>
+                <button class="btn btn-light btn-sm" type="button" data-act="openGroupPick"><i class="fa-solid fa-users" aria-hidden="true"></i> Guruh bo'yicha tanlash</button>
+              </div>
               <div id="comboStudent"></div>
+              <div class="field-help">Ism, familiya, bosh harflar yoki telefon oxiri bilan qidiring: <b>ab ka</b>, <b>ak</b>, <b>karimov</b>, <b>4567</b>.</div>
               <div id="studentFallback" class="hidden">
                 <div class="form-grid" style="margin-top:12px">
                   <div><label class="field-label muted-label" for="school">Avtoshkola</label><select id="school"><option value="">Tanlang</option></select></div>
@@ -1379,6 +1397,63 @@ const localDateISO = (off = 0) => { const d = new Date(), t = new Date(d.getFull
 const fmtDate = v => { if (!v) return '—'; const p = String(v).split('-'); return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : v; };
 const debounce = (fn, ms) => { let t; return function () { const a = arguments, c = this; clearTimeout(t); t = setTimeout(() => fn.apply(c, a), ms); }; };
 const lower = s => String(s === null || s === undefined ? '' : s).toLowerCase();
+
+/* ===================== AQLLI QIDIRUV =====================
+   O'quvchi ismini to'liq, xatosiz yozish sekin va qiyin. Shuning uchun
+   qidiruv matnni avval soddalashtiradi: katta-kichik harf, apostrof
+   (O'ktam / Oʻktam / Oktam), ortiqcha bo'shliq va tinish belgilari
+   farq qilmaydi. Kirill harflari ham saqlanadi. */
+const searchNorm = s => lower(s)
+  .replace(/[‘’ʻʼ'`´]/g, '')
+  .replace(/[^a-z0-9Ѐ-ӿ]+/g, ' ')
+  .trim();
+
+/* Ism bo'yicha moslik. Quyidagilarning bari ishlaydi:
+     «abdulla»      -> Abdulla Karimov     (oddiy, avvalgidek)
+     «karimov»      -> Abdulla Karimov     (familiyadan ham)
+     «ab ka»        -> Abdulla Karimov     (ikkala qismning boshi)
+     «ka ab»        -> Abdulla Karimov     (tartibi muhim emas)
+     «ak»           -> Abdulla Karimov     (bosh harflar)
+     «4567»         -> telefon oxiri bo'yicha
+   `extra` — telefon raqami (ixtiyoriy). */
+function smartMatch(text, q, extra) {
+  const nq = searchNorm(q);
+  if (!nq) return true;
+
+  /* Raqam kiritilsa — telefon bo'yicha qidiriladi */
+  const digits = String(q).replace(/\D/g, '');
+  if (digits.length >= 3) {
+    const ex = String(extra || '').replace(/\D/g, '');
+    if (ex && ex.indexOf(digits) >= 0) return true;
+  }
+
+  const nText = searchNorm(text);
+  if (!nText) return false;
+  if (nText.indexOf(nq) >= 0) return true;
+
+  const words = nText.split(' ').filter(Boolean);
+  const qWords = nq.split(' ').filter(Boolean);
+
+  /* Har bir kiritilgan bo'lak ismning biror qismi boshiga to'g'ri kelsa.
+     Bir bo'lak bir so'zni band qiladi — «ab ab» ikkita «ab» talab qiladi. */
+  if (qWords.length) {
+    const used = new Array(words.length).fill(false);
+    const all = qWords.every(qw => {
+      const i = words.findIndex((w, k) => !used[k] && w.indexOf(qw) === 0);
+      if (i < 0) return false;
+      used[i] = true;
+      return true;
+    });
+    if (all) return true;
+  }
+
+  /* Bosh harflar: «ak» -> Abdulla Karimov */
+  if (qWords.length === 1 && qWords[0].length >= 2) {
+    const initials = words.map(w => w[0]).join('');
+    if (initials.indexOf(qWords[0]) === 0) return true;
+  }
+  return false;
+}
 /* <input type="date"> faqat "yyyy-MM-dd" ni qabul qiladi.
    Postgres DATE ustuni JSON'da "2026-08-02T00:00:00.000Z" ko'rinishida kelishi
    mumkin - o'shanda maydon bo'sh qolib, saqlaganda sana yo'qolardi. */
@@ -2219,12 +2294,7 @@ const Add = {
       getText: it => stName(it),
       getSub: it => [it.school_name || Data.schoolName(it.school_id || it.schoolId), it.group_name || Data.groupName(it.group_id || it.groupId), it.phone].filter(Boolean).join(' • '),
       getTag: it => attCount(it) + ' dars',
-      match: (it, q) => {
-        const parts = lower(stName(it)).split(/\s+/);
-        return lower(stName(it)).indexOf(q) >= 0
-          || parts.some(p => p.indexOf(q) === 0)
-          || lower(it.phone).indexOf(q) >= 0;
-      },
+      match: (it, q) => smartMatch(stName(it), q, it.phone),
       onSelect: it => { STATE.form.student = it; Add.renderStudentPanel(); },
       onClear: () => { STATE.form.student = null; Add.renderStudentPanel(); },
       onCreate: name => Add.createStudentQuick(name)
@@ -2238,13 +2308,9 @@ const Add = {
       getText: it => insName(it),
       getSub: it => [insPlate(it), insModel(it), it.phone].filter(Boolean).join(' • '),
       getTag: it => insPlate(it) ? normalizePlate(insPlate(it)) : '',
-      match: (it, q) => {
-        const parts = lower(insName(it)).split(/\s+/);
-        return lower(insName(it)).indexOf(q) >= 0
-          || parts.some(p => p.indexOf(q) === 0)
-          || normalizePlate(insPlate(it)).indexOf(normalizePlate(q)) >= 0
-          || lower(it.phone).indexOf(q) >= 0;
-      },
+      match: (it, q) => smartMatch(insName(it), q, it.phone)
+        || (normalizePlate(q).length >= 2
+            && normalizePlate(insPlate(it)).indexOf(normalizePlate(q)) >= 0),
       onSelect: it => { STATE.form.instructor = it; Add.applyInstructor(it); },
       onClear: () => { STATE.form.instructor = null; $('instructorBox').innerHTML = ''; }
     });
@@ -3457,6 +3523,134 @@ const Reports = {
       r.student_name ? num(r.attendance_count) : '', num(r.cash_amount), num(r.terminal_amount), num(r.amount)
     ]));
     Excel.save(aoa, 'avtodrom-' + date, 'Hisobot');
+  }
+};
+
+/* ===================== 17a. GURUH BO'YICHA TANLASH =====================
+   Ismni to'liq yozib qidirish sekin. Butun guruh kelganda esa ism
+   bilan birma-bir qidirish umuman noqulay. Shuning uchun: avtoshkola
+   -> guruh -> o'quvchi ro'yxatidan bosib tanlash.
+
+   Ro'yxat allaqachon yuklangan `STATE.students` dan quriladi — serverga
+   qo'shimcha so'rov yuborilmaydi, shuning uchun darhol ochiladi. */
+const GroupPick = {
+  schoolId: '',
+  groupId: '',
+
+  open() {
+    if (!STATE.studentsLoaded && !STATE.students.length) {
+      Data.reloadStudents().then(() => { if ($('gpBody')) this.render(); });
+    }
+    this.schoolId = '';
+    this.groupId = '';
+    /* Formada o'quvchi tanlangan bo'lsa, o'sha guruhdan boshlaymiz */
+    const cur = STATE.form.student;
+    if (cur) {
+      this.schoolId = String(cur.school_id || cur.schoolId || '');
+      this.groupId = String(cur.group_id || cur.groupId || '');
+    }
+    openModal('<div class="modal-head"><div><h2>Guruh bo\'yicha tanlash</h2>'
+      + '<p class="text-muted">Avtoshkola va guruhni tanlang, keyin o\'quvchi ustiga bosing</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div id="gpBody"></div>'
+      + '<div class="actions-row"><button class="btn btn-ghost" type="button" data-act="closeModal">Yopish</button></div>',
+      { wide: true, noFocus: true });
+    this.render();
+  },
+
+  /* Faqat avtoshkola o'quvchilari ro'yxatdan quriladi */
+  all() { return (STATE.students || []).filter(s => s.active !== false); },
+
+  schools() {
+    const map = new Map();
+    this.all().forEach(s => {
+      const id = String(s.school_id || s.schoolId || '');
+      if (!id) return;
+      if (!map.has(id)) {
+        map.set(id, { id, name: s.school_name || Data.schoolName(id) || 'Nomsiz avtoshkola', n: 0 });
+      }
+      map.get(id).n++;
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  },
+  groups(schoolId) {
+    const map = new Map();
+    this.all().forEach(s => {
+      if (String(s.school_id || s.schoolId || '') !== String(schoolId)) return;
+      const id = String(s.group_id || s.groupId || '');
+      const key = id || 'none';
+      if (!map.has(key)) {
+        map.set(key, { id, name: id ? (s.group_name || Data.groupName(id) || 'Nomsiz guruh') : 'Guruhsiz', n: 0 });
+      }
+      map.get(key).n++;
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  },
+  students() {
+    return this.all()
+      .filter(s => String(s.school_id || s.schoolId || '') === String(this.schoolId))
+      .filter(s => String(s.group_id || s.groupId || '') === String(this.groupId))
+      .sort((a, b) => stName(a).localeCompare(stName(b)));
+  },
+
+  chips(list, activeId, act) {
+    return '<div class="pick-chips">' + list.map(x =>
+      '<button class="pick-chip' + (String(x.id) === String(activeId) ? ' active' : '') + '" type="button"'
+      + ' data-act="' + act + '" data-id="' + esc(x.id) + '">'
+      + esc(x.name) + ' <span class="text-muted">(' + x.n + ')</span></button>').join('') + '</div>';
+  },
+
+  render() {
+    const body = $('gpBody');
+    if (!body) return;
+    const schools = this.schools();
+    if (!schools.length) {
+      body.innerHTML = STATE.studentsLoaded
+        ? emptyState('fa-users', "O'quvchi yo'q", "Avval avtoshkola va o'quvchilarni qo'shing.")
+        : loadingLine('Ro\'yxat yuklanmoqda...');
+      return;
+    }
+    /* Bitta avtoshkola bo'lsa uni o'zi tanlaydi — ortiqcha bosish shart emas */
+    if (!this.schoolId || !schools.some(x => String(x.id) === String(this.schoolId))) {
+      this.schoolId = schools.length === 1 ? schools[0].id : (this.schoolId || schools[0].id);
+    }
+    const groups = this.groups(this.schoolId);
+    if (!this.groupId || !groups.some(g => String(g.id) === String(this.groupId))) {
+      this.groupId = groups.length ? groups[0].id : '';
+    }
+
+    let html = '<div class="field-label muted-label">Avtoshkola</div>'
+      + this.chips(schools, this.schoolId, 'gpSchool');
+    html += '<div class="field-label muted-label" style="margin-top:10px">Guruh</div>'
+      + (groups.length ? this.chips(groups, this.groupId, 'gpGroup')
+                       : '<div class="field-help">Bu avtoshkolada guruh yo\'q.</div>');
+
+    const list = this.students();
+    html += '<div class="field-label muted-label" style="margin-top:10px">O\'quvchilar ('
+      + list.length + ')</div>';
+    html += list.length
+      ? '<div class="pick-students">' + list.map(s =>
+          '<button class="pick-student" type="button" data-act="gpPick" data-id="' + esc(s.id) + '">'
+          + '<b>' + esc(stName(s)) + '</b>'
+          + '<span class="badge badge-green">' + attCount(s) + ' dars</span></button>').join('')
+        + '</div>'
+      : '<div class="field-help">Bu guruhda o\'quvchi yo\'q.</div>';
+    body.innerHTML = html;
+  },
+
+  setSchool(id) { this.schoolId = String(id); this.groupId = ''; this.render(); },
+  setGroup(id) { this.groupId = String(id); this.render(); },
+
+  pick(id) {
+    const s = Data.studentById(id);
+    if (!s) { toast("O'quvchi topilmadi.", 'error'); return; }
+    closeModal();
+    /* Avtoshkola rejimiga o'tkazamiz — davomat shu rejimda yoziladi */
+    if (STATE.form.customerType !== 'school') Add.setType('school');
+    if (Add.comboStudent) Add.comboStudent.setValue(s);
+    STATE.form.student = s;
+    Add.renderStudentPanel();
+    toast(stName(s) + ' tanlandi.');
   }
 };
 
@@ -5133,6 +5327,12 @@ const ACTIONS = {
   /* --- navigatsiya --- */
   toggleSidebar: () => toggleSidebar(),
   goto: d => go(d.p),
+
+  /* --- guruh bo'yicha o'quvchi tanlash --- */
+  openGroupPick: () => GroupPick.open(),
+  gpSchool: d => GroupPick.setSchool(d.id),
+  gpGroup: d => GroupPick.setGroup(d.id),
+  gpPick: d => GroupPick.pick(d.id),
 
   /* --- nazorat: xatoliklar va aniqliklar --- */
   ctrlOffset: d => Control.setOffset(d.off),
