@@ -882,7 +882,7 @@ app.post('/api/maintenance/lessons-migration', adminAuth, async (req, res) => {
     const upd = await c.query(`
       UPDATE students st
          SET attendance_count = COALESCE(st.manual_attendance_count,0)
-           + COALESCE((SELECT COUNT(*) FROM sessions se
+           + COALESCE((SELECT SUM(GREATEST(1, CASE WHEN COALESCE(se.lessons_counted,0) > 0 THEN se.lessons_counted ELSE ROUND(COALESCE(se.duration_seconds,3600)/3600.0)::int END)) FROM sessions se
                         WHERE se.student_id = st.id AND se.status='completed'),0)`);
 
     const updSess = await c.query(`
