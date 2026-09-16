@@ -4704,12 +4704,49 @@ const Admin = {
   importRows: [],
   importKind: '',
 
-  openGate() {
+  /* Admin panelni ochish.
+     Server ochiq kirish rejimidа bo'lsa (ADMIN_OPEN_ACCESS=1),
+     login/parol oynasi KO'RSATILMAYDI — to'g'ridan kiriladi.
+     Server parol talab qilsa, oyna avvalgidek chiqadi. */
+  async openGate() {
     setError('adminErr', '');
+
+    // Avval jimgina kirishga urinamiz
+    try {
+      const data = await request('/api/admin/login', {
+        method: 'POST',
+        body: jsonBody({ username: '', password: '' }),
+      }, 'admin-open');
+
+      if (data && data.token && data.open) {
+        STATE.admin.token = data.token;
+        STATE.admin.username = (data.admin && data.admin.username) || 'admin';
+        try {
+          localStorage.setItem(CONFIG.ADMIN_TOKEN_KEY, data.token);
+          localStorage.setItem(CONFIG.ADMIN_USER_KEY, STATE.admin.username);
+          localStorage.setItem(CONFIG.ADMIN_FLAG_KEY, '1');
+        } catch (e) { /* xotira yopiq bo'lsa ham davom etamiz */ }
+        Admin.openPanelDirect();
+        return;
+      }
+    } catch (e) {
+      // Ochiq rejim yo'q yoki server javob bermadi — oddiy oyna
+    }
+
     $('adminUser').value = '';
     $('adminPass').value = '';
     $('adminGate').classList.remove('hidden');
     setTimeout(() => { const el = $('adminUser'); if (el) el.focus(); }, 60);
+  },
+
+  /* Panelni ochish — oddiy login bilan BIR XIL ketma-ketlik. */
+  openPanelDirect() {
+    this.closeGate();
+    $('adminPanel').classList.remove('hidden');
+    document.body.classList.add('admin-open');
+    window.scrollTo({ top: 0 });
+    this.setTab('dashboard');
+    this.refreshCounters();
   },
   closeGate() { $('adminGate').classList.add('hidden'); },
 
