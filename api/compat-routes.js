@@ -80,7 +80,8 @@ function ensureCompatSchema() {
         BEGIN
           IF NEW.student_id IS NOT NULL AND UPPER(COALESCE(NEW.status,'')) = 'COMPLETED' THEN
             UPDATE public.students
-               SET attendance_count = COALESCE(attendance_count,0) + 1
+               SET attendance_count = COALESCE(attendance_count,0)
+                   + GREATEST(1, ROUND(COALESCE(NEW.duration_seconds,3600)/3600.0)::int)
              WHERE id = NEW.student_id;
           END IF;
           RETURN NEW;
@@ -277,10 +278,11 @@ export async function handleCompatRequest(req, res) {
        keladi, darsi shu yerda belgilanadi va tugadi. Shuning uchun
        avtomobil raqami ham so'ralmaydi.
 
-       Har bir dars ALOHIDA yozuv bo'ladi (2 soat = 2 yozuv). Sababi:
-       darslar soni butun ilovada `SELECT COUNT(*) FROM sessions ...`
-       bilan hisoblanadi — bitta yozuvga 2 soat yozsak, u 1 dars bo'lib
-       ko'rinardi.
+       Bir bosishda BITTA yozuv bo'ladi: 2 soat tanlansa — 2 soatlik
+       bitta yozuv (duration 7200, lessons_counted 2). Ilgari har soat
+       alohida yozuv bo'lib, jadvalda bitta o'quvchi ikki marta
+       ko'rinardi. Darslar soni lessons_counted / davomiylik bo'yicha
+       hisoblanadi (1 soat = 1 dars).
        ===================================================================== */
     if (req.method === 'POST' && pathname === '/api/attendance') {
       const body = bodyOf(req);
@@ -363,17 +365,16 @@ export async function handleCompatRequest(req, res) {
            `duration_seconds` 1 soatligicha qoladi: butun ilovada
            «1 soat = 1 dars» hisobi shunga bog'liq.
            ================================================================== */
-        for (let i = 0; i < lessons; i++) {
-          /* Bir bosishda bir nechta dars yozilsa, tartibi saqlanishi
-             uchun soniya bilan ajratamiz — soat bilan emas. */
-          const startedAt = new Date(now + i * 1000).toISOString();
+        {
+          /* BITTA yozuv: tanlangan soatlar bitta qatorga yoziladi */
+          const startedAt = new Date(now).toISOString();
           const finishedAt = null;
           const cand = [
             ['user_id', user],
             ['vehicle_id', null],
             ['started_at', startedAt],
             ['finished_at', finishedAt],
-            ['duration_seconds', HOUR],
+            ['duration_seconds', HOUR * lessons],
             ['hourly_rate', cfg.hourly_rate],
             ['minimum_payment', cfg.minimum_payment],
             ['calculation_mode', cfg.calculation_mode],
@@ -390,9 +391,9 @@ export async function handleCompatRequest(req, res) {
             ['instructor_name', insName || null],
             ['driver_name', st.full_name],
             ['customer_type', 'school'],
-            ['planned_minutes', 60],
-            ['target_duration', HOUR],
-            ['lessons_counted', 1],
+            ['planned_minutes', 60 * lessons],
+            ['target_duration', HOUR * lessons],
+            ['lessons_counted', lessons],
           ].filter(([k]) => cols.has(k));
 
           const r = await c.query(
@@ -415,7 +416,7 @@ export async function handleCompatRequest(req, res) {
             const a = await c.query(
               `SELECT COALESCE(attendance_count,0)::int n FROM students WHERE id=$1`, [st.id]);
             let now2 = a.rows[0] ? a.rows[0].n : null;
-            if (now2 !== null && now2 - before < lessons) {
+            if (now2 !== null && now2 !== before + lessons) {
               const r2 = await c.query(
                 `UPDATE students SET attendance_count=$1 WHERE id=$2 RETURNING attendance_count`,
                 [before + lessons, st.id]);
@@ -630,7 +631,7 @@ export async function handleCompatRequest(req, res) {
                   sondan shu nusxaga yozilgan haqiqiy darslarni ayiramiz. */
             const all=[keeper,...others];
             const sess=await c.query(
-              `SELECT student_id, COUNT(*)::int n FROM sessions
+              `SELECT student_id, COALESCE(SUM(GREATEST(1, CASE WHEN COALESCE(lessons_counted,0) > 0 THEN lessons_counted ELSE ROUND(COALESCE(duration_seconds,3600)/3600.0)::int END)),0)::int n FROM sessions
                 WHERE student_id = ANY($1::uuid[]) AND status='completed'
                 GROUP BY student_id`,[all]);
             const sesMap=new Map(sess.rows.map(r=>[String(r.student_id),r.n]));
@@ -664,7 +665,7 @@ export async function handleCompatRequest(req, res) {
                   barcha haqiqiy darslar. Nusxalarning bir xil boshlang'ich
                   soni qo'shilib ketmaydi. */
             const jami=await c.query(
-              `SELECT COUNT(*)::int n FROM sessions WHERE student_id=$1 AND status='completed'`,[keeper]);
+              `SELECT COALESCE(SUM(GREATEST(1, CASE WHEN COALESCE(lessons_counted,0) > 0 THEN lessons_counted ELSE ROUND(COALESCE(duration_seconds,3600)/3600.0)::int END)),0)::int n FROM sessions WHERE student_id=$1 AND status='completed'`,[keeper]);
             const yangi=baza+(jami.rows[0]?jami.rows[0].n:0);
             await c.query(
               `UPDATE students SET attendance_count=$1, manual_attendance_count=$2 WHERE id=$3`,
