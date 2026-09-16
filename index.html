@@ -853,6 +853,12 @@ body.admin-open { overflow: hidden; }
 .grp-st:last-child{border-bottom:0}
 .grp-tools{padding:9px 12px;border-bottom:1px solid var(--line);background:#f4faf7}
 @media (max-width:640px){.grp-st{padding-left:16px}.grp-head{flex-wrap:wrap}}
+
+/* Ommaviy tahrirlashда o'zgargan qator ko'rinib tursin */
+tr.be-dirty td{background:#F0FDF4}
+tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
+.be-in{width:100%;padding:6px 8px;border:1px solid #d7dee7;border-radius:8px;font:inherit}
+.be-in:focus{outline:none;border-color:#16a34a;box-shadow:0 0 0 3px rgba(22,163,74,.12)}
 </style>
 </head>
 <body>
@@ -4958,6 +4964,7 @@ const Admin = {
         + (open
             ? '<div class="grp-body"><div class="grp-tools">'
               + '<button class="btn btn-green btn-sm" type="button" data-act="studentsBulk" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '"><i class="fa-solid fa-user-plus" aria-hidden="true"></i> Ommaviy o\'quvchi qo\'shish</button>'
+              + '<button class="btn btn-light btn-sm" type="button" data-act="studentsBulkEdit" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '" style="margin-left:8px"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> Ommaviy tahrirlash</button>'
               + '</div>' + (gst.length
                 ? gst.slice().sort((a, b) => stName(a).localeCompare(stName(b), 'uz')).map(st =>
                     '<div class="grp-st"><span>' + esc(stName(st)) + '</span>'
@@ -5485,6 +5492,151 @@ const Admin = {
       head
     ].concat(body);
     Excel.save(aoa, 'oquvchi-' + String(stName(d.student)).replace(/\s+/g, '-').toLowerCase() + '-' + localDateISO(0), 'Tashriflar');
+  },
+
+
+  /* ===================== OMMAVIY TAHRIRLASH =====================
+     Guruh ichidagi o'quvchilarni bitta jadvalда tahrirlash.
+     Har birini alohida ochish shart emas — ism, tug'ilган sana,
+     telefon va darslar sonini joyida o'zgartirib, bir marta
+     saqlaysiz. Faqat O'ZGARGAN qatorlar yuboriladi. */
+  bulkEditRows: [],
+
+  async studentsBulkEdit(schoolId, groupId) {
+    const group = (STATE.groups[schoolId] || []).find(g => String(g.id) === String(groupId));
+    const school = STATE.schools.find(x => String(x.id) === String(schoolId));
+
+    openModal('<div class="modal-head"><div><h2>Ommaviy tahrirlash</h2>'
+      + '<p class="text-muted">' + esc(school ? school.name : '') + ' &bull; '
+      + esc(group ? group.name : '') + '-guruh</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish">'
+      + '<i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div id="beBody"><div class="text-muted">Yuklanmoqda…</div></div>', { wide: true });
+
+    let list = [];
+    try {
+      const r = await adminApi('/students?groupId=' + encodeURIComponent(groupId) + '&limit=500');
+      list = (r && (r.students || r.items || r.data)) || [];
+    } catch (e) {
+      $('beBody').innerHTML = '<div class="text-error">' + esc(e.message) + '</div>';
+      return;
+    }
+    if (!list.length) {
+      $('beBody').innerHTML = '<div class="text-muted">Bu guruhда o\'quvchi yo\'q.</div>';
+      return;
+    }
+
+    // Asl holatni saqlaymiz — nima o'zgarganini bilish uchun
+    this.bulkEditRows = list.map(s => ({
+      id: s.id,
+      name: String(s.full_name || s.fullName || ''),
+      birth: String(s.birth_date || s.birthDate || '').slice(0, 10),
+      phone: String(s.phone || ''),
+      att: num(s.attendance_count != null ? s.attendance_count : s.attendanceCount),
+    }));
+
+    const rowsHtml = this.bulkEditRows.map((r, i) =>
+      '<tr data-i="' + i + '">'
+      + '<td class="text-muted" style="width:34px">' + (i + 1) + '</td>'
+      + '<td><input class="be-in" data-f="name" value="' + esc(r.name) + '" style="min-width:230px"></td>'
+      + '<td><input class="be-in" data-f="birth" type="date" value="' + esc(r.birth) + '"></td>'
+      + '<td><input class="be-in" data-f="phone" value="' + esc(r.phone) + '" placeholder="+998…" style="min-width:130px"></td>'
+      + '<td><input class="be-in" data-f="att" type="number" min="0" max="999" value="' + esc(String(r.att)) + '" style="width:80px"></td>'
+      + '</tr>').join('');
+
+    $('beBody').innerHTML =
+      '<div class="table-wrap" style="max-height:52vh;overflow:auto">'
+      + '<table class="table"><thead><tr>'
+      + '<th>#</th><th>F.I.Sh.</th><th>Tug\'ilган sana</th><th>Telefon</th><th>Darslar</th>'
+      + '</tr></thead><tbody id="beRows">' + rowsHtml + '</tbody></table></div>'
+      + '<div id="beStat" class="field-help" style="margin:10px 0">O\'zgartirish kiriting va saqlang.</div>'
+      + '<div class="actions-row">'
+      + '<button class="btn btn-green" type="button" id="beSaveBtn" data-act="studentsBulkEditSave" disabled>'
+      + '<span class="spinner"></span><i class="fa-solid fa-floppy-disk btn-icon" aria-hidden="true"></i>'
+      + '<span class="btn-text">Saqlash</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
+      + '<div id="beErr" class="text-error" role="alert"></div>';
+
+    // O'zgarganlarni belgilab boramiz
+    const recount = () => {
+      const changed = this.bulkEditChanged();
+      const btn = $('beSaveBtn');
+      if (btn) btn.disabled = changed.length === 0;
+      $('beStat').innerHTML = changed.length
+        ? '<b>' + changed.length + '</b> ta o\'quvchi o\'zgardi — saqlash mumkin.'
+        : 'O\'zgartirish kiriting va saqlang.';
+    };
+    $('beRows').addEventListener('input', (e) => {
+      const tr = e.target.closest('tr');
+      if (tr) tr.classList.add('be-dirty');
+      recount();
+    });
+    recount();
+  },
+
+  /* O'zgargan qatorlarni topadi — faqat ular yuboriladi. */
+  bulkEditChanged() {
+    const out = [];
+    const body = $('beRows');
+    if (!body) return out;
+    body.querySelectorAll('tr').forEach(tr => {
+      const i = num(tr.dataset.i);
+      const orig = this.bulkEditRows[i];
+      if (!orig) return;
+      const get = f => {
+        const el = tr.querySelector('[data-f="' + f + '"]');
+        return el ? String(el.value).trim() : '';
+      };
+      const cur = { name: get('name'), birth: get('birth'), phone: get('phone'), att: num(get('att')) };
+      if (cur.name !== orig.name || cur.birth !== orig.birth
+          || cur.phone !== orig.phone || cur.att !== orig.att) {
+        out.push({ id: orig.id, ...cur });
+      }
+    });
+    return out;
+  },
+
+  async studentsBulkEditSave() {
+    setError('beErr', '');
+    const changed = this.bulkEditChanged();
+    if (!changed.length) { setError('beErr', 'O\'zgartirish yo\'q.'); return; }
+
+    const bosh = changed.filter(r => !r.name);
+    if (bosh.length) { setError('beErr', bosh.length + ' ta qatorда F.I.Sh. bo\'sh.'); return; }
+
+    await withBusy('bulkEditSave', $('beSaveBtn'), async () => {
+      let ok = 0; const xato = [];
+      /* Ketma-ket yuboramiz — serverni bir vaqtда ko'p so'rov bilan
+         bosmaslik uchun. 500 tagacha o'quvchi uchun yetarli tez. */
+      for (const r of changed) {
+        try {
+          await adminApi('/students/' + encodeURIComponent(r.id), {
+            method: 'PUT',
+            body: jsonBody({
+              full_name: r.name, fullName: r.name,
+              birth_date: r.birth || null, birthDate: r.birth || null,
+              phone: r.phone,
+              attendance_count: r.att, attendanceCount: r.att,
+            }),
+          });
+          ok++;
+        } catch (e) {
+          xato.push(r.name + ': ' + e.message);
+        }
+      }
+
+      if (xato.length) {
+        setError('beErr', 'Saqlandi: ' + ok + ' ta. Xato: ' + xato.length + ' ta — ' + esc(xato[0]));
+      } else {
+        closeModal();
+        toast('Saqlandi: ' + ok + ' ta o\'quvchi');
+      }
+      try {
+        await Data.reloadStudents();
+        this.renderSchoolDetail();
+        this.refreshCounters();
+      } catch (e) { /* ro'yxat keyin yangilanadi */ }
+    });
   },
 
   /* --- Ommaviy o'quvchi qo'shish (matn ko'chirib qo'yish) --- */
@@ -6043,6 +6195,8 @@ const ACTIONS = {
   studentDetail: d => Admin.studentDetail(d.id),
   studentsMore: () => { Admin.studentLimit += 50; Admin.renderStudents(); },
   studentsBulk: d => Admin.studentsBulkModal(d.school || '', d.id || ''),
+  studentsBulkEdit: d => Admin.studentsBulkEdit(d.school || '', d.id || ''),
+  studentsBulkEditSave: () => Admin.studentsBulkEditSave(),
   studentsBulkPreview: () => Admin.studentsBulkPreview(),
   studentsBulkRun: d => Admin.studentsBulkRun(d.school, d.group),
   dupScan: () => Admin.dupScan(),
