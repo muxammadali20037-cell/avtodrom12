@@ -1724,7 +1724,7 @@ async function request(path, opt, kind) {
         if (kind === 'admin') {
           /* Faqat admin sessiyasini tozalaymiz — operator tizimda qoladi */
           STATE.admin.token = '';
-          try { sessionStorage.removeItem(CONFIG.ADMIN_TOKEN_KEY); sessionStorage.removeItem(CONFIG.ADMIN_FLAG_KEY); } catch (e) { /* noop */ }
+          try { localStorage.removeItem(CONFIG.ADMIN_TOKEN_KEY); localStorage.removeItem(CONFIG.ADMIN_FLAG_KEY); } catch (e) { /* noop */ }
           try {
             const panel = document.getElementById('adminPanel');
             const gate = document.getElementById('adminGate');
@@ -1778,8 +1778,8 @@ function loadSession() {
     STATE.auth.user = JSON.parse(localStorage.getItem(CONFIG.USER_KEY) || 'null');
   } catch (e) { STATE.auth.token = ''; STATE.auth.user = null; }
   try {
-    STATE.admin.token = sessionStorage.getItem(CONFIG.ADMIN_TOKEN_KEY) || '';
-    STATE.admin.username = sessionStorage.getItem(CONFIG.ADMIN_USER_KEY) || '';
+    STATE.admin.token = localStorage.getItem(CONFIG.ADMIN_TOKEN_KEY) || '';
+    STATE.admin.username = localStorage.getItem(CONFIG.ADMIN_USER_KEY) || '';
   } catch (e) { STATE.admin.token = ''; STATE.admin.username = ''; }
 }
 function saveLogin(x) {
@@ -1796,8 +1796,8 @@ function hardLogout(silent) {
   try {
     localStorage.removeItem(CONFIG.TOKEN_KEY);
     localStorage.removeItem(CONFIG.USER_KEY);
-    sessionStorage.removeItem(CONFIG.ADMIN_FLAG_KEY);
-    sessionStorage.removeItem(CONFIG.ADMIN_TOKEN_KEY);
+    localStorage.removeItem(CONFIG.ADMIN_FLAG_KEY);
+    localStorage.removeItem(CONFIG.ADMIN_TOKEN_KEY);
   } catch (e) { /* noop */ }
   STATE.auth = { token: '', user: null };
   STATE.admin = { token: '', username: '' };
@@ -1828,7 +1828,7 @@ function bootInner() {
   /* Kunlik hisobotni bir marta oldindan yuklaymiz — "Bugungi tushum" KPI va
      o'quvchining bugungi darslari shu ma'lumotdan olinadi. */
   Reports.loadDaily();
-  if (sessionStorage.getItem(CONFIG.ADMIN_FLAG_KEY) === '1' && STATE.admin.token) {
+  if (localStorage.getItem(CONFIG.ADMIN_FLAG_KEY) === '1' && STATE.admin.token) {
     $('adminPanel').classList.remove('hidden');
     document.body.classList.add('admin-open');
     Admin.setTab('dashboard');
@@ -4733,9 +4733,9 @@ const Admin = {
         STATE.admin.token = data.token;
         STATE.admin.username = (data.admin && data.admin.username) || $('adminUser').value.trim();
         try {
-          sessionStorage.setItem(CONFIG.ADMIN_TOKEN_KEY, data.token);
-          sessionStorage.setItem(CONFIG.ADMIN_USER_KEY, STATE.admin.username);
-          sessionStorage.setItem(CONFIG.ADMIN_FLAG_KEY, '1');
+          localStorage.setItem(CONFIG.ADMIN_TOKEN_KEY, data.token);
+          localStorage.setItem(CONFIG.ADMIN_USER_KEY, STATE.admin.username);
+          localStorage.setItem(CONFIG.ADMIN_FLAG_KEY, '1');
         } catch (e) { /* noop */ }
         this.closeGate();
         $('adminPanel').classList.remove('hidden');
@@ -4748,8 +4748,8 @@ const Admin = {
   },
   closePanel() {
     try {
-      sessionStorage.removeItem(CONFIG.ADMIN_FLAG_KEY);
-      sessionStorage.removeItem(CONFIG.ADMIN_TOKEN_KEY);
+      localStorage.removeItem(CONFIG.ADMIN_FLAG_KEY);
+      localStorage.removeItem(CONFIG.ADMIN_TOKEN_KEY);
     } catch (e) { /* noop */ }
     STATE.admin.token = '';
     $('adminPanel').classList.add('hidden');
@@ -5393,7 +5393,7 @@ const Admin = {
         if (!data || !data.token) throw ApiError('Tasdiqlanmadi.', 0, 'no token');
         /* Yangi token bilan sessiyani ham yangilaymiz */
         STATE.admin.token = data.token;
-        try { sessionStorage.setItem(CONFIG.ADMIN_TOKEN_KEY, data.token); } catch (e) { /* noop */ }
+        try { localStorage.setItem(CONFIG.ADMIN_TOKEN_KEY, data.token); } catch (e) { /* noop */ }
         Admin.unlockedUntil = Date.now() + CONFIG.KEY_TTL_MIN * 60 * 1000;
         if (Admin.keyWatch) clearInterval(Admin.keyWatch);
         const r = Admin.keyResolve; Admin.keyResolve = null;
