@@ -45,11 +45,38 @@ function verifyAdmin(req){
   try{const p=jwt.verify(h.slice(7),JWT_SECRET);return p?.role==='admin'?p:null;}catch{return null;}
 }
 
+/* Operator tizimga kirgan bo'lsa — uning tokeni haqiqiymi? */
+function operatorOf(req){
+  const raw = req.headers?.['x-operator-token'] || req.headers?.['X-Operator-Token'];
+  if (!raw || !JWT_SECRET) return null;
+  try { const p = jwt.verify(String(raw), JWT_SECRET); return p && p.sub ? p : null; }
+  catch { return null; }
+}
+
 async function login(req, res) {
   const ENV_USER = String(ADMIN_USERNAME || '').trim();
   const ENV_PASS = String(ADMIN_PASSWORD || '').trim();
 
-  if (!JWT_SECRET || !ENV_USER || !ENV_PASS) {
+  if (!JWT_SECRET) {
+    return send(res, 503, { error: 'JWT_SECRET sozlanmagan (Vercel ENV)' });
+  }
+
+  /* PAROLSIZ KIRISH.
+     Operator panelga login/parol bilan kirgan bo'lsa, admin panel
+     qo'shimcha login/parol SO'RAMAYDI. Operator tokeni serverda
+     tekshiriladi — tizimga kirmagan odam admin panelni ocha olmaydi. */
+  const op = operatorOf(req);
+  if (op) {
+    const uname = String(op.username || ENV_USER || 'admin');
+    const token = jwt.sign(
+      { sub: 'admin', role: 'admin', username: uname },
+      JWT_SECRET,
+      { expiresIn: ADMIN_TOKEN_TTL }
+    );
+    return send(res, 200, { token, admin: { username: uname, role: 'admin' }, open: true });
+  }
+
+  if (!ENV_USER || !ENV_PASS) {
     console.error('ADMIN LOGIN: env yetishmayapti', {
       jwt: !!JWT_SECRET, user: !!ENV_USER, pass: !!ENV_PASS
     });
@@ -66,10 +93,10 @@ async function login(req, res) {
      ADMIN_OPEN_ACCESS=1 bo'lsa login/parol so'ralmaydi — panelga
      to'g'ridan kiriladi.
 
-     DIQQAT: bu rejimда havolani bilган HAR KIM admin panelga kira
-     oladi (o'quvchilar ismi, tug'ilган sanasi, to'lovlar ochiq).
-     Ichki tarmoqда yoki himoyalanган muhitда ishlatish tavsiya etiladi.
-     Qaytarish uchun: Vercel'да ADMIN_OPEN_ACCESS ni o'chiring. */
+     DIQQAT: bu rejimda havolani bilgan HAR KIM admin panelga kira
+     oladi (o'quvchilar ismi, tug'ilgan sanasi, to'lovlar ochiq).
+     Ichki tarmoqda yoki himoyalangan muhitda ishlatish tavsiya etiladi.
+     Qaytarish uchun: Vercel'da ADMIN_OPEN_ACCESS ni o'chiring. */
   if (String(process.env.ADMIN_OPEN_ACCESS || '') === '1') {
     const token = jwt.sign(
       { sub: 'admin', role: 'admin', username: ENV_USER || 'admin' },
