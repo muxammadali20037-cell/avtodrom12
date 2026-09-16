@@ -1553,6 +1553,15 @@ const splitPlate = full => {
 const displayPlate = (region, body) => [normalizePlate(region), normalizePlate(body)].filter(Boolean).join(' ');
 /* Soatni darsga aylantirish: 1 soat = 1 dars (business rule) */
 const secondsToLessons = sec => Math.max(1, Math.round(num(sec) / CONFIG.LESSON_SECONDS));
+/* Bitta yozuvdagi darslar soni (2 soatlik davomat = 2 dars) */
+const rowLessons = r => (num(r && r.lessons_counted) > 0 ? num(r.lessons_counted) : secondsToLessons(r && r.duration_seconds));
+/* Yozuv sanasi — Toshkent vaqti bo'yicha (UTC emas) */
+const dayOf = ts => {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return String(ts).slice(0, 10);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+};
 
 /* ==========================================================================
    DARSLAR SONI — butun ilovada YAGONA manbadan hisoblanadi.
@@ -2365,13 +2374,11 @@ const Data = {
       STATE.daily = { date: today, rows: [] };
       STATE.dailyAt = Date.now();
     }
-    const now = new Date().toISOString();
-    for (let i = 0; i < num(lessons); i++) {
-      STATE.daily.rows.push({
-        student_id: studentId, duration_seconds: CONFIG.LESSON_SECONDS,
-        lessons_counted: 1, started_at: now
-      });
-    }
+    const n = Math.max(1, num(lessons));
+    STATE.daily.rows.push({
+      student_id: studentId, duration_seconds: CONFIG.LESSON_SECONDS * n,
+      lessons_counted: n, started_at: new Date().toISOString()
+    });
   },
 
   /* O'quvchining bugungi darslari — kunlik hisobot ma'lumotidan (server manbasi) */
@@ -2380,7 +2387,7 @@ const Data = {
     let n = 0;
     rows.forEach(r => {
       const match = (r.student_id && String(r.student_id) === String(studentId));
-      if (match) n += secondsToLessons(r.duration_seconds);
+      if (match && dayOf(r.started_at) === localDateISO(0)) n += rowLessons(r);
     });
     return n;
   }
@@ -3209,7 +3216,7 @@ const Active = {
       if (isSchoolSession(v)) school++; else ordinary++;
     });
     const daily = STATE.daily && STATE.daily.summary ? STATE.daily.summary : {};
-    const lessons = ((STATE.daily && STATE.daily.rows) || []).reduce((a, r) => a + (r.student_name || r.student_id ? secondsToLessons(r.duration_seconds) : 0), 0);
+    const lessons = ((STATE.daily && STATE.daily.rows) || []).reduce((a, r) => a + (r.student_name || r.student_id ? rowLessons(r) : 0), 0);
     return {
       total: STATE.active.length, w10: w10, w20: w20, school: school, ordinary: ordinary,
       queue: STATE.queue.length, frozen: STATE.frozen.length,
@@ -3581,7 +3588,9 @@ function reportRowCells(r) {
     esc(r.school_name || '—'),
     esc(r.group_name || '—'),
     esc(r.student_name || '—'),
-    (r.student_name ? String(att) : '—'),
+    (r.student_name
+      ? '<b>' + rowLessons(r) + '</b> <span class="text-muted" style="font-size:12px">/ jami ' + att + '</span>'
+      : '—'),
     money(r.cash_amount),
     money(r.terminal_amount),
     '<b style="color:var(--g-dark)">' + money(r.amount) + '</b>'
@@ -5268,10 +5277,10 @@ const Admin = {
       const s = (data && data.student) || local;
       const rows = (data && data.rows) || [];
       Admin.detail = { id: sid, student: s, rows: rows };
-      const totalLessons = rows.reduce((a, r) => a + secondsToLessons(r.duration_seconds), 0) || num(s.attendance_count);
+      const totalLessons = rows.reduce((a, r) => a + rowLessons(r), 0) || num(s.attendance_count);
       const today = localDateISO(0);
-      const todayLessons = rows.filter(r => String(r.started_at || '').slice(0, 10) === today)
-        .reduce((a, r) => a + secondsToLessons(r.duration_seconds), 0);
+      const todayRows = rows.filter(r => dayOf(r.started_at) === today);
+      const todayLessons = todayRows.reduce((a, r) => a + rowLessons(r), 0);
       c.innerHTML = '<div class="panel" style="margin-top:14px">'
         + '<div class="panel-head"><div><h3 class="mb-0">' + esc(stName(s)) + '</h3>'
         + '<p class="text-muted" style="margin-top:4px">' + esc([s.phone, s.school_name || Data.schoolName(s.school_id), s.group_name || Data.groupName(s.group_id)].filter(Boolean).join(' • ')) + '</p></div>'
@@ -5283,7 +5292,8 @@ const Admin = {
         + '<div class="att-grid">'
         + '<div class="att-item"><b>' + attCount(s) + '</b><span>Jami darslar</span></div>'
         + '<div class="att-item"><b>' + totalLessons + '</b><span>Tashriflardan hisoblangan</span></div>'
-        + '<div class="att-item"><b>' + todayLessons + '</b><span>Bugungi dars</span></div>'
+        + '<div class="att-item"><b>' + todayLessons + '</b><span>Bugungi dars'
+        + (todayRows.length ? ' (' + todayRows.length + ' marta keldi)' : '') + '</span></div>'
         + '<div class="att-item"><b>' + rows.length + '</b><span>Tashriflar</span></div>'
         + '</div>'
         + '<div style="margin-top:14px">' + tableHTML(rows) + '</div></div>';
