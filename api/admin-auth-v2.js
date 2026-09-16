@@ -62,6 +62,24 @@ async function login(req, res) {
   const username = String(body.username || '').trim();
   const password = String(body.password || '').trim();
 
+  /* OCHIQ KIRISH REJIMI.
+     ADMIN_OPEN_ACCESS=1 bo'lsa login/parol so'ralmaydi — panelga
+     to'g'ridan kiriladi.
+
+     DIQQAT: bu rejimда havolani bilган HAR KIM admin panelga kira
+     oladi (o'quvchilar ismi, tug'ilган sanasi, to'lovlar ochiq).
+     Ichki tarmoqда yoki himoyalanган muhitда ishlatish tavsiya etiladi.
+     Qaytarish uchun: Vercel'да ADMIN_OPEN_ACCESS ni o'chiring. */
+  if (String(process.env.ADMIN_OPEN_ACCESS || '') === '1') {
+    const token = jwt.sign(
+      { sub: 'admin', role: 'admin', username: ENV_USER || 'admin' },
+      JWT_SECRET,
+      { expiresIn: ADMIN_TOKEN_TTL }
+    );
+    return send(res, 200, { token, admin: { username: ENV_USER || 'admin', role: 'admin' }, open: true });
+  }
+
+
   if (username.toLowerCase() !== ENV_USER.toLowerCase()) {
     console.warn('ADMIN LOGIN: login mos kelmadi', {
       kiritilgan_uzunlik: username.length, env_uzunlik: ENV_USER.length
