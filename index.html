@@ -854,7 +854,7 @@ body.admin-open { overflow: hidden; }
 .grp-tools{padding:9px 12px;border-bottom:1px solid var(--line);background:#f4faf7}
 @media (max-width:640px){.grp-st{padding-left:16px}.grp-head{flex-wrap:wrap}}
 
-/* Ommaviy tahrirlashда o'zgargan qator ko'rinib tursin */
+/* Ommaviy tahrirlashda o'zgargan qator ko'rinib tursin */
 tr.be-dirty td{background:#F0FDF4}
 tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 .be-in{width:100%;padding:6px 8px;border:1px solid #d7dee7;border-radius:8px;font:inherit}
@@ -1726,7 +1726,8 @@ async function request(path, opt, kind) {
     setOnline(true);
     if (!res.ok) {
       const serverMsg = data && (data.error || data.message);
-      if (res.status === 401) {
+      const staleAdmin = kind === 'admin' && res.status === 403 && /Admin ruxsati kerak/i.test(String(serverMsg || ''));
+      if (res.status === 401 || staleAdmin) {
         if (kind === 'admin') {
           /* Faqat admin sessiyasini tozalaymiz — operator tizimda qoladi */
           STATE.admin.token = '';
@@ -1736,9 +1737,13 @@ async function request(path, opt, kind) {
             const gate = document.getElementById('adminGate');
             if (panel) panel.classList.add('hidden');
             document.body.classList.remove('admin-open');
-            if (gate) gate.classList.remove('hidden');
+            if (gate) gate.classList.add('hidden');
+            if (!request.adminRetry && typeof Admin !== 'undefined') {
+              request.adminRetry = true;
+              setTimeout(() => { Admin.openGate().finally(() => { request.adminRetry = false; }); }, 50);
+            }
           } catch (e2) { /* noop */ }
-          throw ApiError('Admin sessiyasi tugadi. Qaytadan kiring.', 401, serverMsg);
+          throw ApiError('Admin sessiyasi yangilanmoqda, qayta urinib ko\'ring.', 401, serverMsg);
         }
         if (kind === 'public') {
           /* Login / admin login: 401 = login yoki parol noto'g'ri.
@@ -2794,7 +2799,6 @@ const Add = {
       + Data.activeSchools().map(s => '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>').join('') + '</select></div>'
       + '<div><label class="field-label" for="qsGroup">Guruh</label><select id="qsGroup" disabled><option value="">Avval avtoshkola</option></select></div>'
       + '</div>'
-      + '<div class="field-help">Yangi o\'quvchi qo\'shish uchun admin huquqi kerak. Admin panelga kirmagan bo\'lsangiz, avval admin sifatida kiring.</div>'
       + '<div class="actions-row"><button class="btn btn-green" type="submit" id="qsBtn"><span class="spinner"></span><i class="fa-solid fa-check btn-icon"></i><span class="btn-text">Saqlash</span></button>'
       + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
       + '<div id="qsErr" class="text-error" role="alert"></div></form>');
@@ -2807,7 +2811,10 @@ const Add = {
   },
   async quickStudentSave() {
     setError('qsErr', '');
-    if (!STATE.admin.token) { setError('qsErr', "Yangi o'quvchi qo'shish uchun avval Admin panelga kiring."); return; }
+    if (!STATE.admin.token) {
+      try { await Admin.ensureToken(); }
+      catch (e) { setError('qsErr', e.message); return; }
+    }
     const qsN = $('qsName').value.trim(), qsS = $('qsSchool').value || null, qsG = $('qsGroup').value || null;
     const payload = {
       full_name: qsN, fullName: qsN,
@@ -4710,39 +4717,38 @@ const Admin = {
   importRows: [],
   importKind: '',
 
-  /* Admin panelni ochish.
-     Server ochiq kirish rejimidа bo'lsa (ADMIN_OPEN_ACCESS=1),
-     login/parol oynasi KO'RSATILMAYDI — to'g'ridan kiriladi.
-     Server parol talab qilsa, oyna avvalgidek chiqadi. */
+  /* Admin panelni ochish — LOGIN/PAROL SO'RALMAYDI.
+     Operator tizimga kirgan bo'lsa, server uning tokenini tekshirib
+     admin tokenini beradi va panel darhol ochiladi. */
+  async ensureToken() {
+    if (STATE.admin.token) return STATE.admin.token;
+    const data = await request('/admin/login', {
+      method: 'POST',
+      headers: STATE.auth.token ? { 'X-Operator-Token': STATE.auth.token } : {},
+      body: jsonBody({})
+    }, 'public');
+    if (!data || !data.token) throw ApiError('Server admin tokenini qaytarmadi.', 0, 'no admin token');
+    STATE.admin.token = data.token;
+    STATE.admin.username = (data.admin && data.admin.username) || 'admin';
+    try {
+      localStorage.setItem(CONFIG.ADMIN_TOKEN_KEY, data.token);
+      localStorage.setItem(CONFIG.ADMIN_USER_KEY, STATE.admin.username);
+    } catch (e) { /* xotira yopiq bo'lsa ham davom etamiz */ }
+    return data.token;
+  },
   async openGate() {
     setError('adminErr', '');
-
-    // Avval jimgina kirishga urinamiz
+    if (Admin.opening) return;
+    Admin.opening = true;
     try {
-      const data = await request('/api/admin/login', {
-        method: 'POST',
-        body: jsonBody({ username: '', password: '' }),
-      }, 'admin-open');
-
-      if (data && data.token && data.open) {
-        STATE.admin.token = data.token;
-        STATE.admin.username = (data.admin && data.admin.username) || 'admin';
-        try {
-          localStorage.setItem(CONFIG.ADMIN_TOKEN_KEY, data.token);
-          localStorage.setItem(CONFIG.ADMIN_USER_KEY, STATE.admin.username);
-          localStorage.setItem(CONFIG.ADMIN_FLAG_KEY, '1');
-        } catch (e) { /* xotira yopiq bo'lsa ham davom etamiz */ }
-        Admin.openPanelDirect();
-        return;
-      }
+      await Admin.ensureToken();
+      try { localStorage.setItem(CONFIG.ADMIN_FLAG_KEY, '1'); } catch (e) { /* noop */ }
+      Admin.openPanelDirect();
     } catch (e) {
-      // Ochiq rejim yo'q yoki server javob bermadi — oddiy oyna
+      toast('Admin panel ochilmadi: ' + e.message, 'error');
+    } finally {
+      Admin.opening = false;
     }
-
-    $('adminUser').value = '';
-    $('adminPass').value = '';
-    $('adminGate').classList.remove('hidden');
-    setTimeout(() => { const el = $('adminUser'); if (el) el.focus(); }, 60);
   },
 
   /* Panelni ochish — oddiy login bilan BIR XIL ketma-ketlik. */
@@ -5400,6 +5406,9 @@ const Admin = {
   isUnlocked() { return Date.now() < Admin.unlockedUntil; },
   lock() { Admin.unlockedUntil = 0; },
   requireKey(reason) {
+    /* Kalit so'z (parol) endi so'ralmaydi */
+    return Promise.resolve(true);
+    // eslint-disable-next-line no-unreachable
     if (Admin.isUnlocked()) return Promise.resolve(true);
     return new Promise(resolve => {
       openModal('<div class="modal-head"><div><h2><i class="fa-solid fa-lock" aria-hidden="true"></i> Kalit so\'z</h2>'
@@ -5496,19 +5505,22 @@ const Admin = {
 
 
   /* ===================== OMMAVIY TAHRIRLASH =====================
-     Guruh ichidagi o'quvchilarni bitta jadvalда tahrirlash.
-     Har birini alohida ochish shart emas — ism, tug'ilган sana,
+     Guruh ichidagi o'quvchilarni bitta jadvalda tahrirlash.
+     Har birini alohida ochish shart emas — ism, tug'ilgan sana,
      telefon va darslar sonini joyida o'zgartirib, bir marta
      saqlaysiz. Faqat O'ZGARGAN qatorlar yuboriladi. */
   bulkEditRows: [],
 
   async studentsBulkEdit(schoolId, groupId) {
-    const group = (STATE.groups[schoolId] || []).find(g => String(g.id) === String(groupId));
+    const group = (Data.activeGroups(schoolId) || []).concat(STATE.groups || [])
+      .find(g => String(g.id) === String(groupId));
+    const gName = group ? String(group.name || '').trim() : '';
+    const gLabel = !gName ? 'Guruh' : (/guruh/i.test(gName) ? gName : gName + '-guruh');
     const school = STATE.schools.find(x => String(x.id) === String(schoolId));
 
     openModal('<div class="modal-head"><div><h2>Ommaviy tahrirlash</h2>'
       + '<p class="text-muted">' + esc(school ? school.name : '') + ' &bull; '
-      + esc(group ? group.name : '') + '-guruh</p></div>'
+      + '<span id="beGroupLabel">' + esc(gLabel) + '</span></p></div>'
       + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish">'
       + '<i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
       + '<div id="beBody"><div class="text-muted">Yuklanmoqda…</div></div>', { wide: true });
@@ -5516,19 +5528,31 @@ const Admin = {
     let list = [];
     try {
       const r = await adminApi('/students?groupId=' + encodeURIComponent(groupId) + '&limit=500');
-      list = (r && (r.students || r.items || r.data)) || [];
+      list = Array.isArray(r) ? r : ((r && (r.students || r.items || r.data || r.rows)) || []);
+      /* Server filtrlamagan bo'lsa ham faqat shu guruh qolsin */
+      list = list.filter(s => String(s.group_id || s.groupId || '') === String(groupId));
+      /* Server bo'sh qaytarsa — ekrandagi ro'yxatdan olamiz */
+      if (!list.length) {
+        list = (STATE.students || []).filter(s => String(s.group_id || s.groupId || '') === String(groupId));
+      }
     } catch (e) {
       $('beBody').innerHTML = '<div class="text-error">' + esc(e.message) + '</div>';
       return;
     }
     if (!list.length) {
-      $('beBody').innerHTML = '<div class="text-muted">Bu guruhда o\'quvchi yo\'q.</div>';
+      $('beBody').innerHTML = '<div class="text-muted">Bu guruhda o\'quvchi yo\'q.</div>';
       return;
     }
 
     // Asl holatni saqlaymiz — nima o'zgarganini bilish uchun
+    if (!gName) {
+      const gn = String((list[0] && (list[0].group_name || list[0].groupName)) || '').trim();
+      if (gn && $('beGroupLabel')) $('beGroupLabel').textContent = /guruh/i.test(gn) ? gn : gn + '-guruh';
+    }
+    list.sort((a, b) => stName(a).localeCompare(stName(b), 'uz'));
     this.bulkEditRows = list.map(s => ({
       id: s.id,
+      orig: s,
       name: String(s.full_name || s.fullName || ''),
       birth: String(s.birth_date || s.birthDate || '').slice(0, 10),
       phone: String(s.phone || ''),
@@ -5547,7 +5571,7 @@ const Admin = {
     $('beBody').innerHTML =
       '<div class="table-wrap" style="max-height:52vh;overflow:auto">'
       + '<table class="table"><thead><tr>'
-      + '<th>#</th><th>F.I.Sh.</th><th>Tug\'ilган sana</th><th>Telefon</th><th>Darslar</th>'
+      + '<th>#</th><th>F.I.Sh.</th><th>Tug\'ilgan sana</th><th>Telefon</th><th>Darslar</th>'
       + '</tr></thead><tbody id="beRows">' + rowsHtml + '</tbody></table></div>'
       + '<div id="beStat" class="field-help" style="margin:10px 0">O\'zgartirish kiriting va saqlang.</div>'
       + '<div class="actions-row">'
@@ -5590,7 +5614,7 @@ const Admin = {
       const cur = { name: get('name'), birth: get('birth'), phone: get('phone'), att: num(get('att')) };
       if (cur.name !== orig.name || cur.birth !== orig.birth
           || cur.phone !== orig.phone || cur.att !== orig.att) {
-        out.push({ id: orig.id, ...cur });
+        out.push(Object.assign({ id: orig.id }, cur));
       }
     });
     return out;
@@ -5602,17 +5626,24 @@ const Admin = {
     if (!changed.length) { setError('beErr', 'O\'zgartirish yo\'q.'); return; }
 
     const bosh = changed.filter(r => !r.name);
-    if (bosh.length) { setError('beErr', bosh.length + ' ta qatorда F.I.Sh. bo\'sh.'); return; }
+    if (bosh.length) { setError('beErr', bosh.length + ' ta qatorda F.I.Sh. bo\'sh.'); return; }
 
     await withBusy('bulkEditSave', $('beSaveBtn'), async () => {
       let ok = 0; const xato = [];
-      /* Ketma-ket yuboramiz — serverni bir vaqtда ko'p so'rov bilan
+      /* Ketma-ket yuboramiz — serverni bir vaqtda ko'p so'rov bilan
          bosmaslik uchun. 500 tagacha o'quvchi uchun yetarli tez. */
       for (const r of changed) {
+        const o = (this.bulkEditRows.find(x => String(x.id) === String(r.id)) || {}).orig || {};
+        const gid = o.group_id || o.groupId || null;
+        const sch = o.school_id || o.schoolId || null;
         try {
           await adminApi('/students/' + encodeURIComponent(r.id), {
             method: 'PUT',
             body: jsonBody({
+              group_id: gid, groupId: gid,
+              school_id: sch, schoolId: sch,
+              plate: o.plate || null,
+              notes: o.notes || null,
               full_name: r.name, fullName: r.name,
               birth_date: r.birth || null, birthDate: r.birth || null,
               phone: r.phone,
@@ -5999,7 +6030,10 @@ const Admin = {
     const kind = this.importKind;
     const rows = this.importRows.filter(r => r.status === 'ok');
     if (!rows.length) return;
-    if (kind === 'students' && !STATE.admin.token) { toast('Import uchun admin sessiyasi kerak.', 'error'); return; }
+    if (kind === 'students' && !STATE.admin.token) {
+      try { await Admin.ensureToken(); }
+      catch (e) { toast(e.message, 'error'); return; }
+    }
     await withBusy('import', $('impBtn'), async () => {
       let done = 0, failed = 0;
       const prog = $('impProgress');
