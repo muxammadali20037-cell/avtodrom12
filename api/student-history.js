@@ -32,7 +32,7 @@ export default async function handler(req,res){
       SELECT st.id,st.full_name,st.birth_date,st.phone,st.plate,
              s.name school_name,g.name group_name,
              COALESCE(st.manual_attendance_count,0) manual_attendance_count,
-             (SELECT COUNT(*)::int FROM sessions se WHERE se.student_id=st.id AND se.status='completed') session_attendance_count
+             (SELECT COALESCE(SUM(GREATEST(1, CASE WHEN COALESCE(se.lessons_counted,0) > 0 THEN se.lessons_counted ELSE ROUND(COALESCE(se.duration_seconds,3600)/3600.0)::int END)),0)::int FROM sessions se WHERE se.student_id=st.id AND se.status='completed') session_attendance_count
       FROM students st
       JOIN driving_schools s ON s.id=st.school_id
       LEFT JOIN school_groups g ON g.id=st.group_id
