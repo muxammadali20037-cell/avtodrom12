@@ -3843,7 +3843,9 @@ const Fleet = {
   pageHTML() {
     return '<div class="page-header"><div><h2>Avtoshkola mashinalari</h2>'
       + '<p class="text-muted">Har bir avtoshkolaning avtomobil raqamlari</p></div>'
-      + '<button class="btn btn-green" type="button" data-act="carModal"><i class="fa-solid fa-plus" aria-hidden="true"></i> Mashina qo\'shish</button></div>'
+      + '<div class="header-actions">'
+      + '<button class="btn btn-light" type="button" data-act="carBulk"><i class="fa-solid fa-list" aria-hidden="true"></i> Ommaviy qo\'shish</button>'
+      + '<button class="btn btn-green" type="button" data-act="carModal"><i class="fa-solid fa-plus" aria-hidden="true"></i> Mashina qo\'shish</button></div></div>'
       + '<div class="panel"><div class="report-filters">'
       + '<div class="fg"><label for="carSchoolFilter">Avtoshkola</label><select id="carSchoolFilter" data-act="carFilter">'
       + '<option value="">Hammasi</option>'
@@ -3943,6 +3945,70 @@ const Fleet = {
       } catch (e) { setError('carErr', e.message); }
     });
   },
+  /* ---------- ommaviy qo'shish ---------- */
+  bulkModal() {
+    const schools = Data.activeSchools();
+    if (!schools.length) { toast("Avval avtoshkola qo'shing.", 'error'); return; }
+    const cur = ($('carSchoolFilter') && $('carSchoolFilter').value) || schools[0].id;
+    openModal('<div class="modal-head"><div><h2>Ommaviy mashina qo\'shish</h2>'
+      + '<p class="text-muted">Barcha raqamlar bitta avtoshkolaga yoziladi</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<form data-act="carBulkSave">'
+      + '<div class="fg"><label class="field-label" for="carBulkSchool">Avtoshkola <span class="text-red">*</span></label>'
+      + '<select id="carBulkSchool" required>'
+      + schools.map(x => '<option value="' + esc(x.id) + '"' + (String(x.id) === String(cur) ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('')
+      + '</select></div>'
+      + '<div class="fg" style="margin-top:10px"><label class="field-label" for="carBulkData">Ro\'yxat</label>'
+      + '<textarea id="carBulkData" rows="9" required placeholder="01 777 AAA, Cobalt, Abror Toshmatov&#10;01 888 CCC, Spark&#10;01999ZZZ"></textarea>'
+      + '<div class="field-help">Har qatorda bitta mashina: <b>raqam</b>, keyin ixtiyoriy <b>rusumi</b> va <b>instruktor F.I.Sh.</b> — vergul bilan ajrating. '
+      + 'Excel\'dan nusxa olsangiz ham bo\'ladi. Bazada bor raqam qayta qo\'shilmaydi.</div></div>'
+      + '<div class="actions-row"><button class="btn btn-green" type="submit" id="carBulkBtn"><span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Qo\'shish</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
+      + '<div id="carBulkErr" class="text-error" role="alert"></div>'
+      + '<div id="carBulkOut" class="text-muted" style="margin-top:10px"></div></form>');
+  },
+  /* Bitta qatorni bo'laklarga ajratish.
+     Vergul, nuqta-vergul yoki tab bilan ajratilgan bo'lishi mumkin.
+     Ajratgich umuman bo'lmasa — butun qator raqam deb olinadi
+     («01 777 AAA» ichida bo'sh joy bor, uni bo'lakka bo'lib bo'lmaydi). */
+  parseBulkLine(line) {
+    /* Bo'sh bo'laklar OLIB TASHLANMAYDI: «01 111 QQQ,,Abror» da rusum
+       bo'sh, instruktor esa uchinchi o'rinda. Bo'shini tashlab yuborsak
+       instruktor rusum o'rniga tushib qolardi. */
+    const parts = String(line).split(/[,;\t]/).map(x => x.trim());
+    return { plate: parts[0] || '', model: parts[1] || '', instructorName: parts[2] || '' };
+  },
+  async bulkSave() {
+    setError('carBulkErr', '');
+    const schoolId = $('carBulkSchool').value;
+    if (!schoolId) { setError('carBulkErr', 'Avtoshkolani tanlang.'); return; }
+    const rows = $('carBulkData').value.split('\n')
+      .map(l => l.trim()).filter(Boolean)
+      .map(l => this.parseBulkLine(l))
+      .filter(x => x.plate);
+    if (!rows.length) { setError('carBulkErr', "Hech bo'lmasa bitta raqam kiriting."); return; }
+    await withBusy('carBulk', $('carBulkBtn'), async () => {
+      try {
+        const r = await api('/school-vehicles/bulk', {
+          method: 'POST', body: jsonBody({ schoolId: schoolId, rows: rows })
+        });
+        const out = $('carBulkOut');
+        if (out) {
+          out.innerHTML = '<b>' + num(r.added) + '</b> ta qo\'shildi'
+            + (num(r.skipped) ? ', <b>' + num(r.skipped) + '</b> tasi bazada bor edi' : '')
+            + ((r.errors || []).length ? '<div class="text-error" style="margin-top:6px">' + esc((r.errors || []).slice(0, 5).join('; ')) + '</div>' : '')
+            + '.';
+        }
+        toast(num(r.added) + " ta mashina qo'shildi.");
+        await Fleet.reload('');
+        Fleet.render();
+        if (!num(r.added)) return;
+        $('carBulkData').value = '';
+        setTimeout(closeModal, 1400);
+      } catch (e) { setError('carBulkErr', e.message); }
+    });
+  },
+
   async remove(id) {
     const v = this.byId(id);
     const ok = await confirmModal({
@@ -4759,7 +4825,7 @@ const Instructors = {
       + '<div><label class="field-label" for="insPlate">Avtomobil raqami</label><input id="insPlate" value="' + esc(insPlate(ins)) + '" placeholder="01 555 AAA"></div>'
       + '<div><label class="field-label" for="insModel">Avtomobil rusumi</label><input id="insModel" value="' + esc(insModel(ins)) + '" placeholder="Chevrolet Cobalt"></div>'
       + '</div>'
-      + '<div class="field-help">Avtoshkola majburiy. Guruh instruktor uchun kerak emas. Raqam bazadan qidirilmaydi — siz kiritgan qiymat saqlanadi.</div>'
+      + '<div class="field-help">Avtoshkola majburiy. Avtomobil maydonlari ixtiyoriy — mashinalar «Admin → Mashinalar» bo\'limida alohida yuritiladi va bir instruktor turli kunlarda turli mashinada uchirishi mumkin.</div>'
       + '<div class="actions-row"><button class="btn btn-green" type="submit" id="insBtn"><span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Saqlash</span></button>'
       + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
       + '<div id="insErr" class="text-error" role="alert"></div></form>');
@@ -4828,34 +4894,56 @@ const Instructors = {
     } catch (e) { toast(e.message, 'error'); }
   },
   bulkModal() {
-    openModal('<div class="modal-head"><div><h2>Ommaviy qo\'shish</h2>'
-      + '<p class="text-muted">Har qatorga: F.I.Sh., Telefon, Avtomobil raqami, Rusumi</p></div>'
+    const schools = Data.activeSchools();
+    if (!schools.length) { toast("Avval avtoshkola qo'shing.", 'error'); return; }
+    openModal('<div class="modal-head"><div><h2>Ommaviy instruktor qo\'shish</h2>'
+      + '<p class="text-muted">Faqat shaxsiy ma\'lumot: F.I.Sh. va telefon</p></div>'
       + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
       + '<form data-act="instructorBulkSave">'
-      + '<div class="fg"><label class="field-label" for="bulkData">Ma\'lumotlar</label>'
-      + '<textarea id="bulkData" rows="8" required placeholder="Sharif Rashidov, +998901234567, 01 555 AAA, Chevrolet Cobalt"></textarea></div>'
+      + '<div class="fg"><label class="field-label" for="bulkSchool">Avtoshkola <span class="text-red">*</span></label>'
+      + '<select id="bulkSchool" required>'
+      + schools.map(x => '<option value="' + esc(x.id) + '">' + esc(x.name) + '</option>').join('')
+      + '</select></div>'
+      + '<div class="fg" style="margin-top:10px"><label class="field-label" for="bulkData">Ro\'yxat</label>'
+      + '<textarea id="bulkData" rows="9" required placeholder="Sharif Rashidov, +998901234567&#10;Abror Toshmatov, 901112233&#10;Bobur Saidov"></textarea>'
+      + '<div class="field-help">Har qatorda bitta instruktor: <b>F.I.Sh.</b>, keyin ixtiyoriy <b>telefon</b> — vergul bilan ajrating. '
+      + 'Avtomobil raqami bu yerda kiritilmaydi, u «Admin → Mashinalar» bo\'limida alohida yuritiladi.</div></div>'
       + '<div class="actions-row"><button class="btn btn-green" type="submit" id="bulkBtn"><span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Qo\'shish</span></button>'
       + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
-      + '<div id="bulkErr" class="text-error" role="alert"></div></form>');
+      + '<div id="bulkErr" class="text-error" role="alert"></div>'
+      + '<div id="bulkOut" class="text-muted" style="margin-top:10px"></div></form>');
   },
   async bulkSave() {
     setError('bulkErr', '');
-    const lines = $('bulkData').value.split('\n').map(l => l.trim()).filter(Boolean);
-    if (!lines.length) { setError('bulkErr', "Ma'lumot kiriting."); return; }
-    const items = lines.map(l => {
-      const p = l.split(',').map(s => s.trim());
-      const sp = splitPlate(p[2] || '');
-      const pl = p[2] ? displayPlate(sp.region, sp.body) : '';
-      return { full_name: p[0] || '', fullName: p[0] || '', phone: p[1] || '', plate: pl, model: p[3] || '' };
-    }).filter(x => x.full_name);
-    if (!items.length) { setError('bulkErr', "Hech bo'lmasa bitta F.I.Sh. kerak."); return; }
+    const schoolId = $('bulkSchool') ? $('bulkSchool').value : '';
+    if (!schoolId) { setError('bulkErr', 'Avtoshkolani tanlang.'); return; }
+    const rows = $('bulkData').value.split('\n')
+      .map(l => l.trim()).filter(Boolean)
+      .map(l => {
+        /* Bo'sh bo'laklar olib tashlanmaydi — o'rni saqlanishi kerak */
+        const p = l.split(/[,;\t]/).map(x => x.trim());
+        return { fullName: p[0] || '', phone: p[1] || '' };
+      })
+      .filter(x => x.fullName);
+    if (!rows.length) { setError('bulkErr', "Hech bo'lmasa bitta F.I.Sh. kerak."); return; }
     await withBusy('bulk', $('bulkBtn'), async () => {
       try {
-        await api('/instructors/bulk', { method: 'POST', body: jsonBody({ instructors: items }) });
-        closeModal();
-        toast(items.length + " ta instruktor qo'shildi.");
+        const r = await api('/instructors/bulk', {
+          method: 'POST', body: jsonBody({ schoolId: schoolId, rows: rows })
+        });
+        const out = $('bulkOut');
+        if (out) {
+          out.innerHTML = '<b>' + num(r.added) + '</b> ta qo\'shildi'
+            + (num(r.skipped) ? ', <b>' + num(r.skipped) + '</b> tasi bazada bor edi' : '')
+            + ((r.errors || []).length ? '<div class="text-error" style="margin-top:6px">' + esc((r.errors || []).slice(0, 5).join('; ')) + '</div>' : '')
+            + '.';
+        }
+        toast(num(r.added) + " ta instruktor qo'shildi.");
         await Data.reloadInstructors();
         Instructors.render();
+        if (!num(r.added)) return;
+        $('bulkData').value = '';
+        setTimeout(closeModal, 1400);
       } catch (e) { setError('bulkErr', e.message); }
     });
   }
@@ -6801,6 +6889,8 @@ const ACTIONS = {
   carDelete: d => Fleet.remove(d.id),
   carFilter: () => Fleet.render(),
   carSchoolChange: () => Fleet.schoolChanged(),
+  carBulk: () => Fleet.bulkModal(),
+  carBulkSave: () => Fleet.bulkSave(),
   schoolCarChange: () => Add.carManualToggle(),
 
   /* --- instruktor tarixi --- */
