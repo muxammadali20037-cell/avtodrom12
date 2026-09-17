@@ -115,7 +115,7 @@ function plateData(body) {
 
 async function ensureAccountData(userId){ await pool.query(`INSERT INTO user_settings(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING`,[userId]); }
 
-const SCHEMA_VERSION = 'feature_schema_v4';
+const SCHEMA_VERSION = 'feature_schema_v5';
 
 /* Jadval o'zgarishlari BIR MARTA bajariladi. Avval bu funksiya har safar
    server "sovuq" ko'tarilganda 50 dan ortiq ALTER/CREATE so'rovini yuborardi -
@@ -259,6 +259,16 @@ async function ensureFeatureSchema(){
   await q(`CREATE INDEX IF NOT EXISTS idx_students_school_group ON students(school_id,group_id,active)`);
   await q(`CREATE INDEX IF NOT EXISTS idx_school_groups_owner_school ON school_groups(owner_key,school_id,active)`);
   await q(`CREATE INDEX IF NOT EXISTS idx_schools_owner_active ON driving_schools(owner_key,active)`);
+
+  /* KUNLIK HISOBOT UCHUN KAFOLAT
+     Hisobot so'rovi (REPORT_SELECT) quyidagi ustunlarga tayanadi.
+     Ular boshqa migratsiyalarda qo'shilgan bo'lishi mumkin, lekin
+     bittasi yetishmasa butun kunlik hisobot «column does not exist»
+     bilan yiqiladi. Shuning uchun shu yerda ham kafolatlaymiz. */
+  await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS instructor_name TEXT`);
+  await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS customer_type VARCHAR(20)`);
+  await q(`ALTER TABLE instructors ADD COLUMN IF NOT EXISTS bio TEXT`);
+  await q(`ALTER TABLE instructors ADD COLUMN IF NOT EXISTS settings JSONB`);
 
   await q(`INSERT INTO avtodrom_migrations(name) VALUES('${SCHEMA_VERSION}') ON CONFLICT (name) DO NOTHING`);
   schemaMs = Date.now() - started;
@@ -737,6 +747,7 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
 /* ---------------------- HISOBOT / TARIX / DASHBOARD ---------------------- */
 const REPORT_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,v.driver_name) driver_name,s.started_at,s.finished_at,s.duration_seconds,
     s.amount,s.cash_amount,s.terminal_amount,s.payment_method,s.lessons_counted,s.student_id,
+    s.customer_type,s.instructor_id,COALESCE(i.full_name,i.bio,s.instructor_name) instructor_label,
     ds.name school_name,g.name group_name,st.full_name student_name,i.full_name instructor_name,
     ${STUDENT_ATTENDANCE_SQL} attendance_count
   FROM sessions s LEFT JOIN vehicles v ON v.id=s.vehicle_id
@@ -879,6 +890,9 @@ app.post('/api/maintenance/lessons-migration', adminAuth, async (req, res) => {
     await c.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS lessons_counted integer NOT NULL DEFAULT 0`);
 
     /* 2. Hozirgi holatni bitta songa yig'amiz */
+    /* Bitta yozuv bir nechta darsni saqlashi mumkin (2 soat = 1 qator,
+       lessons_counted = 2). Shuning uchun qatorlar SANALMAYDI, balki
+       lessons_counted yig'iladi — STUDENT_ATTENDANCE_SQL bilan bir xil. */
     const upd = await c.query(`
       UPDATE students st
          SET attendance_count = COALESCE(st.manual_attendance_count,0)
