@@ -199,15 +199,16 @@ textarea { resize: vertical; min-height: 90px; }
 .cp-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
 .cp-panel-head b { font-size: 14px; }
 .cp-filter { width: 100%; margin-bottom: 8px; }
-.cp-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px;
-  max-height: 300px; overflow-y: auto; }
-.cp-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left;
+.cp-list { display: flex; flex-direction: column; gap: 4px; max-height: 360px; overflow-y: auto; }
+.cp-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
   border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 9px 11px;
   cursor: pointer; font: inherit; color: inherit; }
 .cp-item:hover { border-color: var(--g); background: var(--g-surface); }
 .cp-item.active { border-color: var(--g); background: var(--g-surface); color: var(--g-dark); }
-.cp-item span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; }
-.cp-item .text-muted { font-size: 12px; flex: 0 0 auto; }
+.cp-num { flex: 0 0 28px; color: var(--muted); font-size: 12px; font-weight: 600; text-align: right; }
+.cp-name { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: 14px; white-space: normal; word-break: break-word; }
+.cp-item .text-muted { font-size: 12px; flex: 0 0 auto; white-space: nowrap; }
+.cp-row > * , .cp-panel { min-width: 0; }
 @media (max-width: 720px) { .cp-row { grid-template-columns: 1fr; } }
 /* ===== Guruh bo'yicha tanlash — alohida to'liq ekran =====
    Ilgari bu kichik modal oyna ichida edi va uch mingdan ortiq o'quvchi
@@ -3792,9 +3793,10 @@ const CascadePick = {
       : (STATE.form.student ? String(STATE.form.student.id) : '');
     const list = this.items();
     $('cpList').innerHTML = list.length
-      ? list.map(x => '<button class="cp-item' + (String(x.id) === String(activeId) ? ' active' : '') + '" type="button"'
+      ? list.map((x, i) => '<button class="cp-item' + (String(x.id) === String(activeId) ? ' active' : '') + '" type="button"'
           + ' data-act="cpChoose" data-step="' + this.step + '" data-id="' + esc(x.id) + '">'
-          + '<span>' + esc(x.name) + '</span><span class="text-muted">' + esc(x.sub) + '</span></button>').join('')
+          + '<span class="cp-num">' + (i + 1) + '.</span>'
+          + '<span class="cp-name">' + esc(x.name) + '</span><span class="text-muted">' + esc(x.sub) + '</span></button>').join('')
       : '<div class="field-help">' + (this.q ? 'Topilmadi.' : "Ro'yxat bo'sh.") + '</div>';
   },
 
