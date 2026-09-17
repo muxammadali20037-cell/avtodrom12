@@ -16,6 +16,7 @@
    Yo'llar:
      GET    /api/school-vehicles?schoolId=...   — ro'yxat
      POST   /api/school-vehicles                — qo'shish
+     POST   /api/school-vehicles/bulk           — ommaviy qo'shish
      PUT    /api/school-vehicles/:id            — tahrirlash
      DELETE /api/school-vehicles/:id            — o'chirish (active=false)
    ========================================================================== */
@@ -153,6 +154,84 @@ async function save(req, res, owner, id) {
   return json(res, 201, made || { id: r.rows[0].id });
 }
 
+/* ============================ OMMAVIY QO'SHISH ============================
+   Avtoshkola o'nlab mashina raqamini bitta ro'yxat qilib beradi. Ularni
+   bittalab kiritish uzoq, shuning uchun bir matndan hammasi qo'shiladi.
+
+   Har qatorda: RAQAM[, RUSUMI[, INSTRUKTOR F.I.Sh.]]
+       01 777 AAA, Cobalt, Abror Toshmatov
+       01 888 CCC, Spark
+       01999ZZZ
+
+   Barcha qatorlar BITTA avtoshkolaga tegishli — u yuqorida tanlanadi.
+   Bazada bor raqam qayta qo'shilmaydi, shunchaki o'tkazib yuboriladi. */
+async function bulk(req, res, owner) {
+  const b = await readBody(req);
+  const schoolId = text(b.schoolId || b.school_id);
+  const rows = Array.isArray(b.rows) ? b.rows : [];
+  if (!schoolId) return json(res, 400, { error: 'Avtoshkolani tanlang' });
+  if (!rows.length) return json(res, 400, { error: 'Ro‘yxat bo‘sh' });
+
+  const school = await pool.query(
+    `SELECT id FROM driving_schools WHERE id::text=$1 AND owner_key=$2 AND active IS NOT FALSE LIMIT 1`,
+    [schoolId, owner]);
+  if (!school.rows[0]) return json(res, 404, { error: 'Avtoshkola topilmadi' });
+
+  /* Shu avtoshkolaning instruktorlari — ism bo'yicha bog'lash uchun */
+  const E = await instructorExpr();
+  const insRows = await pool.query(`
+    SELECT i.id::text AS id, ${E.name} AS full_name
+      FROM instructors i
+     WHERE ${E.owner} = $1 AND COALESCE(i.active, TRUE) = TRUE
+       AND (${E.school} IS NULL OR ${E.school} = $2)`, [owner, schoolId]);
+  const insByName = new Map();
+  insRows.rows.forEach(x => {
+    const k = String(x.full_name || '').toUpperCase().replace(/[^A-ZЀ-ӿ0-9]/g, '');
+    if (k && !insByName.has(k)) insByName.set(k, x.id);
+  });
+
+  const added = [], skipped = [], errors = [];
+  const seen = new Set();
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] || {};
+      const plate = cleanPlate(row.plate || row.vehiclePlate);
+      const key = plateKey(plate);
+      if (!key) { errors.push((i + 1) + '-qator: raqam bo‘sh'); continue; }
+      /* Bitta matnda ikki marta yozilgan bo'lsa ham bir marta olinadi */
+      if (seen.has(key)) { skipped.push(plate); continue; }
+      seen.add(key);
+
+      const exists = await c.query(
+        `SELECT id FROM school_vehicles
+          WHERE owner_key=$1 AND school_id=$2 AND plate_key=$3 AND active LIMIT 1`,
+        [owner, schoolId, key]);
+      if (exists.rows[0]) { skipped.push(plate); continue; }
+
+      const nameKey = String(row.instructorName || row.instructor || '')
+        .toUpperCase().replace(/[^A-ZЀ-ӿ0-9]/g, '');
+      const insId = text(row.instructorId) || (nameKey ? (insByName.get(nameKey) || null) : null);
+
+      await c.query(`
+        INSERT INTO school_vehicles(owner_key, school_id, plate, plate_key, model, instructor_id, active)
+        VALUES($1,$2,$3,$4,$5,$6,true)`,
+        [owner, schoolId, plate, key, text(row.model) || null, insId]);
+      added.push(plate);
+    }
+    await c.query('COMMIT');
+  } catch (e) {
+    try { await c.query('ROLLBACK'); } catch {}
+    throw e;
+  } finally { c.release(); }
+
+  return json(res, 201, {
+    ok: true, added: added.length, skipped: skipped.length,
+    skippedPlates: skipped.slice(0, 20), errors
+  });
+}
+
 export async function handleFleetRequest(req, res) {
   const raw = String(req.url || '');
   const pathname = raw.split('?')[0];
@@ -171,6 +250,9 @@ export async function handleFleetRequest(req, res) {
     if (req.method === 'GET' && !id) {
       json(res, 200, await list(owner, text(search.get('schoolId') || search.get('school_id'))));
       return true;
+    }
+    if (req.method === 'POST' && pathname === '/api/school-vehicles/bulk') {
+      await bulk(req, res, owner); return true;
     }
     if (req.method === 'POST' && !id) { await save(req, res, owner, null); return true; }
     if ((req.method === 'PUT' || req.method === 'PATCH') && id) { await save(req, res, owner, id); return true; }

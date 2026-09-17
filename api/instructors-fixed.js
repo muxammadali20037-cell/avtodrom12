@@ -62,6 +62,7 @@ async function list(owner,id=null){
       COALESCE(i.settings->>'vehicle_plate','') AS vehicle_plate,
       COALESCE(i.settings->>'vehicle_model','') AS vehicle_model,
       COALESCE(i.settings->>'driver_name','') AS driver_name,
+      COALESCE(i.settings->>'phone','') AS phone,
       ds.name AS school_name,
       NULL::text AS group_name
     FROM public.instructors i
@@ -134,6 +135,10 @@ async function save(req,res,owner,id=null){
       vehicle_id:null,
       vehicle_plate:plate,
       vehicle_model:model,
+      /* TELEFON: ilgari yuqorida o'qilardi, lekin settings ga
+         yozilmasdi — shuning uchun kartochkada har doim «Telefon
+         kiritilmagan» chiqardi. */
+      phone:phone||'',
       driver_name:name
     };
 
@@ -178,6 +183,90 @@ async function save(req,res,owner,id=null){
   }
 }
 
+/* ============================ OMMAVIY QO'SHISH ============================
+   POST /api/instructors/bulk
+
+   Instruktorda faqat SHAXSIY ma'lumot bo'ladi: F.I.Sh., telefon va
+   qaysi avtoshkolaniki. Avtomobil raqami bu yerda so'ralmaydi —
+   mashinalar «Admin → Mashinalar» bo'limida alohida ro'yxat sifatida
+   yuritiladi va bir instruktor turli kunlarda turli mashinada
+   uchirishi mumkin.
+
+   Ikki xil so'rov qabul qilinadi:
+     { schoolId, rows: [{ fullName, phone }] }
+     { instructors: [{ full_name, phone, school_id }] }   (Excel importi)
+
+   Shu avtoshkolada aynan shunday ism bo'lsa — qayta yozilmaydi. */
+async function bulkSave(req,res,owner){
+  const b = await body(req);
+  const topSchool = text(b.schoolId || b.school_id);
+  const raw = Array.isArray(b.rows) ? b.rows
+            : Array.isArray(b.instructors) ? b.instructors : [];
+  if(!raw.length) return json(res,400,{error:'Ro‘yxat bo‘sh'});
+
+  /* Ruxsat etilgan avtoshkolalar — har bir qator uchun qayta so'ramaymiz */
+  const sr = await pool.query(
+    `SELECT id::text AS id FROM driving_schools WHERE owner_key=$1 AND active=true`,[owner]);
+  const allowed = new Set(sr.rows.map(x=>x.id));
+
+  const norm = v => String(v??'').toUpperCase().replace(/[^A-ZЀ-ӿ0-9]/g,'');
+  const added=[], skipped=[], errors=[];
+  const seen = new Set();
+
+  const c = await pool.connect();
+  try{
+    await c.query('BEGIN');
+    for(let i=0;i<raw.length;i++){
+      const row = raw[i] || {};
+      const name = text(row.fullName || row.full_name || row.name);
+      const schoolId = text(row.schoolId || row.school_id) || topSchool;
+      if(!name){ errors.push((i+1)+'-qator: F.I.Sh. bo‘sh'); continue; }
+      if(!schoolId || !allowed.has(schoolId)){
+        errors.push((i+1)+'-qator ('+name+'): avtoshkola topilmadi'); continue;
+      }
+      const key = schoolId+'|'+norm(name);
+      if(seen.has(key)){ skipped.push(name); continue; }
+      seen.add(key);
+
+      /* Shu avtoshkolada shunday ism bormi? */
+      const bor = await c.query(`
+        SELECT id FROM public.instructors
+         WHERE settings->>'owner_key'=$1
+           AND settings->>'school_id'=$2
+           AND active=true
+           AND UPPER(REGEXP_REPLACE(COALESCE(bio,''),'[^[:alnum:]]','','g')) = $3
+         LIMIT 1`,[owner, schoolId, norm(name)]);
+      if(bor.rows[0]){ skipped.push(name); continue; }
+
+      const settings = {
+        owner_key: owner,
+        school_id: schoolId,
+        group_id: null,
+        vehicle_id: null,
+        /* Ommaviy oynada mashina so'ralmaydi. Lekin Excel importida
+           ustun bo'lsa, kelgan qiymat yo'qotilmaydi. */
+        vehicle_plate: cleanPlate(row.plate || row.vehiclePlate || row.vehicle_plate),
+        vehicle_model: text(row.model || row.vehicleModel || row.vehicle_model),
+        phone: text(row.phone) || '',
+        driver_name: name
+      };
+      await c.query(`
+        INSERT INTO public.instructors(id,active,approved,approved_at,approved_by,bio,settings,created_at,updated_at)
+        VALUES($1,true,true,NOW(),$2,$3,$4::jsonb,NOW(),NOW())`,
+        [crypto.randomUUID(), owner, name, JSON.stringify(settings)]);
+      added.push(name);
+    }
+    await c.query('COMMIT');
+  }catch(e){
+    try{await c.query('ROLLBACK')}catch{}
+    console.error('INSTRUCTOR BULK:',e);
+    return json(res,500,{error:e?.message||'Instruktorlar saqlanmadi'});
+  }finally{ c.release(); }
+
+  return json(res,201,{ok:true, added:added.length, skipped:skipped.length,
+                       skippedNames:skipped.slice(0,20), errors});
+}
+
 export default async function handler(req,res){
   if(req.method==='OPTIONS'){
     res.statusCode=204;
@@ -190,6 +279,7 @@ export default async function handler(req,res){
   try{
     const id=req.query?.id?String(req.query.id):null;
 
+    if(req.method==='POST' && String(id||'')==='bulk') return bulkSave(req,res,owner);
     if(req.method==='GET') return json(res,200,await list(owner,id));
     if(req.method==='POST') return save(req,res,owner,null);
     if((req.method==='PUT'||req.method==='PATCH')&&id) return save(req,res,owner,id);
