@@ -176,6 +176,39 @@ textarea { resize: vertical; min-height: 90px; }
 /* O'quvchi maydoni sarlavhasi: yorliq chapda, «Guruh bo'yicha» tugmasi o'ngda */
 .student-pick-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .student-pick-head .field-label { margin: 0; }
+/* ===== Bosqichma-bosqich tanlash: Avtoshkola → Guruh → O'quvchi ===== */
+.cp-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0 8px; }
+.cp-btn { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 8px 12px;
+  border: 1.5px solid var(--line); border-radius: 12px; background: var(--card); cursor: pointer;
+  text-align: left; font: inherit; color: inherit; transition: border-color .15s, background .15s; }
+.cp-btn:hover:not(:disabled) { border-color: var(--g); }
+.cp-btn.open { border-color: var(--g); background: var(--g-surface); }
+.cp-btn.done .cp-ico { background: var(--g); color: #fff; }
+.cp-btn:disabled { opacity: .5; cursor: not-allowed; }
+.cp-ico { flex: 0 0 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--g-surface); color: var(--g-dark); font-size: 13px; }
+.cp-txt { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.cp-lbl { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+.cp-val { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-val.empty { color: var(--muted); font-weight: 500; }
+.cp-chev { color: var(--muted); font-size: 12px; transition: transform .15s; }
+.cp-btn.open .cp-chev { transform: rotate(180deg); }
+.cp-panel { border: 1.5px solid var(--g); border-radius: 12px; background: var(--card);
+  padding: 12px; margin-bottom: 10px; box-shadow: var(--shadow-sm); }
+.cp-panel.hidden { display: none; }
+.cp-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.cp-panel-head b { font-size: 14px; }
+.cp-filter { width: 100%; margin-bottom: 8px; }
+.cp-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px;
+  max-height: 300px; overflow-y: auto; }
+.cp-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left;
+  border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 9px 11px;
+  cursor: pointer; font: inherit; color: inherit; }
+.cp-item:hover { border-color: var(--g); background: var(--g-surface); }
+.cp-item.active { border-color: var(--g); background: var(--g-surface); color: var(--g-dark); }
+.cp-item span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; }
+.cp-item .text-muted { font-size: 12px; flex: 0 0 auto; }
+@media (max-width: 720px) { .cp-row { grid-template-columns: 1fr; } }
 /* ===== Guruh bo'yicha tanlash — alohida to'liq ekran =====
    Ilgari bu kichik modal oyna ichida edi va uch mingdan ortiq o'quvchi
    bilan sekinlashardi. Endi butun ekranni egallaydi, ro'yxat o'z
@@ -1000,8 +1033,15 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
                 <label class="field-label" for="comboStudentInput"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> O'quvchi</label>
                 <button class="btn btn-light btn-sm" type="button" data-act="openGroupPick"><i class="fa-solid fa-users" aria-hidden="true"></i> Guruh bo'yicha tanlash</button>
               </div>
+              <!-- Bosqichma-bosqich: Avtoshkola → Guruh → O'quvchi -->
+              <div class="cp-row" id="cpRow">
+                <button class="cp-btn" type="button" data-act="cpOpen" data-step="school" id="cpBtn_school"><span class="cp-ico"><i class="fa-solid fa-school" aria-hidden="true"></i></span><span class="cp-txt"><span class="cp-lbl">1. Avtoshkola</span><span class="cp-val empty" id="cpVal_school">Tanlang</span></span><i class="fa-solid fa-chevron-down cp-chev" aria-hidden="true"></i></button>
+                <button class="cp-btn" type="button" data-act="cpOpen" data-step="group" id="cpBtn_group" disabled><span class="cp-ico"><i class="fa-solid fa-users" aria-hidden="true"></i></span><span class="cp-txt"><span class="cp-lbl">2. Guruh</span><span class="cp-val empty" id="cpVal_group">Avval avtoshkola</span></span><i class="fa-solid fa-chevron-down cp-chev" aria-hidden="true"></i></button>
+                <button class="cp-btn" type="button" data-act="cpOpen" data-step="student" id="cpBtn_student" disabled><span class="cp-ico"><i class="fa-solid fa-user-graduate" aria-hidden="true"></i></span><span class="cp-txt"><span class="cp-lbl">3. O'quvchi</span><span class="cp-val empty" id="cpVal_student">Avval guruh</span></span><i class="fa-solid fa-chevron-down cp-chev" aria-hidden="true"></i></button>
+              </div>
+              <div id="cpPanel" class="cp-panel hidden"></div>
               <div id="comboStudent"></div>
-              <div class="field-help">Ism, familiya, bosh harflar yoki telefon oxiri bilan qidiring: <b>ab ka</b>, <b>ak</b>, <b>karimov</b>, <b>4567</b>.</div>
+              <div class="field-help">Yoki ism familiya, bosh harflar yoki telefon oxiri bilan qidiring: <b>ab ka</b>, <b>ak</b>, <b>karimov</b>, <b>4567</b>.</div>
               <div id="studentFallback" class="hidden">
                 <div class="form-grid" style="margin-top:12px">
                   <div><label class="field-label muted-label" for="school">Avtoshkola</label><select id="school"><option value="">Tanlang</option></select></div>
@@ -2604,6 +2644,7 @@ const Add = {
   renderStudentPanel() {
     const box = $('studentBox');
     const s = STATE.form.student;
+    if (typeof CascadePick !== 'undefined') CascadePick.sync(s);
     if (!s) { box.innerHTML = ''; return; }
     const total = attCount(s);
     const today = Data.todayLessons(s.id);
@@ -3669,6 +3710,182 @@ const Reports = {
        belgisi ko'chiriladi;
      - qidiruv natijasi ko'p bo'lsa, ekranga faqat boshidagi qismi
        chiqariladi (qolgani uchun qidiruvni aniqlashtirish so'raladi). */
+/* ===================== BOSQICHMA-BOSQICH TANLASH =====================
+   Forma ichida, ism-familiya qidiruvining tepasida uchta tugma:
+   1) Avtoshkola  2) Guruh  3) O'quvchi.
+   Avtoshkola tanlansa — uning guruhlari, guruh tanlansa — guruhdagi
+   o'quvchilar ochiladi. Ism bilan qidirish va «Guruh bo'yicha tanlash»
+   avvalgidek ishlaydi. Ma'lumot GroupPick indeksidan olinadi. */
+const CascadePick = {
+  schoolId: '',
+  groupId: '',
+  step: '',
+  q: '',
+
+  school() { return (GroupPick.build() || []).find(x => String(x.id) === String(this.schoolId)) || null; },
+  group() {
+    const sc = this.school();
+    if (!sc) return null;
+    if (this.noGroup && !this.groupId) return sc.groups.find(g => !g.id) || null;
+    return sc.groups.find(g => String(g.id) === String(this.groupId)) || null;
+  },
+  groupLabel(name) {
+    const n = String(name || '').trim();
+    return !n ? '' : (/guruh/i.test(n) ? n : n + '-guruh');
+  },
+
+  items() {
+    const q = this.q;
+    const idx = GroupPick.build() || [];
+    if (this.step === 'school') {
+      return idx.filter(x => !q || lower(x.name).indexOf(lower(q)) >= 0)
+        .map(x => ({ id: x.id, name: x.name, sub: x.n + ' o\'quvchi' }));
+    }
+    if (this.step === 'group') {
+      const sc = this.school();
+      return (sc ? sc.groups : []).filter(g => !q || lower(g.name).indexOf(lower(q)) >= 0)
+        .map(g => ({ id: g.id || 'none', name: g.id ? this.groupLabel(g.name) : g.name, sub: g.n + ' ta' }));
+    }
+    if (this.step === 'student') {
+      const g = this.group();
+      return (g ? g.list : []).filter(s => !q || smartMatch(stName(s), q, s.phone))
+        .map(s => ({ id: s.id, name: stName(s), sub: attCount(s) + ' dars' }));
+    }
+    return [];
+  },
+
+  /* ---------- tugmalar ---------- */
+  renderButtons() {
+    const sc = this.school(), g = this.group();
+    const cur = STATE.form.student;
+    const set = (step, text, emptyText, enabled, done) => {
+      const b = $('cpBtn_' + step), v = $('cpVal_' + step);
+      if (!b || !v) return;
+      b.disabled = !enabled;
+      b.classList.toggle('open', this.step === step);
+      b.classList.toggle('done', !!done);
+      v.textContent = text || emptyText;
+      v.classList.toggle('empty', !text);
+    };
+    set('school', sc ? sc.name : '', 'Tanlang', true, !!sc);
+    set('group', g ? (g.id ? this.groupLabel(g.name) : g.name) : '', sc ? 'Tanlang' : 'Avval avtoshkola', !!sc, !!g);
+    const stInGroup = cur && g && g.list.some(s => String(s.id) === String(cur.id));
+    set('student', stInGroup ? stName(cur) : '', g ? 'Tanlang' : 'Avval guruh', !!g, !!stInGroup);
+  },
+
+  /* ---------- ro'yxat oynasi ---------- */
+  renderPanel(keepFocus) {
+    const p = $('cpPanel');
+    if (!p) return;
+    if (!this.step) { p.classList.add('hidden'); p.innerHTML = ''; return; }
+    const titles = { school: 'Avtoshkolani tanlang', group: 'Guruhni tanlang', student: "O'quvchini tanlang" };
+    const hints = { school: 'Avtoshkola nomi...', group: 'Guruh raqami...', student: 'Ism yoki familiya...' };
+    if (!keepFocus || !$('cpFilter')) {
+      p.innerHTML = '<div class="cp-panel-head"><b>' + esc(titles[this.step]) + '</b>'
+        + '<button class="btn btn-ghost btn-sm" type="button" data-act="cpClose"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Yopish</button></div>'
+        + '<input id="cpFilter" class="cp-filter" type="search" autocomplete="off" placeholder="' + esc(hints[this.step]) + '" value="' + esc(this.q) + '">'
+        + '<div class="cp-list" id="cpList"></div>';
+    }
+    p.classList.remove('hidden');
+    const activeId = this.step === 'school' ? this.schoolId
+      : this.step === 'group' ? (this.groupId || (this.school() && this.group() ? 'none' : ''))
+      : (STATE.form.student ? String(STATE.form.student.id) : '');
+    const list = this.items();
+    $('cpList').innerHTML = list.length
+      ? list.map(x => '<button class="cp-item' + (String(x.id) === String(activeId) ? ' active' : '') + '" type="button"'
+          + ' data-act="cpChoose" data-step="' + this.step + '" data-id="' + esc(x.id) + '">'
+          + '<span>' + esc(x.name) + '</span><span class="text-muted">' + esc(x.sub) + '</span></button>').join('')
+      : '<div class="field-help">' + (this.q ? 'Topilmadi.' : "Ro'yxat bo'sh.") + '</div>';
+  },
+
+  open(step) {
+    if (this.step === step) { this.close(); return; }
+    if (!STATE.studentsLoaded && !(STATE.students || []).length) {
+      const p = $('cpPanel');
+      if (p) { p.classList.remove('hidden'); p.innerHTML = loadingLine("Ro'yxat yuklanmoqda..."); }
+      Data.reloadStudents().then(() => { GroupPick.index = null; this.step = ''; this.open(step); });
+      return;
+    }
+    if (step === 'group' && !this.school()) step = 'school';
+    if (step === 'student' && !this.group()) step = this.school() ? 'group' : 'school';
+    this.step = step;
+    this.q = '';
+    this.renderButtons();
+    this.renderPanel();
+    /* Telefonda klaviatura ochilib ekranni yopmasin — faqat kompyuterda fokus */
+    if (window.matchMedia && window.matchMedia('(min-width: 721px)').matches) {
+      setTimeout(() => { const i = $('cpFilter'); if (i) i.focus(); }, 30);
+    }
+  },
+  close() {
+    this.step = '';
+    this.q = '';
+    this.renderPanel();
+    this.renderButtons();
+  },
+
+  choose(step, id) {
+    if (step === 'school') {
+      if (String(id) !== String(this.schoolId)) { this.schoolId = String(id); this.groupId = ''; this.noGroup = false; }
+      this.step = '';
+      this.open('group');
+      return;
+    }
+    if (step === 'group') {
+      /* «Guruhsiz» o'quvchilar ham tanlanishi uchun */
+      this.groupId = id === 'none' ? '' : String(id);
+      this.noGroup = id === 'none';
+      this.step = '';
+      this.open('student');
+      return;
+    }
+    if (step === 'student') {
+      const s = Data.studentById(id);
+      if (!s) { toast("O'quvchi topilmadi.", 'error'); return; }
+      this.step = '';
+      this.q = '';
+      if (STATE.form.customerType !== 'school') Add.setType('school');
+      if (Add.comboStudent) Add.comboStudent.setValue(s);
+      STATE.form.student = s;
+      Add.renderStudentPanel();   /* ichida sync() chaqiriladi */
+      this.renderPanel();
+    }
+  },
+
+  /* O'quvchi ism bilan tanlansa — tugmalar ham o'sha maktab/guruhni ko'rsatsin */
+  sync(s) {
+    if (s) {
+      this.schoolId = String(s.school_id || s.schoolId || this.schoolId || '');
+      this.groupId = String(s.group_id || s.groupId || '');
+      this.noGroup = !this.groupId;
+    }
+    this.renderButtons();
+  },
+
+  init() {
+    document.addEventListener('input', e => {
+      if (e.target && e.target.id === 'cpFilter') { this.q = e.target.value.trim(); this.renderPanel(true); }
+    });
+    document.addEventListener('keydown', e => {
+      if (e.target && e.target.id === 'cpFilter' && e.key === 'Enter') {
+        e.preventDefault();   /* formani yubormasin */
+        const first = $('cpList') && $('cpList').querySelector('.cp-item');
+        if (first) first.click();
+      }
+      if (e.key === 'Escape' && this.step) this.close();
+    });
+    /* Tashqariga bosilsa — yopiladi */
+    document.addEventListener('click', e => {
+      if (!this.step) return;
+      /* Tanlangandan keyin ro'yxat qayta chizilgan bo'lsa — bu tashqi bosish emas */
+      if (!document.contains(e.target)) return;
+      if (e.target.closest && (e.target.closest('#cpPanel') || e.target.closest('#cpRow'))) return;
+      this.close();
+    });
+    this.renderButtons();
+  }
+};
+
 const GroupPick = {
   schoolId: '',
   groupId: '',
@@ -6143,6 +6360,9 @@ const ACTIONS = {
 
   /* --- guruh bo'yicha o'quvchi tanlash --- */
   openGroupPick: () => GroupPick.open(),
+  cpOpen: d => CascadePick.open(d.step),
+  cpClose: () => CascadePick.close(),
+  cpChoose: d => CascadePick.choose(d.step, d.id),
   closeGroupPick: () => GroupPick.close(),
   gpSchool: d => GroupPick.setSchool(d.id),
   gpGroup: d => GroupPick.setGroup(d.id),
@@ -6373,6 +6593,7 @@ function init() {
   loadSession();
   Add.init();
   GroupPick.init();
+  CascadePick.init();
   wireInputs();
   updateClock();
   setInterval(updateClock, 1000);
