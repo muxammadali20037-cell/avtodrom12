@@ -1061,6 +1061,14 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
                 <div class="field-help" id="instructorHelp">Ixtiyoriy. Kim bilan uchishi tanlansa, «Nazorat → Xatoliklar va aniqliklar» bo'limida ochilgan soat bilan davomat solishtiriladi.</div>
               </div>
 
+              <!-- Avtoshkola mashinasi: faqat davomat rejimida -->
+              <div class="span-2 hidden" id="schoolCarField">
+                <label class="field-label muted-label" for="schoolCar"><i class="fa-solid fa-car-side" aria-hidden="true"></i> Avtomobil raqami</label>
+                <select id="schoolCar" data-act="schoolCarChange"><option value="">Tanlanmagan</option></select>
+                <input id="schoolCarManual" class="hidden" autocomplete="off" placeholder="01 777 AAA" style="margin-top:8px">
+                <div class="field-help" id="schoolCarHelp">O'quvchi tanlangach, shu avtoshkolaning mashinalari chiqadi. Ro'yxatda bo'lmasa «Boshqa raqam» ni tanlab qo'lda yozing.</div>
+              </div>
+
               <div class="span-2" id="plateField">
                 <label class="field-label muted-label" for="plateBody"><i class="fa-solid fa-car" aria-hidden="true"></i> Avtomobil raqami</label>
                 <div class="plate-input-group">
@@ -1380,6 +1388,7 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
         <button class="seg-btn" type="button" role="tab" data-act="adminTab" data-tab="schools"><i class="fa-solid fa-school" aria-hidden="true"></i> Avtoshkolalar</button>
         <button class="seg-btn" type="button" role="tab" data-act="adminTab" data-tab="students"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> O'quvchilar</button>
         <button class="seg-btn" type="button" role="tab" data-act="adminTab" data-tab="instructors"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktorlar</button>
+        <button class="seg-btn" type="button" role="tab" data-act="adminTab" data-tab="cars"><i class="fa-solid fa-car-side" aria-hidden="true"></i> Mashinalar</button>
         <button class="seg-btn" type="button" role="tab" data-act="adminTab" data-tab="excel"><i class="fa-solid fa-file-excel" aria-hidden="true"></i> Excel</button>
       </div>
 
@@ -1622,7 +1631,7 @@ const stName = s => (s && (s.full_name || s.fullName || s.name)) || '';
 const STATE = {
   auth: { token: '', user: null },
   admin: { token: '', username: '' },
-  schools: [], groups: [], students: [], instructors: [],
+  schools: [], groups: [], students: [], instructors: [], cars: [],
   studentsLoaded: false, studentsLoadFailed: false,
   adminStudents: null,
   studentsStale: false,
@@ -2454,8 +2463,8 @@ const Add = {
       getSub: it => [it.school_name || Data.schoolName(it.school_id || it.schoolId), it.group_name || Data.groupName(it.group_id || it.groupId), it.phone].filter(Boolean).join(' • '),
       getTag: it => attCount(it) + ' dars',
       match: (it, q) => smartMatch(stName(it), q, it.phone),
-      onSelect: it => { STATE.form.student = it; Add.renderStudentPanel(); },
-      onClear: () => { STATE.form.student = null; Add.renderStudentPanel(); },
+      onSelect: it => { STATE.form.student = it; Add.renderStudentPanel(); Add.onStudentPicked(); },
+      onClear: () => { STATE.form.student = null; Add.renderStudentPanel(); Add.onStudentPicked(); },
       onCreate: name => Add.createStudentQuick(name)
     });
 
@@ -2470,8 +2479,8 @@ const Add = {
       match: (it, q) => smartMatch(insName(it), q, it.phone)
         || (normalizePlate(q).length >= 2
             && normalizePlate(insPlate(it)).indexOf(normalizePlate(q)) >= 0),
-      onSelect: it => { STATE.form.instructor = it; Add.applyInstructor(it); },
-      onClear: () => { STATE.form.instructor = null; $('instructorBox').innerHTML = ''; }
+      onSelect: it => { STATE.form.instructor = it; Add.applyInstructor(it); Add.renderCarOptions(); },
+      onClear: () => { STATE.form.instructor = null; $('instructorBox').innerHTML = ''; Add.renderCarOptions(); }
     });
 
     /* Raqam maydoni — kanonik normalizatsiya */
@@ -2488,6 +2497,7 @@ const Add = {
       const s = Data.studentById($('student').value) || STATE.students.find(x => String(x.id) === String($('student').value));
       STATE.form.student = s || null;
       Add.renderStudentPanel();
+      Add.onStudentPicked();
     });
     $('customMinutes').addEventListener('input', e => {
       STATE.form.customMinutes = Math.min(600, Math.max(15, num(e.target.value) || 15));
@@ -2515,7 +2525,86 @@ const Add = {
       this.syncFallbackSchools();
     } else { fb.classList.add('hidden'); }
   },
-  syncInstructorSource() { if (this.comboInstructor) this.comboInstructor.setItems(STATE.instructors.filter(i => Instructors.isActive(i))); },
+  /* Instruktorlar ro'yxati tanlangan avtoshkola bo'yicha toraytiriladi:
+     o'quvchi AVTO DEVA dan bo'lsa, boshqa avtoshkolaning instruktori
+     ro'yxatda umuman ko'rinmaydi — noto'g'ri tanlash imkoni yo'qoladi. */
+  instructorPool() {
+    const all = (STATE.instructors || []).filter(i => Instructors.isActive(i));
+    const sid = this.schoolIdOf();
+    if (!sid) return all;
+    const mine = all.filter(i => String(i.school_id || i.schoolId || '') === String(sid));
+    /* Avtoshkolasi ko'rsatilmagan eski yozuvlar ham qolsin */
+    const noSchool = all.filter(i => !String(i.school_id || i.schoolId || ''));
+    return mine.concat(noSchool);
+  },
+  schoolIdOf() {
+    const st = STATE.form.student;
+    if (st) return String(st.school_id || st.schoolId || '');
+    return '';
+  },
+  syncInstructorSource() { if (this.comboInstructor) this.comboInstructor.setItems(this.instructorPool()); },
+
+  /* ---------- avtoshkola mashinasi ---------- */
+  async onStudentPicked() {
+    const sid = this.schoolIdOf();
+    this.syncInstructorSource();
+    /* Tanlangan instruktor boshqa avtoshkolaniki bo'lsa — tozalaymiz */
+    const ins = STATE.form.instructor;
+    if (ins && sid && String(ins.school_id || ins.schoolId || '') && String(ins.school_id || ins.schoolId) !== String(sid)) {
+      STATE.form.instructor = null;
+      if (this.comboInstructor) this.comboInstructor.clear(true);
+      $('instructorBox').innerHTML = '';
+    }
+    if (sid) {
+      const have = (STATE.cars || []).some(v => String(v.school_id) === String(sid));
+      if (!have) await Fleet.reload(sid);
+    }
+    this.renderCarOptions();
+  },
+  renderCarOptions() {
+    const sel = $('schoolCar');
+    if (!sel) return;
+    const sid = this.schoolIdOf();
+    const ins = STATE.form.instructor;
+    const list = Fleet.forSchool(sid, ins && ins.id);
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Tanlanmagan</option>'
+      + list.map(v => '<option value="' + esc(v.plate) + '" data-model="' + esc(v.model || '') + '">'
+        + esc(v.plate) + (v.model ? ' — ' + esc(v.model) : '')
+        + (v.instructor_name ? ' (' + esc(v.instructor_name) + ')' : '') + '</option>').join('')
+      + '<option value="__manual">Boshqa raqam — qo\'lda yozish</option>';
+    /* Instruktorning o'z mashinasi bo'lsa, o'zi tanlanib turadi */
+    if (cur && Array.from(sel.options).some(o => o.value === cur)) sel.value = cur;
+    else if (ins && insPlate(ins) && list.some(v => normalizePlate(v.plate) === normalizePlate(insPlate(ins)))) {
+      const match = list.find(v => normalizePlate(v.plate) === normalizePlate(insPlate(ins)));
+      sel.value = match.plate;
+    }
+    this.carManualToggle();
+    const help = $('schoolCarHelp');
+    if (help && sid && !list.length) {
+      help.innerHTML = 'Bu avtoshkolaga hali mashina kiritilmagan. Admin panel → <b>Mashinalar</b> bo\'limidan qo\'shing yoki «Boshqa raqam» ni tanlang.';
+    }
+  },
+  carManualToggle() {
+    const sel = $('schoolCar');
+    const man = $('schoolCarManual');
+    if (!sel || !man) return;
+    const on = sel.value === '__manual';
+    man.classList.toggle('hidden', !on);
+    if (on) setTimeout(() => man.focus(), 40);
+  },
+  /* Formadan olingan mashina raqami va rusumi */
+  carInfo() {
+    const sel = $('schoolCar');
+    if (!sel) return { plate: '', model: '' };
+    if (sel.value === '__manual') {
+      const man = $('schoolCarManual');
+      return { plate: ((man && man.value) || '').trim().toUpperCase(), model: '' };
+    }
+    if (!sel.value) return { plate: '', model: '' };
+    const opt = sel.options[sel.selectedIndex];
+    return { plate: sel.value, model: (opt && opt.dataset.model) || '' };
+  },
   syncFallbackSchools() {
     const sel = $('school'); if (!sel) return;
     sel.innerHTML = '<option value="">Tanlang</option>' + Data.activeSchools().map(s => '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>').join('');
@@ -2567,6 +2656,9 @@ const Add = {
        so'ralmaydi — u instruktornikida va vaqt hisoblanmaydi. */
     $('plateField').classList.toggle('hidden', isSchool);
     $('modelField').classList.toggle('hidden', isSchool);
+    /* Davomat rejimida avtoshkolaning mashinasi ro'yxatdan tanlanadi */
+    if ($('schoolCarField')) $('schoolCarField').classList.toggle('hidden', !isSchool);
+    if (isSchool) this.renderCarOptions();
     if ($('queueBtn')) $('queueBtn').classList.toggle('hidden', isSchool);
 
     const btn = $('startBtn');
@@ -2736,11 +2828,14 @@ const Add = {
     if (d.type === 'school') {
       await withBusy('att:' + (d.student && d.student.id), $('startBtn'), async () => {
         try {
+          const car = this.carInfo();
           const res = await api('/attendance', { method: 'POST', body: jsonBody({
             studentId: d.student.id,
             instructorId: d.instructor ? d.instructor.id : null,
             instructorName: d.instructorName,
-            lessons: d.lessons
+            lessons: d.lessons,
+            plate: car.plate || '',
+            model: car.model || ''
           }) });
           const n = num(res && res.lessons) || d.lessons;
 
@@ -2762,6 +2857,8 @@ const Add = {
           if ($('comboInstructorInput')) $('comboInstructorInput').value = '';
           STATE.form.instructor = null;
           $('instructorBox').innerHTML = '';
+          if ($('schoolCar')) $('schoolCar').value = '';
+          if ($('schoolCarManual')) { $('schoolCarManual').value = ''; $('schoolCarManual').classList.add('hidden'); }
           this.setHours(1);
           EntryTicket80.draft = null; EntryTicket80.draftKey = '';
 
@@ -2830,6 +2927,9 @@ const Add = {
     STATE.form.instructor = null;
     if (this.comboStudent) this.comboStudent.clear(true);
     if (this.comboInstructor) this.comboInstructor.clear(true);
+    if ($('schoolCar')) $('schoolCar').value = '';
+    if ($('schoolCarManual')) { $('schoolCarManual').value = ''; $('schoolCarManual').classList.add('hidden'); }
+    this.syncInstructorSource();
     this.setHours(1);
     $('customMinutes').value = 90;
     STATE.form.customMinutes = 90;
@@ -3618,18 +3718,22 @@ const Frozen = {
 };
 
 /* ===================== 16. JADVAL (mobil-friendly) ===================== */
-const REPORT_COLS = ['Raqam', 'Kirish', 'Chiqish', 'Vaqt', 'Avtoshkola', 'Guruh', "O'quvchi", 'Dars', 'Naqd', 'Terminal', 'Jami'];
+const REPORT_COLS = ['Raqam', 'Kirish', 'Chiqish', 'Vaqt', 'Avtoshkola', 'Guruh', "O'quvchi", 'Instruktor', 'Dars', 'Naqd', 'Terminal', 'Jami'];
 function reportRowCells(r) {
   const att = num(r.attendance_count);
+  const isSchool = String(r.customer_type || '') === 'school' || (!r.customer_type && !!r.student_name);
   return [
-    /* Avtomobilsiz yozuv — avtoshkola davomati (vaqt o'lchanmagan) */
-    '<b>' + esc(r.plate || 'Davomat') + '</b>',
+    /* Davomat yozuvi mashina raqami bilan ham kelishi mumkin —
+       shuning uchun turini alohida belgi bilan ko'rsatamiz. */
+    '<b>' + esc(r.plate || (isSchool ? 'Davomat' : '—')) + '</b>'
+      + (isSchool ? '<div><span class="badge badge-blue">Davomat</span></div>' : ''),
     esc(dt(r.started_at)),
     esc(dt(r.finished_at)),
     dur(r.duration_seconds),
     esc(r.school_name || '—'),
     esc(r.group_name || '—'),
     esc(r.student_name || '—'),
+    esc(r.instructor_label || r.instructor_name || '—'),
     (r.student_name
       ? '<b>' + rowLessons(r) + '</b> <span class="text-muted" style="font-size:12px">/ jami ' + att + '</span>'
       : '—'),
@@ -3691,9 +3795,264 @@ const Reports = {
     const aoa = [REPORT_COLS].concat(rows.map(r => [
       r.plate || 'Davomat', dt(r.started_at), dt(r.finished_at), dur(r.duration_seconds),
       r.school_name || '', r.group_name || '', r.student_name || '',
+      r.instructor_label || r.instructor_name || '',
       r.student_name ? num(r.attendance_count) : '', num(r.cash_amount), num(r.terminal_amount), num(r.amount)
     ]));
     Excel.save(aoa, 'avtodrom-' + date, 'Hisobot');
+  }
+};
+
+/* ===================== 16b. AVTOSHKOLA MASHINALARI =====================
+   Har bir avtoshkolaning mashinalari alohida ro'yxatda turadi.
+   Operator o'quvchini tanlagach, faqat o'sha avtoshkolaning mashinasi
+   chiqadi — raqamni qo'lda terish shart emas va xato yozilmaydi.
+   Davomatga mashina yozilgani uchun keyin «falon kuni falon instruktor
+   kimni, qaysi raqamli mashinada uchirgan» degan savolga javob bo'ladi. */
+const Fleet = {
+  loadedFor: null,   /* qaysi avtoshkola uchun yuklangan ('' = hammasi) */
+
+  async reload(schoolId) {
+    const q = schoolId ? '?schoolId=' + encodeURIComponent(schoolId) : '';
+    try {
+      const r = await api('/school-vehicles' + q);
+      const list = Array.isArray(r) ? r : (r && r.rows) || [];
+      if (schoolId) {
+        const others = (STATE.cars || []).filter(v => String(v.school_id) !== String(schoolId));
+        STATE.cars = others.concat(list);
+      } else {
+        STATE.cars = list;
+      }
+      this.loadedFor = schoolId || '';
+      return list;
+    } catch (e) {
+      console.error('[cars]', e.technical || e.message);
+      return [];
+    }
+  },
+  /* Shu avtoshkolaning mashinalari. Instruktorga biriktirilgani birinchi. */
+  forSchool(schoolId, instructorId) {
+    const list = (STATE.cars || []).filter(v => v.active !== false
+      && (!schoolId || String(v.school_id) === String(schoolId)));
+    if (!instructorId) return list;
+    const mine = list.filter(v => String(v.instructor_id || '') === String(instructorId));
+    const rest = list.filter(v => String(v.instructor_id || '') !== String(instructorId));
+    return mine.concat(rest);
+  },
+
+  /* ---------- admin sahifasi ---------- */
+  pageHTML() {
+    return '<div class="page-header"><div><h2>Avtoshkola mashinalari</h2>'
+      + '<p class="text-muted">Har bir avtoshkolaning avtomobil raqamlari</p></div>'
+      + '<button class="btn btn-green" type="button" data-act="carModal"><i class="fa-solid fa-plus" aria-hidden="true"></i> Mashina qo\'shish</button></div>'
+      + '<div class="panel"><div class="report-filters">'
+      + '<div class="fg"><label for="carSchoolFilter">Avtoshkola</label><select id="carSchoolFilter" data-act="carFilter">'
+      + '<option value="">Hammasi</option>'
+      + Data.activeSchools().map(x => '<option value="' + esc(x.id) + '">' + esc(x.name) + '</option>').join('')
+      + '</select></div></div></div>'
+      + '<div id="carList" class="cards-grid" aria-live="polite"></div>';
+  },
+  async load() {
+    const host = $('carList');
+    if (host) host.innerHTML = skeleton(2);
+    await this.reload('');
+    this.render();
+  },
+  render() {
+    const host = $('carList');
+    if (!host) return;
+    const f = $('carSchoolFilter') ? $('carSchoolFilter').value : '';
+    const list = (STATE.cars || []).filter(v => !f || String(v.school_id) === String(f));
+    if (!list.length) {
+      host.innerHTML = emptyState('fa-car-side', "Mashina yo'q",
+        "«Mashina qo'shish» tugmasi orqali avtoshkolaning avtomobil raqamlarini kiriting.");
+      return;
+    }
+    host.innerHTML = list.map(v =>
+      '<div class="card"><h3><i class="fa-solid fa-car-side" style="color:var(--g)" aria-hidden="true"></i> '
+      + esc(v.plate) + '</h3>'
+      + '<div class="text-muted" style="font-size:12px">' + esc(v.model || 'Rusumi kiritilmagan') + '</div>'
+      + '<div style="margin-top:10px">'
+      + '<span class="badge badge-blue">' + esc(v.school_name || Data.schoolName(v.school_id) || '—') + '</span> '
+      + (v.instructor_name ? '<span class="badge badge-green">' + esc(v.instructor_name) + '</span>' : '')
+      + '</div>'
+      + '<div class="actions-row">'
+      + '<button class="btn btn-light btn-sm" type="button" data-act="carModal" data-id="' + esc(v.id) + '"><i class="fa-solid fa-pen" aria-hidden="true"></i> Tahrirlash</button>'
+      + '<button class="btn btn-danger btn-sm" type="button" data-act="carDelete" data-id="' + esc(v.id) + '"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>'
+      + '</div></div>').join('');
+  },
+  byId(id) { return (STATE.cars || []).find(v => String(v.id) === String(id)) || null; },
+
+  modal(id) {
+    const v = id ? this.byId(id) : null;
+    const schoolId = v ? String(v.school_id) : '';
+    openModal('<div class="modal-head"><div><h2>' + (v ? 'Mashinani tahrirlash' : 'Yangi mashina') + '</h2>'
+      + '<p class="text-muted">Raqam qaysi avtoshkolaga tegishli ekanini tanlang</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<form data-act="carSave" data-id="' + esc(id || '') + '">'
+      + '<div class="form-grid">'
+      + '<div><label class="field-label" for="carSchool">Avtoshkola <span class="text-red">*</span></label>'
+      + '<select id="carSchool" required data-act="carSchoolChange"><option value="">Tanlang</option>'
+      + Data.activeSchools().map(x => '<option value="' + esc(x.id) + '"' + (String(x.id) === schoolId ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('')
+      + '</select></div>'
+      + '<div><label class="field-label" for="carPlate">Avtomobil raqami <span class="text-red">*</span></label>'
+      + '<input id="carPlate" required value="' + esc(v && v.plate) + '" placeholder="01 777 AAA"></div>'
+      + '<div><label class="field-label" for="carModel">Rusumi</label>'
+      + '<input id="carModel" value="' + esc(v && v.model) + '" placeholder="Chevrolet Cobalt"></div>'
+      + '<div><label class="field-label" for="carIns">Doimiy instruktor</label>'
+      + '<select id="carIns"><option value="">Biriktirilmagan</option>'
+      + this.insOptions(schoolId, v && v.instructor_id) + '</select></div>'
+      + '</div>'
+      + '<div class="field-help">Doimiy instruktor ixtiyoriy — mashina boshqa instruktorga ham berilishi mumkin.</div>'
+      + '<div class="actions-row"><button class="btn btn-green" type="submit" id="carBtn"><span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Saqlash</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
+      + '<div id="carErr" class="text-error" role="alert"></div></form>');
+  },
+  insOptions(schoolId, selected) {
+    return (STATE.instructors || [])
+      .filter(i => Instructors.isActive(i) && (!schoolId || String(i.school_id || i.schoolId || '') === String(schoolId)))
+      .map(i => '<option value="' + esc(i.id) + '"' + (String(i.id) === String(selected || '') ? ' selected' : '') + '>' + esc(insName(i)) + '</option>')
+      .join('');
+  },
+  /* Avtoshkola almashsa — instruktorlar ro'yxati ham almashadi */
+  schoolChanged() {
+    const sel = $('carIns');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Biriktirilmagan</option>' + this.insOptions($('carSchool').value, '');
+  },
+
+  async save(id) {
+    setError('carErr', '');
+    const schoolId = $('carSchool').value;
+    const plate = $('carPlate').value.trim();
+    if (!schoolId) { setError('carErr', 'Avtoshkolani tanlang.'); return; }
+    if (!plate) { setError('carErr', 'Avtomobil raqamini kiriting.'); return; }
+    await withBusy('car:' + (id || 'new'), $('carBtn'), async () => {
+      try {
+        await api('/school-vehicles' + (id ? '/' + encodeURIComponent(id) : ''), {
+          method: id ? 'PUT' : 'POST',
+          body: jsonBody({
+            schoolId: schoolId, plate: plate,
+            model: $('carModel').value.trim(),
+            instructorId: $('carIns').value || null
+          })
+        });
+        closeModal();
+        toast('Mashina saqlandi.');
+        await Fleet.reload('');
+        Fleet.render();
+      } catch (e) { setError('carErr', e.message); }
+    });
+  },
+  async remove(id) {
+    const v = this.byId(id);
+    const ok = await confirmModal({
+      title: "Mashina o'chirilsinmi?",
+      text: (v ? v.plate : 'Ushbu avtomobil') + " ro'yxatdan o'chiriladi.",
+      okText: "O'chirish", danger: true
+    });
+    if (!ok) return;
+    try {
+      await api('/school-vehicles/' + encodeURIComponent(id), { method: 'DELETE' });
+      toast("Mashina o'chirildi.");
+      await Fleet.reload('');
+      Fleet.render();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+};
+
+/* ===================== 16c. INSTRUKTOR TARIXI =====================
+   «12-sentabr kuni soat 12 da Abror ismli instruktor kimni uchirgan va
+   qaysi raqamli mashinada?» — javob shu oynadan chiqadi. Avtoshkola
+   o'quvchilari ham, oddiy mijozlar ham bir ro'yxatda ko'rinadi. */
+const InstructorHistory = {
+  id: '',
+  data: null,
+
+  open(id) {
+    this.id = String(id || '');
+    const ins = Data.instructorById(this.id);
+    const today = localDateISO(0);
+    openModal('<div class="modal-head"><div><h2>' + esc(ins ? insName(ins) : 'Instruktor') + '</h2>'
+      + '<p class="text-muted">Kimni, qachon va qaysi mashinada uchirgani</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div class="report-filters">'
+      + '<div class="fg"><label for="insHistFrom">Dan</label><input id="insHistFrom" type="date" value="' + esc(today) + '"></div>'
+      + '<div class="fg"><label for="insHistTo">Gacha</label><input id="insHistTo" type="date" value="' + esc(today) + '"></div>'
+      + '<div class="report-quick">'
+      + '<button class="btn btn-light btn-sm" type="button" data-act="insHistOffset" data-off="0">Bugun</button>'
+      + '<button class="btn btn-light btn-sm" type="button" data-act="insHistOffset" data-off="-1">Kecha</button>'
+      + '<button class="btn btn-light btn-sm" type="button" data-act="insHistOffset" data-off="-7">7 kun</button>'
+      + '<button class="btn btn-green btn-sm" type="button" data-act="insHistLoad"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Ko\'rsatish</button>'
+      + '</div></div>'
+      + '<div id="insHistSummary"></div>'
+      + '<div id="insHistBody">' + loadingLine('Yuklanmoqda...') + '</div>'
+      + '<div class="actions-row"><button class="btn btn-ghost" type="button" data-act="closeModal">Yopish</button></div>',
+      { wide: true, noFocus: true });
+    this.load();
+  },
+
+  setOffset(off) {
+    const n = num(off);
+    if ($('insHistFrom')) $('insHistFrom').value = localDateISO(n);
+    if ($('insHistTo')) $('insHistTo').value = localDateISO(0);
+    this.load();
+  },
+
+  async load() {
+    const body = $('insHistBody');
+    if (!body) return;
+    body.innerHTML = loadingLine('Yuklanmoqda...');
+    const from = ($('insHistFrom') && $('insHistFrom').value) || localDateISO(0);
+    const to = ($('insHistTo') && $('insHistTo').value) || from;
+    try {
+      const d = await api('/instructors/' + encodeURIComponent(this.id) + '/daily'
+        + '?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to)
+        + '&date=' + encodeURIComponent(from));
+      this.data = d || {};
+      this.render();
+    } catch (e) {
+      body.innerHTML = emptyState('fa-triangle-exclamation', 'Yuklanmadi', e.message, true);
+    }
+  },
+
+  render() {
+    const d = this.data || {};
+    const rows = Array.isArray(d.rows) ? d.rows : [];
+    const s = d.summary || {};
+    const head = $('insHistSummary');
+    if (head) {
+      head.innerHTML = '<div class="autofill"><div class="autofill-grid">'
+        + '<div class="autofill-item"><span>Jami yozuv</span><b>' + num(s.total) + '</b></div>'
+        + '<div class="autofill-item"><span>Avtoshkola darsi</span><b>' + num(s.school_lessons) + '</b></div>'
+        + '<div class="autofill-item"><span>Platniy soat</span><b>' + num(s.private_hours) + '</b></div>'
+        + '<div class="autofill-item"><span>Tushum</span><b>' + esc(money(s.total_amount)) + '</b></div>'
+        + '</div></div>';
+    }
+    const body = $('insHistBody');
+    if (!body) return;
+    if (!rows.length) {
+      body.innerHTML = emptyState('fa-inbox', 'Yozuv yo\'q', 'Tanlangan kunlarda bu instruktorda dars topilmadi.');
+      return;
+    }
+    const cols = ['Sana va vaqt', 'Turi', "O'quvchi / Mijoz", 'Avtomobil', 'Avtoshkola', 'Guruh', 'Dars', 'Summa'];
+    body.innerHTML = '<div class="table-wrap responsive"><table class="tbl"><thead><tr>'
+      + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
+      + rows.map(r => {
+        const isSchool = String(r.customer_type) === 'school';
+        const cells = [
+          esc(dt(r.started_at)),
+          isSchool ? '<span class="badge badge-blue">Avtoshkola</span>'
+                   : '<span class="badge badge-green">Platniy</span>',
+          esc(r.student_name || r.driver_name || '—'),
+          '<b>' + esc(r.plate || '—') + '</b>' + (r.model ? '<div class="text-muted" style="font-size:12px">' + esc(r.model) + '</div>' : ''),
+          esc(r.school_name || '—'),
+          esc(r.group_name || '—'),
+          num(r.lessons),
+          money(r.amount)
+        ];
+        return '<tr>' + cells.map((c, i) => '<td data-label="' + esc(cols[i]) + '">' + c + '</td>').join('') + '</tr>';
+      }).join('')
+      + '</tbody></table></div>';
   }
 };
 
@@ -3850,6 +4209,7 @@ const CascadePick = {
       if (Add.comboStudent) Add.comboStudent.setValue(s);
       STATE.form.student = s;
       Add.renderStudentPanel();   /* ichida sync() chaqiriladi */
+      Add.onStudentPicked();      /* instruktor va mashina ro'yxatini toraytiradi */
       this.renderPanel();
     }
   },
@@ -4088,6 +4448,7 @@ const GroupPick = {
     if (Add.comboStudent) Add.comboStudent.setValue(s);
     STATE.form.student = s;
     Add.renderStudentPanel();
+    Add.onStudentPicked();
     toast(stName(s) + ' tanlandi.');
   },
 
@@ -4373,6 +4734,7 @@ const Instructors = {
         + (activeNow ? ' <span class="badge badge-green">' + activeNow + ' ta faol</span>' : '')
         + '</div>'
         + '<div class="actions-row">'
+        + '<button class="btn btn-light btn-sm" type="button" data-act="instructorHistory" data-id="' + esc(ins.id) + '"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Tarix</button>'
         + '<button class="btn btn-light btn-sm" type="button" data-act="instructorModal" data-id="' + esc(ins.id) + '"><i class="fa-solid fa-pen" aria-hidden="true"></i> Tahrirlash</button>'
         + '<button class="btn btn-danger btn-sm" type="button" data-act="instructorDelete" data-id="' + esc(ins.id) + '"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>'
         + '</div></div>';
@@ -5054,6 +5416,7 @@ const Admin = {
       Instructors.load();
       return;
     }
+    if (tab === 'cars') { c.innerHTML = Fleet.pageHTML(); Fleet.load(); return; }
     if (tab === 'excel') { c.innerHTML = this.excelHTML(); }
   },
 
@@ -6431,6 +6794,19 @@ const ACTIONS = {
   adminLogin: () => Admin.login(),
   closeAdminPanel: () => Admin.closePanel(),
   adminTab: d => Admin.setTab(d.tab),
+
+  /* --- avtoshkola mashinalari --- */
+  carModal: d => Fleet.modal(d.id || ''),
+  carSave: d => Fleet.save(d.id || ''),
+  carDelete: d => Fleet.remove(d.id),
+  carFilter: () => Fleet.render(),
+  carSchoolChange: () => Fleet.schoolChanged(),
+  schoolCarChange: () => Add.carManualToggle(),
+
+  /* --- instruktor tarixi --- */
+  instructorHistory: d => InstructorHistory.open(d.id),
+  insHistLoad: () => InstructorHistory.load(),
+  insHistOffset: d => InstructorHistory.setOffset(d.off),
 
   /* --- guruhli ro'yxat importi (Word / Excel) --- */
   rosterPick: () => Roster.pick(),
