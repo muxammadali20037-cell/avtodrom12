@@ -34,6 +34,7 @@
 
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
+import { instructorExpr } from './instructor-schema.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 const LESSON_SECONDS = 3600;
@@ -78,6 +79,7 @@ async function discrepancies(req, res, userId, search) {
     ? search.get('date') : todayISO();
 
   const cols = await sessionCols();
+  const E = await instructorExpr();
 
   const cCustomer  = col(cols, 'customer_type',    `NULL::text`);
   const cInsId     = col(cols, 'instructor_id',    `NULL::text`);
@@ -109,15 +111,16 @@ async function discrepancies(req, res, userId, search) {
         COALESCE(
           NULLIF(${cInsId}::text, ''),
           (SELECT i.id::text FROM instructors i
-            WHERE i.owner_key = $3
-              AND LOWER(TRIM(COALESCE(i.full_name,''))) = LOWER(TRIM(COALESCE(${cInsName}, '')))
+            WHERE ${E.owner} = $3
+              AND LOWER(TRIM(COALESCE(${E.name},''))) = LOWER(TRIM(COALESCE(${cInsName}, '')))
               AND NULLIF(TRIM(COALESCE(${cInsName}, '')), '') IS NOT NULL
             ORDER BY i.created_at NULLS LAST LIMIT 1),
           (SELECT i.id::text FROM instructors i
             JOIN vehicles v ON v.id = s.vehicle_id
-            WHERE i.owner_key = $3
-              AND NULLIF(TRIM(COALESCE(i.plate,'')), '') IS NOT NULL
-              AND REPLACE(UPPER(TRIM(i.plate)), ' ', '') = REPLACE(UPPER(TRIM(COALESCE(v.plate,''))), ' ', '')
+            WHERE ${E.owner} = $3
+              AND ${E.plate} IS NOT NULL
+              AND REGEXP_REPLACE(UPPER(${E.plate}), '[^A-Z0-9]', '', 'g')
+                = REGEXP_REPLACE(UPPER(COALESCE(v.plate,'')), '[^A-Z0-9]', '', 'g')
             ORDER BY i.created_at NULLS LAST LIMIT 1)
         ) AS ins_id
       FROM sessions s
@@ -180,15 +183,15 @@ async function discrepancies(req, res, userId, search) {
         FULL OUTER JOIN att a ON a.k = o.k
     )
     SELECT m.*,
-           COALESCE(i.full_name,
+           COALESCE(${E.name},
                     (SELECT MAX(kk.ins_name_raw) FROM keyed kk WHERE kk.k = m.k)) AS instructor_name,
            i.id::text  AS instructor_id,
-           i.phone     AS instructor_phone,
-           i.plate     AS instructor_plate
+           ${E.phone}  AS instructor_phone,
+           ${E.plate}  AS instructor_plate
       FROM merged m
       LEFT JOIN instructors i
-             ON i.id::text = m.k AND i.owner_key = $3
-     ORDER BY COALESCE(i.full_name, '') ASC`;
+             ON i.id::text = m.k AND ${E.owner} = $3
+     ORDER BY COALESCE(${E.name}, '') ASC`;
 
   const owner = String(req.__ownerKey || userId);
   const r = await pool.query(sql, [userId, date, owner]);
@@ -319,6 +322,7 @@ async function details(req, res, userId, search) {
   const cLessons  = col(cols, 'lessons_counted', `NULL::int`);
   const cStudent  = col(cols, 'student_id',      `NULL::text`);
   const cDriver   = col(cols, 'driver_name',     `NULL::text`);
+  const E = await instructorExpr();
   const owner = String(req.__ownerKey || userId);
 
   const sql = `
@@ -338,14 +342,15 @@ async function details(req, res, userId, search) {
              COALESCE(
                NULLIF(${cInsId}::text,''),
                (SELECT i.id::text FROM instructors i
-                 WHERE i.owner_key=$3
-                   AND LOWER(TRIM(COALESCE(i.full_name,''))) = LOWER(TRIM(COALESCE(${cInsName},'')))
+                 WHERE ${E.owner}=$3
+                   AND LOWER(TRIM(COALESCE(${E.name},''))) = LOWER(TRIM(COALESCE(${cInsName},'')))
                    AND NULLIF(TRIM(COALESCE(${cInsName},'')),'') IS NOT NULL
                  ORDER BY i.created_at NULLS LAST LIMIT 1),
                (SELECT i.id::text FROM instructors i
-                 WHERE i.owner_key=$3
-                   AND NULLIF(TRIM(COALESCE(i.plate,'')),'') IS NOT NULL
-                   AND REPLACE(UPPER(TRIM(i.plate)),' ','') = REPLACE(UPPER(TRIM(COALESCE(v.plate,''))),' ','')
+                 WHERE ${E.owner}=$3
+                   AND ${E.plate} IS NOT NULL
+                   AND REGEXP_REPLACE(UPPER(${E.plate}), '[^A-Z0-9]', '', 'g')
+                     = REGEXP_REPLACE(UPPER(COALESCE(v.plate,'')), '[^A-Z0-9]', '', 'g')
                  ORDER BY i.created_at NULLS LAST LIMIT 1)
              ) AS ins_id
         FROM sessions s

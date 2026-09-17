@@ -290,6 +290,10 @@ export async function handleCompatRequest(req, res) {
       const insName = String(body.instructorName || body.instructor_name || '').trim();
       const insId = String(body.instructorId || body.instructor_id || '').trim() || null;
       const lessons = Math.max(1, Math.min(12, Math.round(Number(body.lessons || 1)) || 1));
+      /* Qaysi mashinada uchgani — keyin instruktor tarixida kerak bo'ladi */
+      const carPlate = String(body.plate || body.vehiclePlate || body.vehicle_plate || '')
+        .toUpperCase().replace(/\s+/g, ' ').trim();
+      const carModel = String(body.model || body.vehicleModel || body.vehicle_model || '').trim();
 
       /* Instruktor IXTIYORIY: yozilsa saqlanadi, yozilmasa davomat
          baribir yoziladi. O'quvchi esa shart. */
@@ -344,37 +348,58 @@ export async function handleCompatRequest(req, res) {
         const HOUR = 3600;
         const ids = [];
         /* ==================================================================
-           VAQT O'YLAB TOPILMAYDI
+           BITTA DAVOMAT = BITTA YOZUV
 
-           Davomatda soat o'lchanmaydi: operator bir marta bosadi, xolos.
-           Shuning uchun yagona ANIQ ma'lum narsa — qayd etilgan payt.
-           U `started_at` ga yoziladi. Dars qachon tugaganini hech kim
-           bilmaydi, shuning uchun `finished_at` BO'SH qoldiriladi va
-           hisobotda «—» ko'rinadi.
+           2 soatga yozilgan o'quvchi hisobotda «12:00 dan 14:00 gacha»
+           bo'lib, bitta qatorda ko'rinadi. Ilgari har soat alohida
+           qator bo'lardi va bitta o'quvchi ro'yxatda ikki-uch marta
+           takrorlanib, «qayta ochilgan»dek ko'rinardi.
 
-           Ilgari bu yerda soat qo'shib yozilardi: avval oldinga
-           (17:14 -> 18:14, 19:14, 20:14 — hali kelmagan vaqt), keyin
-           orqaga. Ikkalasi ham to'qima edi: 2 soatga yozilgan o'quvchi
-           «24:00 dan 26:00 gacha» bo'lib chiqardi, aslida darsi o'sha
-           payt boshlanmagan.
-
-           Haqiqiy boshlanish va tugash vaqti kerak bo'lsa, uni faqat
-           instruktor tomoni bera oladi (QR chekni skanerlash va darsni
-           yakunlash) — operator stolida bu bilinmaydi.
-
-           `duration_seconds` 1 soatligicha qoladi: butun ilovada
-           «1 soat = 1 dars» hisobi shunga bog'liq.
+           Kirish — davomat qayd etilgan payt (aniq ma'lumot).
+           Chiqish — kirish + tanlangan soat (rejadagi tugash vaqti).
+           Darslar soni `lessons_counted` da, shuning uchun bitta
+           yozuv bo'lsa ham dars soni to'g'ri sanaladi.
            ================================================================== */
+        const totalSeconds = lessons * HOUR;
+        const startedAt = new Date(now).toISOString();
+        const finishedAt = new Date(now + totalSeconds * 1000).toISOString();
+
+        /* Qaysi mashinada uchgani yozib qo'yiladi: keyin «falon kuni
+           falon instruktor kimni, qaysi raqamli mashinada uchirgan»
+           degan savolga javob shu yerdan chiqadi. */
+        let vehicleId = null;
+        if (carPlate) {
+          try {
+            await c.query('SAVEPOINT sp_car');
+            const found = await c.query(
+              `SELECT id FROM vehicles WHERE user_id=$1 AND plate=$2 LIMIT 1`, [user, carPlate]);
+            if (found.rows[0]) {
+              vehicleId = found.rows[0].id;
+              if (carModel) {
+                await c.query(`UPDATE vehicles SET model=COALESCE(NULLIF($1,''),model) WHERE id=$2`,
+                  [carModel, vehicleId]);
+              }
+            } else {
+              const made = await c.query(
+                `INSERT INTO vehicles(user_id, plate, model) VALUES($1,$2,$3) RETURNING id`,
+                [user, carPlate, carModel || null]);
+              vehicleId = made.rows[0].id;
+            }
+            await c.query('RELEASE SAVEPOINT sp_car');
+          } catch (e) {
+            try { await c.query('ROLLBACK TO SAVEPOINT sp_car'); } catch {}
+            vehicleId = null;
+            console.error('[attendance] mashina yozilmadi:', e && e.message);
+          }
+        }
+
         {
-          /* BITTA yozuv: tanlangan soatlar bitta qatorga yoziladi */
-          const startedAt = new Date(now).toISOString();
-          const finishedAt = null;
           const cand = [
             ['user_id', user],
-            ['vehicle_id', null],
+            ['vehicle_id', vehicleId],
             ['started_at', startedAt],
             ['finished_at', finishedAt],
-            ['duration_seconds', HOUR * lessons],
+            ['duration_seconds', totalSeconds],
             ['hourly_rate', cfg.hourly_rate],
             ['minimum_payment', cfg.minimum_payment],
             ['calculation_mode', cfg.calculation_mode],
@@ -391,8 +416,8 @@ export async function handleCompatRequest(req, res) {
             ['instructor_name', insName || null],
             ['driver_name', st.full_name],
             ['customer_type', 'school'],
-            ['planned_minutes', 60 * lessons],
-            ['target_duration', HOUR * lessons],
+            ['planned_minutes', lessons * 60],
+            ['target_duration', totalSeconds],
             ['lessons_counted', lessons],
           ].filter(([k]) => cols.has(k));
 

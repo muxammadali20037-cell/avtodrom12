@@ -5,7 +5,10 @@ import { handleV3Request } from "./v3-routes.js";
 import { handleAdminRequest } from "./admin-auth-v2.js";
 import { handleReceiptRequest } from "./receipt-routes.js";
 import { handleControlRequest } from "./control-routes.js";
+import { handleFleetRequest } from "./fleet-routes.js";
 import instructorHandler from "./instructor.js";
+import instructorsFixed from "./instructors-fixed.js";
+import instructorDailyHandler from "./instructor-daily.js";
 import { readFile } from "node:fs/promises";
 
 const rootFrontend = new URL("../index.html", import.meta.url);
@@ -14,7 +17,29 @@ const instructorFrontend = new URL("../instructor.html", import.meta.url);
 
 export default async function handler(req, res) {
   const path = String(req.url || "").split("?",1)[0];
-  if (path.startsWith("/api/instructor")) return instructorHandler(req,res);
+
+  /* Telegram instruktor mini-ilovasi — FAQAT birlikdagi /api/instructor/...
+     Ilgari bu shart `startsWith("/api/instructor")` edi va ko'plikdagi
+     `/api/instructors` ni ham yutib yuborardi: Vercel'da uni vercel.json
+     alohida yo'naltirgani uchun sezilmasdi, lekin boshqa o'rnatmada
+     instruktorlar ro'yxati «route topilmadi» bo'lib qolardi. */
+  if (path === "/api/instructor" || path.startsWith("/api/instructor/")) {
+    return instructorHandler(req, res);
+  }
+
+  /* Instruktorlar API — vercel.json dagi yo'nalish bilan bir xil,
+     shunda Vercel'dan tashqarida ham xuddi shunday ishlaydi. */
+  const instDaily = path.match(/^\/api\/instructors\/([^/]+)\/daily$/);
+  if (instDaily) {
+    req.query = Object.assign({}, req.query, { id: decodeURIComponent(instDaily[1]) });
+    return instructorDailyHandler(req, res);
+  }
+  const instOne = path.match(/^\/api\/instructors\/([^/]+)$/);
+  if (instOne) {
+    req.query = Object.assign({}, req.query, { id: decodeURIComponent(instOne[1]) });
+    return instructorsFixed(req, res);
+  }
+  if (path === "/api/instructors") return instructorsFixed(req, res);
 
   const jsonRes = {
     status(code) { res.statusCode = code; return this; },
@@ -24,6 +49,9 @@ export default async function handler(req, res) {
   /* QR chek (avtoshkola). Avtodrom instruktor paneli ham shu yerga
      murojaat qiladi — /api/receipts/verify|redeem|complete. */
   const receiptHandled = await handleReceiptRequest(req, res); if (receiptHandled) return receiptHandled;
+
+  /* AVTOSHKOLA MASHINALARI */
+  const fleetHandled = await handleFleetRequest(req, res); if (fleetHandled) return fleetHandled;
 
   /* NAZORAT — «Xatoliklar va aniqliklar» */
   const controlHandled = await handleControlRequest(req, res); if (controlHandled) return controlHandled;
