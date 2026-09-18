@@ -1042,7 +1042,7 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
               </div>
               <div id="cpPanel" class="cp-panel hidden"></div>
               <div id="comboStudent"></div>
-              <div class="field-help">Yoki ism familiya, bosh harflar yoki telefon oxiri bilan qidiring: <b>ab ka</b>, <b>ak</b>, <b>karimov</b>, <b>4567</b>.</div>
+              <div class="field-help">Qanday yozsangiz ham topadi: <b>ibroximov</b> yoki <b>ibrohimov</b>, qisqartirib <b>ibrxm mali</b>, teskari <b>mali ibrxm</b>, bosh harflar <b>im</b>, telefon oxiri <b>4567</b>. Harf xato yozilsa ham tushunadi.</div>
               <div id="studentFallback" class="hidden">
                 <div class="form-grid" style="margin-top:12px">
                   <div><label class="field-label muted-label" for="school">Avtoshkola</label><select id="school"><option value="">Tanlang</option></select></div>
@@ -1518,51 +1518,187 @@ const searchNorm = s => lower(s)
   .replace(/[^a-z0-9Ѐ-ӿ]+/g, ' ')
   .trim();
 
-/* Ism bo'yicha moslik. Quyidagilarning bari ishlaydi:
-     «abdulla»      -> Abdulla Karimov     (oddiy, avvalgidek)
-     «karimov»      -> Abdulla Karimov     (familiyadan ham)
-     «ab ka»        -> Abdulla Karimov     (ikkala qismning boshi)
-     «ka ab»        -> Abdulla Karimov     (tartibi muhim emas)
-     «ak»           -> Abdulla Karimov     (bosh harflar)
-     «4567»         -> telefon oxiri bo'yicha
+/* ===================== ISMNI «YUMSHATISH» =====================
+   O'zbek ismlari bir xil eshitilsa ham turlicha yoziladi. Operator
+   «yumshoq h mi, qattiq x mi» deb o'quvchidan so'rab o'tirmasligi
+   uchun qidiruvda bu farqlar butunlay olib tashlanadi:
+
+     Ibrohimov = Ibroximov      (h va x bir xil)
+     Qodirov   = Kodirov        (q va k bir xil)
+     Sayfiddin = Saifiddin      (y va i bir xil)
+     Abdulla   = Abdula         (takroriy harf bir marta)
+     Ўктам     = O'ktam         (kirill va lotin bir xil)
+
+   Bu FAQAT qidiruvda ishlatiladi. Ism bazaga qanday yozilgan bo'lsa,
+   shundayligicha saqlanadi va shunday ko'rsatiladi. */
+const CYR_LAT = {
+  'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'j','з':'z',
+  'и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r',
+  'с':'s','т':'t','у':'u','ф':'f','х':'x','ц':'ts','ч':'ch','ш':'sh','щ':'sh',
+  'ъ':'','ы':'i','ь':'','э':'e','ю':'yu','я':'ya',
+  'ғ':'g','қ':'q','ҳ':'h','ў':'o','ҷ':'j','ң':'n','ә':'a','ө':'o','ү':'u','һ':'h'
+};
+const foldCache = new Map();
+function searchFold(s) {
+  const raw = String(s === null || s === undefined ? '' : s);
+  if (!raw) return '';
+  const hit = foldCache.get(raw);
+  if (hit !== undefined) return hit;
+
+  let t = searchNorm(raw);
+  /* kirill -> lotin */
+  if (/[Ѐ-ӿ]/.test(t)) t = t.replace(/[Ѐ-ӿ]/g, c => (CYR_LAT[c] !== undefined ? CYR_LAT[c] : c));
+  /* chalkashadigan harflarni bitta ko'rinishga keltiramiz */
+  t = t
+    .replace(/x/g, 'h')     /* Ibroximov = Ibrohimov */
+    .replace(/q/g, 'k')     /* Qodirov   = Kodirov   */
+    .replace(/w/g, 'v')
+    .replace(/y/g, 'i')     /* Sayfiddin = Saifiddin */
+    .replace(/([a-z])\1+/g, '$1')   /* Abdulla = Abdula */
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  /* Kesh cheksiz o'smasin */
+  if (foldCache.size > 20000) foldCache.clear();
+  foldCache.set(raw, t);
+  return t;
+}
+
+/* «ibrxm» -> «ibrohimov»: harflar tartibi saqlangan holda ichida bormi */
+function isSubsequence(needle, hay) {
+  if (needle.length > hay.length) return false;
+  let i = 0;
+  for (let j = 0; j < hay.length && i < needle.length; j++) {
+    if (hay[j] === needle[i]) i++;
+  }
+  return i === needle.length;
+}
+
+/* Xato yozilganini kechirish: bitta-ikkita harf farqi.
+   `max` dan oshsa darhol to'xtaydi — uzun ro'yxatda tez ishlashi uchun. */
+function closeEnough(a, b, max) {
+  const la = a.length, lb = b.length;
+  if (Math.abs(la - lb) > max) return false;
+  let prev = new Array(lb + 1);
+  let cur = new Array(lb + 1);
+  for (let j = 0; j <= lb; j++) prev[j] = j;
+  for (let i = 1; i <= la; i++) {
+    cur[0] = i;
+    let best = cur[0];
+    for (let j = 1; j <= lb; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      if (cur[j] < best) best = cur[j];
+    }
+    if (best > max) return false;
+    const t = prev; prev = cur; cur = t;
+  }
+  return prev[lb] <= max;
+}
+
+/* Bir bo'lak bir so'zni band qiladi: «ab ab» ikkita «ab» talab qiladi */
+function matchAllWords(qWords, words, test) {
+  const used = new Array(words.length).fill(false);
+  return qWords.every(qw => {
+    const i = words.findIndex((w, k) => !used[k] && test(qw, w));
+    if (i < 0) return false;
+    used[i] = true;
+    return true;
+  });
+}
+
+/* Ism bo'yicha moslik. Quyidagilarning BARI ishlaydi
+   (bazada «IBROXIMOV MUXAMMADALI» deb yozilgan bo'lsa):
+
+     ibroximov            — oddiy
+     ibrohimov            — yumshoq h bilan yozilsa ham
+     muxammadali          — faqat ismi
+     ibrxm mali           — qisqartirib
+     mali ibrxm           — tartibi teskari
+     ibroximovmuhammadali — bo'shliqsiz
+     im                   — bosh harflar
+     ibroximof            — oxirgi harf xato
+     4567                 — telefon oxiri
+
    `extra` — telefon raqami (ixtiyoriy). */
-function smartMatch(text, q, extra) {
-  const nq = searchNorm(q);
-  if (!nq) return true;
+function matchScore(text, q, extra) {
+  const nq = searchFold(q);
+  if (!nq) return 1;
 
   /* Raqam kiritilsa — telefon bo'yicha qidiriladi */
   const digits = String(q).replace(/\D/g, '');
   if (digits.length >= 3) {
     const ex = String(extra || '').replace(/\D/g, '');
-    if (ex && ex.indexOf(digits) >= 0) return true;
+    if (ex && ex.indexOf(digits) >= 0) return 95;
   }
 
-  const nText = searchNorm(text);
-  if (!nText) return false;
-  if (nText.indexOf(nq) >= 0) return true;
+  const nText = searchFold(text);
+  if (!nText) return 0;
 
   const words = nText.split(' ').filter(Boolean);
   const qWords = nq.split(' ').filter(Boolean);
+  if (!qWords.length) return 1;
 
-  /* Har bir kiritilgan bo'lak ismning biror qismi boshiga to'g'ri kelsa.
-     Bir bo'lak bir so'zni band qiladi — «ab ab» ikkita «ab» talab qiladi. */
-  if (qWords.length) {
-    const used = new Array(words.length).fill(false);
-    const all = qWords.every(qw => {
-      const i = words.findIndex((w, k) => !used[k] && w.indexOf(qw) === 0);
-      if (i < 0) return false;
-      used[i] = true;
-      return true;
-    });
-    if (all) return true;
-  }
+  /* 1) Butun ism aynan shunday boshlanadi — eng aniq moslik */
+  if (nq.length >= 2 && nText.indexOf(nq) === 0) return 100;
 
-  /* Bosh harflar: «ak» -> Abdulla Karimov */
+  /* 2) Ism ichida to'g'ridan-to'g'ri uchraydi.
+        Bitta harflik so'rov bu yerga tushmaydi: «zzzz» yumshatilgandan
+        keyin «z» bo'lib qoladi va ichida z bor hamma ism chiqib ketardi. */
+  if (nq.length >= 2 && nText.indexOf(nq) >= 0) return 85;
+
+  const glued = words.join('');
+  const qGlued = qWords.join('');
+
+  /* 3) Bo'shliqsiz yozilgan: «ibroximovmuhammadali» */
+  if (qWords.length === 1 && qGlued.length >= 3 && glued.indexOf(qGlued) >= 0) return 80;
+
+  /* 4) Har bir bo'lak biror so'zning BOSHIGA to'g'ri kelsa */
+  if (matchAllWords(qWords, words, (qw, w) => w.indexOf(qw) === 0)) return 70;
+
+  /* 5) Bosh harflar: «im» -> Ibroximov Muxammadali */
   if (qWords.length === 1 && qWords[0].length >= 2) {
     const initials = words.map(w => w[0]).join('');
-    if (initials.indexOf(qWords[0]) === 0) return true;
+    if (initials.indexOf(qWords[0]) === 0) return 55;
   }
-  return false;
+
+  /* 6) QISQARTMA: «ibrxm» harflari «ibrohimov» ichida tartib bilan
+        uchrasa. Kamida 3 harf — aks holda hamma narsa mos kelib ketadi. */
+  if (matchAllWords(qWords, words, (qw, w) => qw.length >= 3 && isSubsequence(qw, w))) return 45;
+  if (qWords.length === 1 && qGlued.length >= 4 && isSubsequence(qGlued, glued)) return 40;
+
+  /* 7) XATO YOZILGAN: bitta-ikkita harf farqi bilan */
+  const tol = w => (w.length <= 4 ? 0 : w.length <= 7 ? 1 : 2);
+  if (matchAllWords(qWords, words, (qw, w) => {
+    const t = tol(qw);
+    if (!t) return false;
+    /* Birinchi harf bir xil bo'lsin: xato odatda o'rtada bo'ladi.
+       Bu 3000 ta ism ustida ortiqcha solishtirishning katta qismini
+       kesib tashlaydi — qidiruv sezilarli tezlashadi. */
+    if (qw[0] !== w[0]) return false;
+    const head = w.slice(0, qw.length + t);
+    return closeEnough(qw, head, t) || closeEnough(qw, w, t);
+  })) return 25;
+
+  return 0;
+}
+
+/* Ism bo'yicha moslik. Quyidagilarning BARI ishlaydi
+   (bazada «IBROXIMOV MUXAMMADALI» deb yozilgan bo'lsa):
+
+     ibroximov            — oddiy
+     ibrohimov            — yumshoq h bilan yozilsa ham
+     muxammadali          — faqat ismi
+     ibrxm mali           — qisqartirib
+     mali ibrxm           — tartibi teskari
+     ibroximovmuhammadali — bo'shliqsiz
+     im                   — bosh harflar
+     ibroximof            — oxirgi harf xato
+     4567                 — telefon oxiri
+
+   `extra` — telefon raqami (ixtiyoriy). */
+function smartMatch(text, q, extra) {
+  return matchScore(text, q, extra) > 0;
 }
 /* <input type="date"> faqat "yyyy-MM-dd" ni qabul qiladi.
    Postgres DATE ustuni JSON'da "2026-08-02T00:00:00.000Z" ko'rinishida kelishi
@@ -1974,7 +2110,8 @@ function Combobox(hostId, options) {
     getText: it => it.title || '',
     getSub: () => '',
     getTag: () => '',
-    match: (it, q) => lower(it.title).indexOf(q) >= 0
+    match: (it, q) => lower(it.title).indexOf(q) >= 0,
+    score: null
   }, options || {});
 
   host.className = 'combo';
@@ -1996,7 +2133,22 @@ function Combobox(hostId, options) {
 
   function render(q) {
     const query = lower(q).trim();
-    filtered = (query ? items.filter(it => cfg.match(it, query)) : items).slice(0, cfg.limit);
+    if (!query) {
+      filtered = items.slice(0, cfg.limit);
+    } else if (cfg.score) {
+      /* Eng mos ism tepada tursin: «ibroximov» deb yozilganda
+         IBROXIMOV bilan boshlanadiganlar birinchi chiqadi, faqat
+         xatosi tuzatilib topilganlari esa oxirida. */
+      const hits = [];
+      for (let i = 0; i < items.length; i++) {
+        const sc = cfg.score(items[i], query);
+        if (sc > 0) hits.push({ it: items[i], sc: sc, i: i });
+      }
+      hits.sort((a, b) => b.sc - a.sc || a.i - b.i);
+      filtered = hits.slice(0, cfg.limit).map(x => x.it);
+    } else {
+      filtered = items.filter(it => cfg.match(it, query)).slice(0, cfg.limit);
+    }
     let html = '';
     if (!filtered.length) {
       html = '<div class="combo-empty">' + esc(cfg.emptyText) + '</div>';
@@ -2463,6 +2615,7 @@ const Add = {
       getSub: it => [it.school_name || Data.schoolName(it.school_id || it.schoolId), it.group_name || Data.groupName(it.group_id || it.groupId), it.phone].filter(Boolean).join(' • '),
       getTag: it => attCount(it) + ' dars',
       match: (it, q) => smartMatch(stName(it), q, it.phone),
+      score: (it, q) => matchScore(stName(it), q, it.phone),
       onSelect: it => { STATE.form.student = it; Add.renderStudentPanel(); Add.onStudentPicked(); },
       onClear: () => { STATE.form.student = null; Add.renderStudentPanel(); Add.onStudentPicked(); },
       onCreate: name => Add.createStudentQuick(name)
@@ -2479,6 +2632,10 @@ const Add = {
       match: (it, q) => smartMatch(insName(it), q, it.phone)
         || (normalizePlate(q).length >= 2
             && normalizePlate(insPlate(it)).indexOf(normalizePlate(q)) >= 0),
+      score: (it, q) => Math.max(
+        matchScore(insName(it), q, it.phone),
+        (normalizePlate(q).length >= 2
+          && normalizePlate(insPlate(it)).indexOf(normalizePlate(q)) >= 0) ? 60 : 0),
       onSelect: it => { STATE.form.instructor = it; Add.applyInstructor(it); Add.renderCarOptions(); },
       onClear: () => { STATE.form.instructor = null; $('instructorBox').innerHTML = ''; Add.renderCarOptions(); }
     });
@@ -4174,8 +4331,14 @@ const CascadePick = {
     }
     if (this.step === 'student') {
       const g = this.group();
-      return (g ? g.list : []).filter(s => !q || smartMatch(stName(s), q, s.phone))
-        .map(s => ({ id: s.id, name: stName(s), sub: attCount(s) + ' dars' }));
+      const list = g ? g.list : [];
+      if (!q) return list.map(s => ({ id: s.id, name: stName(s), sub: attCount(s) + ' dars' }));
+      /* Mosligi bo'yicha saralanadi — aniq topilgani birinchi turadi */
+      return list
+        .map((s, i) => ({ s: s, sc: matchScore(stName(s), q, s.phone), i: i }))
+        .filter(x => x.sc > 0)
+        .sort((a, b) => b.sc - a.sc || a.i - b.i)
+        .map(x => ({ id: x.s.id, name: stName(x.s), sub: attCount(x.s) + ' dars' }));
     }
     return [];
   },
@@ -4454,10 +4617,13 @@ const GroupPick = {
       const out = [];
       for (const g of sc.groups) {
         for (const st of g.list) {
-          if (smartMatch(stName(st), this.q, st.phone)) out.push(st);
+          const score = matchScore(stName(st), this.q, st.phone);
+          if (score > 0) out.push({ st: st, sc: score });
         }
       }
-      return out;
+      /* Eng mos ism tepada tursin */
+      out.sort((a, b) => b.sc - a.sc);
+      return out.map(x => x.st);
     }
     const g = this.group();
     return g ? g.list : [];
