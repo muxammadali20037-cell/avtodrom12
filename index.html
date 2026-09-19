@@ -3002,9 +3002,8 @@ const Add = {
        Vaqt ochilmaydi: dars darhol yozib qo'yiladi. Nechta soat
        tanlansa — shuncha dars. */
     if (d.type === 'school') {
-      /* Chek oynasi AYNAN tugma bosilgan paytda ochiladi. Serverdan
-         javob kelgunicha kutsak, brauzer uni pop-up deb bloklardi. */
-      const chek = withChek ? window.open('', '_blank', 'width=400,height=640') : null;
+      /* Chek yangi oynada emas, ko'rinmas ramkada chop etiladi —
+         pop-up bloklanmaydi va ilova joyida qoladi. */
       const actBtn = withChek ? $('startBtn') : ($('attendOnlyBtn') || $('startBtn'));
       await withBusy('att:' + (d.student && d.student.id), actBtn, async () => {
         try {
@@ -3046,7 +3045,7 @@ const Add = {
 
           /* Davomat yozildi — endi chek chiqadi (agar so'ralgan bo'lsa) */
           if (withChek) {
-            EntryTicket80.renderInto(chek, {
+            EntryTicket80.printHidden({
               person: stName(d.student),
               hours: n,
               school: d.student.school_name || Data.schoolName(d.student.school_id || d.student.schoolId) || '',
@@ -3055,13 +3054,10 @@ const Add = {
               plate: car.plate || '',
               issued: new Date().toISOString()
             });
-            if (!chek) toast("Davomat yozildi, lekin chek oynasi ochilmadi: brauzerda pop-up'ga ruxsat bering yoki «Davomat yozish (cheksiz)» tugmasidan foydalaning.", 'warn');
           }
 
           toast('Davomat yozildi: ' + stName(d.student) + ' — ' + n + ' dars. Jami: ' + jami + ' dars');
         } catch (e) {
-          /* Yozilmadi — bo'sh oyna ochiq qolmasin */
-          try { if (chek && !chek.closed) chek.close(); } catch (e2) { /* noop */ }
           const m = /404|topilmadi|not found/i.test(String(e.message))
             ? 'Server hali yangilanmagan: /api/attendance topilmadi. '
               + 'api/compat-routes.js ni deploy qiling.'
@@ -3412,7 +3408,7 @@ const EntryTicket80 = {
      bosilgan paytda ochishga ruxsat beradi; davomat serverga
      yozilgunicha kutsak, oyna bloklanib qolardi. Shuning uchun oyna
      bosilishi bilan ochiladi, ichi esa keyin to'ldiriladi. */
-  attendanceHTML(data) {
+  attendanceHTML(data, bare) {
     const t = new Date(data.issued);
     const when = Number.isNaN(t.getTime()) ? '—'
       : t.toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent',
@@ -3443,7 +3439,9 @@ const EntryTicket80 = {
       + '@media print{@page{size:80mm auto;margin:0}html,body{width:80mm;background:#fff}'
       + '.tb{display:none}.t{margin:0;width:80mm;padding:4mm}}'
       + '</style></head><body>'
-      + '<div class="tb"><button id="pr" type="button">Chop etish — 80 mm</button></div>'
+      /* `bare` — chek yashirin ramka ichida chop etiladi: u yerda
+         tugma ham, o'z-o'zidan chop etish skripti ham kerak emas. */
+      + (bare ? '' : '<div class="tb"><button id="pr" type="button">Chop etish — 80 mm</button></div>')
       + '<main class="t">'
       + '<div class="b">INDEX AVTODROM</div>'
       + '<div class="h">Amaliy haydash mashg‘uloti</div>'
@@ -3460,20 +3458,58 @@ const EntryTicket80 = {
       + '<div class="ft">Darsingiz qayd etildi.<br>Chekni yo‘qotmang — nazoratda so‘ralishi mumkin.<br>Yaxshi yo‘l!</div>'
       + '<div class="pad"></div>'
       + '</main>'
-      /* O'zi chop etadi va o'zi yopiladi — operator hech narsa bosmaydi.
-         Chrome «--kiosk-printing» bilan ochilgan bo'lsa, oyna umuman
-         ko'rinmay, chek to'g'ridan-to'g'ri printerga tushadi. */
-      + '<scr' + 'ipt>(function(){'
-      + 'function go(){if(window.__pr)return;window.__pr=1;'
-      + 'try{window.focus();window.print();}catch(e){}'
-      + 'setTimeout(function(){try{window.close();}catch(e){}},1200);}'
-      + 'window.onafterprint=function(){try{window.close();}catch(e){}};'
-      + 'var b=document.getElementById("pr");'
-      + 'if(b)b.onclick=function(){window.__pr=0;go();};'
-      + 'if(document.readyState==="complete")setTimeout(go,60);'
-      + 'else window.onload=function(){setTimeout(go,60);};'
-      + '})();</scr' + 'ipt>'
+      /* Alohida oynada ochilgan bo'lsa (eski yo'l) — o'zi chop etadi.
+         Yashirin ramkada esa bu skript umuman qo'shilmaydi. */
+      + (bare ? '' :
+          '<scr' + 'ipt>(function(){'
+        + 'function go(){if(window.__pr)return;window.__pr=1;'
+        + 'try{window.focus();window.print();}catch(e){}}'
+        + 'var b=document.getElementById("pr");'
+        + 'if(b)b.onclick=function(){window.__pr=0;go();};'
+        + 'if(document.readyState==="complete")setTimeout(go,60);'
+        + 'else window.onload=function(){setTimeout(go,60);};'
+        + '})();</scr' + 'ipt>')
       + '</body></html>';
+  },
+
+  /* ============ YASHIRIN RAMKADA CHOP ETISH ============
+     Ilgari chek alohida oynada ochilardi. Ba'zi o'rnatmalarda
+     (masalan ilova qobig'i ichida) `window.open` alohida oyna
+     ochmaydi, `window.close()` esa BUTUN ilovani yopib yuborardi —
+     operator chekni chop etishi bilan tizimdan chiqib ketardi.
+
+     Endi chek sahifaning o'zidagi ko'rinmas <iframe> ichida
+     chop etiladi: yangi oyna ochilmaydi, yopiladigan narsa yo'q,
+     pop-up bloklanmaydi, ilova joyida qoladi. */
+  printHidden(data) {
+    try {
+      const old = document.getElementById('chekFrame');
+      if (old && old.parentNode) old.parentNode.removeChild(old);
+
+      const f = document.createElement('iframe');
+      f.id = 'chekFrame';
+      f.setAttribute('aria-hidden', 'true');
+      /* `display:none` bo'lsa brauzer uni chop etmaydi — shuning
+         uchun ekrandan tashqariga chiqarib qo'yamiz. */
+      f.style.cssText = 'position:fixed;left:-10000px;top:0;width:80mm;height:200mm;border:0;opacity:0';
+      document.body.appendChild(f);
+
+      const d = f.contentWindow.document;
+      d.open(); d.write(this.attendanceHTML(data, true)); d.close();
+
+      const go = () => {
+        try { f.contentWindow.focus(); f.contentWindow.print(); }
+        catch (e) { console.error('[chek]', e); toast('Chek chiqmadi: ' + e.message, 'warn'); }
+      };
+      if (d.readyState === 'complete') setTimeout(go, 150);
+      else f.onload = () => setTimeout(go, 150);
+
+      /* Keyingi chekka xalaqit bermasin */
+      setTimeout(() => { try { if (f.parentNode) f.parentNode.removeChild(f); } catch (e) { /* noop */ } }, 60000);
+    } catch (e) {
+      console.error('[chek]', e);
+      toast('Chek chiqmadi: ' + (e.message || e), 'warn');
+    }
   },
   /* Oldindan ochilgan oynani to'ldirib, chop etishga yuboradi */
   renderInto(win, data) {
