@@ -1106,6 +1106,14 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
                 <i class="fa-solid fa-play btn-icon" aria-hidden="true"></i>
                 <span class="btn-text">Vaqt ochish</span>
               </button>
+              <!-- Chek bilan bog'liq muammo bo'lsa (printer yo'q, pop-up
+                   bloklangan) davomat baribir yozilishi kerak. Shuning
+                   uchun cheksiz variant alohida tugma. -->
+              <button class="btn btn-light btn-lg hidden" id="attendOnlyBtn" type="button" data-act="attendNoChek">
+                <span class="spinner" aria-hidden="true"></span>
+                <i class="fa-solid fa-clipboard-check btn-icon" aria-hidden="true"></i>
+                <span class="btn-text">Davomat yozish (cheksiz)</span>
+              </button>
               <button class="btn btn-light btn-lg" type="button" data-act="printEntryForm"><i class="fa-solid fa-print" aria-hidden="true"></i> Kirish taloni — 80 mm</button>
               <button class="btn btn-light btn-lg" id="queueBtn" type="button" data-act="addToQueue">
                 <span class="spinner" aria-hidden="true"></span>
@@ -2821,6 +2829,8 @@ const Add = {
        alohida talon tugmasi kerak emas. */
     const tick = document.querySelector('[data-act="printEntryForm"]');
     if (tick) tick.classList.toggle('hidden', isSchool);
+    /* «Davomat yozish (cheksiz)» faqat davomat rejimida kerak */
+    if ($('attendOnlyBtn')) $('attendOnlyBtn').classList.toggle('hidden', !isSchool);
 
     const btn = $('startBtn');
     if (btn) {
@@ -2977,7 +2987,12 @@ const Add = {
     return '';
   },
 
-  async submit() {
+  /* `withChek` — davomat bilan birga chek chiqsinmi. «Davomat yozish +
+     chek» tugmasi uni true bilan, «Davomat yozish (cheksiz)» esa false
+     bilan chaqiradi. Printer yoki pop-up muammosi bo'lsa ham davomat
+     yozilaveradi. */
+  async submit(withChek) {
+    if (withChek === undefined) withChek = true;
     setError('startErr', '');
     const d = this.collect();
     const err = this.validate(d);
@@ -2989,8 +3004,9 @@ const Add = {
     if (d.type === 'school') {
       /* Chek oynasi AYNAN tugma bosilgan paytda ochiladi. Serverdan
          javob kelgunicha kutsak, brauzer uni pop-up deb bloklardi. */
-      const chek = window.open('', '_blank', 'width=400,height=640');
-      await withBusy('att:' + (d.student && d.student.id), $('startBtn'), async () => {
+      const chek = withChek ? window.open('', '_blank', 'width=400,height=640') : null;
+      const actBtn = withChek ? $('startBtn') : ($('attendOnlyBtn') || $('startBtn'));
+      await withBusy('att:' + (d.student && d.student.id), actBtn, async () => {
         try {
           const car = this.carInfo();
           const res = await api('/attendance', { method: 'POST', body: jsonBody({
@@ -3028,17 +3044,19 @@ const Add = {
 
           setError('startErr', '');
 
-          /* Davomat yozildi — endi chek chiqadi */
-          EntryTicket80.renderInto(chek, {
-            person: stName(d.student),
-            hours: n,
-            school: d.student.school_name || Data.schoolName(d.student.school_id || d.student.schoolId) || '',
-            group: d.student.group_name || Data.groupName(d.student.group_id || d.student.groupId) || '',
-            instructor: d.instructorName || (d.instructor ? insName(d.instructor) : ''),
-            plate: car.plate || '',
-            issued: new Date().toISOString()
-          });
-          if (!chek) toast('Chek chiqmadi: brauzerda yangi oynalarga ruxsat bering.', 'warn');
+          /* Davomat yozildi — endi chek chiqadi (agar so'ralgan bo'lsa) */
+          if (withChek) {
+            EntryTicket80.renderInto(chek, {
+              person: stName(d.student),
+              hours: n,
+              school: d.student.school_name || Data.schoolName(d.student.school_id || d.student.schoolId) || '',
+              group: d.student.group_name || Data.groupName(d.student.group_id || d.student.groupId) || '',
+              instructor: d.instructorName || (d.instructor ? insName(d.instructor) : ''),
+              plate: car.plate || '',
+              issued: new Date().toISOString()
+            });
+            if (!chek) toast("Davomat yozildi, lekin chek oynasi ochilmadi: brauzerda pop-up'ga ruxsat bering yoki «Davomat yozish (cheksiz)» tugmasidan foydalaning.", 'warn');
+          }
 
           toast('Davomat yozildi: ' + stName(d.student) + ' — ' + n + ' dars. Jami: ' + jami + ' dars');
         } catch (e) {
@@ -7101,7 +7119,8 @@ const ACTIONS = {
   /* --- yangi avtomobil --- */
   setType: d => Add.setType(d.type),
   setHours: d => { Add.setHours(d.h === 'custom' ? 'custom' : Number(d.h)); Add.renderStudentPanel(); },
-  startSubmit: () => Add.submit(),
+  startSubmit: () => Add.submit(true),
+  attendNoChek: () => Add.submit(false),
   printEntryForm: () => EntryTicket80.fromForm(),
   printEntrySession: d => EntryTicket80.fromSession(d.id),
   addToQueue: () => Queue.addFromForm(),
