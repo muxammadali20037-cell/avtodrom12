@@ -3529,25 +3529,21 @@ const EntryTicket80 = {
   paidHTML(data, bare) {
     const row = (l, v) => this.tkRow(l, v);
     const hours = num(data.hours) || 0;
-    const rate = num(data.rate) || 0;
-    const total = num(data.total) || (hours * rate);
     return this.ticketShell('To‘lov cheki',
         '<div class="b">INDEX AVTODROM</div>'
       + '<div class="h">Avtodromdan foydalanish</div>'
       + '<div class="badge">PLATNIY<small>TO‘LOVLI XIZMAT</small></div>'
       + '<div class="big">' + esc(data.plate || '—') + '</div>'
-      + (total > 0
-          ? '<div class="sum"><small>TO‘LOV SUMMASI</small>' + esc(money(total)) + '</div>'
-          : '')
+      /* Summa va narx chekda ko'rsatilmaydi — to'lov kassada
+         hisoblanadi, chek esa faqat kirishni tasdiqlaydi. */
       + row('Rusumi', data.model)
       + row('Mijoz', data.person)
       + row('Instruktor', data.instructor)
       + row('Foydalanish', hours > 0 ? hours + ' soat' : '')
-      + row('1 soat narxi', rate > 0 ? money(rate) : '')
       + row('Boshlandi', this.tkTime(data.issued))
       + row('Tugaydi', data.until ? this.tkTime(data.until) : '')
       + '<div class="hr"></div>'
-      + '<div class="ft">To‘lov qabul qilindi.<br>Chekni yakunlashda ko‘rsating.<br>Yaxshi yo‘l!</div>',
+      + '<div class="ft">Chekni yakunlashda ko‘rsating.<br>Yaxshi yo‘l!</div>',
       bare);
   },
 
