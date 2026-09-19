@@ -2817,12 +2817,16 @@ const Add = {
     if ($('schoolCarField')) $('schoolCarField').classList.toggle('hidden', !isSchool);
     if (isSchool) this.renderCarOptions();
     if ($('queueBtn')) $('queueBtn').classList.toggle('hidden', isSchool);
+    /* Davomat rejimida chek «Davomat yozish» bilan birga chiqadi —
+       alohida talon tugmasi kerak emas. */
+    const tick = document.querySelector('[data-act="printEntryForm"]');
+    if (tick) tick.classList.toggle('hidden', isSchool);
 
     const btn = $('startBtn');
     if (btn) {
       const t = btn.querySelector('.btn-text');
       const ic = btn.querySelector('.btn-icon');
-      if (t) t.textContent = isSchool ? 'Davomat yozish' : 'Vaqt ochish';
+      if (t) t.textContent = isSchool ? 'Davomat yozish + chek' : 'Vaqt ochish';
       if (ic) ic.className = (isSchool ? 'fa-solid fa-clipboard-check' : 'fa-solid fa-play') + ' btn-icon';
     }
     const hl = $('hourLabel');
@@ -2983,6 +2987,9 @@ const Add = {
        Vaqt ochilmaydi: dars darhol yozib qo'yiladi. Nechta soat
        tanlansa — shuncha dars. */
     if (d.type === 'school') {
+      /* Chek oynasi AYNAN tugma bosilgan paytda ochiladi. Serverdan
+         javob kelgunicha kutsak, brauzer uni pop-up deb bloklardi. */
+      const chek = window.open('', '_blank', 'width=400,height=640');
       await withBusy('att:' + (d.student && d.student.id), $('startBtn'), async () => {
         try {
           const car = this.carInfo();
@@ -3020,8 +3027,23 @@ const Add = {
           EntryTicket80.draft = null; EntryTicket80.draftKey = '';
 
           setError('startErr', '');
+
+          /* Davomat yozildi — endi chek chiqadi */
+          EntryTicket80.renderInto(chek, {
+            person: stName(d.student),
+            hours: n,
+            school: d.student.school_name || Data.schoolName(d.student.school_id || d.student.schoolId) || '',
+            group: d.student.group_name || Data.groupName(d.student.group_id || d.student.groupId) || '',
+            instructor: d.instructorName || (d.instructor ? insName(d.instructor) : ''),
+            plate: car.plate || '',
+            issued: new Date().toISOString()
+          });
+          if (!chek) toast('Chek chiqmadi: brauzerda yangi oynalarga ruxsat bering.', 'warn');
+
           toast('Davomat yozildi: ' + stName(d.student) + ' — ' + n + ' dars. Jami: ' + jami + ' dars');
         } catch (e) {
+          /* Yozilmadi — bo'sh oyna ochiq qolmasin */
+          try { if (chek && !chek.closed) chek.close(); } catch (e2) { /* noop */ }
           const m = /404|topilmadi|not found/i.test(String(e.message))
             ? 'Server hali yangilanmagan: /api/attendance topilmadi. '
               + 'api/compat-routes.js ni deploy qiling.'
@@ -3362,6 +3384,71 @@ const EntryTicket80 = {
       state: 'Mashg‘ulot boshlangan'
     });
   },
+  /* ============ QISQA DAVOMAT CHEKI ============
+     «Davomat yozish» bosilganda chiqadi. Faqat kerakli ma'lumot:
+     ism-familiya, avtoshkola, guruh, necha soat va chiqarilgan vaqt.
+     Qog'oz tejalishi uchun chek qisqa — ortiqcha sarlavha, izoh va
+     talon raqami yo'q.
+
+     `win` — OLDINDAN ochilgan oyna. Brauzer pop-up'ni faqat tugma
+     bosilgan paytda ochishga ruxsat beradi; davomat serverga
+     yozilgunicha kutsak, oyna bloklanib qolardi. Shuning uchun oyna
+     bosilishi bilan ochiladi, ichi esa keyin to'ldiriladi. */
+  attendanceHTML(data) {
+    const t = new Date(data.issued);
+    const when = Number.isNaN(t.getTime()) ? '—'
+      : t.toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent',
+          day: '2-digit', month: '2-digit', year: 'numeric',
+          hour: '2-digit', minute: '2-digit' });
+    const row = (label, value) => value
+      ? '<div class="r"><span>' + esc(label) + '</span><b>' + esc(value) + '</b></div>' : '';
+    return '<!doctype html><html lang="uz"><head><meta charset="utf-8">'
+      + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+      + '<title>Davomat cheki</title><style>'
+      + '*{box-sizing:border-box}'
+      + 'body{margin:0;background:#eee;color:#000;font-family:Arial,sans-serif}'
+      + '.tb{padding:12px;text-align:center;font-size:13px}'
+      + '.tb button{padding:10px 18px;font-size:15px;cursor:pointer}'
+      + '.t{width:80mm;padding:3mm;margin:10px auto;background:#fff;font-size:13px;line-height:1.25}'
+      + '.b{text-align:center;font-size:15px;font-weight:900;letter-spacing:.5px}'
+      + '.h{text-align:center;font-size:12px;margin-bottom:4px}'
+      + '.nm{text-align:center;font-size:16px;font-weight:800;margin:6px 0;overflow-wrap:anywhere}'
+      + '.big{text-align:center;font-size:22px;font-weight:900;border:2px solid #000;padding:5px 2px;margin:6px 0}'
+      + '.r{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px dotted #999}'
+      + '.r span{font-size:11px;color:#333}'
+      + '.r b{font-size:13px;text-align:right;overflow-wrap:anywhere}'
+      + '.hr{border-top:1px dashed #000;margin:6px 0}'
+      + '@media print{@page{size:80mm auto;margin:0}html,body{width:80mm;background:#fff}'
+      + '.tb{display:none}.t{margin:0;width:80mm;padding:3mm}}'
+      + '</style></head><body>'
+      + '<div class="tb"><button id="pr" type="button">Chop etish — 80 mm</button></div>'
+      + '<main class="t">'
+      + '<div class="b">INDEX AVTODROM</div>'
+      + '<div class="h">Amaliy haydash — davomat</div>'
+      + '<div class="hr"></div>'
+      + '<div class="nm">' + esc(data.person || '—') + '</div>'
+      + '<div class="big">' + esc(data.hours) + ' SOAT</div>'
+      + row('Avtoshkola', data.school)
+      + row('Guruh', data.group)
+      + row('Instruktor', data.instructor)
+      + row('Avtomobil', data.plate)
+      + row('Vaqt', when)
+      + '</main></body></html>';
+  },
+  /* Oldindan ochilgan oynani to'ldirib, chop etishga yuboradi */
+  renderInto(win, data) {
+    if (!win || win.closed) return;
+    try {
+      win.document.open();
+      win.document.write(this.attendanceHTML(data));
+      win.document.close();
+      const btn = win.document.getElementById('pr');
+      if (btn) btn.addEventListener('click', () => { win.focus(); win.print(); });
+      /* O'zi chop etishga yuboradi — operator ikki marta bosmasin */
+      setTimeout(() => { try { win.focus(); win.print(); } catch (e) { /* noop */ } }, 250);
+    } catch (e) { console.error('[chek]', e); }
+  },
+
   open(data) {
     const w = window.open('', '_blank', 'width=440,height=760');
     if (!w) { toast('Talon uchun brauzerda yangi oynalarga ruxsat bering.', 'error'); return; }
