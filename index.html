@@ -3433,7 +3433,21 @@ const EntryTicket80 = {
       + row('Instruktor', data.instructor)
       + row('Avtomobil', data.plate)
       + row('Vaqt', when)
-      + '</main></body></html>';
+      + '</main>'
+      /* O'zi chop etadi va o'zi yopiladi — operator hech narsa bosmaydi.
+         Chrome «--kiosk-printing» bilan ochilgan bo'lsa, oyna umuman
+         ko'rinmay, chek to'g'ridan-to'g'ri printerga tushadi. */
+      + '<scr' + 'ipt>(function(){'
+      + 'function go(){if(window.__pr)return;window.__pr=1;'
+      + 'try{window.focus();window.print();}catch(e){}'
+      + 'setTimeout(function(){try{window.close();}catch(e){}},1200);}'
+      + 'window.onafterprint=function(){try{window.close();}catch(e){}};'
+      + 'var b=document.getElementById("pr");'
+      + 'if(b)b.onclick=function(){window.__pr=0;go();};'
+      + 'if(document.readyState==="complete")setTimeout(go,60);'
+      + 'else window.onload=function(){setTimeout(go,60);};'
+      + '})();</scr' + 'ipt>'
+      + '</body></html>';
   },
   /* Oldindan ochilgan oynani to'ldirib, chop etishga yuboradi */
   renderInto(win, data) {
@@ -3442,10 +3456,14 @@ const EntryTicket80 = {
       win.document.open();
       win.document.write(this.attendanceHTML(data));
       win.document.close();
-      const btn = win.document.getElementById('pr');
-      if (btn) btn.addEventListener('click', () => { win.focus(); win.print(); });
-      /* O'zi chop etishga yuboradi — operator ikki marta bosmasin */
-      setTimeout(() => { try { win.focus(); win.print(); } catch (e) { /* noop */ } }, 250);
+      /* Chop etish va yopish chek oynasining o'z ichidagi skript orqali
+         bo'ladi. Agar u ishlamay qolsa (skript bloklangan), shu yerdan
+         zaxira sifatida yuboriladi — ikki marta chiqmasligi uchun
+         `__pr` bayrog'i tekshiriladi. */
+      setTimeout(() => {
+        try { if (!win.closed && !win.__pr) { win.__pr = 1; win.focus(); win.print(); } }
+        catch (e) { /* noop */ }
+      }, 700);
     } catch (e) { console.error('[chek]', e); }
   },
 
