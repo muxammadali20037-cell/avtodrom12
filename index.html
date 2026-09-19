@@ -729,6 +729,32 @@ body.admin-open { overflow: hidden; }
 
 /* ===== 25. HISOBOT ===== */
 .report-filters { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-bottom: 16px; }
+
+/* ---- Kunlik hisobot: platniy / avtoshkola bo'limlari ---- */
+.dash-two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+@media (max-width: 860px) { .dash-two { grid-template-columns: 1fr; } }
+.dcard { border: 1px solid var(--line); border-radius: 16px; background: var(--card);
+  padding: 16px 18px; box-shadow: var(--shadow-sm); }
+.dcard.paid { border-top: 4px solid #b45309; }
+.dcard.school { border-top: 4px solid var(--g); }
+.dcard h4 { margin: 0 0 2px; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; }
+.dcard.paid h4 { color: #b45309; }
+.dcard.school h4 { color: var(--g-dark); }
+.dcard .sub { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+.dnums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.dnum .v { font-size: 22px; font-weight: 800; line-height: 1.15; }
+.dnum .k { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.dcard .money-line { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line);
+  display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.dcard .money-line b { font-weight: 800; }
+.mini-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.mini-tbl th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.mini-tbl td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; }
+.mini-tbl td.n { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+.bar { height: 6px; border-radius: 99px; background: #e2e8f0; overflow: hidden; margin-top: 4px; }
+.bar > i { display: block; height: 100%; background: var(--g); }
+.bar.amber > i { background: #d97706; }
 .report-filters .fg { margin: 0; min-width: 180px; }
 .report-quick { display: flex; gap: 8px; flex-wrap: wrap; }
 
@@ -1258,6 +1284,27 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
           <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-credit-card" aria-hidden="true"></i></div><div class="stat-label">Terminal</div><div class="stat-value green" id="rdterm">0</div></div>
           <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i></div><div class="stat-label">Jami vaqt</div><div class="stat-value" id="rdtime">0</div></div>
         </div>
+        <!-- Platniy va avtoshkola alohida -->
+        <div class="dash-two" id="rdSplit"></div>
+
+        <div class="panel">
+          <div class="report-filters" style="margin-bottom:10px">
+            <div class="fg" style="flex:1;min-width:230px">
+              <label for="dailyQ">Qidiruv</label>
+              <input id="dailyQ" placeholder="Raqam, o'quvchi, avtoshkola, guruh yoki instruktor" autocomplete="off">
+            </div>
+            <div class="seg" role="tablist" aria-label="Hisobot turi">
+              <button class="seg-btn active" type="button" data-act="dailySeg" data-seg="all">Hammasi</button>
+              <button class="seg-btn" type="button" data-act="dailySeg" data-seg="paid">Platniy</button>
+              <button class="seg-btn" type="button" data-act="dailySeg" data-seg="school">Avtoshkola</button>
+            </div>
+          </div>
+          <div class="text-muted" style="font-size:13px" id="dailyCountLbl"></div>
+        </div>
+
+        <!-- Avtoshkolalar va instruktorlar kesimi -->
+        <div class="dash-two" id="rdBreak"></div>
+
         <div class="panel"><div id="dailyTableWrap" aria-live="polite"></div>
           <div class="search-hint" style="margin-top:12px">
             <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
@@ -4154,12 +4201,188 @@ function tableHTML(rows) {
     + '</tbody></table></div>';
 }
 
-/* ===================== 17. REPORTS — Kunlik hisobot ===================== */
+/* ===================== 17. REPORTS — Kunlik hisobot =====================
+
+   Kun ikki oqimdan iborat:
+     PLATNIY   — oddiy mijoz, vaqt ochiladi va pul to'laydi;
+     AVTOSHKOLA — davomatga yozilgan o'quvchi, bepul.
+   Ikkalasi bir jadvalda aralashib ketmasin — yuqorida alohida
+   ko'rsatkichlar, pastda esa bo'lim tanlash va qidiruv bor.
+
+   Soat: davomatda 1 dars = 1 soat va `duration_seconds` ham
+   soatlarga teng yoziladi, shuning uchun ikkala oqim uchun ham
+   bitta formula ishlaydi (vaqt bo'lmasa — darslar soni). */
+
+/* Qator avtoshkola davomatimi? */
+const isSchoolRow = r => String((r && r.customer_type) || '') === 'school'
+  || !!(r && (r.student_name || r.student_id));
+
+/* Qatordagi soat */
+function rowHours(r) {
+  const sec = num(r && r.duration_seconds);
+  if (sec > 0) return sec / 3600;
+  return rowLessons(r);
+}
+/* 2.5 -> «2 soat 30 daq» */
+function hoursText(h) {
+  h = Math.max(0, num(h));
+  const t = Math.round(h * 60);
+  const sa = Math.floor(t / 60), dq = t % 60;
+  if (!sa && !dq) return '0';
+  return (sa ? sa + ' soat' : '') + (dq ? (sa ? ' ' : '') + dq + ' daq' : '');
+}
+
 const Reports = {
+  seg: 'all',
+  q: '',
+
   setOffset(off) {
     if ($('reportDate')) $('reportDate').value = localDateISO(num(off));
     this.loadDaily();
   },
+
+  setSeg(seg, el) {
+    this.seg = seg || 'all';
+    const box = el && el.parentNode;
+    if (box) Array.prototype.forEach.call(box.querySelectorAll('.seg-btn'),
+      b => b.classList.toggle('active', b === el));
+    this.render();
+  },
+
+  /* Ekranda ko'rinadigan qatorlar: bo'lim + qidiruv */
+  visibleRows() {
+    let rows = (STATE.daily && Array.isArray(STATE.daily.rows)) ? STATE.daily.rows : [];
+    if (this.seg === 'paid') rows = rows.filter(r => !isSchoolRow(r));
+    else if (this.seg === 'school') rows = rows.filter(r => isSchoolRow(r));
+    const q = String(this.q || '').trim();
+    if (!q) return rows;
+    /* Ilovadagi aqlli qidiruv: h/x, harf tartibi, qisqartma — hammasi ishlaydi */
+    return rows.filter(r => {
+      const hay = [r.plate, r.student_name, r.school_name, r.group_name,
+        r.instructor_label, r.instructor_name, r.driver_name]
+        .filter(Boolean).join(' ');
+      return hay ? smartMatch(hay, q) : false;
+    });
+  },
+
+  /* Bir to'plam qator bo'yicha yig'indi */
+  totals(rows) {
+    const t = { n: 0, hours: 0, amount: 0, cash: 0, terminal: 0, people: {} };
+    rows.forEach(r => {
+      t.n += 1;
+      t.hours += rowHours(r);
+      t.amount += num(r.amount);
+      t.cash += num(r.cash_amount);
+      t.terminal += num(r.terminal_amount);
+      const who = r.student_id || r.student_name || r.plate || '';
+      if (who) t.people[who] = 1;
+    });
+    t.uniq = Object.keys(t.people).length;
+    return t;
+  },
+
+  /* Yuqoridagi ikkita katta karta */
+  renderSplit() {
+    const host = $('rdSplit'); if (!host) return;
+    const all = (STATE.daily && Array.isArray(STATE.daily.rows)) ? STATE.daily.rows : [];
+    const paid = this.totals(all.filter(r => !isSchoolRow(r)));
+    const sch  = this.totals(all.filter(isSchoolRow));
+
+    const card = (cls, title, sub, nums, lines) =>
+      '<div class="dcard ' + cls + '"><h4>' + esc(title) + '</h4>'
+      + '<div class="sub">' + esc(sub) + '</div>'
+      + '<div class="dnums">' + nums.map(x =>
+          '<div class="dnum"><div class="v">' + x[0] + '</div><div class="k">' + esc(x[1]) + '</div></div>'
+        ).join('') + '</div>'
+      + lines.map(x => '<div class="money-line"><span>' + esc(x[0]) + '</span><b>' + x[1] + '</b></div>').join('')
+      + '</div>';
+
+    host.innerHTML =
+      card('paid', 'Platniy — oddiy mijoz', 'Vaqt ochilgan va to\'lov qilinadigan mijozlar', [
+        [paid.n, 'ta mijoz'],
+        [esc(hoursText(paid.hours)), 'sotilgan vaqt'],
+        [esc(money(paid.amount)), 'summa']
+      ], [
+        ['Naqd', esc(money(paid.cash))],
+        ['Terminal', esc(money(paid.terminal))]
+      ])
+      + card('school', 'Avtoshkola — davomat', 'Davomatga yozilgan o\'quvchilar (to\'lovsiz)', [
+        [sch.n, 'ta dars'],
+        [esc(hoursText(sch.hours)), 'uchirilgan vaqt'],
+        [sch.uniq, "ta o'quvchi"]
+      ], [
+        ['Avtoshkolalar', String(new Set(all.filter(isSchoolRow)
+          .map(r => r.school_name).filter(Boolean)).size)],
+        ["O'rtacha", esc(hoursText(sch.n ? sch.hours / sch.n : 0)) + ' / dars']
+      ]);
+  },
+
+  /* Avtoshkolalar va instruktorlar kesimi */
+  renderBreak() {
+    const host = $('rdBreak'); if (!host) return;
+    const rows = this.visibleRows();
+
+    const group = (keyFn, labelFn) => {
+      const m = {};
+      rows.forEach(r => {
+        const k = keyFn(r); if (!k) return;
+        if (!m[k]) m[k] = { label: labelFn ? labelFn(r) : k, hours: 0, n: 0, amount: 0 };
+        m[k].hours += rowHours(r); m[k].n += 1; m[k].amount += num(r.amount);
+      });
+      return Object.keys(m).map(k => m[k]).sort((a, b) => b.hours - a.hours);
+    };
+
+    const table = (title, hint, list, cols) => {
+      if (!list.length) {
+        return '<div class="panel"><h4 style="margin:0 0 2px;font-size:14px">' + esc(title) + '</h4>'
+          + '<div class="text-muted" style="font-size:12px">Ma\'lumot yo\'q</div></div>';
+      }
+      const max = list[0].hours || 1;
+      return '<div class="panel"><h4 style="margin:0 0 2px;font-size:14px">' + esc(title) + '</h4>'
+        + '<div class="text-muted" style="font-size:12px;margin-bottom:10px">' + esc(hint) + '</div>'
+        + '<table class="mini-tbl"><thead><tr><th>' + esc(cols[0]) + '</th>'
+        + '<th style="text-align:right">' + esc(cols[1]) + '</th>'
+        + '<th style="text-align:right">Soat</th></tr></thead><tbody>'
+        + list.slice(0, 10).map(x =>
+            '<tr><td>' + esc(x.label)
+            + '<div class="bar' + (cols[2] === 'amber' ? ' amber' : '') + '"><i style="width:'
+            + Math.max(4, Math.round(x.hours / max * 100)) + '%"></i></div></td>'
+            + '<td class="n">' + x.n + '</td>'
+            + '<td class="n">' + esc(hoursText(x.hours)) + '</td></tr>').join('')
+        + '</tbody></table>'
+        + (list.length > 10 ? '<div class="text-muted" style="font-size:12px;margin-top:8px">Yana '
+            + (list.length - 10) + ' ta — Excel’da to‘liq ko‘rinadi</div>' : '')
+        + '</div>';
+    };
+
+    host.innerHTML =
+      table('Avtoshkolalar bo\'yicha', 'Qaysi avtoshkola nech soat uchirdi',
+        group(r => r.school_name || '', r => r.school_name), ['Avtoshkola', 'Dars'])
+      + table('Instruktorlar bo\'yicha', 'Kim nech soat uchirdi',
+        group(r => r.instructor_label || r.instructor_name || '',
+              r => r.instructor_label || r.instructor_name), ['Instruktor', 'Yozuv', 'amber']);
+  },
+
+  /* Jadval + hisoblagich */
+  render() {
+    const qEl = $('dailyQ');
+    this.q = qEl ? qEl.value : '';
+    const rows = this.visibleRows();
+    const t = this.totals(rows);
+    const host = $('dailyTableWrap');
+    if (host) host.innerHTML = tableHTML(rows);
+    const lbl = $('dailyCountLbl');
+    if (lbl) {
+      const total = (STATE.daily && STATE.daily.rows) ? STATE.daily.rows.length : 0;
+      lbl.innerHTML = '<b>' + rows.length + '</b> ta yozuv'
+        + (rows.length !== total ? ' <span class="text-muted">(jami ' + total + ' tadan)</span>' : '')
+        + ' · <b>' + esc(hoursText(t.hours)) + '</b>'
+        + (t.amount > 0 ? ' · <b>' + esc(money(t.amount)) + '</b>' : '');
+    }
+    this.renderSplit();
+    this.renderBreak();
+  },
+
   async loadDaily() {
     const host = $('dailyTableWrap');
     try {
@@ -4180,7 +4403,7 @@ const Reports = {
       $('rdcash').textContent = money(s.cash);
       $('rdterm').textContent = money(s.terminal);
       $('rdtime').textContent = dur(rows.reduce((a, x) => a + num(x.duration_seconds), 0));
-      if (host) host.innerHTML = tableHTML(rows);
+      this.render();
       Active.renderKpi();
     } catch (e) {
       if (host) host.innerHTML = emptyState('fa-triangle-exclamation', 'Hisobot yuklanmadi', e.message, true);
@@ -4188,15 +4411,17 @@ const Reports = {
     }
   },
   exportDaily() {
-    const rows = (STATE.daily && STATE.daily.rows) || [];
+    /* Ekranda nima ko'rinsa — Excelga ham o'sha tushadi */
+    const rows = this.visibleRows();
     if (!rows.length) { toast("Eksport uchun ma'lumot yo'q.", 'warn'); return; }
     const date = ($('reportDate') && $('reportDate').value) || localDateISO(0);
-    const aoa = [REPORT_COLS].concat(rows.map(r => [
+    const aoa = [['Tur'].concat(REPORT_COLS, ['Soat'])].concat(rows.map(r => [
+      isSchoolRow(r) ? 'Avtoshkola' : 'Platniy'].concat([
       r.plate || 'Davomat', dt(r.started_at), dt(r.finished_at), dur(r.duration_seconds),
       r.school_name || '', r.group_name || '', r.student_name || '',
       r.instructor_label || r.instructor_name || '',
       r.student_name ? num(r.attendance_count) : '', num(r.cash_amount), num(r.terminal_amount), num(r.amount)
-    ]));
+    ], [Math.round(rowHours(r) * 100) / 100])));
     Excel.save(aoa, 'avtodrom-' + date, 'Hisobot');
   }
 };
@@ -7275,6 +7500,7 @@ const ACTIONS = {
   reportOffset: d => Reports.setOffset(d.off),
   loadDaily: () => Reports.loadDaily(),
   exportDaily: () => Reports.exportDaily(),
+  dailySeg: (d, el) => Reports.setSeg(d.seg, el),
   historySubmit: () => History.search(),
 
   /* --- instruktorlar --- */
@@ -7395,6 +7621,11 @@ document.addEventListener('change', e => {
   const el = e.target;
   if (!el || el.tagName !== 'SELECT' || !el.dataset || !el.dataset.act) return;
   runAction(el.dataset.act, el.dataset, el, e);
+});
+
+/* Kunlik hisobotdagi qidiruv — har bir harfda filtrlanadi */
+document.addEventListener('input', e => {
+  if (e.target && e.target.id === 'dailyQ') Reports.render();
 });
 
 document.addEventListener('submit', e => {
