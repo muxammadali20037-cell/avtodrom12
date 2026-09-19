@@ -2836,7 +2836,7 @@ const Add = {
     if (btn) {
       const t = btn.querySelector('.btn-text');
       const ic = btn.querySelector('.btn-icon');
-      if (t) t.textContent = isSchool ? 'Davomat yozish + chek' : 'Vaqt ochish';
+      if (t) t.textContent = isSchool ? 'Davomat yozish + chek' : 'Vaqt ochish + chek';
       if (ic) ic.className = (isSchool ? 'fa-solid fa-clipboard-check' : 'fa-solid fa-play') + ' btn-icon';
     }
     const hl = $('hourLabel');
@@ -3080,6 +3080,29 @@ const Add = {
         const res = await api('/sessions/start', { method: 'POST', body: jsonBody(d.payload) });
         await Active.load(true);
         this.attachMeta(res, d);
+
+        /* ===== TO'LOV CHEKI (oddiy mijoz) =====
+           Vaqt ochilishi bilan chek ham chiqadi. Narx sozlamalardagi
+           «1 soat narxi» dan olinadi, shuning uchun narx o'zgarsa
+           chek ham o'zi yangilanadi. */
+        const st = STATE.settings || {};
+        const rate = num(st.hourlyRate) || 0;
+        const soat = num(d.targetSeconds) > 0 ? (num(d.targetSeconds) / 3600) : this.lessonCount();
+        const boshlandi = new Date();
+        EntryTicket80.printHidden({
+          kind: 'paid',
+          plate: displayPlate(d.payload.regionCode, d.body),
+          model: d.payload.model || d.payload.vehicleModel || '',
+          person: d.student ? stName(d.student) : '',
+          instructor: d.instructorName || (d.instructor ? insName(d.instructor) : ''),
+          hours: Math.round(soat * 100) / 100,
+          rate: rate,
+          total: Math.round(soat * rate),
+          issued: boshlandi.toISOString(),
+          until: num(d.targetSeconds) > 0
+            ? new Date(boshlandi.getTime() + num(d.targetSeconds) * 1000).toISOString() : ''
+        });
+
         toast('Vaqt ochildi: ' + displayPlate(d.payload.regionCode, d.body));
         this.reset();
         go('active');
@@ -3408,27 +3431,27 @@ const EntryTicket80 = {
      bosilgan paytda ochishga ruxsat beradi; davomat serverga
      yozilgunicha kutsak, oyna bloklanib qolardi. Shuning uchun oyna
      bosilishi bilan ochiladi, ichi esa keyin to'ldiriladi. */
-  attendanceHTML(data, bare) {
-    const t = new Date(data.issued);
-    const when = Number.isNaN(t.getTime()) ? '—'
-      : t.toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent',
-          day: '2-digit', month: '2-digit', year: 'numeric',
-          hour: '2-digit', minute: '2-digit' });
-    const row = (label, value) => value
-      ? '<div class="r"><span>' + esc(label) + '</span><b>' + esc(value) + '</b></div>' : '';
-    return '<!doctype html><html lang="uz"><head><meta charset="utf-8">'
-      + '<meta name="viewport" content="width=device-width,initial-scale=1">'
-      + '<title>Davomat cheki</title><style>'
-      + '*{box-sizing:border-box}'
+  /* Chek uslublari — ikkala chek uchun ham bir xil.
+     `.badge` — qora fonda oq yozuv. Termal printer faqat qora
+     bosadi, shuning uchun «rangli» belgi o'rniga TESKARI (inversiya)
+     katak ishlatiladi: uzoqdan ham darrov ko'zga tashlanadi. */
+  ticketCSS() {
+    return '*{box-sizing:border-box}'
       + 'body{margin:0;background:#eee;color:#000;font-family:Arial,sans-serif}'
       + '.tb{padding:12px;text-align:center;font-size:13px}'
       + '.tb button{padding:10px 18px;font-size:15px;cursor:pointer}'
       + '.t{width:80mm;padding:4mm;margin:10px auto;background:#fff;font-size:14px;line-height:1.35}'
       + '.b{text-align:center;font-size:19px;font-weight:900;letter-spacing:.5px}'
       + '.h{text-align:center;font-size:13px;margin-bottom:6px}'
+      + '.badge{background:#000;color:#fff;text-align:center;font-size:20px;'
+      + 'font-weight:900;letter-spacing:2px;padding:7px 2px;margin:6px 0;'
+      + '-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+      + '.badge small{display:block;font-size:11px;font-weight:700;letter-spacing:1px}'
       + '.ti{text-align:center;font-size:15px;font-weight:800;margin:6px 0}'
       + '.nm{text-align:center;font-size:18px;font-weight:800;margin:8px 0;overflow-wrap:anywhere}'
       + '.big{text-align:center;font-size:24px;font-weight:900;border:2px solid #000;padding:6px 2px;margin:8px 0}'
+      + '.sum{text-align:center;font-size:22px;font-weight:900;border:2px solid #000;padding:7px 2px;margin:8px 0}'
+      + '.sum small{display:block;font-size:11px;font-weight:700;letter-spacing:1px}'
       + '.r{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dotted #999}'
       + '.r span{font-size:12px;color:#333}'
       + '.r b{font-size:14px;text-align:right;overflow-wrap:anywhere}'
@@ -3437,29 +3460,18 @@ const EntryTicket80 = {
       /* Chek qirqilganda oxirgi qator kesilib qolmasin */
       + '.pad{height:8mm}'
       + '@media print{@page{size:80mm auto;margin:0}html,body{width:80mm;background:#fff}'
-      + '.tb{display:none}.t{margin:0;width:80mm;padding:4mm}}'
+      + '.tb{display:none}.t{margin:0;width:80mm;padding:4mm}}';
+  },
+
+  /* Chek qobig'i: sarlavha, uslub, chop etish tugmasi/skripti.
+     `bare` — yashirin ramka uchun: tugma ham, skript ham kerak emas. */
+  ticketShell(title, inner, bare) {
+    return '<!doctype html><html lang="uz"><head><meta charset="utf-8">'
+      + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+      + '<title>' + esc(title) + '</title><style>' + this.ticketCSS()
       + '</style></head><body>'
-      /* `bare` — chek yashirin ramka ichida chop etiladi: u yerda
-         tugma ham, o'z-o'zidan chop etish skripti ham kerak emas. */
       + (bare ? '' : '<div class="tb"><button id="pr" type="button">Chop etish — 80 mm</button></div>')
-      + '<main class="t">'
-      + '<div class="b">INDEX AVTODROM</div>'
-      + '<div class="h">Amaliy haydash mashg‘uloti</div>'
-      + '<div class="hr"></div>'
-      + '<div class="ti">DAVOMAT CHEKI</div>'
-      + '<div class="nm">' + esc(data.person || '—') + '</div>'
-      + '<div class="big">' + esc(data.hours) + ' SOAT</div>'
-      + row('Avtoshkola', data.school)
-      + row('Guruh', data.group)
-      + row('Instruktor', data.instructor)
-      + row('Avtomobil', data.plate)
-      + row('Vaqt', when)
-      + '<div class="hr"></div>'
-      + '<div class="ft">Darsingiz qayd etildi.<br>Chekni yo‘qotmang — nazoratda so‘ralishi mumkin.<br>Yaxshi yo‘l!</div>'
-      + '<div class="pad"></div>'
-      + '</main>'
-      /* Alohida oynada ochilgan bo'lsa (eski yo'l) — o'zi chop etadi.
-         Yashirin ramkada esa bu skript umuman qo'shilmaydi. */
+      + '<main class="t">' + inner + '<div class="pad"></div></main>'
       + (bare ? '' :
           '<scr' + 'ipt>(function(){'
         + 'function go(){if(window.__pr)return;window.__pr=1;'
@@ -3470,6 +3482,73 @@ const EntryTicket80 = {
         + 'else window.onload=function(){setTimeout(go,60);};'
         + '})();</scr' + 'ipt>')
       + '</body></html>';
+  },
+
+  tkTime(v) {
+    const t = new Date(v);
+    return Number.isNaN(t.getTime()) ? '—'
+      : t.toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent',
+          day: '2-digit', month: '2-digit', year: 'numeric',
+          hour: '2-digit', minute: '2-digit' });
+  },
+  tkRow(label, value) {
+    return value
+      ? '<div class="r"><span>' + esc(label) + '</span><b>' + esc(value) + '</b></div>' : '';
+  },
+
+  /* Qaysi chek chiqishini `kind` hal qiladi:
+       'paid'  — oddiy mijoz, to'lovli
+       boshqa  — avtoshkola o'quvchisi, bepul */
+  ticketHTML(data, bare) {
+    return data && data.kind === 'paid'
+      ? this.paidHTML(data, bare) : this.attendanceHTML(data, bare);
+  },
+
+  /* ============ AVTOSHKOLA DAVOMAT CHEKI (bepul) ============ */
+  attendanceHTML(data, bare) {
+    const row = (l, v) => this.tkRow(l, v);
+    return this.ticketShell('Davomat cheki',
+        '<div class="b">INDEX AVTODROM</div>'
+      + '<div class="h">Amaliy haydash mashg‘uloti</div>'
+      + '<div class="badge">AVTOSHKOLA<small>TO‘LOVSIZ — DAVOMAT</small></div>'
+      + '<div class="nm">' + esc(data.person || '—') + '</div>'
+      + '<div class="big">' + esc(data.hours) + ' SOAT</div>'
+      + row('Avtoshkola', data.school)
+      + row('Guruh', data.group)
+      + row('Instruktor', data.instructor)
+      + row('Avtomobil', data.plate)
+      + row('Vaqt', this.tkTime(data.issued))
+      + '<div class="hr"></div>'
+      + '<div class="ft">Darsingiz qayd etildi.<br>Chekni yo‘qotmang — nazoratda so‘ralishi mumkin.<br>Yaxshi yo‘l!</div>',
+      bare);
+  },
+
+  /* ============ ODDIY MIJOZ CHEKI (to'lovli) ============
+     Tepasida qora fonda oq «PLATNIY» katagi — kassir ham,
+     nazoratchi ham bir qarashda to'lovli ekanini ko'radi. */
+  paidHTML(data, bare) {
+    const row = (l, v) => this.tkRow(l, v);
+    const hours = num(data.hours) || 0;
+    const rate = num(data.rate) || 0;
+    const total = num(data.total) || (hours * rate);
+    return this.ticketShell('To‘lov cheki',
+        '<div class="b">INDEX AVTODROM</div>'
+      + '<div class="h">Avtodromdan foydalanish</div>'
+      + '<div class="badge">PLATNIY<small>TO‘LOVLI XIZMAT</small></div>'
+      + '<div class="big">' + esc(data.plate || '—') + '</div>'
+      + (total > 0
+          ? '<div class="sum"><small>TO‘LOV SUMMASI</small>' + esc(money(total)) + '</div>'
+          : '')
+      + row('Rusumi', data.model)
+      + row('Mijoz', data.person)
+      + row('Instruktor', data.instructor)
+      + row('Foydalanish', hours > 0 ? hours + ' soat' : '')
+      + row('1 soat narxi', rate > 0 ? money(rate) : '')
+      + row('Boshlandi', this.tkTime(data.issued))
+      + row('Tugaydi', data.until ? this.tkTime(data.until) : '')
+      + '<div class="hr"></div>'
+      + '<div class="ft">To‘lov qabul qilindi.<br>Chekni yakunlashda ko‘rsating.<br>Yaxshi yo‘l!</div>',
+      bare);
   },
 
   /* ============ YASHIRIN RAMKADA CHOP ETISH ============
@@ -3495,7 +3574,7 @@ const EntryTicket80 = {
       document.body.appendChild(f);
 
       const d = f.contentWindow.document;
-      d.open(); d.write(this.attendanceHTML(data, true)); d.close();
+      d.open(); d.write(this.ticketHTML(data, true)); d.close();
 
       const go = () => {
         try { f.contentWindow.focus(); f.contentWindow.print(); }
@@ -3516,7 +3595,7 @@ const EntryTicket80 = {
     if (!win || win.closed) return;
     try {
       win.document.open();
-      win.document.write(this.attendanceHTML(data));
+      win.document.write(this.ticketHTML(data));
       win.document.close();
       /* Chop etish va yopish chek oynasining o'z ichidagi skript orqali
          bo'ladi. Agar u ishlamay qolsa (skript bloklangan), shu yerdan
