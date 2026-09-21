@@ -732,6 +732,16 @@ body.admin-open { overflow: hidden; }
 
 /* ---- Kunlik hisobot: platniy / avtoshkola bo'limlari ---- */
 .dash-two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+
+/* ---- Shartnoma limiti (bepul kirishlar) ---- */
+.quota-box { margin-top: 10px; border-radius: 12px; padding: 10px 12px; font-size: 13px;
+  border: 1px solid var(--line); background: #f8fafc; }
+.quota-box.ok { border-color: #a7f3d0; background: var(--g-surface); }
+.quota-box.warn { border-color: #fcd34d; background: #fffbeb; }
+.quota-box.over { border-color: #f87171; background: #fef2f2; }
+.quota-title { font-weight: 900; color: #b91c1c; letter-spacing: .02em; margin-bottom: 4px; }
+.quota-line + .quota-line { margin-top: 3px; }
+.quota-box.over .quota-line { color: #7f1d1d; }
 @media (max-width: 860px) { .dash-two { grid-template-columns: 1fr; } }
 .dcard { border: 1px solid var(--line); border-radius: 16px; background: var(--card);
   padding: 16px 18px; box-shadow: var(--shadow-sm); }
@@ -1371,6 +1381,19 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
         </div>
 
         <div class="panel"><div id="ctrlTableWrap" aria-live="polite"></div></div>
+
+        <!-- Shartnoma limitidan oshgan bepul kirishlar -->
+        <div class="panel">
+          <h3 style="margin:0 0 2px;font-size:16px">
+            <i class="fa-solid fa-user-clock" style="color:#b45309" aria-hidden="true"></i>
+            Shartnoma limitidan oshgan kirishlar
+          </h3>
+          <div class="text-muted" style="font-size:12px;margin-bottom:10px">
+            Bepul kirishlari tugagan, lekin baribir davomatga yozilgan o'quvchilar.
+            Har avtoshkolaning limiti «Admin panel → Avtoshkolalar» da kiritiladi.
+          </div>
+          <div id="ctrlQuotaWrap" aria-live="polite"></div>
+        </div>
       </section>
 
       <!-- ===== INSTRUKTORLAR ===== -->
@@ -2757,6 +2780,68 @@ const Add = {
   syncInstructorSource() { if (this.comboInstructor) this.comboInstructor.setItems(this.instructorPool()); },
 
   /* ---------- avtoshkola mashinasi ---------- */
+  /* ===================== SHARTNOMA LIMITI =====================
+     Shartnomada har o'quvchiga N ta bepul kirish beriladi (odatda
+     6 yoki 9). Limit tugaganidan keyin kirish PULLIK bo'ladi.
+
+     Operator o'quvchini tanlashi bilan holat serverdan olinadi va
+     panelda ko'rinadi: «9 tadan 7 ishlatilgan — 2 bepul qoldi» yoki
+     qizil «LIMIT TUGAGAN — TO'LOV KERAK».
+
+     Yozuv bloklanmaydi: operator o'zi hal qiladi. Limitdan oshgan
+     kirish bazaga belgilanib qo'yiladi va «Nazorat» bo'limida
+     «to'lov kerak edi» summasi bo'lib chiqadi. */
+  quota: null,          /* oxirgi olingan holat */
+  quotaFor: '',         /* qaysi o'quvchi uchun */
+
+  async loadQuota() {
+    const st = STATE.form.student;
+    if (!st || !st.id) { this.quota = null; this.quotaFor = ''; return; }
+    const id = String(st.id);
+    if (this.quotaFor === id && this.quota) return;   /* keshdan */
+    this.quotaFor = id; this.quota = null;
+    try {
+      const q = await api('/quota?studentId=' + encodeURIComponent(id));
+      /* Orada boshqa o'quvchi tanlangan bo'lsa — eski javobni tashlaymiz */
+      if (this.quotaFor !== id) return;
+      this.quota = q || null;
+    } catch (e) {
+      /* Server hali yangilanmagan bo'lsa limit ko'rsatilmaydi, xolos —
+         davomat baribir ishlayveradi. */
+      console.error('[limit]', e.technical || e.message);
+      this.quota = null;
+    }
+    this.renderStudentPanel();
+  },
+
+  /* Panelda ko'rinadigan limit qatori */
+  quotaHTML() {
+    const q = this.quota;
+    if (!q) return '';
+    const planned = Math.max(1, Math.round(this.targetSeconds() / CONFIG.LESSON_SECONDS));
+    const after = num(q.used) + planned;
+    const overNow = Math.max(0, after - num(q.limit));
+    const left = Math.max(0, num(q.limit) - num(q.used));
+
+    if (overNow > 0) {
+      const rate = num((STATE.settings || {}).hourlyRate);
+      return '<div class="quota-box over">'
+        + '<div class="quota-title"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> '
+        + 'BEPUL LIMIT TUGAGAN — TO\'LOV KERAK</div>'
+        + '<div class="quota-line">Shartnoma: <b>' + num(q.limit) + '</b> ta bepul kirish · '
+        + 'Ishlatilgan: <b>' + num(q.used) + '</b></div>'
+        + '<div class="quota-line">Shu yozuvdan <b>' + overNow + '</b> ta dars limitdan oshadi'
+        + (rate > 0 ? ' — <b>' + esc(money(overNow * rate)) + '</b> to\'lov kerak' : '') + '</div>'
+        + '</div>';
+    }
+    const cls = left <= 2 ? 'warn' : 'ok';
+    return '<div class="quota-box ' + cls + '">'
+      + '<div class="quota-line"><b>' + num(q.limit) + '</b> tadan <b>' + num(q.used) + '</b> ta ishlatilgan'
+      + ' — <b>' + left + '</b> ta bepul qoldi'
+      + (q.explicit ? '' : ' <span class="text-muted">(standart limit)</span>') + '</div>'
+      + '</div>';
+  },
+
   async onStudentPicked() {
     const sid = this.schoolIdOf();
     this.syncInstructorSource();
@@ -2772,6 +2857,8 @@ const Add = {
       if (!have) await Fleet.reload(sid);
     }
     this.renderCarOptions();
+    /* Shartnoma limitini fonda olamiz — formani kutib turmaydi */
+    this.loadQuota();
   },
   renderCarOptions() {
     const sel = $('schoolCar');
@@ -2970,6 +3057,7 @@ const Add = {
       + '<div class="autofill-item"><span>Bugun</span><b>' + today + ' dars</b></div>'
       + '<div class="autofill-item"><span>Shu sessiyadan keyin</span><b>' + (total + planned) + ' dars</b></div>'
       + '</div>'
+      + this.quotaHTML()
       + '<div class="field-help" style="margin-top:8px">1 soat = 1 dars. Yakuniy hisob serverda yangilanadi.</div></div>';
   },
 
@@ -3092,18 +3180,53 @@ const Add = {
 
           /* Davomat yozildi — endi chek chiqadi (agar so'ralgan bo'lsa) */
           if (withChek) {
+            /* Chekda limit ham ko'rinsin: nechinchi kirish, nechta bepul
+               qolgani va limitdan oshgan bo'lsa ogohlantirish. */
+            const qq = (res && res.quota) || null;
+            const sid = (res && Array.isArray(res.ids) && res.ids[0]) ? String(res.ids[0]) : '';
             EntryTicket80.printHidden({
               person: stName(d.student),
               hours: n,
+              total: jami,
               school: d.student.school_name || Data.schoolName(d.student.school_id || d.student.schoolId) || '',
               group: d.student.group_name || Data.groupName(d.student.group_id || d.student.groupId) || '',
               instructor: d.instructorName || (d.instructor ? insName(d.instructor) : ''),
               plate: car.plate || '',
+              visitIndex: qq ? num(qq.visitIndex) : 0,
+              freeLimit: qq ? num(qq.limit) : 0,
+              overLessons: qq ? num(qq.overLessons) : 0,
+              /* Yozuvni keyin topish uchun qisqa raqam */
+              code: sid ? sid.replace(/-/g, '').slice(-6).toUpperCase() : '',
               issued: new Date().toISOString()
             });
           }
 
           toast('Davomat yozildi: ' + stName(d.student) + ' — ' + n + ' dars. Jami: ' + jami + ' dars');
+
+          /* ===== SHARTNOMA LIMITI =====
+             Server shu yozuv limitdan oshganini aytsa, operator buni
+             ko'rmay qolmasin: alohida qizil ogohlantirish chiqadi va
+             panel yangilanadi. Yozuv bloklanmaydi — bu qaror
+             operatorniki. */
+          const qz = res && res.quota;
+          if (qz) {
+            this.quotaFor = String(d.student.id);
+            this.quota = { studentId: String(d.student.id), used: num(qz.usedBefore) + n,
+                           limit: num(qz.limit), left: num(qz.leftAfter),
+                           over: Math.max(0, num(qz.usedBefore) + n - num(qz.limit)),
+                           exhausted: num(qz.leftAfter) <= 0, explicit: true,
+                           schoolName: qz.schoolName || '' };
+            this.renderStudentPanel();
+            if (num(qz.overLessons) > 0) {
+              const rate = num((STATE.settings || {}).hourlyRate);
+              toast("TO'LOV KERAK: " + stName(d.student) + " — bepul limit (" + num(qz.limit)
+                + ') tugagan, ' + num(qz.overLessons) + ' ta dars limitdan oshdi'
+                + (rate > 0 ? '. Summa: ' + money(num(qz.overLessons) * rate) : ''), 'error');
+            } else if (num(qz.leftAfter) <= 2) {
+              toast('Diqqat: ' + stName(d.student) + ' — atigi ' + num(qz.leftAfter)
+                + ' ta bepul kirish qoldi.', 'warn');
+            }
+          }
         } catch (e) {
           const m = /404|topilmadi|not found/i.test(String(e.message))
             ? 'Server hali yangilanmagan: /api/attendance topilmadi. '
@@ -3505,6 +3628,14 @@ const EntryTicket80 = {
       + '.hr{border-top:1px dashed #000;margin:8px 0}'
       + '.ft{text-align:center;font-size:12px;line-height:1.5;margin-top:8px}'
       /* Chek qirqilganda oxirgi qator kesilib qolmasin */
+      /* Yirtiladigan qism */
+      + '.cut{position:relative;text-align:center;margin:10px 0 6px;border-top:2px dashed #000}'
+      + '.cut span{position:relative;top:-8px;background:#fff;padding:0 6px;font-size:10px;letter-spacing:.5px}'
+      + '.stub{text-align:center;line-height:1.45}'
+      + '.stub-t{font-size:15px;font-weight:900;letter-spacing:1px;margin-bottom:3px}'
+      + '.stub-nm{font-size:14px;font-weight:800;overflow-wrap:anywhere}'
+      + '.stub-r{font-size:12px}'
+      + '.sign{margin-top:10px;font-size:11px}'
       + '.pad{height:8mm}'
       + '@media print{@page{size:80mm auto;margin:0}html,body{width:80mm;background:#fff}'
       + '.tb{display:none}.t{margin:0;width:80mm;padding:4mm}}';
@@ -3554,19 +3685,61 @@ const EntryTicket80 = {
   /* ============ AVTOSHKOLA DAVOMAT CHEKI (bepul) ============ */
   attendanceHTML(data, bare) {
     const row = (l, v) => this.tkRow(l, v);
+    const dars = Math.max(1, num(data.hours) || 1);
+
+    /* Shartnoma limiti chekda ham ko'rinadi: o'quvchi ham, avtoshkola
+       ham nechtasi ishlatilganini qog'ozdan ko'rib turadi. */
+    const lim = num(data.freeLimit);
+    const idx = num(data.visitIndex);
+    const over = num(data.overLessons);
+    const kirish = (lim > 0 && idx > 0)
+      ? (idx + '-kirish / ' + lim + ' ta bepul' + (over > 0 ? '' : ' · ' + Math.max(0, lim - idx) + ' qoldi'))
+      : '';
+
+    /* Limitdan oshgan bo'lsa chekda ham aniq yozilsin */
+    const ogoh = over > 0
+      ? '<div class="badge" style="margin-top:2px">TO‘LOV KERAK'
+        + '<small>BEPUL LIMIT TUGAGAN · ' + over + ' DARS ORTIQCHA</small></div>'
+      : '';
+
     return this.ticketShell('Davomat cheki',
         '<div class="b">INDEX AVTODROM</div>'
-      + '<div class="h">Amaliy haydash mashg‘uloti</div>'
-      + '<div class="badge">AVTOSHKOLA<small>TO‘LOVSIZ — DAVOMAT</small></div>'
+      + '<div class="h">Prava imtihoniga tayyorlov markazi</div>'
+      + '<div class="badge">AVTOSHKOLA<small>DAVOMAT</small></div>'
+      + ogoh
       + '<div class="nm">' + esc(data.person || '—') + '</div>'
-      + '<div class="big">' + esc(data.hours) + ' SOAT</div>'
+      + '<div class="big">' + dars + ' DARS</div>'
+      /* Chek nima uchun berilgani */
+      + row('Kelish maqsadi', 'Avtodromda amaliy haydash')
+      + row('Asos', 'Avtoshkola bilan shartnoma')
       + row('Avtoshkola', data.school)
       + row('Guruh', data.group)
       + row('Instruktor', data.instructor)
       + row('Avtomobil', data.plate)
-      + row('Vaqt', this.tkTime(data.issued))
+      + row('Qayd etildi', this.tkTime(data.issued))
+      + row('Bepul kirish', kirish)
+      + row('Jami darslar', num(data.total) > 0 ? num(data.total) + ' ta' : '')
+      + row('Chek raqami', data.code)
       + '<div class="hr"></div>'
-      + '<div class="ft">Darsingiz qayd etildi.<br>Chekni yo‘qotmang — nazoratda so‘ralishi mumkin.<br>Yaxshi yo‘l!</div>',
+      + '<div class="ft">Bu chek avtodromga kirish va dars qayd etilganini tasdiqlaydi.<br>'
+      + 'Chekni yo‘qotmang — nazoratda so‘ralishi mumkin.<br>Yaxshi yo‘l!</div>'
+
+      /* ===== YIRTILADIGAN QISM (koreshok) =====
+         O'quvchi darvozadan kirganda nazoratchi shu pastki qismni
+         yirtib oladi. Chekning o'zi o'quvchida qoladi, yirtilgan
+         qism esa avtodromda — kim kirganini qog'ozdan ham
+         tekshirish mumkin bo'ladi. */
+      + '<div class="cut"><span>✂ shu yerdan yirtilsin</span></div>'
+      + '<div class="stub">'
+      + '<div class="stub-t">AVTODROMGA KIRDI</div>'
+      + '<div class="stub-nm">' + esc(data.person || '—') + '</div>'
+      + '<div class="stub-r">' + esc(data.school || '') + (data.group ? ' · ' + esc(data.group) + '-guruh' : '') + '</div>'
+      + '<div class="stub-r"><b>' + dars + ' dars</b>'
+      + (data.plate ? ' · ' + esc(data.plate) : '')
+      + (data.code ? ' · ' + esc(data.code) : '') + '</div>'
+      + '<div class="stub-r">' + esc(this.tkTime(data.issued)) + '</div>'
+      + '<div class="sign">Nazoratchi: ______________</div>'
+      + '</div>',
       bare);
   },
 
@@ -5279,9 +5452,59 @@ const Control = {
 
       if (host) host.innerHTML = this.tableHTML(rows);
       this.renderBadge(num(s.unpaidCount) + num(s.freeWarnCount) + num(s.unknownCount));
+      this.loadQuota(date);
     } catch (e) {
       if (host) host.innerHTML = emptyState('fa-triangle-exclamation', 'Tekshiruv bajarilmadi', e.message, true);
       if (STATE.page === 'control') toast(e.message, 'error');
+    }
+  },
+
+  /* ===== SHARTNOMA LIMITIDAN OSHGAN KIRISHLAR =====
+     Bepul kirishlari tugagan o'quvchi baribir davomatga yozilgan
+     bo'lsa, o'sha qator bazada belgilanadi. Bu yerda ular bir
+     ro'yxatga yig'iladi va olinmay qolgan pul hisoblanadi. */
+  quota: null,
+
+  async loadQuota(date) {
+    const host = $('ctrlQuotaWrap');
+    if (!host) return;
+    host.innerHTML = loadingLine('Limit tekshirilmoqda...');
+    try {
+      const d = await api('/quota/over?date=' + encodeURIComponent(date));
+      this.quota = d || {};
+      const rows = Array.isArray(d && d.rows) ? d.rows : [];
+      const sum = (d && d.summary) || {};
+      if (!rows.length) {
+        host.innerHTML = emptyState('fa-circle-check', 'Limitdan oshgan kirish yo\'q',
+          'Shu kuni hamma bepul kirishlar shartnoma doirasida.');
+        return;
+      }
+      host.innerHTML =
+        '<div class="quota-box over" style="margin:0 0 12px">'
+        + '<div class="quota-title">Olinmagan to\'lov: ' + esc(money(sum.due)) + '</div>'
+        + '<div class="quota-line">' + num(sum.rows) + ' ta yozuv · '
+        + num(sum.students) + " ta o'quvchi · " + num(sum.overLessons) + ' ta ortiqcha dars'
+        + (num(d.hourlyRate) > 0 ? ' · ' + esc(money(d.hourlyRate)) + ' / soat' : '')
+        + '</div></div>'
+        + '<div class="table-wrap responsive"><table class="tbl"><thead><tr>'
+        + ["O'quvchi", 'Avtoshkola', 'Guruh', 'Vaqt', 'Nechinchi kirish',
+           'Limit', 'Ortiqcha', "To'lov kerak"].map(c => '<th>' + esc(c) + '</th>').join('')
+        + '</tr></thead><tbody>'
+        + rows.map(r => '<tr class="row-att-red">'
+            + '<td data-label="O\'quvchi"><b>' + esc(r.student_name || '—') + '</b></td>'
+            + '<td data-label="Avtoshkola">' + esc(r.school_name || '—') + '</td>'
+            + '<td data-label="Guruh">' + esc(r.group_name || '—') + '</td>'
+            + '<td data-label="Vaqt">' + esc(dt(r.started_at)) + '</td>'
+            + '<td data-label="Nechinchi kirish">' + num(r.visit_index) + '</td>'
+            + '<td data-label="Limit">' + num(r.free_limit) + '</td>'
+            + '<td data-label="Ortiqcha"><b>' + num(r.over_lessons) + '</b></td>'
+            + '<td data-label="To\'lov kerak"><b>' + esc(money(r.due)) + '</b></td>'
+            + '</tr>').join('')
+        + '</tbody></table></div>';
+    } catch (e) {
+      /* Server hali yangilanmagan bo'lsa nazoratning qolgan qismi ishlayveradi */
+      host.innerHTML = emptyState('fa-circle-info', 'Limit hisobi mavjud emas',
+        'Server yangilangach ko\'rinadi. ' + (e.message || ''), false);
     }
   },
 
@@ -6215,6 +6438,9 @@ const Admin = {
         + '<h3><i class="fa-solid fa-school" style="color:var(--g)" aria-hidden="true"></i> ' + esc(s.name) + '</h3>'
         + '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><span class="badge badge-blue">' + gCount + ' guruh</span>'
         + '<span class="badge badge-amber">' + sCount + " o'quvchi</span></div>"
+        + '<div style="margin-top:6px"><span class="badge badge-green">'
+        + (s.free_visits === null || s.free_visits === undefined ? '9 (standart)' : s.free_visits)
+        + ' ta bepul kirish</span></div>'
         + '<div class="actions-row">'
         + '<button class="btn btn-light btn-sm" type="button" data-act="schoolModal" data-id="' + esc(s.id) + '" data-stop="1"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>'
         + '<button class="btn btn-danger btn-sm" type="button" data-act="schoolDelete" data-id="' + esc(s.id) + '" data-stop="1"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>'
@@ -6382,6 +6608,12 @@ const Admin = {
       + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
       + '<form data-act="schoolSave" data-id="' + esc(id || '') + '">'
       + '<div class="fg"><label class="field-label" for="schName">Nomi</label><input id="schName" required value="' + esc(s && s.name) + '"></div>'
+      /* Shartnomada har o'quvchiga necha marta bepul kirish berilgan */
+      + '<div class="fg"><label class="field-label" for="schFree">Bepul kirishlar (shartnoma)</label>'
+      + '<input id="schFree" type="number" min="0" max="500" placeholder="masalan 9" value="'
+      + esc(s && s.free_visits !== null && s.free_visits !== undefined ? s.free_visits : '') + '">'
+      + '<div class="field-help">Har bir o\'quvchiga jami necha marta bepul kirish. '
+      + 'Bo\'sh qoldirilsa standart 9 ishlatiladi. Limit tugagach kassada ogohlantirish chiqadi.</div></div>'
       + '<div class="actions-row"><button class="btn btn-green" type="submit" id="schBtn"><span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Saqlash</span></button>'
       + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
       + '<div id="schErr" class="text-error" role="alert"></div></form>');
@@ -6390,10 +6622,14 @@ const Admin = {
     setError('schErr', '');
     const name = $('schName').value.trim();
     if (!name) { setError('schErr', 'Nomini kiriting.'); return; }
+    /* Bo'sh bo'lsa null — server standart limitni ishlatadi */
+    const fvRaw = $('schFree') ? $('schFree').value.trim() : '';
+    const freeVisits = fvRaw === '' ? null : Math.max(0, Math.floor(num(fvRaw)));
+    const payload = { name: name, freeVisits: freeVisits };
     await withBusy('school:' + (id || 'new'), $('schBtn'), async () => {
       try {
-        if (id) await adminApi('/schools/' + encodeURIComponent(id), { method: 'PUT', body: jsonBody({ name: name }) });
-        else await adminApi('/schools', { method: 'POST', body: jsonBody({ name: name }) });
+        if (id) await adminApi('/schools/' + encodeURIComponent(id), { method: 'PUT', body: jsonBody(payload) });
+        else await adminApi('/schools', { method: 'POST', body: jsonBody(payload) });
         closeModal();
         toast('Saqlandi.');
         await Data.reloadSchools();
