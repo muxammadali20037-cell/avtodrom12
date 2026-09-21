@@ -742,6 +742,18 @@ body.admin-open { overflow: hidden; }
 .quota-title { font-weight: 900; color: #b91c1c; letter-spacing: .02em; margin-bottom: 4px; }
 .quota-line + .quota-line { margin-top: 3px; }
 .quota-box.over .quota-line { color: #7f1d1d; }
+
+/* ---- Sabab (izoh) maydoni va o'zgartirishlar tarixi ---- */
+.reason-box { grid-column: 1 / -1; border: 2px solid #f59e0b; background: #fffbeb;
+  border-radius: 12px; padding: 12px 14px; }
+.reason-box .rb-title { font-weight: 800; color: #b45309; font-size: 13.5px; margin-bottom: 6px; }
+.reason-box textarea { width: 100%; min-height: 62px; resize: vertical;
+  border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font: inherit; }
+.chg { border-top: 1px dashed var(--line); padding: 7px 0; font-size: 12.5px; }
+.chg:first-child { border-top: 0; }
+.chg b { font-weight: 800; }
+.chg .when { color: var(--muted); font-size: 11.5px; }
+.chg .why { color: #334155; }
 @media (max-width: 860px) { .dash-two { grid-template-columns: 1fr; } }
 .dcard { border: 1px solid var(--line); border-radius: 16px; background: var(--card);
   padding: 16px 18px; box-shadow: var(--shadow-sm); }
@@ -1132,6 +1144,13 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
                 <div id="customHourWrap" class="hidden" style="margin-top:10px;max-width:260px">
                   <input id="customMinutes" type="number" min="15" max="600" step="15" value="90" aria-label="Foydalanish vaqti, daqiqada">
                   <div class="field-help">Daqiqada kiriting (15–600).</div>
+                </div>
+                <!-- 3 va undan ko'p dars bir yozuvda kiritilsa sababi so'raladi -->
+                <div id="attReasonBox" class="reason-box hidden" style="margin-top:12px">
+                  <div class="rb-title"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                    Bir yozuvda 2 tadan ko'p dars — sababini yozing</div>
+                  <textarea id="attReason" placeholder="Masalan: o'quvchi ertalabdan kechgacha uchdi, instruktor tasdiqladi"></textarea>
+                  <div class="field-help">Bu yozuv o'chirilmaydi. Keyin «nega bir kunda shuncha dars?» degan savolga javob shu yerdan topiladi.</div>
                 </div>
               </div>
             </div>
@@ -2960,6 +2979,7 @@ const Add = {
     if ($('schoolCarField')) $('schoolCarField').classList.toggle('hidden', !isSchool);
     if (isSchool) this.renderCarOptions();
     if ($('queueBtn')) $('queueBtn').classList.toggle('hidden', isSchool);
+    this.syncReasonBox();
     /* Davomat rejimida chek «Davomat yozish» bilan birga chiqadi —
        alohida talon tugmasi kerak emas. */
     const tick = document.querySelector('[data-act="printEntryForm"]');
@@ -3008,6 +3028,19 @@ const Add = {
     $$('#hourSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.h === String(h)));
     $('customHourWrap').classList.toggle('hidden', h !== 'custom');
     if (h === 'custom') setTimeout(() => $('customMinutes').focus(), 40);
+    this.syncReasonBox();
+  },
+
+  /* Bir yozuvda 2 tadan ko'p dars bo'lsa sabab maydoni ochiladi.
+     Faqat avtoshkola davomatida — oddiy mijozda vaqt o'lchanadi,
+     u yerda «ko'p dars» degan tushuncha yo'q. */
+  needsReason() {
+    if (STATE.form.customerType !== 'school') return false;
+    return this.lessonCount() > 2;
+  },
+  syncReasonBox() {
+    const box = $('attReasonBox');
+    if (box) box.classList.toggle('hidden', !this.needsReason());
   },
   targetSeconds() {
     if (STATE.form.hours === 'custom') return Math.max(900, num(STATE.form.customMinutes || 90) * 60);
@@ -3120,6 +3153,7 @@ const Add = {
 
     return { payload: payload, parts: parts, body: body, type: type, student: student,
              instructor: instructor, instructorName: instructorName,
+             reason: ($('attReason') && $('attReason').value.trim()) || '',
              lessons: this.lessonCount(), targetSeconds: targetSeconds };
   },
   validate(d) {
@@ -3127,6 +3161,16 @@ const Add = {
        so'ralmaydi. O'quvchi esa shart — dars kimga yozilishi kerak. */
     if (d.type === 'school') {
       if (!d.student) return "O'quvchini tanlang yoki oddiy mijoz rejimiga o'ting.";
+      /* 3 va undan ko'p dars bir yozuvda — sababsiz saqlanmaydi */
+      if (this.needsReason()) {
+        const rs = $('attReason') ? $('attReason').value.trim() : '';
+        if (rs.length < 5) {
+          if ($('attReasonBox')) $('attReasonBox').classList.remove('hidden');
+          if ($('attReason')) setTimeout(() => $('attReason').focus(), 40);
+          return d.lessons + ' ta dars bir yozuvda kiritilyapti. Sababini yozing '
+            + '(kamida 5 ta belgi) — izohsiz saqlanmaydi.';
+        }
+      }
       return '';
     }
     if (!d.body) return "Avtomobil raqamini kiriting.";
@@ -3166,7 +3210,9 @@ const Add = {
             instructorName: d.instructorName,
             lessons: d.lessons,
             plate: car.plate || '',
-            model: car.model || ''
+            model: car.model || '',
+            /* 2 tadan ko'p dars bo'lsa server sababsiz qabul qilmaydi */
+            reason: d.reason || ''
           }) });
           const n = num(res && res.lessons) || d.lessons;
 
@@ -3191,6 +3237,8 @@ const Add = {
           if ($('schoolCar')) $('schoolCar').value = '';
           if ($('schoolCarManual')) { $('schoolCarManual').value = ''; $('schoolCarManual').classList.add('hidden'); }
           this.setHours(1);
+          if ($('attReason')) $('attReason').value = '';
+          this.syncReasonBox();
           EntryTicket80.draft = null; EntryTicket80.draftKey = '';
 
           setError('startErr', '');
@@ -6905,7 +6953,15 @@ const Admin = {
       + '<div><label class="field-label" for="stStatus">Holati</label><select id="stStatus">'
       + '<option value="active"' + (s && s.status === 'inactive' ? '' : ' selected') + '>Faol</option>'
       + '<option value="inactive"' + (s && s.status === 'inactive' ? ' selected' : '') + '>Faol emas</option></select></div>'
+      /* Dars soni o'zgartirilsa sabab so'raladi — sababsiz saqlanmaydi */
+      + (id ? '<div class="reason-box hidden" id="stReasonBox">'
+        + '<div class="rb-title"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> '
+        + 'Dars soni o\'zgartirilyapti — sababini yozing</div>'
+        + '<textarea id="stReason" placeholder="Masalan: 12-sentabrdagi dars ikki marta yozilgan edi, bittasi olib tashlandi"></textarea>'
+        + '<div class="field-help">Bu yozuv o\'chirilmaydi. Keyin «nega bunday bo\'lgan?» degan savolga javob shu yerdan topiladi.</div>'
+        + '</div>' : '')
       + '</div>'
+      + (id ? '<div id="stChgWrap" style="margin-top:6px"></div>' : '')
       + '<div class="actions-row"><button class="btn btn-green" type="submit" id="stBtn"><span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Saqlash</span></button>'
       + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
       + '<div id="stErr" class="text-error" role="alert"></div></form>');
@@ -6921,6 +6977,39 @@ const Admin = {
       /* Tahrirlashda joriy guruh tanlangan holda chiqsin */
       if (sel.value) fillGroups(s ? (s.group_id || s.groupId || '') : '');
     }
+
+    /* Dars soni tegilsa sabab maydoni ochiladi */
+    if (id) {
+      const att = $('stAtt'), box = $('stReasonBox');
+      const was = attCount(s);
+      if (att && box) {
+        const sync = () => box.classList.toggle('hidden', num(att.value) === was);
+        att.addEventListener('input', sync);
+        sync();
+      }
+      this.loadChangeLog(id);
+    }
+  },
+
+  /* Shu o'quvchi bo'yicha o'zgartirishlar tarixi */
+  async loadChangeLog(id) {
+    const host = $('stChgWrap');
+    if (!host) return;
+    try {
+      const d = await api('/audit?entity=student&entityId=' + encodeURIComponent(id) + '&limit=10');
+      const rows = (d && d.rows) || [];
+      if (!rows.length) { host.innerHTML = ''; return; }
+      host.innerHTML = '<div class="panel" style="padding:12px 14px;margin:0">'
+        + '<div style="font-weight:800;font-size:13px;margin-bottom:6px">'
+        + '<i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> O\'zgartirishlar tarixi</div>'
+        + rows.map(r => '<div class="chg">'
+            + '<div><b>' + esc(r.action === 'attendance_bulk' ? 'Ko\'p dars yozildi' : 'Dars soni o\'zgartirildi')
+            + '</b>: ' + esc(r.old_value || '—') + ' → <b>' + esc(r.new_value || '—') + '</b></div>'
+            + '<div class="why">' + esc(r.reason || '') + '</div>'
+            + '<div class="when">' + esc(dt(r.created_at)) + (r.actor ? ' · ' + esc(r.actor) : '') + '</div>'
+            + '</div>').join('')
+        + '</div>';
+    } catch (e) { host.innerHTML = ''; }
   },
   async studentSave(id) {
     setError('stErr', '');
@@ -6942,6 +7031,23 @@ const Admin = {
     if (!payload.full_name) { setError('stErr', 'F.I.Sh. kiriting.'); return; }
     if (!stS) { setError('stErr', 'Avtoshkolani tanlang — u majburiy.'); return; }
     if (payload.attendance_count < 0) { setError('stErr', 'Darslar soni manfiy bo\'lishi mumkin emas.'); return; }
+
+    /* Dars soni o'zgargan bo'lsa sabab shart — server ham tekshiradi,
+       lekin bu yerda tekshirsak operator behuda kutmaydi. */
+    if (id) {
+      const oldAtt = attCount(Data.studentById(id));
+      if (payload.attendance_count !== oldAtt) {
+        const rs = $('stReason') ? $('stReason').value.trim() : '';
+        if (rs.length < 5) {
+          setError('stErr', 'Dars soni ' + oldAtt + ' dan ' + payload.attendance_count
+            + ' ga o\'zgartirilyapti. Sababini yozing (kamida 5 ta belgi) — izohsiz saqlanmaydi.');
+          if ($('stReasonBox')) $('stReasonBox').classList.remove('hidden');
+          if ($('stReason')) $('stReason').focus();
+          return;
+        }
+        payload.reason = rs;
+      }
+    }
     await withBusy('student:' + (id || 'new'), $('stBtn'), async () => {
       try {
         if (id) await adminApi('/students/' + encodeURIComponent(id), { method: 'PUT', body: jsonBody(payload) });
