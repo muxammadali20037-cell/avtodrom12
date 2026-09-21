@@ -6,6 +6,7 @@ import { handleAdminRequest } from "./admin-auth-v2.js";
 import { handleReceiptRequest } from "./receipt-routes.js";
 import { handleControlRequest } from "./control-routes.js";
 import { handleFleetRequest } from "./fleet-routes.js";
+import { handleQuotaRequest, ensureQuotaSchema } from "./quota-routes.js";
 import instructorHandler from "./instructor.js";
 import instructorsFixed from "./instructors-fixed.js";
 import instructorDailyHandler from "./instructor-daily.js";
@@ -17,6 +18,13 @@ const instructorFrontend = new URL("../instructor.html", import.meta.url);
 
 export default async function handler(req, res) {
   const path = String(req.url || "").split("?",1)[0];
+
+  /* Shartnoma limiti ustunlari (driving_schools.free_visits va h.k.)
+     birinchi so'rovda qo'shiladi. Natija keshlanadi, shuning uchun
+     keyingi so'rovlarga qo'shimcha yuk bo'lmaydi. Bu yerda turgani
+     muhim: limitni saqlash boshqa fayldan (admin) chaqirilsa ham,
+     ro'yxatni o'qish esa Express'dan kelsa ham ustun mavjud bo'ladi. */
+  if (path.startsWith("/api/")) { try { await ensureQuotaSchema(); } catch (e) { /* noop */ } }
 
   /* Telegram instruktor mini-ilovasi — FAQAT birlikdagi /api/instructor/...
      Ilgari bu shart `startsWith("/api/instructor")` edi va ko'plikdagi
@@ -52,6 +60,9 @@ export default async function handler(req, res) {
 
   /* AVTOSHKOLA MASHINALARI */
   const fleetHandled = await handleFleetRequest(req, res); if (fleetHandled) return fleetHandled;
+
+  /* SHARTNOMA LIMITI — bepul kirishlar */
+  const quotaHandled = await handleQuotaRequest(req, res); if (quotaHandled) return quotaHandled;
 
   /* NAZORAT — «Xatoliklar va aniqliklar» */
   const controlHandled = await handleControlRequest(req, res); if (controlHandled) return controlHandled;
