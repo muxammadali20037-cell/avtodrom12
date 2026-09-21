@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 const ADMIN_TOKEN_TTL = process.env.ADMIN_TOKEN_TTL || '30d';
 import { pool } from '../backend/src/db.js';
 import { ensureQuotaSchema, DEFAULT_FREE_VISITS } from './quota-routes.js';
+import { logChange, reasonError } from './audit-routes.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
@@ -295,11 +296,36 @@ async function handleResource(req,res,resource,id,owner){
     if(!name)return send(res,400,{error:'O‘quvchi ismi kerak'});
     const attendance=attendanceOf(b);
     const activeFlag=b.active===undefined?null:(b.active!==false);
+
+    /* ===== DARS SONI O'ZGARSA — SABAB MAJBURIY =====
+       Ertaga «nega bu o'quvchidan 5 ta dars olib tashlangan?» degan
+       savol chiqmasin: eski qiymat, yangi qiymat, sabab, kim va
+       qachon — hammasi jurnalga yoziladi. Sababsiz saqlanmaydi. */
+    let prevAtt = null;
+    if (attendance !== null && attendance !== undefined) {
+      const cur = await pool.query(
+        `SELECT COALESCE(attendance_count,0)::int n, full_name FROM students WHERE id=$1 LIMIT 1`, [id]);
+      prevAtt = cur.rows[0] ? Number(cur.rows[0].n) : null;
+      if (prevAtt !== null && prevAtt !== attendance) {
+        const bad = reasonError(b.reason || b.izoh || b.note);
+        if (bad) return send(res,400,{ error: bad, needReason: true,
+                                       field: 'attendance_count', from: prevAtt, to: attendance });
+      }
+    }
+
     const setSql = `UPDATE students SET full_name=$1,phone=$2,birth_date=$3,plate=$4,notes=$5,group_id=$6,school_id=COALESCE($7,school_id),attendance_count=COALESCE($8,attendance_count),active=COALESCE($9,active)`;
     const vals = [name,b.phone||null,b.birthDate||b.birth_date||null,b.plate||null,b.notes||null,b.groupId||b.group_id||null,b.schoolId||b.school_id||null,attendance,activeFlag,id];
     const r=await ownerSafeQuery(
       setSql + `,owner_key=$11 WHERE id=$10 AND owner_key=$11 RETURNING *`, vals.concat([owner]),
       setSql + `,owner_key=$11 WHERE id=$10 RETURNING *`, vals.concat([owner]));
+
+    if (r.rows[0] && prevAtt !== null && attendance !== null && prevAtt !== attendance) {
+      await logChange(null, owner, {
+        entity: 'student', entityId: id, entityName: name,
+        action: 'lessons_edit', field: 'attendance_count',
+        oldValue: prevAtt, newValue: attendance,
+        reason: b.reason || b.izoh || b.note, actor: owner });
+    }
     return r.rows[0]?send(res,200,r.rows[0]):send(res,404,{error:'O‘quvchi topilmadi'});
   }
   if(resource==='instructors'){
