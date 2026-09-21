@@ -7,6 +7,7 @@ import { handleReceiptRequest } from "./receipt-routes.js";
 import { handleControlRequest } from "./control-routes.js";
 import { handleFleetRequest } from "./fleet-routes.js";
 import { handleQuotaRequest, ensureQuotaSchema } from "./quota-routes.js";
+import { handleAuditRequest } from "./audit-routes.js";
 import instructorHandler from "./instructor.js";
 import instructorsFixed from "./instructors-fixed.js";
 import instructorDailyHandler from "./instructor-daily.js";
@@ -63,6 +64,9 @@ export default async function handler(req, res) {
 
   /* SHARTNOMA LIMITI — bepul kirishlar */
   const quotaHandled = await handleQuotaRequest(req, res); if (quotaHandled) return quotaHandled;
+
+  /* O'ZGARTIRISHLAR JURNALI */
+  const auditHandled = await handleAuditRequest(req, res); if (auditHandled) return auditHandled;
 
   /* NAZORAT — «Xatoliklar va aniqliklar» */
   const controlHandled = await handleControlRequest(req, res); if (controlHandled) return controlHandled;
