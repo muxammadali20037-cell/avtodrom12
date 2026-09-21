@@ -22,9 +22,10 @@
    Limit o'quvchiga JAMI beriladi (oyiga emas): masalan 9 ta bepul
    kirish, 10-chisidan boshlab to'lov.
 
-   Hisob AVTODROMNING O'Z yozuvlaridan olinadi (sessions), avtoshkola
-   qog'ozidagi dars sonidan emas — chunki shartnoma avtodromga kirish
-   haqida, avtoshkoladagi mashg'ulot haqida emas.
+   Hisobga o'quvchining JAMI dars soni kiradi: Word/Excel ro'yxatidan
+   import qilingan eski darslar ham, shu tizimda yozilganlari ham.
+   Shuning uchun ekrandagi «6 dars» yorlig'i bilan limit qatori bir
+   xil sonni ko'rsatadi.
 
    Yo'llar:
      GET /api/quota?studentId=...        — bitta o'quvchi holati
@@ -89,18 +90,38 @@ export function ensureQuotaSchema() {
    Bitta o'quvchi bo'yicha hisob
    ------------------------------------------------------------------------- */
 
-/* Shu o'quvchining avtodromdagi bepul (avtoshkola) darslari soni.
-   `client` berilsa o'sha tranzaksiya ichida hisoblanadi. */
+/* Shu o'quvchi ishlatgan bepul kirishlar soni.
+   IKKI manba solishtiriladi va KATTAsi olinadi:
+
+     1) students.attendance_count — o'quvchining JAMI dars soni.
+        Word/Excel ro'yxatidan import qilinganda u yerdagi eski
+        darslar ham shu songa tushadi, keyin har bir davomatda
+        trigger uni oshirib boradi.
+
+     2) sessions — shu tizimda yozilgan davomat qatorlari.
+
+   Nega kattasi? Import qilingan eski darslar ham shartnomadagi
+   bepul kirishdan yeyilgan — ularni hisobga olmasak, o'quvchi
+   ortiqcha bepul kirish olib qolardi. Teskarisi ham bo'lishi
+   mumkin: hisoblagich biror sababdan oshmay qolsa, sessiyalar
+   soni haqiqatni ko'rsatadi. Shuning uchun ikkalasidan kattasi.
+
+   `db` tranzaksiya klienti bo'lishi ham mumkin. */
 export async function usedVisits(db, owner, studentId) {
   const r = await db.query(
-    `SELECT COALESCE(SUM(GREATEST(COALESCE(lessons_counted,1), 1)), 0)::int AS used
-       FROM sessions
-      WHERE user_id::text = $1
-        AND student_id::text = $2
-        AND COALESCE(customer_type, 'school') = 'school'
-        AND COALESCE(status, 'completed') <> 'cancelled'`,
+    `SELECT
+        COALESCE((SELECT SUM(GREATEST(COALESCE(s.lessons_counted,1), 1))
+                    FROM sessions s
+                   WHERE s.user_id::text = $1
+                     AND s.student_id::text = $2
+                     AND COALESCE(s.customer_type, 'school') = 'school'
+                     AND COALESCE(s.status, 'completed') <> 'cancelled'), 0)::int AS from_sessions,
+        COALESCE((SELECT st.attendance_count FROM students st
+                   WHERE st.id::text = $2), 0)::int AS from_counter`,
     [String(owner), String(studentId)]);
-  return Number(r.rows[0]?.used || 0);
+  const a = Number(r.rows[0]?.from_sessions || 0);
+  const b = Number(r.rows[0]?.from_counter || 0);
+  return Math.max(a, b);
 }
 
 /* Shu o'quvchi avtoshkolasining limiti */
