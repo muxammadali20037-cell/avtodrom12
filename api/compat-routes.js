@@ -1,5 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
+import { ensureQuotaSchema, quotaForInsert } from './quota-routes.js';
+import { logChange, reasonError, LESSONS_NEED_REASON } from './audit-routes.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 
@@ -299,6 +301,20 @@ export async function handleCompatRequest(req, res) {
          baribir yoziladi. O'quvchi esa shart. */
       if (!studentId) { send(res, 400, { error: 'O‘quvchini tanlang' }); return true; }
 
+      /* ===== KO'P DARS BIRDANIGA — SABAB MAJBURIY =====
+         1-2 dars odatiy hol. 3 va undan ko'p dars bir yozuvda
+         kiritilsa, nega shunchaligi yozilishi kerak: keyin
+         hisobotda «bu odam bir kunda 4 dars olgan» degan savol
+         chiqsa, javob shu yerda turadi. */
+      const sabab = String(body.reason || body.izoh || body.note || '').trim();
+      if (lessons > LESSONS_NEED_REASON) {
+        const bad = reasonError(sabab);
+        if (bad) {
+          send(res, 400, { error: bad, needReason: true, lessons: lessons });
+          return true;
+        }
+      }
+
       const c = await pool.connect();
       try {
         await c.query('BEGIN');
@@ -328,6 +344,23 @@ export async function handleCompatRequest(req, res) {
         if (vreq && vreq.is_nullable === 'NO') {
           throw new Error('Baza tayyor emas: sessions.vehicle_id bo‘sh bo‘lishiga ruxsat bering '
             + '(ALTER TABLE sessions ALTER COLUMN vehicle_id DROP NOT NULL)');
+        }
+
+        /* ===== SHARTNOMA LIMITI =====
+           O'quvchining avtodromdagi bepul kirishlari shartnomadagi
+           limitdan oshdimi? Oshgan bo'lsa yozuv BLOKLANMAYDI — shunchaki
+           qatorga belgilanadi va kassaga ogohlantirish qaytariladi.
+           Nazoratda «to'lov kerak edi» degan summa shundan chiqadi. */
+        let quota = null;
+        try {
+          await ensureQuotaSchema();
+          await c.query('SAVEPOINT sp_quota');
+          quota = await quotaForInsert(c, user, st.id, lessons);
+          await c.query('RELEASE SAVEPOINT sp_quota');
+        } catch (e) {
+          try { await c.query('ROLLBACK TO SAVEPOINT sp_quota'); } catch {}
+          quota = null;
+          console.error('[attendance] limit hisobi:', e && e.message);
         }
 
         /* Darslar sonini qulflab olamiz: bir vaqtda ikkita davomat
@@ -419,6 +452,9 @@ export async function handleCompatRequest(req, res) {
             ['planned_minutes', lessons * 60],
             ['target_duration', totalSeconds],
             ['lessons_counted', lessons],
+            /* Nechinchi kirish va limitdan qanchasi oshgani */
+            ['visit_index', quota ? quota.visitIndex : null],
+            ['over_lessons', quota ? quota.overLessons : null],
           ].filter(([k]) => cols.has(k));
 
           const r = await c.query(
@@ -456,8 +492,20 @@ export async function handleCompatRequest(req, res) {
         }
 
         await c.query('COMMIT');
+
+        /* Ko'p dars yozilgan bo'lsa sababi jurnalga tushsin */
+        if (lessons > LESSONS_NEED_REASON) {
+          await logChange(null, user, {
+            entity: 'student', entityId: st.id, entityName: st.full_name,
+            action: 'attendance_bulk', field: 'lessons',
+            oldValue: before === null ? '' : before,
+            newValue: (before === null ? '' : before + lessons) + ' (+' + lessons + ')',
+            reason: sabab, actor: user });
+        }
+
         send(res, 201, { ok: true, lessons, ids, total,
-                         studentId: st.id, studentName: st.full_name, instructorName: insName });
+                         studentId: st.id, studentName: st.full_name, instructorName: insName,
+                         quota: quota });
         return true;
       } catch (e) {
         try { await c.query('ROLLBACK'); } catch {}
