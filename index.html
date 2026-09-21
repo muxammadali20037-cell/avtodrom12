@@ -6650,11 +6650,32 @@ const Admin = {
     const payload = { name: name, freeVisits: freeVisits };
     await withBusy('school:' + (id || 'new'), $('schBtn'), async () => {
       try {
-        if (id) await adminApi('/schools/' + encodeURIComponent(id), { method: 'PUT', body: jsonBody(payload) });
-        else await adminApi('/schools', { method: 'POST', body: jsonBody(payload) });
+        const saved = id
+          ? await adminApi('/schools/' + encodeURIComponent(id), { method: 'PUT', body: jsonBody(payload) })
+          : await adminApi('/schools', { method: 'POST', body: jsonBody(payload) });
+
+        /* Server limitni qabul qildimi? Eski server fayli turgan bo'lsa
+           javobda `free_visits` umuman bo'lmaydi — o'shanda «saqlandi»
+           deb aldab qo'ymaymiz, aniq aytamiz. */
+        const gotField = saved && Object.prototype.hasOwnProperty.call(saved, 'free_visits');
+        if (freeVisits !== null && !gotField) {
+          setError('schErr', 'Nomi saqlandi, lekin limit saqlanmadi: server eski. '
+            + 'GitHub\'ga api/quota-routes.js, api/admin-auth-v2.js va api/index.js '
+            + 'fayllarini yuklab, deploy tugashini kuting.');
+          await Data.reloadSchools();
+          this.renderSchools();
+          return;
+        }
+
         closeModal();
         toast('Saqlandi.');
         await Data.reloadSchools();
+        /* Ro'yxat eski serverdan kelsa limit ko'rinmay qolmasin */
+        if (saved && saved.id) {
+          const i = (STATE.schools || []).findIndex(x => String(x.id) === String(saved.id));
+          if (i >= 0) STATE.schools[i] = Object.assign({}, STATE.schools[i],
+            { free_visits: saved.free_visits === undefined ? freeVisits : saved.free_visits });
+        }
         this.renderSchools();
         this.refreshCounters();
         Add.syncFallbackSchools();
