@@ -2832,6 +2832,7 @@ const Add = {
         + 'Ishlatilgan: <b>' + num(q.used) + '</b></div>'
         + '<div class="quota-line">Shu yozuvdan <b>' + overNow + '</b> ta dars limitdan oshadi'
         + (rate > 0 ? ' — <b>' + esc(money(overNow * rate)) + '</b> to\'lov kerak' : '') + '</div>'
+        + '<div class="quota-line"><b>Bepul chek chiqarilmaydi.</b> Davomat baribir yoziladi.</div>'
         + '</div>';
     }
     const cls = left <= 2 ? 'warn' : 'ok';
@@ -3059,6 +3060,22 @@ const Add = {
       + '</div>'
       + this.quotaHTML()
       + '<div class="field-help" style="margin-top:8px">1 soat = 1 dars. Yakuniy hisob serverda yangilanadi.</div></div>';
+    this.syncChekButton();
+  },
+
+  /* Limit tugagan bo'lsa tugmada ham ko'rinib tursin: chek chiqmaydi */
+  syncChekButton() {
+    const btn = $('startBtn');
+    if (!btn || STATE.form.customerType !== 'school') return;
+    const t = btn.querySelector('.btn-text');
+    if (!t) return;
+    const q = this.quota;
+    let over = false;
+    if (q) {
+      const planned = Math.max(1, Math.round(this.targetSeconds() / CONFIG.LESSON_SECONDS));
+      over = (num(q.used) + planned) > num(q.limit);
+    }
+    t.textContent = over ? 'Davomat yozish (chek chiqmaydi)' : 'Davomat yozish + chek';
   },
 
   /* Formadan payloadni yig'ish — mavjud API contract saqlangan */
@@ -3178,11 +3195,15 @@ const Add = {
 
           setError('startErr', '');
 
-          /* Davomat yozildi — endi chek chiqadi (agar so'ralgan bo'lsa) */
-          if (withChek) {
-            /* Chekda limit ham ko'rinsin: nechinchi kirish, nechta bepul
-               qolgani va limitdan oshgan bo'lsa ogohlantirish. */
-            const qq = (res && res.quota) || null;
+          /* Davomat yozildi — endi chek chiqadi.
+             MUHIM: bepul kirish limiti oshgan bo'lsa chek CHIQMAYDI.
+             Chek — bepul kirish huquqini tasdiqlaydigan qog'oz;
+             limit tugagach kirish pullik bo'ladi, shuning uchun
+             bepul chek berilmaydi. Davomat esa baribir yoziladi va
+             nazoratda «to'lov kerak edi» bo'lib turadi. */
+          const qq = (res && res.quota) || null;
+          const limitOshdi = qq ? num(qq.overLessons) > 0 : false;
+          if (withChek && !limitOshdi) {
             const sid = (res && Array.isArray(res.ids) && res.ids[0]) ? String(res.ids[0]) : '';
             EntryTicket80.printHidden({
               person: stName(d.student),
@@ -3219,9 +3240,10 @@ const Add = {
             this.renderStudentPanel();
             if (num(qz.overLessons) > 0) {
               const rate = num((STATE.settings || {}).hourlyRate);
-              toast("TO'LOV KERAK: " + stName(d.student) + " — bepul limit (" + num(qz.limit)
-                + ') tugagan, ' + num(qz.overLessons) + ' ta dars limitdan oshdi'
-                + (rate > 0 ? '. Summa: ' + money(num(qz.overLessons) * rate) : ''), 'error');
+              toast("CHEK CHIQARILMADI \u2014 bepul limit (" + num(qz.limit) + ') tugagan. '
+                + stName(d.student) + ': ' + num(qz.overLessons) + ' ta dars limitdan oshdi'
+                + (rate > 0 ? ', ' + money(num(qz.overLessons) * rate) + " to'lov kerak" : '')
+                + '. Davomat yozildi.', 'error');
             } else if (num(qz.leftAfter) <= 2) {
               toast('Diqqat: ' + stName(d.student) + ' — atigi ' + num(qz.leftAfter)
                 + ' ta bepul kirish qoldi.', 'warn');
