@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
    ham saqlanadi. ADMIN_TOKEN_TTL bilan o'zgartirish mumkin. */
 const ADMIN_TOKEN_TTL = process.env.ADMIN_TOKEN_TTL || '30d';
 import { pool } from '../backend/src/db.js';
+import { ensureQuotaSchema, DEFAULT_FREE_VISITS } from './quota-routes.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
@@ -160,6 +161,13 @@ async function ownerSafeQuery(sqlWithOwner, paramsWithOwner, sqlNoOwner, paramsN
   return await pool.query(sqlNoOwner, paramsNoOwner);
 }
 
+/* Bo'sh bo'lsa NULL — «shartnomada ko'rsatilmagan, standart ishlatilsin» */
+function intOrNull(v){
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null;
+}
+
 function attendanceOf(b){
   const v = b.attendance_count ?? b.attendanceCount ?? b.manual_attendance_count ?? b.manualAttendanceCount;
   if (v === undefined || v === null || v === '') return null;
@@ -170,8 +178,12 @@ function attendanceOf(b){
 async function handleResource(req,res,resource,id,owner){
   const method=req.method; const b=bodyOf(req);
   if(resource==='schools'){
-    if(method==='GET') return send(res,200,await listSchools(owner));
-    if(method==='POST'){const name=String(b.name||'').trim();if(!name)return send(res,400,{error:'Avtoshkola nomi kerak'});const r=await pool.query(`INSERT INTO driving_schools(owner_key,name,phone,notes,active) VALUES($1,$2,$3,$4,true) RETURNING *`,[owner,name,b.phone||null,b.notes||null]);return send(res,201,r.rows[0]);}
+    if(method==='GET'){ await ensureQuotaSchema(); return send(res,200,await listSchools(owner)); }
+    if(method==='POST'){const name=String(b.name||'').trim();if(!name)return send(res,400,{error:'Avtoshkola nomi kerak'});
+      /* Shartnomadagi bepul kirishlar soni */
+      await ensureQuotaSchema();
+      const fv=intOrNull(b.freeVisits!==undefined?b.freeVisits:b.free_visits);
+      const r=await pool.query(`INSERT INTO driving_schools(owner_key,name,phone,notes,free_visits,active) VALUES($1,$2,$3,$4,$5,true) RETURNING *`,[owner,name,b.phone||null,b.notes||null,fv]);return send(res,201,r.rows[0]);}
     if(!id)return send(res,400,{error:'ID kerak'});
     if(method==='DELETE'){
       /* Avtoshkola o'chirilsa ichidagi guruh, o'quvchi va instruktorlar ham
@@ -197,9 +209,11 @@ async function handleResource(req,res,resource,id,owner){
       }
     }
     const name=String(b.name||'').trim();if(!name)return send(res,400,{error:'Avtoshkola nomi kerak'});
+    await ensureQuotaSchema();
+    const fv=intOrNull(b.freeVisits!==undefined?b.freeVisits:b.free_visits);
     const r=await ownerSafeQuery(
-      `UPDATE driving_schools SET name=$1,phone=$2,notes=$3,owner_key=$5 WHERE id=$4 AND owner_key=$5 RETURNING *`,[name,b.phone||null,b.notes||null,id,owner],
-      `UPDATE driving_schools SET name=$1,phone=$2,notes=$3,owner_key=$5 WHERE id=$4 RETURNING *`,[name,b.phone||null,b.notes||null,id,owner]);
+      `UPDATE driving_schools SET name=$1,phone=$2,notes=$3,free_visits=$6,owner_key=$5 WHERE id=$4 AND owner_key=$5 RETURNING *`,[name,b.phone||null,b.notes||null,id,owner,fv],
+      `UPDATE driving_schools SET name=$1,phone=$2,notes=$3,free_visits=$6,owner_key=$5 WHERE id=$4 RETURNING *`,[name,b.phone||null,b.notes||null,id,owner,fv]);
     return r.rows[0]?send(res,200,r.rows[0]):send(res,404,{error:'Avtoshkola topilmadi'});
   }
   if(resource==='groups'){
