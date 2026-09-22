@@ -230,6 +230,24 @@ export async function handleCompatRequest(req, res) {
         if (!target) target = 3600;
         target = Math.min(12 * 3600, Math.max(900, Math.round(target)));
 
+        /* ===== VAQT ORALIG'I (masalan 11:00 dan 12:00 gacha) =====
+           Operator aniq soatni tanlagan bo'lsa, sessiya o'sha soatda
+           boshlanadi. Ilgari boshlanish vaqti doim NOW() edi va
+           «11:00 dan» deb kelishilgan mijozning vaqti kassada chek
+           chiqarilgan paytdan sanalardi.
+
+           Cheklov: bugungi kundan 12 soat oldin yoki keyin bo'lmasin —
+           xato kiritilgan sana butun hisobotni buzib qo'ymasin. */
+        let startAt = null;
+        const rawStart = body.startAt || body.start_at || body.startedAt || body.started_at;
+        if (rawStart) {
+          const d = new Date(rawStart);
+          if (!Number.isNaN(d.getTime())) {
+            const diff = Math.abs(d.getTime() - Date.now());
+            if (diff <= 12 * 3600 * 1000) startAt = d.toISOString();
+          }
+        }
+
         if (instructorId) {
           const ir = await c.query(
             `SELECT id FROM instructors WHERE id::text=$1 AND COALESCE(active,TRUE)=TRUE`, [instructorId]);
@@ -243,6 +261,7 @@ export async function handleCompatRequest(req, res) {
         const cand = [
           ['user_id', user],
           ['vehicle_id', v.id],
+          ['started_at', startAt],
           ['hourly_rate', s.hourly_rate],
           ['minimum_payment', s.minimum_payment],
           ['calculation_mode', s.calculation_mode],
@@ -255,7 +274,7 @@ export async function handleCompatRequest(req, res) {
           ['target_duration', target],
           ['driver_name', body.driverName || null],
           ['manual_price', true]
-        ].filter(([k]) => sessCols.has(k));
+        ].filter(([k, val]) => sessCols.has(k) && !(k === 'started_at' && val === null));
 
         const r = await c.query(
           `INSERT INTO sessions(${cand.map(([k]) => k).join(',')})
