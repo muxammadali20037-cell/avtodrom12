@@ -1140,6 +1140,26 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
                   <button class="seg-btn" type="button" data-act="setHours" data-h="3">3 soat</button>
                   <button class="seg-btn" type="button" data-act="setHours" data-h="4">4 soat</button>
                   <button class="seg-btn" type="button" data-act="setHours" data-h="custom">Boshqa</button>
+                  <button class="seg-btn" type="button" data-act="setHours" data-h="period">Soat oralig'i</button>
+                </div>
+                <!-- Aniq soat: masalan 11:00 dan 12:00 gacha -->
+                <div id="periodWrap" class="hidden" style="margin-top:10px">
+                  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+                    <div class="fg" style="margin:0">
+                      <label class="field-label" for="periodFrom">Boshlanish</label>
+                      <input id="periodFrom" type="time" step="300" style="max-width:150px">
+                    </div>
+                    <div class="fg" style="margin:0">
+                      <label class="field-label" for="periodTo">Tugash</label>
+                      <input id="periodTo" type="time" step="300" style="max-width:150px">
+                    </div>
+                    <div class="chips" style="margin:0 0 4px">
+                      <button class="chip" type="button" data-act="periodPlus" data-m="30">+30 daq</button>
+                      <button class="chip" type="button" data-act="periodPlus" data-m="60">+1 soat</button>
+                      <button class="chip" type="button" data-act="periodPlus" data-m="120">+2 soat</button>
+                    </div>
+                  </div>
+                  <div class="field-help" id="periodInfo">Soat 11:00 dan 12:00 gacha kabi aniq oraliq. Boshlanish vaqti sessiyaga yoziladi.</div>
                 </div>
                 <div id="customHourWrap" class="hidden" style="margin-top:10px;max-width:260px">
                   <input id="customMinutes" type="number" min="15" max="600" step="15" value="90" aria-label="Foydalanish vaqti, daqiqada">
@@ -1598,6 +1618,18 @@ const durShort = n => {
   if (!h && !m) return n + ' sek';
   return h ? h + ' soat ' + (m ? m + ' min' : '') : m + ' min';
 };
+/* ---- Soat oralig'i uchun kichik yordamchilar ----
+   «11:30» matnini BUGUNGI kunning shu soatiga aylantiradi va aksincha. */
+const fromHHMM = v => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(v || '').trim());
+  const d = new Date();
+  d.setSeconds(0, 0);
+  if (m) d.setHours(Math.min(23, num(m[1])), Math.min(59, num(m[2])), 0, 0);
+  return d;
+};
+const hhmm = d => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+const addMin = (d, m) => new Date(d.getTime() + num(m) * 60000);
+
 const dt = s => { if (!s) return '—'; const d = new Date(s); return isNaN(d.getTime()) ? '—' : d.toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent', hour12: false }); };
 const timeOnly = s => { if (!s) return '—'; const d = new Date(s); return isNaN(d.getTime()) ? '—' : d.toLocaleTimeString('uz-UZ', { timeZone: 'Asia/Tashkent', hour12: false, hour: '2-digit', minute: '2-digit' }); };
 const localDateISO = (off = 0) => { const d = new Date(), t = new Date(d.getFullYear(), d.getMonth(), d.getDate() + off); return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0'); };
@@ -3027,8 +3059,56 @@ const Add = {
     STATE.form.hours = h;
     $$('#hourSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.h === String(h)));
     $('customHourWrap').classList.toggle('hidden', h !== 'custom');
+    if ($('periodWrap')) $('periodWrap').classList.toggle('hidden', h !== 'period');
     if (h === 'custom') setTimeout(() => $('customMinutes').focus(), 40);
+    if (h === 'period') { this.periodDefaults(); this.renderPeriodInfo(); }
     this.syncReasonBox();
+  },
+
+  /* ================= SOAT ORALIG'I =================
+     «11:00 dan 12:00 gacha» — mijoz aniq soatga kelishadi.
+     Boshlanish vaqti sessiyaga yoziladi, davomiylik esa
+     ikki soat orasidagi farqdan chiqadi. */
+  periodDefaults() {
+    const f = $('periodFrom'), t = $('periodTo');
+    if (!f || !t) return;
+    if (!f.value) {
+      /* Hozirgi vaqtni 5 daqiqagacha yaxlitlaymiz */
+      const now = new Date();
+      now.setSeconds(0, 0);
+      now.setMinutes(Math.round(now.getMinutes() / 5) * 5);
+      f.value = hhmm(now);
+    }
+    if (!t.value) t.value = hhmm(addMin(fromHHMM(f.value), 60));
+  },
+  /* Tugash vaqtini boshlanishdan N daqiqa keyinga qo'yadi */
+  periodPlus(min) {
+    this.periodDefaults();
+    const f = $('periodFrom'), t = $('periodTo');
+    if (!f || !t) return;
+    t.value = hhmm(addMin(fromHHMM(f.value), num(min) || 60));
+    this.renderPeriodInfo();
+  },
+  /* Oraliq necha daqiqa. Tugash boshlanishdan oldin bo'lsa —
+     ertangi kunga o'tgan deb hisoblamaymiz, 0 qaytaramiz. */
+  periodMinutes() {
+    const f = $('periodFrom'), t = $('periodTo');
+    if (!f || !t || !f.value || !t.value) return 0;
+    const a = fromHHMM(f.value), b = fromHHMM(t.value);
+    return Math.round((b - a) / 60000);
+  },
+  renderPeriodInfo() {
+    const el = $('periodInfo');
+    if (!el) return;
+    const m = this.periodMinutes();
+    if (m <= 0) {
+      el.innerHTML = '<span class="text-error">Tugash vaqti boshlanishdan keyin bo\'lishi kerak.</span>';
+      return;
+    }
+    const f = $('periodFrom').value, t = $('periodTo').value;
+    el.innerHTML = '<b>' + esc(f) + '</b> dan <b>' + esc(t) + '</b> gacha \u2014 '
+      + '<b>' + esc(hoursText(m / 60)) + '</b>'
+      + ' <span class="text-muted">(' + Math.round(m / 60 * 100) / 100 + ' dars)</span>';
   },
 
   /* Bir yozuvda 2 tadan ko'p dars bo'lsa sabab maydoni ochiladi.
@@ -3043,8 +3123,19 @@ const Add = {
     if (box) box.classList.toggle('hidden', !this.needsReason());
   },
   targetSeconds() {
+    if (STATE.form.hours === 'period') {
+      const m = this.periodMinutes();
+      return m > 0 ? m * 60 : CONFIG.LESSON_SECONDS;
+    }
     if (STATE.form.hours === 'custom') return Math.max(900, num(STATE.form.customMinutes || 90) * 60);
     return Math.max(1, num(STATE.form.hours || 1)) * CONFIG.LESSON_SECONDS;
+  },
+  /* Oraliq tanlangan bo'lsa boshlanish vaqti (ISO), aks holda '' */
+  periodStartISO() {
+    if (STATE.form.hours !== 'period') return '';
+    const f = $('periodFrom');
+    if (!f || !f.value) return '';
+    return fromHHMM(f.value).toISOString();
   },
 
   applyInstructor(ins) {
@@ -3134,6 +3225,9 @@ const Add = {
       studentId: student ? student.id : null
     };
     if (parts) Object.assign(payload, parts);
+    /* Soat oralig'i tanlangan bo'lsa boshlanish vaqti ham yuboriladi */
+    const pStart = this.periodStartISO();
+    if (pStart) { payload.startAt = pStart; payload.start_at = pStart; }
     if (CONFIG.SEND_EXTRA_START_FIELDS) {
       payload.instructorId = instructor ? instructor.id : null;
       payload.instructor_id = instructor ? instructor.id : null;
@@ -3179,6 +3273,12 @@ const Add = {
     if (STATE.form.hours === 'custom') {
       const m = num(STATE.form.customMinutes);
       if (m < 15 || m > 600) return "Foydalanish vaqti 15–600 daqiqa oralig'ida bo'lishi kerak.";
+    }
+    if (STATE.form.hours === 'period') {
+      const m = this.periodMinutes();
+      if (m <= 0) return "Tugash vaqti boshlanish vaqtidan keyin bo'lishi kerak.";
+      if (m < 15) return "Oraliq kamida 15 daqiqa bo'lishi kerak.";
+      if (m > 600) return "Oraliq 600 daqiqadan oshmasin.";
     }
     return '';
   },
@@ -3328,7 +3428,8 @@ const Add = {
         const st = STATE.settings || {};
         const rate = num(st.hourlyRate) || 0;
         const soat = num(d.targetSeconds) > 0 ? (num(d.targetSeconds) / 3600) : this.lessonCount();
-        const boshlandi = new Date();
+        /* Oraliq tanlangan bo'lsa chekda ham o'sha soat turadi */
+        const boshlandi = d.payload.startAt ? new Date(d.payload.startAt) : new Date();
         EntryTicket80.printHidden({
           kind: 'paid',
           plate: displayPlate(d.payload.regionCode, d.body),
@@ -7833,7 +7934,11 @@ const ACTIONS = {
 
   /* --- yangi avtomobil --- */
   setType: d => Add.setType(d.type),
-  setHours: d => { Add.setHours(d.h === 'custom' ? 'custom' : Number(d.h)); Add.renderStudentPanel(); },
+  setHours: d => {
+    Add.setHours(d.h === 'custom' || d.h === 'period' ? d.h : Number(d.h));
+    Add.renderStudentPanel();
+  },
+  periodPlus: d => Add.periodPlus(d.m),
   startSubmit: () => Add.submit(true),
   attendNoChek: () => Add.submit(false),
   printEntryForm: () => EntryTicket80.fromForm(),
@@ -7996,7 +8101,10 @@ document.addEventListener('change', e => {
 
 /* Kunlik hisobotdagi qidiruv — har bir harfda filtrlanadi */
 document.addEventListener('input', e => {
-  if (e.target && e.target.id === 'dailyQ') Reports.render();
+  if (!e.target) return;
+  if (e.target.id === 'dailyQ') Reports.render();
+  /* Soat oralig'i o'zgarsa izoh darhol yangilansin */
+  if (e.target.id === 'periodFrom' || e.target.id === 'periodTo') Add.renderPeriodInfo();
 });
 
 document.addEventListener('submit', e => {
