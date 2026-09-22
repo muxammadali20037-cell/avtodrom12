@@ -3757,37 +3757,23 @@ const EntryTicket80 = {
     const row = (l, v) => this.tkRow(l, v);
     const dars = Math.max(1, num(data.hours) || 1);
 
-    /* Shartnoma limiti chekda ham ko'rinadi: o'quvchi ham, avtoshkola
-       ham nechtasi ishlatilganini qog'ozdan ko'rib turadi. */
-    const lim = num(data.freeLimit);
-    const idx = num(data.visitIndex);
-    const over = num(data.overLessons);
-    const kirish = (lim > 0 && idx > 0)
-      ? (idx + '-kirish / ' + lim + ' ta bepul' + (over > 0 ? '' : ' · ' + Math.max(0, lim - idx) + ' qoldi'))
-      : '';
-
-    /* Limitdan oshgan bo'lsa chekda ham aniq yozilsin */
-    const ogoh = over > 0
-      ? '<div class="badge" style="margin-top:2px">TO‘LOV KERAK'
-        + '<small>BEPUL LIMIT TUGAGAN · ' + over + ' DARS ORTIQCHA</small></div>'
-      : '';
+    /* Shartnoma va bepul kirish soni chekda KO'RSATILMAYDI — bu
+       avtodrom bilan avtoshkola o'rtasidagi ichki hisob. O'quvchining
+       qo'lidagi qog'ozda faqat uning darsi haqidagi ma'lumot turadi. */
 
     return this.ticketShell('Davomat cheki',
         '<div class="b">INDEX AVTODROM</div>'
       + '<div class="h">Prava imtihoniga tayyorlov markazi</div>'
       + '<div class="badge">AVTOSHKOLA<small>DAVOMAT</small></div>'
-      + ogoh
       + '<div class="nm">' + esc(data.person || '—') + '</div>'
       + '<div class="big">' + dars + ' DARS</div>'
       /* Chek nima uchun berilgani */
       + row('Kelish maqsadi', 'Avtodromda amaliy haydash')
-      + row('Asos', 'Avtoshkola bilan shartnoma')
       + row('Avtoshkola', data.school)
       + row('Guruh', data.group)
       + row('Instruktor', data.instructor)
       + row('Avtomobil', data.plate)
       + row('Qayd etildi', this.tkTime(data.issued))
-      + row('Bepul kirish', kirish)
       + row('Jami darslar', num(data.total) > 0 ? num(data.total) + ' ta' : '')
       + row('Chek raqami', data.code)
       + '<div class="hr"></div>'
