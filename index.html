@@ -3180,7 +3180,9 @@ const Add = {
       + '<div class="autofill-item"><span>Avtoshkola</span><b>' + esc(s.school_name || Data.schoolName(s.school_id || s.schoolId) || '—') + '</b></div>'
       + '<div class="autofill-item"><span>Guruh</span><b>' + esc(s.group_name || Data.groupName(s.group_id || s.groupId) || '—') + '</b></div>'
       + '<div class="autofill-item"><span>Bugun</span><b>' + today + ' dars</b></div>'
-      + '<div class="autofill-item"><span>Shu sessiyadan keyin</span><b>' + (total + planned) + ' dars</b></div>'
+      /* Kelajakdagi son emas, HOZIRGI holat: jami necha marta kelgan.
+         «Shu sessiyadan keyin» degan son operatorni chalkashtirardi. */
+      + '<div class="autofill-item"><span>Kelgan darslari</span><b>' + total + ' dars</b></div>'
       + '</div>'
       + this.quotaHTML()
       + '<div class="field-help" style="margin-top:8px">1 soat = 1 dars. Yakuniy hisob serverda yangilanadi.</div></div>';
@@ -3867,9 +3869,12 @@ const EntryTicket80 = {
       + '<div class="h">Prava imtihoniga tayyorlov markazi</div>'
       + '<div class="badge">AVTOSHKOLA<small>DAVOMAT</small></div>'
       + '<div class="nm">' + esc(data.person || '—') + '</div>'
-      + '<div class="big">' + dars + ' DARS</div>'
-      /* Chek nima uchun berilgani */
+      /* Ilgari bu yerda katta «1 DARS» turardi va o'quvchilar uni
+         «birinchi darsim» deb tushunib chalkashardi. Endi chekning
+         nima ekani yozilgan, darslar soni esa pastdagi qatorda. */
+      + '<div class="big">KIRISH TALONI</div>'
       + row('Kelish maqsadi', 'Avtodromda amaliy haydash')
+      + row('Bugungi dars', dars + ' ta')
       + row('Avtoshkola', data.school)
       + row('Guruh', data.group)
       + row('Instruktor', data.instructor)
@@ -4518,15 +4523,23 @@ function reportRowCells(r) {
     '<b style="color:var(--g-dark)">' + money(r.amount) + '</b>'
   ];
 }
-function tableHTML(rows) {
+/* `opts.deletable` berilsa har qatorga «bekor qilish» tugmasi qo'shiladi.
+   Kunlik hisobotda bu tugma yo'q — u faqat o'quvchi tarixida kerak. */
+function tableHTML(rows, opts) {
   rows = Array.isArray(rows) ? rows : [];
   if (!rows.length) return emptyState('fa-table', "Ma'lumot yo'q", 'Tanlangan shartlar bo\'yicha yozuv topilmadi.');
+  const del = !!(opts && opts.deletable);
+  const cols = del ? REPORT_COLS.concat(['']) : REPORT_COLS;
   return '<div class="table-wrap responsive"><table class="tbl"><thead><tr>'
-    + REPORT_COLS.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
+    + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
     + rows.map(r => {
       const att = num(r.attendance_count);
       const cls = att >= 12 ? 'row-att-blue' : att >= 6 ? 'row-att-red' : (r.school_name ? 'row-school' : '');
-      return '<tr class="' + cls + '">' + reportRowCells(r).map((c, i) => '<td data-label="' + esc(REPORT_COLS[i]) + '">' + c + '</td>').join('') + '</tr>';
+      const cells = reportRowCells(r).map((c, i) => '<td data-label="' + esc(REPORT_COLS[i]) + '">' + c + '</td>').join('')
+        + (del ? '<td data-label="Amal"><button class="btn btn-danger btn-sm" type="button" '
+            + 'data-act="sessionCancel" data-id="' + esc(r.id || '') + '" data-stop="1" '
+            + 'title="Bu yozuvni bekor qilish"><i class="fa-solid fa-trash" aria-hidden="true"></i></button></td>' : '');
+      return '<tr class="' + cls + '">' + cells + '</tr>';
     }).join('')
     + '</tbody></table></div>';
 }
@@ -7013,11 +7026,61 @@ const Admin = {
         + (todayRows.length ? ' (' + todayRows.length + ' marta keldi)' : '') + '</span></div>'
         + '<div class="att-item"><b>' + rows.length + '</b><span>Tashriflar</span></div>'
         + '</div>'
-        + '<div style="margin-top:14px">' + tableHTML(rows) + '</div></div>';
+        + '<div class="field-help" style="margin-top:12px">'
+        + 'Noto\'g\'ri yozilgan darsni qizil tugma bilan bekor qilish mumkin. '
+        + 'Yozuv o\'chmaydi — bekor qilinadi, dars soni kamayadi va sababi jurnalga tushadi.</div>'
+        + '<div style="margin-top:8px">' + tableHTML(rows, { deletable: true }) + '</div></div>';
     } catch (e) {
       c.innerHTML = '<div class="panel" style="margin-top:14px">' + emptyState('fa-triangle-exclamation', 'Yuklanmadi', e.message, true) + '</div>';
     }
   },
+  /* Bitta davomat yozuvini bekor qilish. Sabab majburiy.
+     Alohida oyna: matn modal yopilishidan OLDIN o'qiladi. */
+  sessionCancel(sessionId) {
+    if (!sessionId) return;
+    const uid = 'sc' + Date.now();
+    openModal(
+      '<div class="modal-head"><div><h2>Yozuv bekor qilinsinmi?</h2>'
+      + '<p class="text-muted">Yozuv o\'chmaydi — bekor qilinadi va hisobotlarda ko\'rinmaydi. '
+      + 'O\'quvchining dars soni shuncha kamayadi.</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish">'
+      + '<i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div class="reason-box"><div class="rb-title">'
+      + '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Sababini yozing</div>'
+      + '<textarea id="' + uid + '-r" placeholder="Masalan: xato yozilgan, o\'quvchi kelmagan edi"></textarea>'
+      + '<div class="field-help">Izohsiz bekor qilinmaydi (kamida 5 ta belgi).</div></div>'
+      + '<div class="actions-row"><button class="btn btn-danger" type="button" id="' + uid + '-ok">'
+      + '<span class="spinner"></span><span class="btn-text">Bekor qilish</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Yo\'q</button></div>'
+      + '<div id="' + uid + '-err" class="text-error" role="alert"></div>');
+
+    const btn = $(uid + '-ok');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      const ta = $(uid + '-r');
+      const reason = ta ? ta.value.trim() : '';
+      const err = $(uid + '-err');
+      if (reason.length < 5) {
+        if (err) err.textContent = 'Sababini yozing — kamida 5 ta belgi.';
+        if (ta) ta.focus();
+        return;
+      }
+      await withBusy('cancel:' + sessionId, btn, async () => {
+        try {
+          await api('/sessions/' + encodeURIComponent(sessionId) + '/cancel',
+            { method: 'POST', body: jsonBody({ reason: reason }) });
+          closeModal();
+          toast('Yozuv bekor qilindi.');
+          STATE.studentsStale = true;
+          await Admin.loadStudents(true);
+          if (Admin.detail && Admin.detail.id) Admin.studentDetail(Admin.detail.id);
+        } catch (e) {
+          if (err) err.textContent = e.message;
+        }
+      });
+    });
+  },
+
   studentModal(id) {
     const s = id ? Data.studentById(id) : null;
     const schoolId = s ? (s.school_id || s.schoolId || '') : '';
@@ -8036,6 +8099,7 @@ const ACTIONS = {
   },
   keyVerify: () => Admin.keyVerify(),
   studentDetail: d => Admin.studentDetail(d.id),
+  sessionCancel: d => Admin.sessionCancel(d.id),
   studentsMore: () => { Admin.studentLimit += 50; Admin.renderStudents(); },
   studentsBulk: d => Admin.studentsBulkModal(d.school || '', d.id || ''),
   studentsBulkEdit: d => Admin.studentsBulkEdit(d.school || '', d.id || ''),
