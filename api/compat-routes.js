@@ -152,6 +152,74 @@ export async function handleCompatRequest(req, res) {
   try {
     await ensureCompatSchema();
 
+    /* ===== DAVOMAT YOZUVINI BEKOR QILISH =====
+       POST /api/sessions/:id/cancel   { reason }
+
+       Yozuv bazadan O'CHIRILMAYDI — status='cancelled' bo'ladi.
+       Shunday qilib tarix saqlanadi, lekin yozuv hisobotlarda,
+       limit hisobida va o'quvchi tarixida ko'rinmaydi.
+       O'quvchining dars soni ham shuncha kamayadi.
+
+       Sabab MAJBURIY: ertaga «nega bu dars o'chirilgan?» degan
+       savolga javob jurnalda turadi. */
+    {
+      const m = pathname.match(/^\/api\/sessions\/([^/]+)\/cancel$/);
+      if (m && req.method === 'POST') {
+        const sid = decodeURIComponent(m[1]);
+        const body = bodyOf(req);
+        const sabab = String(body.reason || body.izoh || body.note || '').trim();
+        const bad = reasonError(sabab);
+        if (bad) { send(res, 400, { error: bad, needReason: true }); return true; }
+
+        const c = await pool.connect();
+        try {
+          await c.query('BEGIN');
+          const sr = await c.query(
+            `SELECT id, student_id, status,
+                    COALESCE(lessons_counted, 0)::int AS lessons,
+                    started_at
+               FROM sessions
+              WHERE id::text = $1 AND user_id::text = $2
+              FOR UPDATE`, [sid, String(user)]);
+          const row = sr.rows[0];
+          if (!row) throw new Error('Yozuv topilmadi');
+          if (String(row.status || '') === 'cancelled') throw new Error('Bu yozuv allaqachon bekor qilingan');
+
+          await c.query(`UPDATE sessions SET status='cancelled' WHERE id=$1`, [row.id]);
+
+          /* Dars soni shuncha kamaysin (0 dan pastga tushmasin) */
+          let newTotal = null, studentName = '';
+          if (row.student_id) {
+            const n = Math.max(1, Number(row.lessons) || 1);
+            const ur = await c.query(
+              `UPDATE students
+                  SET attendance_count = GREATEST(0, COALESCE(attendance_count,0) - $1)
+                WHERE id = $2
+                RETURNING attendance_count, full_name`, [n, row.student_id]);
+            if (ur.rows[0]) {
+              newTotal = Number(ur.rows[0].attendance_count);
+              studentName = ur.rows[0].full_name || '';
+            }
+          }
+          await c.query('COMMIT');
+
+          await logChange(null, user, {
+            entity: 'student', entityId: row.student_id || sid, entityName: studentName,
+            action: 'attendance_cancel', field: 'lessons',
+            oldValue: (row.lessons || 1) + ' dars (' + new Date(row.started_at).toISOString().slice(0, 16).replace('T', ' ') + ')',
+            newValue: 'bekor qilindi' + (newTotal === null ? '' : ' · jami ' + newTotal),
+            reason: sabab, actor: user });
+
+          send(res, 200, { ok: true, id: sid, total: newTotal });
+          return true;
+        } catch (e) {
+          try { await c.query('ROLLBACK'); } catch {}
+          send(res, 400, { error: e.message || 'Bekor qilinmadi' });
+          return true;
+        } finally { c.release(); }
+      }
+    }
+
     // ===== START: compact plate is stored exactly as typed =====
     if (req.method === 'POST' && pathname === '/api/sessions/start') {
       const body = bodyOf(req);
