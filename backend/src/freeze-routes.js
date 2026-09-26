@@ -16,6 +16,11 @@ function bodyOf(req) {
 }
 
 let schemaPromise;
+/* sessions_status: 'cancelled' — davomatni bekor qilish (compat-routes.js)
+   shu holatni yozadi. Ilgari bu yerda faqat active/frozen/completed bor
+   edi: birinchi bekor qilingan yozuvdan keyin cheklovni qayta qo'shish
+   «violated by some row» bilan yiqilib, «Muzlatilgan» bo'limi butunlay
+   500 berardi. NOT VALID — eski qatorlar qayta tekshirilmaydi. */
 function ensureFreezeSchema() {
   if (schemaPromise) return schemaPromise;
   schemaPromise = (async () => {
@@ -23,7 +28,7 @@ function ensureFreezeSchema() {
       ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_status;
       ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_status_check;
       ALTER TABLE sessions ADD CONSTRAINT sessions_status
-        CHECK (status IN ('active','frozen','completed'));
+        CHECK (status IN ('active','paused','frozen','completed','cancelled')) NOT VALID;
       ALTER TABLE sessions ADD COLUMN IF NOT EXISTS frozen_at TIMESTAMPTZ;
       ALTER TABLE sessions ADD COLUMN IF NOT EXISTS frozen_seconds BIGINT NOT NULL DEFAULT 0;
       ALTER TABLE sessions ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20) NOT NULL DEFAULT 'cash';

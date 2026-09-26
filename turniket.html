@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Turniket — Avtodrom</title>
+<meta name="robots" content="noindex">
+<style>
+/* =========================================================================
+   TURNIKET EKRANI
+   Turniket yonidagi kompyuterda kun bo'yi ochiq turadi.
+     • USB QR skaner chekni o'qiydi (klaviatura kabi raqam yozib Enter bosadi)
+     • sahifa kodni serverga yuboradi: kirdi / chiqdi / rad etildi
+     • ruxsat bo'lsa USB relay turniketni ochadi (Chrome/Edge, Web Serial)
+     • internet uzilsa oxirgi ro'yxat bo'yicha ishlaydi, hodisalar
+       navbatda saqlanadi va internet qaytganda yuboriladi
+   ========================================================================= */
+:root{
+  --bg:#0b1220;--panel:#111a2e;--line:#1f2a44;--text:#e5edf8;--muted:#8a9bb8;
+  --in:#16a34a;--out:#2563eb;--bad:#dc2626;--warn:#d97706;--idle:#1e293b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  display:flex;flex-direction:column;min-height:100vh;-webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer}
+.hidden{display:none!important}
+
+/* --- yuqori qator --- */
+.top{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.brand{font-weight:900;letter-spacing:1px;font-size:15px}
+.brand small{display:block;font-weight:600;letter-spacing:0;color:var(--muted);font-size:12px}
+.pills{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:13px;color:var(--muted);background:var(--panel)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.dot.ok{background:var(--in)}.dot.bad{background:var(--bad)}.dot.warn{background:var(--warn)}
+.clock{font-variant-numeric:tabular-nums;font-weight:700;color:var(--text)}
+.icon-btn{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px;padding:7px 12px;font-size:13px}
+.icon-btn:hover{border-color:#34507f}
+
+/* --- asosiy holat --- */
+.stage{flex:1;display:flex;align-items:center;justify-content:center;padding:18px}
+.status{width:min(920px,100%);min-height:min(56vh,480px);border-radius:28px;background:var(--idle);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:28px 22px;
+  transition:background .18s ease;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.status.in{background:var(--in)}.status.out{background:var(--out)}.status.bad{background:var(--bad)}.status.busy{background:#334155}
+.st-icon{width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;margin-bottom:18px}
+.st-icon svg{width:64px;height:64px;stroke:#fff;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.st-title{font-size:clamp(34px,6vw,64px);font-weight:900;line-height:1.05;letter-spacing:-.5px}
+.st-name{font-size:clamp(22px,3.4vw,36px);font-weight:800;margin-top:12px;overflow-wrap:anywhere}
+.st-kind{display:inline-block;margin-top:10px;font-size:14px;font-weight:900;letter-spacing:1.5px;padding:5px 14px;border-radius:999px;background:rgba(0,0,0,.25)}
+.st-msg{font-size:clamp(16px,2.2vw,22px);margin-top:12px;opacity:.95;max-width:760px}
+.st-over{font-size:clamp(18px,2.6vw,26px);font-weight:900;margin-top:10px;background:#fff;color:var(--bad);padding:6px 16px;border-radius:12px}
+
+/* --- pastki qism --- */
+.bottom{display:grid;grid-template-columns:1.2fr 1fr;gap:16px;padding:0 18px 18px}
+@media (max-width:820px){.bottom{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px 16px}
+.card h3{margin:0 0 10px;font-size:13px;color:var(--muted);font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.manual{display:flex;gap:8px}
+.manual input{flex:1;min-width:0;background:#0b1325;border:1px solid var(--line);color:var(--text);border-radius:12px;padding:12px 14px;font-size:20px;letter-spacing:2px;font-variant-numeric:tabular-nums}
+.manual input:focus{outline:none;border-color:#3b82f6}
+.btn{border:0;border-radius:12px;padding:12px 16px;font-weight:800;color:#fff;background:#334155}
+.btn.in{background:var(--in)}.btn.out{background:var(--out)}.btn.warn{background:var(--warn)}.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
+.btn:disabled{opacity:.5;cursor:default}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.log{list-style:none;margin:0;padding:0;max-height:210px;overflow:auto}
+.log li{display:grid;grid-template-columns:48px 12px 1fr;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+.log li:last-child{border-bottom:0}
+.log li.empty{display:block}
+.log .t{color:var(--muted);font-variant-numeric:tabular-nums}
+.log .m{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.log .k{width:10px;height:10px;border-radius:50%}
+.k.in{background:var(--in)}.k.out{background:var(--out)}.k.bad{background:var(--bad)}.k.man{background:var(--warn)}
+.empty{color:var(--muted);font-size:14px}
+
+/* --- oynalar --- */
+.overlay{position:fixed;inset:0;background:rgba(2,6,23,.72);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:20px;width:min(560px,100%);max-height:92vh;overflow:auto}
+.sheet h2{margin:0 0 4px;font-size:20px}
+.sheet p{color:var(--muted);margin:0 0 14px;font-size:14px;line-height:1.5}
+.fg{margin-bottom:12px}
+.fg label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px;font-weight:600}
+.fg select,.fg input{width:100%;background:#0b1325;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px 12px;font-size:15px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.chip{border:1px solid var(--line);background:#0b1325;color:var(--text);border-radius:999px;padding:8px 14px;font-size:14px}
+.chip.on{border-color:#3b82f6;background:#1e3a8a}
+.note{font-size:13px;color:var(--muted);line-height:1.5}
+.err{color:#fca5a5;font-size:14px;min-height:18px;margin-top:6px}
+.setup{max-width:620px;margin:10vh auto;padding:24px;text-align:left}
+.setup h1{font-size:26px;margin:0 0 10px}
+.setup ol{line-height:1.7;color:var(--muted);padding-left:20px}
+.setup b{color:var(--text)}
+</style>
+</head>
+<body>
+
+<!-- ===== Ulanmagan qurilma ===== -->
+<section id="setup" class="setup hidden">
+  <h1>Turniket ulanmagan</h1>
+  <p class="note" id="setupWhy">Bu kompyuter hali turniket sifatida ulanmagan.</p>
+  <ol>
+    <li>Kassadagi dasturda <b>Turniket → Qurilmalar → Qurilma qo'shish</b> tugmasini bosing.</li>
+    <li>Chiqqan havolani <b>shu kompyuterda</b> Chrome yoki Edge'da oching.</li>
+    <li>Sahifa ochiq qoladi — uni yopmang.</li>
+  </ol>
+</section>
+
+<!-- ===== Asosiy ekran ===== -->
+<div id="app" class="hidden" style="display:flex;flex-direction:column;min-height:100vh">
+  <header class="top">
+    <div class="brand">TURNIKET<small id="devName">—</small></div>
+    <div class="pills">
+      <span class="pill"><span class="dot" id="netDot"></span><span id="netText">Tekshirilmoqda</span></span>
+      <span class="pill"><span class="dot" id="relayDot"></span><span id="relayText">Relay</span></span>
+      <span class="pill hidden" id="queuePill"><span class="dot warn"></span><span id="queueText">0</span></span>
+      <span class="pill clock" id="clock">--:--</span>
+      <button class="icon-btn" type="button" id="fsBtn" title="To'liq ekran">⛶</button>
+      <button class="icon-btn" type="button" id="cfgBtn">Sozlash</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="status" id="status" role="status" aria-live="assertive">
+      <div class="st-icon" id="stIcon"></div>
+      <div class="st-title" id="stTitle">Chekni skanerga tuting</div>
+      <div class="st-name" id="stName"></div>
+      <div id="stKindWrap"></div>
+      <div class="st-msg" id="stMsg">Kirishda ham, chiqishda ham QR kodni skanerga yaqinlashtiring</div>
+      <div id="stOverWrap"></div>
+    </div>
+  </main>
+
+  <section class="bottom">
+    <div class="card">
+      <h3>Qo'lda</h3>
+      <form class="manual" id="manualForm" autocomplete="off">
+        <input id="manualCode" inputmode="numeric" placeholder="Chekdagi 12 raqam" aria-label="Chek kodi" maxlength="20">
+        <button class="btn" type="submit">Tekshirish</button>
+      </form>
+      <div class="row2">
+        <button class="btn in" type="button" id="openIn">Kirishni ochish</button>
+        <button class="btn out" type="button" id="openOut">Chiqishni ochish</button>
+      </div>
+      <div class="note" style="margin-top:8px">Qo'lda ochish sababi bilan jurnalga yoziladi va kassada ko'rinadi.</div>
+    </div>
+    <div class="card">
+      <h3>Oxirgi urilganlar</h3>
+      <ul class="log" id="log"><li class="empty">Hali hech kim o'tmagan</li></ul>
+    </div>
+  </section>
+</div>
+
+<!-- ===== Qo'lda ochish sababi ===== -->
+<div class="overlay hidden" id="manualSheet" role="dialog" aria-modal="true" aria-labelledby="manTitle">
+  <div class="sheet">
+    <h2 id="manTitle">Qo'lda ochish</h2>
+    <p>Sababni tanlang yoki yozing. U kassadagi «Turniket jurnali»da ko'rinadi.</p>
+    <div class="chips" id="reasonChips">
+      <button type="button" class="chip">Xodim</button>
+      <button type="button" class="chip">Instruktor</button>
+      <button type="button" class="chip">Chek yo'qolgan</button>
+      <button type="button" class="chip">Skaner o'qimadi</button>
+      <button type="button" class="chip">Mehmon</button>
+    </div>
+    <div class="fg"><label for="manReason">Sabab</label><input id="manReason" maxlength="200" placeholder="Masalan: Xodim"></div>
+    <div class="err" id="manErr"></div>
+    <div class="row2">
+      <button class="btn warn" type="button" id="manGo">Ochish</button>
+      <button class="btn ghost" type="button" id="manCancel">Bekor qilish</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Sozlash ===== -->
+<div class="overlay hidden" id="cfgSheet" role="dialog" aria-modal="true" aria-labelledby="cfgTitle">
+  <div class="sheet">
+    <h2 id="cfgTitle">Sozlash</h2>
+    <p>Bu sozlamalar faqat shu kompyuterda saqlanadi.</p>
+    <div class="fg">
+      <label for="cfgRelay">Turniketni ochish usuli</label>
+      <select id="cfgRelay">
+        <option value="none">Relay yo'q — qo'riqchi turniket tugmasini o'zi bosadi</option>
+        <option value="lcus">USB relay (LCUS / CH340, 9600)</option>
+      </select>
+    </div>
+    <div id="relayBox">
+      <div class="row2" style="margin:0 0 12px">
+        <div class="fg" style="margin:0"><label for="cfgChIn">Kirish — relay kanali</label>
+          <select id="cfgChIn"><option value="1">1-kanal</option><option value="2">2-kanal</option></select></div>
+        <div class="fg" style="margin:0"><label for="cfgChOut">Chiqish — relay kanali</label>
+          <select id="cfgChOut"><option value="1">1-kanal</option><option value="2">2-kanal</option></select></div>
+      </div>
+      <div class="fg"><label for="cfgPulse">Ochiq turish (millisekund)</label>
+        <input id="cfgPulse" type="number" min="100" max="5000" step="100"></div>
+      <div class="row2" style="margin:0 0 8px">
+        <button class="btn" type="button" id="relayConnect">Relayni ulash</button>
+        <button class="btn ghost" type="button" id="relayForget">Relayni uzish</button>
+      </div>
+      <div class="row2" style="margin:0 0 12px">
+        <button class="btn in" type="button" id="testIn">Kirishni sinash</button>
+        <button class="btn out" type="button" id="testOut">Chiqishni sinash</button>
+      </div>
+      <div class="note" id="relayNote"></div>
+    </div>
+    <div class="fg"><label for="cfgSound">Ovoz</label>
+      <select id="cfgSound"><option value="1">Yoqilgan</option><option value="0">O'chirilgan</option></select></div>
+    <div class="err" id="cfgErr"></div>
+    <div class="row2">
+      <button class="btn in" type="button" id="cfgSave">Saqlash</button>
+      <button class="btn ghost" type="button" id="cfgClose">Yopish</button>
+    </div>
+    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
+    <button class="btn ghost" type="button" id="unlinkBtn" style="width:100%">Bu kompyuterni turniketdan uzish</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ===================== SOZLAMALAR ===================== */
+  var API = '/api/gate';
+  var K = { key: 'gate.key', cfg: 'gate.cfg', queue: 'gate.queue', cache: 'gate.cache', dev: 'gate.devtag' };
+  var SAME_CODE_MS = 4000;     /* skaner bitta chekni ikki marta o'qisa — e'tiborsiz */
+  var RESULT_MS = 5000;        /* natija shuncha turadi, keyin «Chekni tuting» */
+  var CACHE_MS = 60000;        /* oflayn ro'yxat har daqiqada yangilanadi */
+  var FLUSH_MS = 10000;        /* navbatdagi hodisalar har 10 soniyada yuboriladi */
+  var REOPEN_MS = 60000;       /* serverdagi REOPEN_SEC bilan bir xil */
+
+  /* localStorage ba'zan yopiq bo'ladi (maxfiy oyna) — hamma joyda try */
+  function lsGet(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* noop */ } }
+  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* noop */ } }
+  function $(id) { return document.getElementById(id); }
+
+  var cfg = Object.assign({ relay: 'none', chIn: 1, chOut: 2, pulse: 600, sound: 1 }, lsGet(K.cfg, {}));
+  var devTag = lsGet(K.dev, '') || ('d' + Math.random().toString(36).slice(2, 8));
+  lsSet(K.dev, devTag);
+
+  /* ===================== KALIT =====================
+     Havola: /turniket#k=KALIT. Kalit saqlanadi va manzildan olib
+     tashlanadi (ekranda ko'rinib turmasin). */
+  (function takeKeyFromHash() {
+    var m = /[#&]k=([^&]+)/.exec(location.hash || '');
+    if (m) {
+      lsSet(K.key, decodeURIComponent(m[1]));
+      try { history.replaceState(null, '', location.pathname); } catch (e) { location.hash = ''; }
+    }
+  })();
+  var KEY = lsGet(K.key, '');
+
+  /* ===================== TARMOQ ===================== */
+  function call(method, path, body, timeoutMs) {
+    var ctrl = new AbortController();
+    var t = setTimeout(function () { ctrl.abort(); }, timeoutMs || 6000);
+    return fetch(API + path, {
+      method: method,
+      headers: { 'Content-Type': 'application/json', 'X-Gate-Key': KEY },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: ctrl.signal,
+      cache: 'no-store'
+    }).then(function (r) {
+      return r.text().then(function (txt) {
+        var d = {}; try { d = txt ? JSON.parse(txt) : {}; } catch (e) { d = { error: txt }; }
+        if (r.status === 401) { var e = new Error(d.error || 'Kalit noto‘g‘ri'); e.auth = true; throw e; }
+        if (r.status >= 500) { var e5 = new Error(d.error || 'Server xatosi'); e5.net = true; throw e5; }
+        return { status: r.status, data: d };
+      });
+    }, function (err) { var e = new Error('Internet yo‘q'); e.net = true; e.cause = err; throw e; })
+      .finally(function () { clearTimeout(t); });
+  }
+
+  var online = null;
+  function setOnline(v) {
+    if (online === v) return;
+    online = v;
+    $('netDot').className = 'dot ' + (v ? 'ok' : 'bad');
+    $('netText').textContent = v ? 'Internet bor' : 'Internetsiz ishlayapti';
+  }
+  function authLost(msg) {
+    lsDel(K.key); KEY = '';
+    $('app').classList.add('hidden');
+    $('setup').classList.remove('hidden');
+    $('setupWhy').textContent = msg || 'Kalit o‘chirilgan yoki noto‘g‘ri.';
+  }
+
+  /* ===================== OFLAYN RO'YXAT VA NAVBAT ===================== */
+  var cache = lsGet(K.cache, { at: null, passes: {} });
+  var queue = lsGet(K.queue, []);
+
+  function refreshCache() {
+    return call('GET', '/cache', null, 8000).then(function (r) {
+      setOnline(true);
+      var map = {};
+      (r.data.passes || []).forEach(function (p) { map[p.code] = p; });
+      /* Navbatda yuborilmagan hodisalar serverga hali yetmagan — ular
+         bo'yicha mahalliy holatni saqlab qolamiz, aks holda eski holat
+         ustidan yozilib, chiqqan odam «ichkarida» bo'lib qolardi. */
+      queue.forEach(function (q) {
+        var c = q.body && q.body.code;
+        if (c && cache.passes[c]) map[c] = cache.passes[c];
+      });
+      cache = { at: r.data.at, graceMinutes: r.data.graceMinutes, passes: map };
+      lsSet(K.cache, cache);
+    }).catch(function (e) {
+      if (e.auth) return authLost(e.message);
+      setOnline(false);
+    });
+  }
+
+  function renderQueue() {
+    $('queuePill').classList.toggle('hidden', !queue.length);
+    $('queueText').textContent = queue.length + ' ta yuborilmagan';
+  }
+  function enqueue(item) { queue.push(item); lsSet(K.queue, queue); renderQueue(); }
+
+  var flushing = false;
+  function flush() {
+    if (flushing || !queue.length || !KEY) return Promise.resolve();
+    flushing = true;
+    var next = function () {
+      if (!queue.length) return Promise.resolve();
+      var q = queue[0];
+      var path = q.type === 'manual' ? '/manual' : '/scan';
+      return call('POST', path, q.body, 8000).then(function (r) {
+        setOnline(true);
+        /* 200 bo'lsa ham, 400 bo'lsa ham qayta yuborishdan foyda yo'q */
+        queue.shift(); lsSet(K.queue, queue); renderQueue();
+        return next();
+      });
+    };
+    return next().catch(function (e) {
+      if (e.auth) return authLost(e.message);
+      setOnline(false);
+    }).finally(function () { flushing = false; });
+  }
+
+  /* ===================== RELAY (Web Serial) =====================
+     LCUS-1 / LCUS-2 USB relay (CH340 mikrosxemasi). Buyruq 4 bayt:
+       A0 <kanal> <01=yoqish | 00=o'chirish> <yig'indi>
+     Relay kontakti turniket platasidagi «ochish» (quruq kontakt)
+     kirishiga ulanadi — xuddi qo'riqchi tugmasi kabi. */
+  var Relay = {
+    port: null, chain: Promise.resolve(),
+    supported: !!(navigator.serial),
+    status: function () {
+      var on = cfg.relay === 'lcus';
+      $('relayDot').className = 'dot ' + (!on ? '' : this.port ? 'ok' : 'bad');
+      $('relayText').textContent = !on ? 'Relay yo‘q' : this.port ? 'Relay ulangan' : 'Relay ulanmagan';
+      var note = $('relayNote');
+      if (note) {
+        note.textContent = !this.supported
+          ? 'Bu brauzer USB relayni qo‘llamaydi. Kompyuterda Chrome yoki Edge oching.'
+          : this.port ? 'Relay ulangan. «Sinash» tugmalari bilan turniket ochilishini tekshiring.'
+          : '«Relayni ulash» ni bosing va ro‘yxatdan USB-SERIAL CH340 ni tanlang.';
+      }
+    },
+    open: function (port) {
+      var self = this;
+      return port.open({ baudRate: 9600 }).catch(function (e) {
+        /* Allaqachon ochiq bo'lsa ham ishlayveradi */
+        if (!/already open/i.test(String(e && e.message))) throw e;
+      }).then(function () { self.port = port; self.status(); });
+    },
+    auto: function () {
+      var self = this;
+      if (!this.supported || cfg.relay !== 'lcus') { this.status(); return Promise.resolve(); }
+      return navigator.serial.getPorts().then(function (ports) {
+        if (ports[0]) return self.open(ports[0]);
+      }).catch(function (e) { console.warn('[relay]', e); }).then(function () { self.status(); });
+    },
+    ask: function () {
+      var self = this;
+      if (!this.supported) return Promise.reject(new Error('Brauzer USB relayni qo‘llamaydi (Chrome yoki Edge kerak)'));
+      return navigator.serial.requestPort().then(function (p) { return self.open(p); });
+    },
+    forget: function () {
+      var self = this, p = this.port;
+      this.port = null; this.status();
+      if (!p) return Promise.resolve();
+      return p.close().catch(function () {}).then(function () { return p.forget ? p.forget() : null; })
+        .catch(function () {}).then(function () { self.status(); });
+    },
+    write: function (bytes) {
+      var w = this.port.writable.getWriter();
+      return w.write(new Uint8Array(bytes)).finally(function () { w.releaseLock(); });
+    },
+    pulse: function (ch) {
+      var self = this;
+      if (cfg.relay !== 'lcus' || !this.port) return Promise.resolve(false);
+      ch = Number(ch) === 2 ? 2 : 1;
+      /* Ketma-ket: ikki buyruq bir-biriga aralashmasin */
+      this.chain = this.chain.then(function () {
+        return self.write([0xA0, ch, 0x01, (0xA0 + ch + 0x01) & 0xFF])
+          .then(function () { return new Promise(function (r) { setTimeout(r, Math.max(100, Number(cfg.pulse) || 600)); }); })
+          .then(function () { return self.write([0xA0, ch, 0x00, (0xA0 + ch) & 0xFF]); });
+      }).catch(function (e) {
+        console.error('[relay]', e);
+        self.port = null; self.status();
+      });
+      return this.chain.then(function () { return true; });
+    }
+  };
+  if (navigator.serial) {
+    navigator.serial.addEventListener('disconnect', function () { Relay.port = null; Relay.status(); });
+    navigator.serial.addEventListener('connect', function () { Relay.auto(); });
+  }
+  function openGate(dir) { return Relay.pulse(dir === 'out' ? cfg.chOut : cfg.chIn); }
+
+  /* ===================== OVOZ ===================== */
+  var audio = null;
+  function beep(kind) {
+    if (String(cfg.sound) !== '1') return;
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      if (audio.state === 'suspended') audio.resume();
+      var seq = kind === 'bad' ? [[220, .18], [0, .06], [220, .18], [0, .06], [220, .3]]
+              : kind === 'out' ? [[880, .09], [0, .03], [660, .14]]
+              : [[660, .09], [0, .03], [990, .14]];
+      var t = audio.currentTime;
+      seq.forEach(function (s) {
+        if (s[0]) {
+          var o = audio.createOscillator(), g = audio.createGain();
+          o.type = kind === 'bad' ? 'square' : 'sine'; o.frequency.value = s[0];
+          g.gain.setValueAtTime(.18, t); g.gain.exponentialRampToValueAtTime(.001, t + s[1]);
+          o.connect(g); g.connect(audio.destination); o.start(t); o.stop(t + s[1]);
+        }
+        t += s[1];
+      });
+    } catch (e) { /* noop */ }
+  }
+
+  /* ===================== EKRAN ===================== */
+  var ICONS = {
+    idle: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>',
+    in: '<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+    out: '<svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>',
+    bad: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>',
+    busy: '<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"/></svg>'
+  };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (x) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[x]; }); }
+  function dur(sec) {
+    sec = Math.max(0, Math.round(Number(sec) || 0));
+    var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60);
+    return h ? h + ' soat' + (m ? ' ' + m + ' daq' : '') : m + ' daq';
+  }
+  function hhmm(d) { d = d ? new Date(d) : new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+
+  var resetTimer = null;
+  function show(state, title, name, kind, msg, over) {
+    var box = $('status');
+    box.className = 'status' + (state === 'idle' ? '' : ' ' + state);
+    $('stIcon').innerHTML = ICONS[state] || ICONS.idle;
+    $('stTitle').textContent = title;
+    $('stName').textContent = name || '';
+    $('stKindWrap').innerHTML = kind ? '<span class="st-kind">' + (kind === 'school' ? 'AVTOSHKOLA' : 'PLATNIY') + '</span>' : '';
+    $('stMsg').textContent = msg || '';
+    $('stOverWrap').innerHTML = over ? '<div class="st-over">' + esc(over) + '</div>' : '';
+    clearTimeout(resetTimer);
+    if (state !== 'idle' && state !== 'busy') resetTimer = setTimeout(idle, RESULT_MS);
+  }
+  function idle() {
+    show('idle', 'Chekni skanerga tuting', '', '', 'Kirishda ham, chiqishda ham QR kodni skanerga yaqinlashtiring');
+  }
+
+  var logItems = [];
+  function addLog(kind, text) {
+    logItems.unshift({ t: hhmm(), kind: kind, text: text });
+    logItems = logItems.slice(0, 12);
+    $('log').innerHTML = logItems.map(function (x) {
+      return '<li><span class="t">' + x.t + '</span><span class="k ' + x.kind + '"></span><span class="m">' + esc(x.text) + '</span></li>';
+    }).join('');
+  }
+
+  /* Natijani ekranga chiqaradi va ruxsat bo'lsa turniketni ochadi */
+  function apply(res, offline) {
+    var p = res.pass || null;
+    if (res.ok && (res.open === 'in' || res.open === 'out')) {
+      openGate(res.open);
+      beep(res.open);
+      var over = '';
+      if (p && res.open === 'out' && p.overdue) over = '+' + dur(p.over_seconds) + ' ortiqcha';
+      var msg = res.message || '';
+      if (p && res.open === 'out' && p.in_at) msg = 'Bo‘ldi: ' + dur(p.used_seconds) + ' · To‘langan: ' + dur(p.paid_minutes * 60);
+      if (offline) msg = (msg ? msg + ' · ' : '') + 'internetsiz';
+      /* Platniy mijozning ismi yozilmagan bo'lishi mumkin — avtomobil raqami ko'rinadi */
+      var who = p ? (p.person || p.plate || '') : '';
+      show(res.open, res.title || (res.open === 'in' ? 'Xush kelibsiz' : 'Xayr!'), who, p && p.kind, msg, over);
+      addLog(res.open, (res.open === 'in' ? 'Kirdi: ' : 'Chiqdi: ') + (who || '—') + (over ? ' (' + over + ')' : ''));
+    } else {
+      beep('bad');
+      var whoBad = p ? (p.person || p.plate || '') : '';
+      show('bad', res.title || 'Ruxsat yo‘q', whoBad, p && p.kind, res.message || '');
+      addLog('bad', (res.title || 'Rad etildi') + (whoBad ? ': ' + whoBad : ''));
+    }
+  }
+
+  /* ===================== SKAN ===================== */
+  function normCode(v) { var d = String(v || '').replace(/\D/g, ''); return /^\d{12}$/.test(d) ? d : ''; }
+  function clientId() { return devTag + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7); }
+
+  /* Internet yo'q: oxirgi ro'yxat bo'yicha qaror. Hodisa navbatga
+     tushadi va internet qaytganda server uni haqiqiy vaqti bilan yozadi. */
+  function decideOffline(code, now) {
+    var p = cache.passes[code];
+    if (!p) return { ok: false, title: 'Tekshirib bo‘lmadi', message: 'Internet yo‘q va chek ro‘yxatda topilmadi. Qo‘lda oching yoki kassaga yuboring.' };
+    var view = { person: p.person_name, plate: p.plate, kind: p.kind, paid_minutes: p.paid_minutes };
+    var t = now.getTime();
+    if (p.status === 'issued') {
+      if (p.valid_until && t > new Date(p.valid_until).getTime()) return { ok: false, title: 'Chek muddati o‘tgan', pass: view };
+      p.status = 'inside'; p.in_at = now.toISOString();
+      return { ok: true, open: 'in', title: 'Xush kelibsiz', message: '', pass: view };
+    }
+    if (p.status === 'inside') {
+      var since = t - new Date(p.in_at).getTime();
+      if (since < REOPEN_MS) return { ok: true, open: 'in', title: 'Qayta ochildi', message: '', pass: view };
+      p.status = 'done'; p.out_at = now.toISOString();
+      var used = Math.round(since / 1000), over = Math.max(0, used - p.paid_minutes * 60);
+      view.in_at = p.in_at; view.used_seconds = used; view.over_seconds = over;
+      view.overdue = over > (Number(cache.graceMinutes) || 15) * 60;
+      return { ok: true, open: 'out', title: 'Xayr!', message: '', pass: view };
+    }
+    if (p.status === 'done') {
+      if (p.out_at && t - new Date(p.out_at).getTime() < REOPEN_MS) return { ok: true, open: 'out', title: 'Qayta ochildi', message: '', pass: view };
+      return { ok: false, title: 'Chek ishlatilgan', message: 'Kirdi ' + hhmm(p.in_at) + ', chiqdi ' + hhmm(p.out_at) + '.', pass: view };
+    }
+    return { ok: false, title: 'Chek bekor qilingan', pass: view };
+  }
+
+  var lastCode = '', lastAt = 0, busy = false;
+  function handleScan(raw) {
+    var code = normCode(raw);
+    var now = new Date();
+    if (!code) {
+      beep('bad');
+      show('bad', 'Kod o‘qilmadi', '', '', 'Bu turniket cheki emas. Kassadagi yangi chekni ko‘rsating.');
+      addLog('bad', 'O‘qilmadi: ' + String(raw).slice(0, 24));
+      return;
+    }
+    if (code === lastCode && now - lastAt < SAME_CODE_MS) return;   /* skaner ikki marta o'qidi */
+    if (busy) return;
+    lastCode = code; lastAt = now.getTime(); busy = true;
+    show('busy', 'Tekshirilmoqda…', '', '', '');
+    var cid = clientId();
+
+    call('POST', '/scan', { code: code, at: now.toISOString(), client_id: cid }, 5000)
+      .then(function (r) {
+        setOnline(true);
+        var d = r.data || {};
+        /* Mahalliy ro'yxatni ham yangilab qo'yamiz */
+        if (d.pass && cache.passes[code]) {
+          cache.passes[code].status = d.pass.status;
+          cache.passes[code].in_at = d.pass.in_at; cache.passes[code].out_at = d.pass.out_at;
+          lsSet(K.cache, cache);
+        }
+        apply(d, false);
+      })
+      .catch(function (e) {
+        if (e.auth) { authLost(e.message); return; }
+        setOnline(false);
+        var d = decideOffline(code, now);
+        lsSet(K.cache, cache);
+        /* Oflayn qarordan qat'i nazar hodisa serverga yetib borishi kerak */
+        enqueue({ type: 'scan', body: { code: code, at: now.toISOString(), client_id: cid, offline: true } });
+        apply(d, true);
+      })
+      .finally(function () { busy = false; });
+  }
+
+  /* Skaner klaviatura kabi ishlaydi: raqamlarni juda tez yozib, oxirida
+     Enter (ba'zan Tab) bosadi. Qo'lda yozish maydoni fokusda bo'lmasa
+     tugmalar shu yerda yig'iladi. Suffiks sozlanmagan skaner uchun —
+     12 ta raqam yig'ilib, 150 ms jimlik bo'lsa ham yuboriladi. */
+  var buf = '', bufAt = 0, bufTimer = null;
+  document.addEventListener('keydown', function (e) {
+    var tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    if (!$('manualSheet').classList.contains('hidden') || !$('cfgSheet').classList.contains('hidden')) return;
+    var now = Date.now();
+    if (now - bufAt > 400) buf = '';
+    bufAt = now;
+    clearTimeout(bufTimer);
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      if (buf.length >= 4) { e.preventDefault(); var v = buf; buf = ''; handleScan(v); }
+      return;
+    }
+    if (e.key && e.key.length === 1) {
+      buf += e.key;
+      if (/\d{12}$/.test(buf)) bufTimer = setTimeout(function () { var v = buf; buf = ''; if (v) handleScan(v); }, 150);
+    }
+  });
+
+  $('manualForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = $('manualCode').value; $('manualCode').value = '';
+    $('manualCode').blur();
+    if (v.trim()) handleScan(v);
+  });
+
+  /* ===================== QO'LDA OCHISH ===================== */
+  var manDir = 'in';
+  function manualAsk(dir) {
+    manDir = dir;
+    $('manTitle').textContent = dir === 'out' ? 'Chiqishni qo‘lda ochish' : 'Kirishni qo‘lda ochish';
+    $('manReason').value = ''; $('manErr').textContent = '';
+    Array.prototype.forEach.call($('reasonChips').children, function (c) { c.classList.remove('on'); });
+    $('manualSheet').classList.remove('hidden');
+  }
+  $('openIn').addEventListener('click', function () { manualAsk('in'); });
+  $('openOut').addEventListener('click', function () { manualAsk('out'); });
+  $('reasonChips').addEventListener('click', function (e) {
+    var b = e.target.closest('.chip'); if (!b) return;
+    Array.prototype.forEach.call(this.children, function (c) { c.classList.toggle('on', c === b); });
+    $('manReason').value = b.textContent;
+  });
+  $('manCancel').addEventListener('click', function () { $('manualSheet').classList.add('hidden'); });
+  $('manGo').addEventListener('click', function () {
+    var reason = $('manReason').value.trim();
+    if (reason.length < 2) { $('manErr').textContent = 'Sababni tanlang yoki yozing.'; return; }
+    $('manualSheet').classList.add('hidden');
+    var body = { direction: manDir, reason: reason, at: new Date().toISOString(), client_id: clientId() };
+    openGate(manDir);
+    beep(manDir);
+    show(manDir, 'Qo‘lda ochildi', '', '', reason);
+    addLog('man', 'Qo‘lda ' + (manDir === 'out' ? 'chiqish' : 'kirish') + ': ' + reason);
+    call('POST', '/manual', body, 5000).then(function () { setOnline(true); })
+      .catch(function (e) {
+        if (e.auth) return authLost(e.message);
+        setOnline(false);
+        body.offline = true;
+        enqueue({ type: 'manual', body: body });
+      });
+  });
+
+  /* ===================== SOZLASH OYNASI ===================== */
+  function cfgFill() {
+    $('cfgRelay').value = cfg.relay; $('cfgChIn').value = String(cfg.chIn); $('cfgChOut').value = String(cfg.chOut);
+    $('cfgPulse').value = cfg.pulse; $('cfgSound').value = String(cfg.sound);
+    $('relayBox').classList.toggle('hidden', cfg.relay !== 'lcus');
+    $('cfgErr').textContent = '';
+    Relay.status();
+  }
+  function cfgRead() {
+    cfg.relay = $('cfgRelay').value;
+    cfg.chIn = Number($('cfgChIn').value) || 1;
+    cfg.chOut = Number($('cfgChOut').value) || 2;
+    cfg.pulse = Math.min(5000, Math.max(100, Number($('cfgPulse').value) || 600));
+    cfg.sound = Number($('cfgSound').value) ? 1 : 0;
+  }
+  $('cfgBtn').addEventListener('click', function () { cfgFill(); $('cfgSheet').classList.remove('hidden'); });
+  $('cfgClose').addEventListener('click', function () { $('cfgSheet').classList.add('hidden'); });
+  $('cfgRelay').addEventListener('change', function () { $('relayBox').classList.toggle('hidden', this.value !== 'lcus'); });
+  $('cfgSave').addEventListener('click', function () {
+    cfgRead(); lsSet(K.cfg, cfg);
+    Relay.auto(); $('cfgSheet').classList.add('hidden');
+  });
+  $('relayConnect').addEventListener('click', function () {
+    cfgRead(); lsSet(K.cfg, cfg); $('cfgErr').textContent = '';
+    Relay.ask().catch(function (e) {
+      $('cfgErr').textContent = /No port selected|NotFoundError/i.test(String(e && (e.name + e.message)))
+        ? 'Port tanlanmadi.' : String(e && e.message || e);
+    });
+  });
+  $('relayForget').addEventListener('click', function () { Relay.forget(); });
+  $('testIn').addEventListener('click', function () { cfgRead(); beep('in'); Relay.pulse(cfg.chIn); });
+  $('testOut').addEventListener('click', function () { cfgRead(); beep('out'); Relay.pulse(cfg.chOut); });
+  $('unlinkBtn').addEventListener('click', function () {
+    if (!confirm('Bu kompyuter turniketdan uzilsinmi? Qayta ulash uchun kassadan yangi havola kerak bo‘ladi.')) return;
+    lsDel(K.cache); lsDel(K.queue);
+    authLost('Bu kompyuter turniketdan uzildi.');
+  });
+  $('fsBtn').addEventListener('click', function () {
+    try {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen();
+    } catch (e) { /* noop */ }
+  });
+
+  /* Ekran o'chib qolmasin */
+  var wake = null;
+  function keepAwake() {
+    try {
+      if (navigator.wakeLock && document.visibilityState === 'visible') {
+        navigator.wakeLock.request('screen').then(function (w) { wake = w; }).catch(function () {});
+      }
+    } catch (e) { /* noop */ }
+  }
+  document.addEventListener('visibilitychange', keepAwake);
+
+  function tick() { $('clock').textContent = hhmm(); }
+
+  /* Tugma bosilgandan keyin fokusda qolmasin: skaner oxirida yuboradigan
+     Enter o'sha tugmani qayta «bosib» yubormasin. */
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('button');
+    if (b) setTimeout(function () { try { b.blur(); } catch (x) { /* noop */ } }, 0);
+  });
+
+  /* ===================== ISHGA TUSHIRISH ===================== */
+  function start() {
+    if (!KEY) { $('setup').classList.remove('hidden'); return; }
+    $('app').classList.remove('hidden');
+    idle(); tick(); renderQueue(); Relay.auto(); keepAwake();
+    setInterval(tick, 5000);
+
+    call('GET', '/ping', null, 6000).then(function (r) {
+      setOnline(true);
+      $('devName').textContent = r.data.device || '';
+      if (r.data.graceMinutes !== undefined) cache.graceMinutes = r.data.graceMinutes;
+    }).catch(function (e) {
+      if (e.auth) return authLost(e.message);
+      setOnline(false);
+      $('devName').textContent = 'internetsiz';
+    });
+
+    refreshCache().then(flush);
+    setInterval(refreshCache, CACHE_MS);
+    setInterval(flush, FLUSH_MS);
+    window.addEventListener('online', function () { flush(); refreshCache(); });
+  }
+  start();
+})();
+</script>
+</body>
+</html>

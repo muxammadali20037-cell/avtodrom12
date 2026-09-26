@@ -941,6 +941,27 @@ tr.be-dirty td{background:#F0FDF4}
 tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 .be-in{width:100%;padding:6px 8px;border:1px solid #d7dee7;border-radius:8px;font:inherit}
 .be-in:focus{outline:none;border-color:#16a34a;box-shadow:0 0 0 3px rgba(22,163,74,.12)}
+
+/* ===== TURNIKET ===== */
+.gate-sub{font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
+.gate-h3{margin:0 0 2px;font-size:16px}
+.gate-hint{font-size:12px;margin-bottom:10px}
+.gate-kind{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.3px;padding:2px 8px;border-radius:999px}
+.gate-kind.paid{background:var(--amber-surface);color:var(--amber)}
+.gate-kind.school{background:var(--blue-surface);color:var(--blue)}
+.gate-bar-row{display:grid;grid-template-columns:52px 1fr 64px;gap:10px;align-items:center;padding:3px 0;font-size:13px}
+.gate-bar-row .t{color:var(--muted);font-variant-numeric:tabular-nums}
+.gate-bar-row .n{text-align:right;font-variant-numeric:tabular-nums;color:var(--text-secondary)}
+.gate-bar{display:flex;height:14px;background:#f1f5f9;border-radius:7px;overflow:hidden}
+.gate-bar i{display:block;height:100%}
+.gate-bar i.paid{background:var(--amber)}
+.gate-bar i.school{background:var(--blue)}
+.gate-legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-bottom:8px}
+.gate-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.gate-legend i.paid{background:var(--amber)}.gate-legend i.school{background:var(--blue)}
+.gate-link{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;word-break:break-all;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px}
+.gate-dev{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.gate-dev:last-child{border-bottom:0}
 </style>
 </head>
 <body>
@@ -1037,6 +1058,7 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 
     <div class="nav-section">Nazorat</div>
     <button class="nav-btn" type="button" data-p="control"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> Xatoliklar va aniqliklar <span id="ctrlCount" class="nav-badge amber"></span></button>
+    <button class="nav-btn" type="button" data-p="turniket"><i class="fa-solid fa-door-open" aria-hidden="true"></i> Turniket <span id="gateCount" class="nav-badge red"></span></button>
 
     <div class="nav-section">Boshqaruv</div>
     <button class="nav-btn" type="button" data-p="instructors"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktorlar</button>
@@ -1432,6 +1454,69 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
             Har avtoshkolaning limiti «Admin panel → Avtoshkolalar» da kiritiladi.
           </div>
           <div id="ctrlQuotaWrap" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <!-- ===== TURNIKET ===== -->
+      <section id="p-turniket" class="page hidden">
+        <div class="page-header">
+          <div>
+            <h1>Turniket</h1>
+            <p>Chekdagi QR bilan kim kirdi, kim chiqdi va kim to'lagan vaqtidan oshib ketdi</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-light" type="button" data-act="gateDevices"><i class="fa-solid fa-microchip" aria-hidden="true"></i> Qurilmalar</button>
+            <button class="btn btn-green" type="button" data-act="gateLoad"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Yangilash</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="report-filters">
+            <div class="fg"><label for="gateDate">Sana</label><input id="gateDate" type="date"></div>
+            <div class="report-quick">
+              <button class="btn btn-light" type="button" data-act="gateOffset" data-off="0">Bugun</button>
+              <button class="btn btn-light" type="button" data-act="gateOffset" data-off="-1">Kecha</button>
+            </div>
+          </div>
+          <div class="search-hint">
+            <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+            Vaqt o'quvchi turniketdan kirgan paytdan chiqqan paytgacha hisoblanadi. «To'langan» — kassada ochilgan soat
+            (avtoshkolada darslar soni). Chegirmadan ko'p oshsa qator qizil bo'ladi.
+          </div>
+          <div class="text-muted" style="font-size:13px" id="gateInfo">—</div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-person-walking-arrow-right" aria-hidden="true"></i></div><div class="stat-label">Hozir ichkarida</div><div class="stat-value" id="gInside">0</div><div class="gate-sub" id="gInsideSub"></div></div>
+          <div class="stat-card"><div class="stat-icon red"><i class="fa-solid fa-hourglass-end" aria-hidden="true"></i></div><div class="stat-label">Vaqtidan oshgan</div><div class="stat-value red" id="gOverdue">0</div><div class="gate-sub" id="gOverSub"></div></div>
+          <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i></div><div class="stat-label">Platniy</div><div class="stat-value" id="gPaid">0</div><div class="gate-sub" id="gPaidSub"></div></div>
+          <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i></div><div class="stat-label">Avtoshkola</div><div class="stat-value" id="gSchool">0</div><div class="gate-sub" id="gSchoolSub"></div></div>
+          <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-ticket" aria-hidden="true"></i></div><div class="stat-label">Chek olib kirmagan</div><div class="stat-value" id="gNoShow">0</div><div class="gate-sub">chek berilgan, turniketdan o'tmagan</div></div>
+          <div class="stat-card"><div class="stat-icon red"><i class="fa-solid fa-hand" aria-hidden="true"></i></div><div class="stat-label">Rad etilgan / qo'lda ochilgan</div><div class="stat-value" id="gDenied">0</div><div class="gate-sub" id="gDeniedSub"></div></div>
+        </div>
+
+        <div class="panel">
+          <h3 class="gate-h3"><i class="fa-solid fa-person-walking" style="color:var(--g)" aria-hidden="true"></i> Hozir ichkarida</h3>
+          <div class="text-muted gate-hint">Chiqishda chekni urmay ketgan bo'lsa, «Chiqdi» tugmasi bilan yoping — sabab jurnalga yoziladi.</div>
+          <div id="gateInsideWrap" aria-live="polite"></div>
+        </div>
+
+        <div class="panel">
+          <h3 class="gate-h3"><i class="fa-solid fa-chart-column" style="color:var(--blue)" aria-hidden="true"></i> Soatlar kesimida</h3>
+          <div class="text-muted gate-hint">Har soatda avtodromda nechta platniy va nechta avtoshkola o'quvchisi bo'lgan.</div>
+          <div id="gateHoursWrap"></div>
+        </div>
+
+        <div class="panel">
+          <h3 class="gate-h3"><i class="fa-solid fa-list-check" style="color:var(--g)" aria-hidden="true"></i> Kirish-chiqishlar</h3>
+          <div class="text-muted gate-hint">Tanlangan kunda berilgan barcha cheklar. Qizil — to'lagan vaqtidan oshgan.</div>
+          <div id="gatePassesWrap"></div>
+        </div>
+
+        <div class="panel">
+          <h3 class="gate-h3"><i class="fa-solid fa-clipboard-list" style="color:#b45309" aria-hidden="true"></i> Turniket jurnali</h3>
+          <div class="text-muted gate-hint">Har bir urilgan chek. Rad etilgan va qo'lda ochilganlar ajratib ko'rsatiladi.</div>
+          <div id="gateEventsWrap"></div>
         </div>
       </section>
 
@@ -2178,7 +2263,7 @@ function showLoginScreen() {
 const PAGE_TITLES = {
   add: 'Yangi avtomobil', active: 'Jarayonda', queue: 'Kutish rejimi', finish: 'Tugatish',
   frozen: 'Muzlatilgan', daily: 'Kunlik hisobot', history: 'Tarix', instructors: 'Instruktorlar',
-  kassa: 'QR chek — avtoshkola', control: 'Xatoliklar va aniqliklar'
+  kassa: 'QR chek — avtoshkola', control: 'Xatoliklar va aniqliklar', turniket: 'Turniket'
 };
 function go(page) {
   const el = $('p-' + page);
@@ -2203,6 +2288,7 @@ function go(page) {
   if (page === 'instructors') Instructors.load();
   if (page === 'kassa') Kassa.onEnter();
   if (page === 'control') Control.onEnter();
+  if (page === 'turniket') Gate.onEnter();
 }
 function closeSidebar() {
   $('side').classList.remove('open');
@@ -3355,7 +3441,10 @@ const Add = {
           const limitOshdi = qq ? num(qq.overLessons) > 0 : false;
           if (withChek && !limitOshdi) {
             const sid = (res && Array.isArray(res.ids) && res.ids[0]) ? String(res.ids[0]) : '';
+            /* Turniket kodi — chekdagi QR. Olinmasa chek QR'siz chiqadi. */
+            const gateCode = await Gate.codeFor(sid);
             EntryTicket80.printHidden({
+              gateCode: gateCode,
               person: stName(d.student),
               hours: n,
               total: jami,
@@ -3432,8 +3521,11 @@ const Add = {
         const soat = num(d.targetSeconds) > 0 ? (num(d.targetSeconds) / 3600) : this.lessonCount();
         /* Oraliq tanlangan bo'lsa chekda ham o'sha soat turadi */
         const boshlandi = d.payload.startAt ? new Date(d.payload.startAt) : new Date();
+        /* Turniket kodi — chekdagi QR. Olinmasa chek QR'siz chiqadi. */
+        const gateCode = await Gate.codeFor(res && (res.id || (res.session && res.session.id)));
         EntryTicket80.printHidden({
           kind: 'paid',
+          gateCode: gateCode,
           plate: displayPlate(d.payload.regionCode, d.body),
           model: d.payload.model || d.payload.vehicleModel || '',
           person: d.student ? stName(d.student) : '',
@@ -3716,6 +3808,374 @@ const Queue = {
 };
 
 
+/* ===================== TURNIKET =====================
+   Chekdagi QR (12 xonali kod) turniketda urilganda server kim kirgani
+   va chiqqanini yozadi (api/gate-routes.js). Bu bo'lim ko'rsatadi:
+   hozir ichkarida kim bor, kim to'lagan vaqtidan oshgan, kun bo'yicha
+   platniy va avtoshkola soatlari, turniket jurnali.
+   Turniket ekranining o'zi — alohida sahifa: /turniket */
+const Gate = {
+  data: null,
+  warnedAt: 0,
+  badgeAt: 0,
+  badgeOff: false,
+
+  /* Chek uchun turniket kodi. Xato bo'lsa chek baribir chiqadi, faqat
+     QR'siz — kassa navbati to'xtab qolmasin. */
+  async codeFor(sessionId) {
+    if (!sessionId) return '';
+    try {
+      const d = await api('/gate/passes', {
+        method: 'POST', body: jsonBody({ session_id: String(sessionId) }), timeout: 7000
+      });
+      return (d && d.pass && d.pass.code) || '';
+    } catch (e) {
+      console.warn('[turniket] kod olinmadi:', e);
+      if (Date.now() - this.warnedAt > 60000) {  /* bir daqiqada bir marta */
+        this.warnedAt = Date.now();
+        toast("Chek QR'siz chiqdi — turniket kodi olinmadi: " + (e.message || ''), 'warn');
+      }
+      return '';
+    }
+  },
+
+  onEnter() {
+    const i = $('gateDate');
+    if (i && !i.value) i.value = localDateISO(0);
+    this.load();
+  },
+  setOffset(off) {
+    if ($('gateDate')) $('gateDate').value = localDateISO(num(off));
+    this.load();
+  },
+
+  /* Ism + kichik qator. Platniy mijozning ismi yozilmagan bo'lsa
+     avtomobil raqami asosiy bo'ladi. */
+  whoHTML(p, extra) {
+    const main = p.person || p.plate || '—';
+    const sub = extra.concat(p.person ? [p.plate] : []).filter(Boolean);
+    return '<b>' + esc(main) + '</b>'
+      + (sub.length ? '<div class="text-muted" style="font-size:12px">' + esc(sub.join(' · ')) + '</div>' : '');
+  },
+  kindTag(k) {
+    return k === 'school'
+      ? '<span class="gate-kind school">AVTOSHKOLA</span>'
+      : '<span class="gate-kind paid">PLATNIY</span>';
+  },
+  /* 5400 -> «1.5» (soat, bitta kasr) */
+  h1(sec) { return String(Math.round(num(sec) / 360) / 10).replace('.', ','); },
+  /* Ichkaridagilar uchun vaqt — sahifa ochiq turganda ham to'g'ri bo'lsin */
+  usedNow(p) {
+    if (!p.in_at) return 0;
+    const end = p.out_at ? new Date(p.out_at) : new Date();
+    return Math.max(0, Math.round((end - new Date(p.in_at)) / 1000));
+  },
+  statusText(p) {
+    if (p.status === 'issued') return '<span class="badge badge-amber">Kirmagan</span>';
+    if (p.status === 'inside') return '<span class="badge badge-green">Ichkarida</span>';
+    if (p.status === 'cancelled') return '<span class="badge badge-blue">Bekor</span>';
+    if (p.closed_by === 'operator') return '<span class="badge badge-amber">Qo\'lda yopilgan</span>';
+    return '<span class="badge badge-green">Chiqdi</span>';
+  },
+  cashText(p) {
+    if (p.kind === 'school') return '<span class="text-muted">Davomat</span>';
+    const s = String(p.session_status || '');
+    if (s === 'active' || s === 'paused') return '<b style="color:var(--amber)">Vaqt ochiq</b>';
+    if (s === 'frozen') return '<span class="text-muted">Muzlatilgan</span>';
+    if (s === 'completed') return '<span style="color:var(--g-dark)">To\'langan</span>';
+    if (s === 'cancelled') return '<span class="text-muted">Bekor</span>';
+    return '—';
+  },
+
+  async load(silent) {
+    const host = $('gateInsideWrap');
+    const input = $('gateDate');
+    const date = (input && input.value) || localDateISO(0);
+    if (input && !input.value) input.value = date;
+    if (!silent && host) host.innerHTML = loadingLine('Yuklanmoqda...');
+    try {
+      const d = await api('/gate/overview?date=' + encodeURIComponent(date));
+      this.data = d || {};
+      this.render();
+    } catch (e) {
+      if (host) host.innerHTML = emptyState('fa-triangle-exclamation', 'Turniket ma\'lumoti olinmadi', e.message, true);
+      if (!silent && STATE.page === 'turniket') toast(e.message, 'error');
+    }
+  },
+
+  render() {
+    const d = this.data || {};
+    const sum = d.summary || {};
+    const P = sum.paid || {}, S = sum.school || {}, T = sum.total || {};
+    const inside = Array.isArray(d.inside) ? d.inside : [];
+    const devs = (d.devices || []).filter(x => !x.revoked_at);
+    const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+
+    /* Qurilma holati: oxirgi aloqa 3 daqiqadan eski bo'lsa ogohlantiramiz */
+    let devInfo;
+    if (!devs.length) {
+      devInfo = '<b class="text-red">Turniket qurilmasi ulanmagan</b> — «Qurilmalar» tugmasini bosing.';
+    } else {
+      devInfo = devs.map(x => {
+        const seen = x.last_seen_at ? new Date(x.last_seen_at) : null;
+        const fresh = seen && (Date.now() - seen) < 3 * 60 * 1000;
+        return esc(x.name) + ': ' + (fresh ? '<b style="color:var(--g-dark)">ishlayapti</b>'
+          : '<b class="text-red">' + (seen ? 'aloqa yo\'q (' + esc(timeOnly(seen)) + ' dan beri)' : 'hali ulanmagan') + '</b>');
+      }).join(' · ');
+    }
+    const info = $('gateInfo');
+    if (info) info.innerHTML = 'Sana: <b>' + esc(fmtDate(d.date)) + '</b> · Chegirma: <b>'
+      + num(d.graceMinutes) + ' daqiqa</b> · ' + devInfo;
+
+    const overNow = inside.filter(x => x.overdue).length;
+    set('gInside', inside.length);
+    set('gInsideSub', inside.length
+      ? 'platniy ' + inside.filter(x => x.kind !== 'school').length + ' · avtoshkola ' + inside.filter(x => x.kind === 'school').length
+      : (d.isToday ? 'hech kim yo\'q' : ''));
+    set('gOverdue', d.isToday ? overNow : num(T.overdue));
+    set('gOverSub', (d.isToday ? 'kun bo\'yi: ' + num(T.overdue) + ' ta · ' : '') + 'ortiqcha ' + durShort(T.overSeconds));
+    set('gPaid', num(P.entered));
+    set('gPaidSub', this.h1(num(P.paidMinutes) * 60) + ' soat to\'langan · ' + this.h1(P.usedSeconds) + ' soat bo\'ldi');
+    set('gSchool', num(S.entered));
+    set('gSchoolSub', this.h1(num(S.paidMinutes) * 60) + ' soat dars · ' + this.h1(S.usedSeconds) + ' soat bo\'ldi');
+    set('gNoShow', num(T.noShow));
+    set('gDenied', num(d.denied) + ' / ' + num(d.manual));
+    set('gDeniedSub', 'rad etilgan / qo\'lda ochilgan');
+    if (d.isToday) this.setBadge(overNow);
+
+    this.renderInside(inside, d.isToday);
+    this.renderHours(d.hours || []);
+    this.renderPasses(d.passes || []);
+    this.renderEvents(d.events || []);
+  },
+
+  renderInside(rows, isToday) {
+    const host = $('gateInsideWrap'); if (!host) return;
+    if (!rows.length) {
+      host.innerHTML = emptyState('fa-circle-check', isToday ? 'Hozir ichkarida hech kim yo\'q' : 'Bu kun uchun ko\'rsatilmaydi',
+        isToday ? 'O\'quvchi chekni turniketga urib kirganda shu yerda paydo bo\'ladi.' : 'Hozir ichkaridagilar faqat bugungi kunda ko\'rinadi.');
+      return;
+    }
+    const cols = ['O\'quvchi', 'Turi', 'Kirdi', 'O\'tdi', 'To\'langan', 'Qoldi / oshdi', 'Kassa', ''];
+    host.innerHTML = '<div class="table-wrap responsive"><table class="tbl"><thead><tr>'
+      + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
+      + rows.map(p => {
+        const used = this.usedNow(p), paid = num(p.paid_minutes) * 60, over = used - paid;
+        const late = over > num((this.data || {}).graceMinutes) * 60;
+        const who = this.whoHTML(p, [p.instructor]);
+        const left = over > 0
+          ? '<b style="color:' + (late ? 'var(--red)' : 'var(--amber)') + '">+' + esc(durShort(over)) + ' oshdi</b>'
+          : '<span style="color:var(--g-dark)">' + esc(durShort(-over)) + ' qoldi</span>';
+        const cells = [who, this.kindTag(p.kind), esc(timeOnly(p.in_at)), esc(durShort(used)),
+          esc(durShort(paid)), left, this.cashText(p),
+          '<button class="btn btn-light" type="button" data-act="gateClose" data-id="' + esc(p.id) + '">Chiqdi</button>'];
+        return '<tr class="' + (late ? 'row-att-red' : '') + '">'
+          + cells.map((c, i) => '<td data-label="' + esc(cols[i] || 'Amal') + '">' + c + '</td>').join('') + '</tr>';
+      }).join('')
+      + '</tbody></table></div>';
+  },
+
+  renderHours(hours) {
+    const host = $('gateHoursWrap'); if (!host) return;
+    const busy = hours.filter(h => num(h.paid) + num(h.school) > 0);
+    if (!busy.length) { host.innerHTML = emptyState('fa-chart-column', 'Ma\'lumot yo\'q', 'Bu kunda turniketdan hech kim o\'tmagan.'); return; }
+    const from = Math.min(8, busy[0].hour), to = Math.max(19, busy[busy.length - 1].hour);
+    const max = Math.max.apply(null, hours.map(h => num(h.paid) + num(h.school)).concat([1]));
+    host.innerHTML = '<div class="gate-legend"><span><i class="paid"></i>Platniy</span><span><i class="school"></i>Avtoshkola</span></div>'
+      + hours.filter(h => h.hour >= from && h.hour <= to).map(h => {
+        const p = num(h.paid), s = num(h.school);
+        return '<div class="gate-bar-row"><span class="t">' + String(h.hour).padStart(2, '0') + ':00</span>'
+          + '<div class="gate-bar" role="img" aria-label="' + p + ' platniy, ' + s + ' avtoshkola">'
+          + (p ? '<i class="paid" style="width:' + (p / max * 100) + '%"></i>' : '')
+          + (s ? '<i class="school" style="width:' + (s / max * 100) + '%"></i>' : '')
+          + '</div><span class="n">' + p + ' / ' + s + '</span></div>';
+      }).join('');
+  },
+
+  renderPasses(rows) {
+    const host = $('gatePassesWrap'); if (!host) return;
+    if (!rows.length) { host.innerHTML = emptyState('fa-ticket', 'Chek yo\'q', 'Bu kunda QR kodli chek berilmagan.'); return; }
+    const cols = ['O\'quvchi', 'Turi', 'Kod', 'Kirdi', 'Chiqdi', 'Bo\'ldi', 'To\'langan', 'Ortiqcha', 'Holat'];
+    host.innerHTML = '<div class="table-wrap responsive"><table class="tbl"><thead><tr>'
+      + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
+      + rows.map(p => {
+        const used = this.usedNow(p);
+        const over = p.in_at ? Math.max(0, used - num(p.paid_minutes) * 60) : 0;
+        const late = over > num((this.data || {}).graceMinutes) * 60;
+        const who = this.whoHTML(p, [p.school, p.instructor])
+          + (p.note ? '<div class="text-muted" style="font-size:12px">' + esc(p.note) + '</div>' : '');
+        const cells = [who, this.kindTag(p.kind), '<span class="text-muted">…' + esc(String(p.code || '').slice(-4)) + '</span>',
+          esc(timeOnly(p.in_at)), esc(timeOnly(p.out_at)), p.in_at ? esc(durShort(used)) : '—',
+          esc(durShort(num(p.paid_minutes) * 60)),
+          over > 0 ? '<b style="color:' + (late ? 'var(--red)' : 'var(--amber)') + '">+' + esc(durShort(over)) + '</b>' : '—',
+          this.statusText(p)];
+        return '<tr class="' + (late ? 'row-att-red' : '') + '">'
+          + cells.map((c, i) => '<td data-label="' + esc(cols[i]) + '">' + c + '</td>').join('') + '</tr>';
+      }).join('')
+      + '</tbody></table></div>';
+  },
+
+  renderEvents(rows) {
+    const host = $('gateEventsWrap'); if (!host) return;
+    if (!rows.length) { host.innerHTML = emptyState('fa-clipboard-list', 'Jurnal bo\'sh', 'Turniketda hali chek urilmagan.'); return; }
+    const label = e => {
+      const dir = String(e.direction || '');
+      if (e.result === 'denied') return '<span class="badge badge-red">Rad etildi</span>';
+      if (dir === 'in') return '<span class="badge badge-green">Kirdi</span>';
+      if (dir === 'out') return '<span class="badge badge-blue">Chiqdi</span>';
+      if (dir === 'manual_in') return '<span class="badge badge-amber">Qo\'lda: kirish</span>';
+      if (dir === 'manual_out') return '<span class="badge badge-amber">Qo\'lda: chiqish</span>';
+      if (dir === 'cancel') return '<span class="badge badge-blue">Bekor qilindi</span>';
+      return '<span class="badge badge-green">OK</span>';
+    };
+    const cols = ['Vaqt', 'Natija', 'Kim', 'Izoh', 'Qurilma'];
+    host.innerHTML = '<div class="table-wrap responsive"><table class="tbl"><thead><tr>'
+      + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
+      + rows.map(e => {
+        const bad = e.result === 'denied' || /^manual/.test(String(e.direction || ''));
+        const cells = [esc(timeOnly(e.at)), label(e),
+          e.person_name ? esc(e.person_name) + ' ' + (e.kind ? this.kindTag(e.kind) : '') : '<span class="text-muted">—</span>',
+          esc(e.reason || '') + (e.offline ? ' <span class="text-muted">(internetsiz)</span>' : ''),
+          esc(e.device_name || '—')];
+        return '<tr class="' + (e.result === 'denied' ? 'row-att-red' : bad ? 'row-att-blue' : '') + '">'
+          + cells.map((c, i) => '<td data-label="' + esc(cols[i]) + '">' + c + '</td>').join('') + '</tr>';
+      }).join('')
+      + '</tbody></table></div>';
+  },
+
+  setBadge(n) {
+    const el = $('gateCount');
+    if (el) el.textContent = num(n) > 0 ? String(num(n)) : '';
+  },
+  /* Menyudagi qizil belgi — boshqa sahifada turganda ham vaqtidan oshgan
+     o'quvchi borligi ko'rinsin. Daqiqada bir marta so'raladi. */
+  async pollBadge() {
+    if (this.badgeOff || Date.now() - this.badgeAt < 60000) return;
+    this.badgeAt = Date.now();
+    try {
+      const d = await api('/gate/alerts');
+      this.setBadge(d && d.overdue);
+    } catch (e) {
+      /* Server hali yangilanmagan bo'lsa qayta-qayta so'ramaymiz */
+      if (e && e.status === 404) this.badgeOff = true;
+    }
+  },
+
+  /* ===== Chekni urmay chiqib ketgan odamni yopish ===== */
+  closeAsk(id) {
+    const p = ((this.data || {}).inside || []).find(x => String(x.id) === String(id));
+    if (!p) return;
+    openModal('<div class="modal-head"><div><h2>Chiqdi deb belgilash</h2><p class="text-muted">'
+      + esc(p.person || '—') + ' · kirdi ' + esc(timeOnly(p.in_at)) + '. Vaqt hozirgi payt bilan yopiladi.</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div class="fg"><label for="gateCloseReason">Sabab</label>'
+      + '<textarea id="gateCloseReason" rows="3" placeholder="Masalan: chiqishda chekni urmay ketdi"></textarea></div>'
+      + '<div id="gateCloseErr" class="text-error" role="alert"></div>'
+      + '<div class="actions-row"><button class="btn btn-green" type="button" data-act="gateCloseDo" data-id="' + esc(p.id) + '">Yopish</button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>');
+  },
+  async closeDo(id, btn) {
+    const reason = ($('gateCloseReason') && $('gateCloseReason').value.trim()) || '';
+    if (reason.length < 3) { setError('gateCloseErr', 'Sababni yozing.'); return; }
+    await withBusy('gateClose:' + id, btn, async () => {
+      try {
+        await api('/gate/passes/' + encodeURIComponent(id) + '/close', { method: 'POST', body: jsonBody({ reason: reason }) });
+        closeModal();
+        toast('Yopildi.');
+        this.load(true);
+      } catch (e) { setError('gateCloseErr', e.message); }
+    });
+  },
+
+  /* ===== Qurilmalar va sozlama ===== */
+  async devices() {
+    openModal('<div class="modal-head"><div><h2>Turniket qurilmalari</h2>'
+      + '<p class="text-muted">Turniket yonidagi kompyuter shu yerda beriladigan havola orqali ulanadi.</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div id="gateDevList">' + loadingLine('Yuklanmoqda...') + '</div>'
+      + '<div id="gateNewKey"></div>'
+      + '<div class="divider"></div>'
+      + '<div class="fg"><label for="gateDevName">Yangi qurilma nomi</label>'
+      + '<input id="gateDevName" placeholder="Masalan: Kirish turniketi" maxlength="60"></div>'
+      + '<button class="btn btn-green btn-block" type="button" data-act="gateAddDevice"><i class="fa-solid fa-plus" aria-hidden="true"></i> Qurilma qo\'shish</button>'
+      + '<div class="divider"></div>'
+      + '<div class="fg"><label for="gateGrace">Chegirma (daqiqa)</label>'
+      + '<input id="gateGrace" type="number" min="0" max="240" step="5" inputmode="numeric"></div>'
+      + '<div class="text-muted" style="font-size:12px;margin:-4px 0 10px">O\'quvchi to\'lagan vaqtidan shuncha daqiqagacha oshsa ham qizil bo\'lmaydi (navbat kutish, kiyinish).</div>'
+      + '<button class="btn btn-light btn-block" type="button" data-act="gateSaveGrace">Chegirmani saqlash</button>'
+      + '<div id="gateDevErr" class="text-error" role="alert"></div>', { wide: true, noFocus: true });
+    try {
+      const [dl, st] = await Promise.all([api('/gate/devices'), api('/gate/settings')]);
+      if ($('gateGrace')) $('gateGrace').value = num(st && st.grace_minutes);
+      this.renderDevices((dl && dl.devices) || []);
+    } catch (e) { setError('gateDevErr', e.message); }
+  },
+  renderDevices(list) {
+    const host = $('gateDevList'); if (!host) return;
+    const live = list.filter(x => !x.revoked_at);
+    if (!live.length) { host.innerHTML = '<div class="text-muted" style="font-size:13px">Hali qurilma qo\'shilmagan.</div>'; return; }
+    host.innerHTML = live.map(x => '<div class="gate-dev"><div><b>' + esc(x.name) + '</b>'
+      + '<div class="text-muted" style="font-size:12px">Qo\'shilgan: ' + esc(dt(x.created_at))
+      + ' · Oxirgi aloqa: ' + esc(x.last_seen_at ? dt(x.last_seen_at) : 'hali yo\'q') + '</div></div>'
+      + '<button class="btn btn-ghost" type="button" data-act="gateRevoke" data-id="' + esc(x.id) + '">O\'chirish</button></div>').join('');
+  },
+  async addDevice(btn) {
+    const name = ($('gateDevName') && $('gateDevName').value.trim()) || 'Kirish turniketi';
+    await withBusy('gateAddDevice', btn, async () => {
+      try {
+        const d = await api('/gate/devices', { method: 'POST', body: jsonBody({ name: name }) });
+        const link = location.origin + '/turniket#k=' + encodeURIComponent(d.key);
+        let qr = '';
+        try {
+          if (typeof qrcode === 'function') {
+            const q = qrcode(0, 'M'); q.addData(link); q.make();
+            qr = q.createSvgTag({ cellSize: 3, margin: 4, scalable: false });
+          }
+        } catch (e) { qr = ''; }
+        const host = $('gateNewKey');
+        if (host) host.innerHTML = '<div style="margin:12px 0;padding:14px;border-radius:14px;background:var(--g-surface);border:1px solid #a7f3d0">'
+          + '<div style="font-weight:800;color:var(--g-dark);margin-bottom:4px">«' + esc(d.device.name) + '» qo\'shildi</div>'
+          + '<div style="font-size:13px;color:var(--text-secondary)">Shu havolani <b>turniket yonidagi kompyuterda</b> (Chrome yoki Edge) oching. '
+          + 'Havola faqat hozir ko\'rinadi — yo\'qolsa qurilmani o\'chirib, yangisini qo\'shasiz.</div>'
+          + '<div class="gate-link" id="gateLinkText" style="margin-top:8px">' + esc(link) + '</div>'
+          + (qr ? '<div style="margin-top:8px;text-align:center">' + qr + '</div>' : '')
+          + '<div class="actions-row" style="margin-top:8px"><button class="btn btn-green" type="button" data-act="gateCopyLink">Nusxalash</button></div></div>';
+        this.lastLink = link;
+        if ($('gateDevName')) $('gateDevName').value = '';
+        const dl = await api('/gate/devices');
+        this.renderDevices((dl && dl.devices) || []);
+      } catch (e) { setError('gateDevErr', e.message); }
+    });
+  },
+  async copyLink() {
+    try { await navigator.clipboard.writeText(this.lastLink || ''); toast('Havola nusxalandi.'); }
+    catch (e) {
+      const el = $('gateLinkText');
+      if (el) { const r = document.createRange(); r.selectNodeContents(el); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+      toast('Havolani belgilab, Ctrl+C bosing.', 'warn');
+    }
+  },
+  async revoke(id) {
+    if (!confirm("Qurilma o'chirilsinmi? U turniketni ochishni to'xtatadi.")) return;
+    try {
+      await api('/gate/devices/' + encodeURIComponent(id) + '/revoke', { method: 'POST', body: '{}' });
+      const dl = await api('/gate/devices');
+      this.renderDevices((dl && dl.devices) || []);
+      toast('Qurilma o\'chirildi.');
+    } catch (e) { setError('gateDevErr', e.message); }
+  },
+  async saveGrace(btn) {
+    const v = Math.max(0, Math.min(240, Math.round(num($('gateGrace') && $('gateGrace').value))));
+    await withBusy('gateGrace', btn, async () => {
+      try {
+        await api('/gate/settings', { method: 'PUT', body: jsonBody({ grace_minutes: v }) });
+        toast('Chegirma: ' + v + ' daqiqa.');
+        if (STATE.page === 'turniket') this.load(true);
+      } catch (e) { setError('gateDevErr', e.message); }
+    });
+  }
+};
+
 /* ENTRY TICKET 80mm: print-only; no API writes, timer or payment changes. */
 const EntryTicket80 = {
   draftKey: '', draft: null,
@@ -3753,7 +4213,14 @@ const EntryTicket80 = {
     const v = STATE.active.find(x => String(x.id) === String(id));
     if (!v) { toast('Sessiya topilmadi. Ro‘yxatni yangilang.', 'error'); return; }
     const student = v.student_id ? Data.studentById(v.student_id) : null;
-    this.open({
+    /* Oyna DARHOL ochiladi (brauzer pop-up'ga faqat bosish paytida ruxsat
+       beradi), turniket kodi kelgach ichi to'ldiriladi. Qayta chop
+       etilganda ham o'sha kod chiqadi. */
+    const w = window.open('', '_blank', 'width=440,height=760');
+    if (!w) { toast('Talon uchun brauzerda yangi oynalarga ruxsat bering.', 'error'); return; }
+    try { w.document.write('<p style="font-family:Arial;padding:24px">Talon tayyorlanmoqda...</p>'); } catch (e) { /* noop */ }
+    Gate.codeFor(v.id).then(code => this.open({
+      gateCode: code,
       id: 'S-' + String(v.id), issued: v.started_at,
       plate: v.plate || displayPlate(v.region_code, v.plate_body), model: v.model,
       type: isSchoolSession(v) ? "Avtoshkola o'quvchisi" : 'Oddiy mijoz',
@@ -3762,7 +4229,7 @@ const EntryTicket80 = {
       group: v.group_name || (student && student.group_name) || Data.groupName(v.group_id),
       minutes: sessionTiming(v).target / 60,
       state: 'Mashg‘ulot boshlangan'
-    });
+    }, w));
   },
   /* ============ QISQA DAVOMAT CHEKI ============
      «Davomat yozish» bosilganda chiqadi. Faqat kerakli ma'lumot:
@@ -3778,6 +4245,31 @@ const EntryTicket80 = {
      `.badge` — qora fonda oq yozuv. Termal printer faqat qora
      bosadi, shuning uchun «rangli» belgi o'rniga TESKARI (inversiya)
      katak ishlatiladi: uzoqdan ham darrov ko'zga tashlanadi. */
+  /* ===== TURNIKET QR =====
+     Kod — 12 xonali raqam. Chekda QR va uning ostida raqamning o'zi
+     turadi: skaner o'qimasa qo'riqchi raqamni qo'lda teradi. Kod
+     olinmagan bo'lsa (internet, server) chek QR'siz chiqaveradi. */
+  gateCSS() {
+    return '.gate{text-align:center;margin:8px 0 6px;padding:6px 0;border:2px solid #000}'
+      + '.gate-qr svg{display:block;margin:0 auto}'
+      + '.gate-code{font-family:Consolas,monospace;font-size:19px;font-weight:900;letter-spacing:2px;margin-top:2px}'
+      + '.gate-t{font-size:11px;font-weight:700;margin-top:2px}';
+  },
+  gateBlock(code) {
+    if (!code) return '';
+    let svg = '';
+    try {
+      if (typeof qrcode === 'function') {
+        const q = qrcode(0, 'M'); q.addData(String(code)); q.make();
+        svg = q.createSvgTag({ cellSize: 5, margin: 4, scalable: false });
+      }
+    } catch (e) { svg = ''; }
+    const pretty = String(code).replace(/(\d{4})(?=\d)/g, '$1 ');
+    return '<div class="gate">' + (svg ? '<div class="gate-qr">' + svg + '</div>' : '')
+      + '<div class="gate-code">' + esc(pretty) + '</div>'
+      + '<div class="gate-t">TURNIKETGA KIRISHDA VA CHIQISHDA TUTING</div></div>';
+  },
+
   ticketCSS() {
     return '*{box-sizing:border-box}'
       + 'body{margin:0;background:#eee;color:#000;font-family:Arial,sans-serif}'
@@ -3810,6 +4302,7 @@ const EntryTicket80 = {
       + '.stub-r{font-size:12px}'
       + '.sign{margin-top:10px;font-size:11px}'
       + '.pad{height:8mm}'
+      + this.gateCSS()
       + '@media print{@page{size:80mm auto;margin:0}html,body{width:80mm;background:#fff}'
       + '.tb{display:none}.t{margin:0;width:80mm;padding:4mm}}';
   },
@@ -3873,6 +4366,7 @@ const EntryTicket80 = {
          «birinchi darsim» deb tushunib chalkashardi. Endi chekning
          nima ekani yozilgan, darslar soni esa pastdagi qatorda. */
       + '<div class="big">KIRISH TALONI</div>'
+      + this.gateBlock(data.gateCode)
       + row('Kelish maqsadi', 'Avtodromda amaliy haydash')
       + row('Bugungi dars', dars + ' ta')
       + row('Avtoshkola', data.school)
@@ -3916,6 +4410,7 @@ const EntryTicket80 = {
       + '<div class="h">Avtodromdan foydalanish</div>'
       + '<div class="badge">PLATNIY<small>TO‘LOVLI XIZMAT</small></div>'
       + '<div class="big">' + esc(data.plate || '—') + '</div>'
+      + this.gateBlock(data.gateCode)
       /* Summa va narx chekda ko'rsatilmaydi — to'lov kassada
          hisoblanadi, chek esa faqat kirishni tasdiqlaydi. */
       + row('Rusumi', data.model)
@@ -3986,15 +4481,16 @@ const EntryTicket80 = {
     } catch (e) { console.error('[chek]', e); }
   },
 
-  open(data) {
-    const w = window.open('', '_blank', 'width=440,height=760');
-    if (!w) { toast('Talon uchun brauzerda yangi oynalarga ruxsat bering.', 'error'); return; }
+  open(data, win) {
+    const w = win || window.open('', '_blank', 'width=440,height=760');
+    if (!w || w.closed) { toast('Talon uchun brauzerda yangi oynalarga ruxsat bering.', 'error'); return; }
     const row = (label, value) => value ? '<div class="row"><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong></div>' : '';
     const time = new Date(data.issued);
     const when = Number.isNaN(time.getTime()) ? '—' : time.toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent', year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit' });
     const html = '<!doctype html><html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>INDEX — Kirish taloni</title><style>'
-      + '*{box-sizing:border-box}body{margin:0;background:#eee;color:#000;font-family:Arial,sans-serif}.toolbar{padding:16px;text-align:center;font-size:14px}.toolbar button{padding:12px 20px;font-size:16px;cursor:pointer}.ticket{width:80mm;padding:4mm;margin:12px auto;background:white;font-size:15px;line-height:1.35}.brand{font-size:23px;font-weight:900;text-align:center}.title{text-align:center;font-size:20px;margin:8px 0;font-weight:800}.plate{text-align:center;font-weight:900;font-size:29px;border:2px solid black;padding:8px 2px;margin:12px 0;overflow-wrap:anywhere}.type{text-align:center;font-size:18px;font-weight:700}.row{padding:7px 0;border-bottom:1px dashed #777;break-inside:avoid}.row span{display:block;font-size:12px}.row strong{display:block;font-size:17px;overflow-wrap:anywhere}.code{font-size:11px;overflow-wrap:anywhere;margin-top:12px}.footer{text-align:center;font-size:13px;margin-top:12px}@media print{@page{size:auto;margin:0}html,body{width:80mm;background:white}.toolbar{display:none}.ticket{margin:0;width:80mm;padding:4mm}}'
+      + '*{box-sizing:border-box}body{margin:0;background:#eee;color:#000;font-family:Arial,sans-serif}.toolbar{padding:16px;text-align:center;font-size:14px}.toolbar button{padding:12px 20px;font-size:16px;cursor:pointer}.ticket{width:80mm;padding:4mm;margin:12px auto;background:white;font-size:15px;line-height:1.35}.brand{font-size:23px;font-weight:900;text-align:center}.title{text-align:center;font-size:20px;margin:8px 0;font-weight:800}.plate{text-align:center;font-weight:900;font-size:29px;border:2px solid black;padding:8px 2px;margin:12px 0;overflow-wrap:anywhere}.type{text-align:center;font-size:18px;font-weight:700}.row{padding:7px 0;border-bottom:1px dashed #777;break-inside:avoid}.row span{display:block;font-size:12px}.row strong{display:block;font-size:17px;overflow-wrap:anywhere}.code{font-size:11px;overflow-wrap:anywhere;margin-top:12px}.footer{text-align:center;font-size:13px;margin-top:12px}' + this.gateCSS() + '@media print{@page{size:auto;margin:0}html,body{width:80mm;background:white}.toolbar{display:none}.ticket{margin:0;width:80mm;padding:4mm}}'
       + '</style></head><body><div class="toolbar"><button id="printTicket" type="button">Chop etish — 80 mm</button><p>USB printer • 80 mm • Masshtab 100%<br>Sarlavha va pastki yozuvlarni o‘chiring.</p></div><main class="ticket"><div class="brand">INDEX AVTODROM</div><div class="title">KIRISH TALONI</div><div class="type">' + esc(data.type) + '</div><div class="plate">' + esc(data.plate) + '</div>'
+      + this.gateBlock(data.gateCode)
       + row('Kelish maqsadi', 'Amaliy haydash mashg‘uloti') + row('Ism-familiya', data.person)
       + row('Avtomobil modeli', data.model) + row('Avtoshkola', data.school) + row('Guruh', data.group)
       + row('Instruktor', data.instructor)
@@ -7995,6 +8491,17 @@ const ACTIONS = {
   exportControl: () => Control.exportExcel(),
   controlDetails: d => Control.details(d.key),
 
+  /* --- turniket --- */
+  gateLoad: () => Gate.load(),
+  gateOffset: d => Gate.setOffset(d.off),
+  gateClose: d => Gate.closeAsk(d.id),
+  gateCloseDo: (d, el) => Gate.closeDo(d.id, el),
+  gateDevices: () => Gate.devices(),
+  gateAddDevice: (d, el) => Gate.addDevice(el),
+  gateCopyLink: () => Gate.copyLink(),
+  gateRevoke: d => Gate.revoke(d.id),
+  gateSaveGrace: (d, el) => Gate.saveGrace(el),
+
   /* --- yangi avtomobil --- */
   setType: d => Add.setType(d.type),
   setHours: d => {
@@ -8203,6 +8710,7 @@ function wireInputs() {
   if ($('frozenQ')) $('frozenQ').addEventListener('input', debounce(() => Frozen.render(), CONFIG.DEBOUNCE));
   if ($('instrQ')) $('instrQ').addEventListener('input', debounce(() => Instructors.render(), CONFIG.DEBOUNCE));
   if ($('reportDate')) $('reportDate').addEventListener('change', () => Reports.loadDaily());
+  if ($('gateDate')) $('gateDate').addEventListener('change', () => Gate.load());
   /* Admin ichidagi maydonlar dinamik yaratiladi — delegatsiya orqali */
   document.addEventListener('input', debounce(e => {
     if (e.target && e.target.id === 'adminStudentQ') { Admin.studentLimit = 50; Admin.renderStudents(); }
@@ -8228,6 +8736,7 @@ function startPolling() {
     if (!adminOpen) {
       if (STATE.page === 'active' || STATE.page === 'finish' || STATE.page === 'queue') Active.load(true);
       if (STATE.page === 'frozen') Frozen.load(true);
+      if (STATE.page === 'turniket') Gate.load(true); else Gate.pollBadge();
     }
     if (STATE.admin.token && Admin.tab === 'dashboard' && adminOpen) Admin.realtime();
   }, CONFIG.POLL_ACTIVE_MS);

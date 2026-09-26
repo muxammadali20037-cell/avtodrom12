@@ -49,6 +49,23 @@ function ensureCompatSchema() {
       /* NAZORAT: vaqt kim uchun ochilgani va necha soatga ochilgani */
       await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS instructor_id TEXT`);
       await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS target_duration INTEGER`);
+      /* Davomatni bekor qilish status='cancelled' yozadi. Eski bazalarda
+         sessions_status cheklovi faqat active/frozen/completed ga ruxsat
+         beradi va bekor qilish «violates check constraint» bilan
+         yiqilardi. Cheklov faqat 'cancelled' yo'q bo'lsa yangilanadi;
+         NOT VALID — eski qatorlar qayta tekshirilmaydi. */
+      await q(`
+        DO $do$ BEGIN
+          IF EXISTS (SELECT 1 FROM pg_constraint
+                      WHERE conrelid = 'public.sessions'::regclass
+                        AND conname IN ('sessions_status','sessions_status_check')
+                        AND pg_get_constraintdef(oid) NOT LIKE '%cancelled%') THEN
+            ALTER TABLE public.sessions DROP CONSTRAINT IF EXISTS sessions_status;
+            ALTER TABLE public.sessions DROP CONSTRAINT IF EXISTS sessions_status_check;
+            ALTER TABLE public.sessions ADD CONSTRAINT sessions_status
+              CHECK (status IN ('active','paused','frozen','completed','cancelled')) NOT VALID;
+          END IF;
+        END $do$`);
       await q(`CREATE INDEX IF NOT EXISTS idx_sessions_instructor_day
                ON sessions(instructor_id, started_at)`);
       await q(`CREATE INDEX IF NOT EXISTS idx_sessions_student_done
@@ -133,6 +150,9 @@ export async function handleCompatRequest(req, res) {
   const isCompatRoute =
     (req.method === 'POST' && (pathname === '/api/sessions/start' || pathname === '/api/student-bulk')) ||
     (req.method === 'POST' && pathname === '/api/attendance') ||
+    /* Davomatni bekor qilish. Bu qator bo'lmasa quyidagi bekor qilish
+       bloki hech qachon ishlamasdi — so'rov Express'ga o'tib 404 berardi. */
+    (req.method === 'POST' && /^\/api\/sessions\/[^/]+\/cancel$/.test(pathname)) ||
     (req.method === 'POST' && pathname === '/api/group-bulk') ||
     (req.method === 'GET' && pathname === '/api/duplicates') ||
     (req.method === 'POST' && pathname === '/api/duplicates/merge') ||
