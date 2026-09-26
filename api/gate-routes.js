@@ -156,6 +156,9 @@ export function ensureGateSchema() {
         grace_minutes INTEGER NOT NULL DEFAULT ${DEFAULT_GRACE_MIN},
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`);
+    /* Chekka QR chiqsinmi. Boshida O'CHIQ: turniket o'rnatilmaguncha
+       chek avvalgidek chiqadi, kassa kod so'rab kutmaydi. */
+    await q(`ALTER TABLE gate_settings ADD COLUMN IF NOT EXISTS qr_on_ticket BOOLEAN NOT NULL DEFAULT FALSE`);
     if (first.length) { schemaPromise = null; throw first[0]; }
   })().catch(e => { schemaPromise = null; throw e; });
   return schemaPromise;
@@ -446,8 +449,9 @@ async function overview(req, res, user, search) {
     SELECT id, name, created_at, last_seen_at, revoked_at FROM gate_devices
      WHERE user_id=$1 ORDER BY revoked_at NULLS FIRST, created_at DESC`, [user]);
 
+  const qrOn = (await settingsOf(user)).qr_on_ticket;
   return send(res, 200, {
-    date, isToday, now: now.toISOString(), graceMinutes: grace,
+    date, isToday, now: now.toISOString(), graceMinutes: grace, qrOnTicket: qrOn,
     summary: sum, denied, manual,
     inside: passes.filter(p => p.status === 'inside')
                   .sort((a, b) => b.over_seconds - a.over_seconds || a.left_seconds - b.left_seconds),
@@ -517,16 +521,32 @@ async function revokeDevice(req, res, user, id) {
   return send(res, 200, { ok: true });
 }
 
-async function readSettings(req, res, user) {
-  return send(res, 200, { grace_minutes: await graceMinutes(user) });
+async function settingsOf(user) {
+  const r = await pool.query(`SELECT grace_minutes, qr_on_ticket FROM gate_settings WHERE user_id=$1`, [user]);
+  const row = r.rows[0];
+  return {
+    grace_minutes: row ? Math.max(0, num(row.grace_minutes)) : DEFAULT_GRACE_MIN,
+    qr_on_ticket: !!(row && row.qr_on_ticket),
+  };
 }
+async function readSettings(req, res, user) {
+  return send(res, 200, await settingsOf(user));
+}
+/** Faqat yuborilgan maydon o'zgaradi: chegirmani saqlash QR sozlamasini
+    o'chirib yubormasin va aksincha. */
 async function writeSettings(req, res, user) {
   const b = await readBody(req);
-  const g = Math.min(240, Math.max(0, Math.round(num(b.grace_minutes ?? b.graceMinutes))));
+  const cur = await settingsOf(user);
+  const rawG = b.grace_minutes ?? b.graceMinutes;
+  const g = rawG === undefined || rawG === null || rawG === ''
+    ? cur.grace_minutes : Math.min(240, Math.max(0, Math.round(num(rawG))));
+  const rawQ = b.qr_on_ticket ?? b.qrOnTicket;
+  const qr = rawQ === undefined || rawQ === null ? cur.qr_on_ticket : (rawQ === true || rawQ === 'true' || rawQ === 1);
   await pool.query(`
-    INSERT INTO gate_settings(user_id, grace_minutes, updated_at) VALUES($1,$2,NOW())
-    ON CONFLICT (user_id) DO UPDATE SET grace_minutes=EXCLUDED.grace_minutes, updated_at=NOW()`, [user, g]);
-  return send(res, 200, { grace_minutes: g });
+    INSERT INTO gate_settings(user_id, grace_minutes, qr_on_ticket, updated_at) VALUES($1,$2,$3,NOW())
+    ON CONFLICT (user_id) DO UPDATE SET grace_minutes=EXCLUDED.grace_minutes,
+      qr_on_ticket=EXCLUDED.qr_on_ticket, updated_at=NOW()`, [user, g, qr]);
+  return send(res, 200, { grace_minutes: g, qr_on_ticket: qr });
 }
 
 /* =========================================================================

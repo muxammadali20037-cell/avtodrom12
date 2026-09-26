@@ -2245,6 +2245,8 @@ function bootInner() {
   Data.preload();
   go('add');
   startPolling();
+  /* Chekka QR chiqsinmi — sozlamani bir marta o'qib olamiz */
+  Gate.loadSettings();
   /* Kunlik hisobotni bir marta oldindan yuklaymiz — "Bugungi tushum" KPI va
      o'quvchining bugungi darslari shu ma'lumotdan olinadi. */
   Reports.loadDaily();
@@ -3819,11 +3821,23 @@ const Gate = {
   warnedAt: 0,
   badgeAt: 0,
   badgeOff: false,
+  /* Chekka QR chiqsinmi — «Turniket → Qurilmalar» dagi sozlama. Boshida
+     O'CHIQ: turniket o'rnatilmaguncha chek avvalgidek chiqadi va kassa
+     serverdan kod so'rab kutmaydi. Sozlama o'qilmasa ham o'chiq qoladi. */
+  qrOn: false,
+
+  async loadSettings() {
+    try {
+      const st = await api('/gate/settings');
+      this.qrOn = !!(st && st.qr_on_ticket);
+    } catch (e) { this.qrOn = false; }
+    return this.qrOn;
+  },
 
   /* Chek uchun turniket kodi. Xato bo'lsa chek baribir chiqadi, faqat
      QR'siz — kassa navbati to'xtab qolmasin. */
   async codeFor(sessionId) {
-    if (!sessionId) return '';
+    if (!sessionId || !this.qrOn) return '';
     try {
       const d = await api('/gate/passes', {
         method: 'POST', body: jsonBody({ session_id: String(sessionId) }), timeout: 7000
@@ -3923,9 +3937,12 @@ const Gate = {
           : '<b class="text-red">' + (seen ? 'aloqa yo\'q (' + esc(timeOnly(seen)) + ' dan beri)' : 'hali ulanmagan') + '</b>');
       }).join(' · ');
     }
+    if (d.qrOnTicket !== undefined) this.qrOn = !!d.qrOnTicket;
     const info = $('gateInfo');
     if (info) info.innerHTML = 'Sana: <b>' + esc(fmtDate(d.date)) + '</b> · Chegirma: <b>'
-      + num(d.graceMinutes) + ' daqiqa</b> · ' + devInfo;
+      + num(d.graceMinutes) + ' daqiqa</b> · Chekda QR: '
+      + (this.qrOn ? '<b style="color:var(--g-dark)">yoqilgan</b>' : '<b class="text-red">o\'chiq</b>')
+      + ' · ' + devInfo;
 
     const overNow = inside.filter(x => x.overdue).length;
     set('gInside', inside.length);
@@ -4099,14 +4116,19 @@ const Gate = {
       + '<input id="gateDevName" placeholder="Masalan: Kirish turniketi" maxlength="60"></div>'
       + '<button class="btn btn-green btn-block" type="button" data-act="gateAddDevice"><i class="fa-solid fa-plus" aria-hidden="true"></i> Qurilma qo\'shish</button>'
       + '<div class="divider"></div>'
+      + '<label style="display:flex;gap:10px;align-items:flex-start;margin:0 0 12px;cursor:pointer">'
+      + '<input type="checkbox" id="gateQrOn" style="width:20px;height:20px;margin-top:2px">'
+      + '<span><b>Chekka turniket QR kodini chiqarish</b><br><span class="text-muted" style="font-size:12px">'
+      + 'Turniket o\'rnatilgach yoqing. O\'chiq bo\'lsa chek avvalgidek chiqadi.</span></span></label>'
       + '<div class="fg"><label for="gateGrace">Chegirma (daqiqa)</label>'
       + '<input id="gateGrace" type="number" min="0" max="240" step="5" inputmode="numeric"></div>'
       + '<div class="text-muted" style="font-size:12px;margin:-4px 0 10px">O\'quvchi to\'lagan vaqtidan shuncha daqiqagacha oshsa ham qizil bo\'lmaydi (navbat kutish, kiyinish).</div>'
-      + '<button class="btn btn-light btn-block" type="button" data-act="gateSaveGrace">Chegirmani saqlash</button>'
+      + '<button class="btn btn-light btn-block" type="button" data-act="gateSaveGrace">Sozlamani saqlash</button>'
       + '<div id="gateDevErr" class="text-error" role="alert"></div>', { wide: true, noFocus: true });
     try {
       const [dl, st] = await Promise.all([api('/gate/devices'), api('/gate/settings')]);
       if ($('gateGrace')) $('gateGrace').value = num(st && st.grace_minutes);
+      if ($('gateQrOn')) $('gateQrOn').checked = !!(st && st.qr_on_ticket);
       this.renderDevices((dl && dl.devices) || []);
     } catch (e) { setError('gateDevErr', e.message); }
   },
@@ -4166,10 +4188,12 @@ const Gate = {
   },
   async saveGrace(btn) {
     const v = Math.max(0, Math.min(240, Math.round(num($('gateGrace') && $('gateGrace').value))));
+    const qr = !!($('gateQrOn') && $('gateQrOn').checked);
     await withBusy('gateGrace', btn, async () => {
       try {
-        await api('/gate/settings', { method: 'PUT', body: jsonBody({ grace_minutes: v }) });
-        toast('Chegirma: ' + v + ' daqiqa.');
+        const st = await api('/gate/settings', { method: 'PUT', body: jsonBody({ grace_minutes: v, qr_on_ticket: qr }) });
+        this.qrOn = !!(st && st.qr_on_ticket);
+        toast('Saqlandi. Chekda QR: ' + (this.qrOn ? 'yoqilgan' : "o'chiq") + ', chegirma: ' + v + ' daqiqa.');
         if (STATE.page === 'turniket') this.load(true);
       } catch (e) { setError('gateDevErr', e.message); }
     });
