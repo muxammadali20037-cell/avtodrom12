@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
 import { pool } from '../backend/src/db.js';
+import { ensureQuotaSchema, quotaForInsert } from './quota-routes.js';
+import { logChange } from './audit-routes.js';
 
 /* =========================================================================
    QR CHEK — avtoshkola o'quvchisi uchun (CHEK SHU YERDA CHIQADI)
@@ -13,7 +15,10 @@ import { pool } from '../backend/src/db.js';
        hisobotiga tushadi, shu bilan birga bu yerda ham yoziladi.
 
    OQIM:
-     1) Operator chek chiqaradi → receipts (status='issued', AVS-12345)
+     1) Operator chek chiqaradi → receipts (status='issued', AVS-12345).
+        SHU ZAHOTI DAVOMAT HAM YOZILADI (receipts.attendance_id) — xuddi
+        «Davomat yozish» kabi: o'quvchining darslar soni oshadi, nechinchi
+        kelishi (visit_index) va limit hisobi yoziladi.
      2) O'quvchi chekni instruktorga beradi
      3) Avtodrom instruktor paneli QR ni skanerlaydi va shu yerdagi
         /api/receipts/redeem ga murojaat qiladi (maxfiy kalit bilan):
@@ -129,7 +134,14 @@ function ensureSchema() {
        faqat kod bo'yicha topadi, operatorni bilmaydi. */
     await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_receipts_open_code
              ON receipts(code) WHERE status='issued'`);
+    /* Chek chiqarilganda yozilgan davomat qatori (sessions.id) */
+    await q(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS attendance_id UUID NULL`);
     if (first.length) { schemaPromise = null; throw first[0]; }
+    /* Davomatda avtomobil yo'q — vehicle_id bo'sh bo'la olishi kerak.
+       compat-routes.js ham shuni qiladi; bu yerda xato bo'lsa chekni
+       to'xtatmaymiz (huquq yetmasa ham boshqa yo'llar ishlayversin). */
+    try { await pool.query(`ALTER TABLE sessions ALTER COLUMN vehicle_id DROP NOT NULL`); }
+    catch (e) { console.error('RECEIPT SCHEMA (vehicle_id):', e.message); }
   })().catch(e => { schemaPromise = null; throw e; });
   return schemaPromise;
 }
@@ -272,6 +284,114 @@ async function writeConfig(req, res, user) {
   return await readConfig(req, res, user);
 }
 
+/* ---------------- DAVOMAT (chek bilan birga) ----------------
+   «Yangi avtomobil → Davomat yozish» (compat-routes.js, /api/attendance)
+   bilan AYNAN bir xil qator yoziladi: status='completed',
+   customer_type='school', darslar lessons_counted da, nechinchi kelishi
+   visit_index da. Shuning uchun kunlik hisobot, Nazorat, shartnoma limiti
+   va o'quvchi tarixi uni oddiy davomat kabi ko'radi.
+
+   Darslar soni: 30 daqiqa va 1 soat = 1 dars, 1,5 va 2 soat = 2 dars
+   (ilovadagi «1 soat = 1 dars» qoidasi, trigger ham shunday sanaydi).
+   `c` — tranzaksiya klienti: chek yozilmasa davomat ham yozilmaydi. */
+async function writeAttendance(c, user, st, minutes) {
+  const lessons = Math.max(1, Math.round(minutes / 60));
+  const seconds = Math.max(60, Math.round(minutes * 60));
+
+  const cols = await tableColumns('sessions');
+
+  let cfg = { hourly_rate: 30000, minimum_payment: 0, calculation_mode: 'hour' };
+  try {
+    await c.query('SAVEPOINT sp_acfg');
+    const r = await c.query(
+      `SELECT hourly_rate, minimum_payment, calculation_mode FROM user_settings WHERE user_id::text=$1`, [String(user)]);
+    await c.query('RELEASE SAVEPOINT sp_acfg');
+    if (r.rows[0]) cfg = r.rows[0];
+  } catch (e) {
+    try { await c.query('ROLLBACK TO SAVEPOINT sp_acfg'); } catch {}
+  }
+
+  /* Shartnoma limiti: nechinchi kelishi va limitdan oshdimi */
+  let quota = null;
+  try {
+    await ensureQuotaSchema();
+    await c.query('SAVEPOINT sp_aquota');
+    quota = await quotaForInsert(c, user, st.id, lessons);
+    await c.query('RELEASE SAVEPOINT sp_aquota');
+  } catch (e) {
+    try { await c.query('ROLLBACK TO SAVEPOINT sp_aquota'); } catch {}
+    quota = null;
+    console.error('[receipt] limit hisobi:', e && e.message);
+  }
+
+  /* Darslar sonini qulflab olamiz — bir vaqtda ikki yozuv bo'lsa ham to'g'ri */
+  let before = null;
+  try {
+    await c.query('SAVEPOINT sp_abefore');
+    const b = await c.query(`SELECT COALESCE(attendance_count,0)::int n FROM students WHERE id=$1 FOR UPDATE`, [st.id]);
+    await c.query('RELEASE SAVEPOINT sp_abefore');
+    if (b.rows[0]) before = b.rows[0].n;
+  } catch (e) {
+    try { await c.query('ROLLBACK TO SAVEPOINT sp_abefore'); } catch {}
+  }
+
+  const now = Date.now();
+  const cand = [
+    ['user_id', user],
+    ['vehicle_id', null],
+    ['started_at', new Date(now).toISOString()],
+    ['finished_at', new Date(now + seconds * 1000).toISOString()],
+    ['duration_seconds', seconds],
+    ['hourly_rate', cfg.hourly_rate],
+    ['minimum_payment', cfg.minimum_payment],
+    ['calculation_mode', cfg.calculation_mode],
+    ['manual_price', true],
+    ['amount', 0],
+    ['cash_amount', 0],
+    ['terminal_amount', 0],
+    ['payment_method', 'cash'],
+    ['status', 'completed'],
+    ['school_id', st.school_id],
+    ['group_id', st.group_id],
+    ['student_id', st.id],
+    ['driver_name', st.full_name],
+    ['customer_type', 'school'],
+    ['planned_minutes', minutes],
+    ['target_duration', seconds],
+    ['lessons_counted', lessons],
+    ['visit_index', quota ? quota.visitIndex : null],
+    ['over_lessons', quota ? quota.overLessons : null],
+  ].filter(([k]) => cols.has(k));
+
+  const r = await c.query(
+    `INSERT INTO sessions(${cand.map(([k]) => k).join(', ')})
+     VALUES(${cand.map((_, n) => '$' + (n + 1)).join(',')}) RETURNING id`,
+    cand.map(([, v]) => v));
+  const id = r.rows[0].id;
+
+  /* KAFOLAT: darslar soni aniq oshsin. Odatda buni trigger qiladi;
+     trigger bo'lmasa yetmagan qismini o'zimiz qo'shamiz (ikki marta
+     sanalmaydi — natija tekshiriladi). */
+  let total = null;
+  if (before !== null) {
+    try {
+      await c.query('SAVEPOINT sp_aafter');
+      const a = await c.query(`SELECT COALESCE(attendance_count,0)::int n FROM students WHERE id=$1`, [st.id]);
+      let n2 = a.rows[0] ? a.rows[0].n : null;
+      if (n2 !== null && n2 !== before + lessons) {
+        const u = await c.query(`UPDATE students SET attendance_count=$1 WHERE id=$2 RETURNING attendance_count`,
+          [before + lessons, st.id]);
+        n2 = u.rows[0] ? Number(u.rows[0].attendance_count) : n2;
+      }
+      await c.query('RELEASE SAVEPOINT sp_aafter');
+      total = n2;
+    } catch (e) {
+      try { await c.query('ROLLBACK TO SAVEPOINT sp_aafter'); } catch {}
+    }
+  }
+  return { id, lessons, total, quota };
+}
+
 /* ---------------- Chek chiqarish ----------------
    Chek TEKIN: avtoshkola o'quvchisi pul to'lamaydi, shu sabab summa ham,
    to'lov turi ham so'ralmaydi va kunlik hisobotga pul yozilmaydi.
@@ -310,24 +430,49 @@ async function issueReceipt(req, res, user) {
   }
 
   const code = await nextCode(user);
-  const r = await pool.query(`
-    INSERT INTO receipts(user_id, code, customer_type, school_id, group_id, student_id,
-                         customer_name, planned_minutes, amount, payment_method,
-                         cash_amount, terminal_amount, note)
-    VALUES($1,$2,'school',$3,$4,$5,$6,$7,0,'none',0,0,$8)
-    RETURNING *`,
-    [user, code, st.school_id, st.group_id, st.id, st.full_name, minutes, text(b.note) || null]);
 
-  const receipt = r.rows[0];
+  /* Chek va davomat BITTA tranzaksiyada: biri yozilmasa ikkinchisi ham
+     yozilmaydi — «chek bor, davomat yo'q» yoki aksincha bo'lmaydi. */
+  let receipt, att;
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    att = await writeAttendance(c, user, st, minutes);
+    const r = await c.query(`
+      INSERT INTO receipts(user_id, code, customer_type, school_id, group_id, student_id,
+                           customer_name, planned_minutes, amount, payment_method,
+                           cash_amount, terminal_amount, note, attendance_id)
+      VALUES($1,$2,'school',$3,$4,$5,$6,$7,0,'none',0,0,$8,$9)
+      RETURNING *`,
+      [user, code, st.school_id, st.group_id, st.id, st.full_name, minutes, text(b.note) || null, att.id]);
+    await c.query('COMMIT');
+    receipt = r.rows[0];
+  } catch (e) {
+    try { await c.query('ROLLBACK'); } catch {}
+    if (e && e.code === '23505') {
+      return send(res, 409, { error: 'Bu o‘quvchida ishlatilmagan chek bor. Ro‘yxatni yangilang.' });
+    }
+    throw e;
+  } finally { c.release(); }
+
   const sc = await pool.query(`SELECT name FROM driving_schools WHERE id=$1`, [st.school_id]);
   const gr = st.group_id ? await pool.query(`SELECT name FROM school_groups WHERE id=$1`, [st.group_id]) : null;
+  const q = att.quota;
   return send(res, 201, {
     receipt: {
       ...receipt,
       student_name: st.full_name,
       school_name: sc.rows[0]?.name || null,
       group_name: gr?.rows[0]?.name || null,
-    }
+      /* Davomat: nechinchi kelishi va jami darslar */
+      lessons: att.lessons,
+      visit_index: q ? q.visitIndex : null,
+      total_lessons: att.total,
+      free_limit: q ? q.limit : null,
+      left_after: q ? q.leftAfter : null,
+      over_lessons: q ? q.overLessons : 0,
+    },
+    attendance: { id: att.id, lessons: att.lessons, total: att.total, quota: q }
   });
 }
 
@@ -344,13 +489,20 @@ async function listReceipts(req, res, user, search) {
   }
   if (status) { params.push(status); where += ` AND r.status=$${params.length}`; }
 
+  /* Davomat qatori to_jsonb orqali o'qiladi: visit_index kabi ustunlar
+     eski bazada bo'lmasa ham so'rov yiqilmaydi. */
   const r = await pool.query(`
     SELECT r.*, r.scanned_by_name AS instructor_name, st.full_name AS student_name,
-           ds.name AS school_name, g.name AS group_name
+           ds.name AS school_name, g.name AS group_name,
+           NULLIF(to_jsonb(a)->>'visit_index','')::int     AS visit_index,
+           NULLIF(to_jsonb(a)->>'lessons_counted','')::int AS lessons,
+           NULLIF(to_jsonb(a)->>'over_lessons','')::int    AS over_lessons,
+           a.status AS attendance_status
       FROM receipts r
       LEFT JOIN students st       ON st.id = r.student_id
       LEFT JOIN driving_schools ds ON ds.id = r.school_id
       LEFT JOIN school_groups g   ON g.id  = r.group_id
+      LEFT JOIN sessions a        ON a.id  = r.attendance_id
      WHERE ${where}
      ORDER BY r.issued_at DESC
      LIMIT 300`, params);
@@ -368,12 +520,50 @@ async function listReceipts(req, res, user, search) {
   });
 }
 
+/** Chekni bekor qiladi. Chek bilan yozilgan davomat ham bekor bo'ladi:
+    qator o'chirilmaydi (status='cancelled'), o'quvchining darslar soni
+    shuncha kamayadi — «Davomatni bekor qilish» bilan bir xil. */
 async function cancelReceipt(req, res, user, id) {
-  const r = await pool.query(
-    `UPDATE receipts SET status='cancelled', cancelled_at=NOW()
-      WHERE id=$1 AND user_id=$2 AND status='issued' RETURNING *`, [id, user]);
-  if (!r.rows[0]) return send(res, 409, { error: 'Chek topilmadi yoki allaqachon ishlatilgan' });
-  return send(res, 200, { receipt: r.rows[0] });
+  const c = await pool.connect();
+  let rec, att = null, total = null;
+  try {
+    await c.query('BEGIN');
+    const r = await c.query(
+      `UPDATE receipts SET status='cancelled', cancelled_at=NOW()
+        WHERE id=$1 AND user_id=$2 AND status='issued' RETURNING *`, [id, user]);
+    rec = r.rows[0];
+    if (!rec) { await c.query('ROLLBACK'); return send(res, 409, { error: 'Chek topilmadi yoki allaqachon ishlatilgan' }); }
+    if (rec.attendance_id) {
+      const sr = await c.query(
+        `SELECT id, student_id, status, to_jsonb(s)->>'lessons_counted' AS lessons
+           FROM sessions s WHERE id=$1 AND user_id::text=$2 FOR UPDATE`, [rec.attendance_id, String(user)]);
+      att = sr.rows[0] || null;
+      if (att && att.status !== 'cancelled') {
+        await c.query(`UPDATE sessions SET status='cancelled' WHERE id=$1`, [att.id]);
+        if (att.student_id) {
+          const n = Math.max(1, Number(att.lessons) || 1);
+          const u = await c.query(
+            `UPDATE students SET attendance_count = GREATEST(0, COALESCE(attendance_count,0) - $1)
+              WHERE id=$2 RETURNING attendance_count`, [n, att.student_id]);
+          total = u.rows[0] ? Number(u.rows[0].attendance_count) : null;
+        }
+      }
+    }
+    await c.query('COMMIT');
+  } catch (e) {
+    try { await c.query('ROLLBACK'); } catch {}
+    throw e;
+  } finally { c.release(); }
+
+  if (att && att.student_id) {
+    await logChange(null, user, {
+      entity: 'student', entityId: att.student_id, entityName: rec.customer_name || '',
+      action: 'attendance_cancel', field: 'lessons',
+      oldValue: (Number(att.lessons) || 1) + ' dars (QR chek ' + rec.code + ')',
+      newValue: 'bekor qilindi' + (total === null ? '' : ' · jami ' + total),
+      reason: 'QR chek bekor qilindi', actor: user });
+  }
+  return send(res, 200, { receipt: rec, total });
 }
 
 /* =========================================================================
@@ -509,7 +699,24 @@ async function redeemReceipt(req, res) {
       }
     }
     const p = splitPlate(plateSrc);
-    if (p) {
+    if (rec.attendance_id) {
+      /* Davomat chek chiqarilganda yozilgan — ikkinchi sessiya OCHILMAYDI,
+         aks holda o'quvchining darsi ikki marta sanalardi. Faqat qaysi
+         instruktor uchirgani davomat qatoriga yozib qo'yiladi (Nazorat
+         instruktor kesimida ko'rishi uchun). */
+      if (insName) {
+        try {
+          await c.query('SAVEPOINT sp_attins');
+          await c.query(
+            `UPDATE sessions SET instructor_name = $1
+              WHERE id = $2 AND COALESCE(instructor_name,'') = ''`, [insName, rec.attendance_id]);
+          await c.query('RELEASE SAVEPOINT sp_attins');
+        } catch (err) {
+          try { await c.query('ROLLBACK TO SAVEPOINT sp_attins'); } catch {}
+          console.error('[receipt] davomatga instruktor yozilmadi:', err && err.message);
+        }
+      }
+    } else if (p) {
       /* ====================================================================
          SESSIYA OCHISH — SAVEPOINT ICHIDA.
 

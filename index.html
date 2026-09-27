@@ -1229,7 +1229,7 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
       <!-- ===== JARAYONDA ===== -->
       <section id="p-kassa" class="page hidden">
         <div class="page-header">
-          <div><h1>QR chek</h1><p>Belgilangan avtoshkola o'quvchisiga QR kodli chek beriladi. O'quvchi chekni instruktorga beradi — instruktor uni <b>Avtodrom ilovasidagi o'z panelida</b> skanerlaydi va dars o'sha yerda boshlanadi. Avtoshkola darslari <b>tekin</b>.</p></div>
+          <div><h1>QR chek</h1><p>Belgilangan avtoshkola o'quvchisiga QR kodli chek beriladi va <b>davomat shu zahoti yoziladi</b>. O'quvchi chekni instruktorga beradi — instruktor uni <b>Avtodrom ilovasidagi o'z panelida</b> skanerlaydi. Avtoshkola darslari <b>tekin</b>.</p></div>
         </div>
 
         <div class="panel">
@@ -2461,6 +2461,7 @@ document.addEventListener('click', e => { if (!host.contains(e.target)) hide(); 
    yozilmaydi — faqat vaqt va dars soni qayd etiladi. */
 const Kassa = {
   schoolId: '', minutes: 60, student: null, list: [], lastCode: '', busy: false,
+  quota: null, quotaFor: '',
 
   onEnter() {
     if (!STATE.studentsLoaded) Data.reloadStudents().then(() => this.renderSuggest());
@@ -2517,6 +2518,40 @@ const Kassa = {
   setMinutes(m) {
     this.minutes = Math.max(15, Number(m) || 60);
     $$('#kzMinSeg .seg-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.m) === this.minutes));
+    this.paintQuota();   /* darslar soni o'zgarsa «nechinchi kelishi» ham o'zgaradi */
+  },
+
+  /* 30 daq va 1 soat = 1 dars, 1,5 va 2 soat = 2 dars (serverdagi hisob bilan bir xil) */
+  lessonsNow() { return Math.max(1, Math.round(this.minutes / 60)); },
+
+  /* ===== NECHINCHI KELISHI =====
+     O'quvchi tanlanishi bilan: jami darslari, bu safar nechinchi
+     kelishi va shartnomadagi bepul limitdan qancha qolgani. */
+  async loadQuota(id) {
+    this.quota = null; this.quotaFor = String(id);
+    this.paintQuota();
+    try {
+      const q = await api('/quota?studentId=' + encodeURIComponent(id));
+      if (this.quotaFor !== String(id)) return;      /* boshqa o'quvchi tanlanib ulgurgan */
+      this.quota = q;
+    } catch (e) { this.quota = { failed: true }; }
+    this.paintQuota();
+  },
+  paintQuota() {
+    const el = $('kzQuota'); if (!el) return;
+    if (!this.student) { el.innerHTML = ''; return; }
+    const q = this.quota;
+    if (!q) { el.innerHTML = '<span class="muted">Darslar soni yuklanmoqda…</span>'; return; }
+    if (q.failed) { el.innerHTML = '<span class="muted">Darslar sonini olib bo\'lmadi — chek baribir chiqadi.</span>'; return; }
+    const n = this.lessonsNow();
+    const next = num(q.used) + n;
+    const over = Math.max(0, next - num(q.limit));
+    el.innerHTML = 'Hozirgacha <b>' + num(q.used) + '</b> dars · Bu safar <b>' + next + '-kelishi</b>'
+      + ' · Bepul limit ' + num(q.limit)
+      + (over > 0
+        ? '<div style="color:#a52b2b;font-weight:700;margin-top:4px">Bepul limit tugagan — ' + Math.min(n, over)
+          + ' ta dars limitdan oshadi, to\'lov kerak.</div>'
+        : ' (qoladi: ' + Math.max(0, num(q.limit) - next) + ')');
   },
 
   focusFirst() {
@@ -2557,8 +2592,10 @@ const Kassa = {
     box.classList.remove('hidden');
     box.innerHTML = '<div><b>' + esc(s.full_name || s.fullName) + '</b>'
       + '<div class="muted" style="font-size:12px">' + esc(s.school_name || s.schoolName || '')
-      + (s.group_name || s.groupName ? ' · ' + esc(s.group_name || s.groupName) : '') + '</div></div>'
+      + (s.group_name || s.groupName ? ' · ' + esc(s.group_name || s.groupName) : '') + '</div>'
+      + '<div id="kzQuota" style="font-size:13px;margin-top:6px"></div></div>'
       + '<button class="btn btn-light btn-sm" type="button" data-act="kzPick" data-id="">O\'zgartirish</button>';
+    this.loadQuota(s.id);
     setTimeout(() => { const b = $('kzIssueBtn'); if (b) b.focus(); }, 60);
   },
 
@@ -2572,10 +2609,23 @@ const Kassa = {
     this.busy = true;
     const btn = $('kzIssueBtn'); btn.disabled = true; btn.textContent = 'Chiqarilmoqda…';
     try {
+      const picked = this.student;
       const d = await api('/receipts', { method: 'POST', body: jsonBody({
-        student_id: this.student.id, planned_minutes: this.minutes
+        student_id: picked.id, planned_minutes: this.minutes
       }) });
-      this.showReceipt(d.receipt);
+      const r = d.receipt || {};
+      /* Davomat serverda yozildi — o'quvchining darslar sonini shu yerda
+         ham yangilaymiz (boshqa sahifalarda eski son turib qolmasin). */
+      const n = num(r.lessons) || this.lessonsNow();
+      if (r.total_lessons !== null && r.total_lessons !== undefined) {
+        const idx = (STATE.students || []).findIndex(x => String(x.id) === String(picked.id));
+        if (idx >= 0) STATE.students[idx] = Object.assign({}, STATE.students[idx], { attendance_count: num(r.total_lessons) });
+      }
+      if (typeof Data.addTodayLessons === 'function') Data.addTodayLessons(picked.id, n);
+      this.showReceipt(r);
+      toast('Davomat yozildi: ' + (r.student_name || stName(picked))
+        + (r.visit_index ? ' — ' + num(r.visit_index) + '-kelishi' : ''),
+        num(r.over_lessons) > 0 ? 'warn' : undefined);
       this.reset();
       this.load();
     } catch (e) { err(e.message || 'Chek chiqarilmadi'); }
@@ -2584,6 +2634,7 @@ const Kassa = {
 
   reset() {
     this.student = null;
+    this.quota = null; this.quotaFor = '';
     $('kzSearch').value = '';
     $('kzPicked').classList.add('hidden');
     $('kzSuggest').classList.add('hidden');
@@ -2595,12 +2646,17 @@ const Kassa = {
       ["O'quvchi", r.student_name || r.customer_name || '—'],
       ['Avtoshkola', r.school_name || '—'],
       ['Guruh', r.group_name || '—'],
-      ['Davomiylik', (r.planned_minutes || 60) + ' daqiqa']
+      ['Davomiylik', (r.planned_minutes || 60) + ' daqiqa'],
+      /* Davomat chek bilan birga yozildi */
+      ['Nechinchi kelishi', r.visit_index ? num(r.visit_index) + '-kelishi' : '—'],
+      ['Jami darslar', (r.total_lessons !== null && r.total_lessons !== undefined) ? num(r.total_lessons) + ' ta' : '—']
     ];
+    const over = num(r.over_lessons) > 0;
     openModal('<div id="kzReceipt"><h3>AVTODROM</h3>' +
         '<div class="c" style="font-size:11px">Amaliy haydash · avtoshkola</div><div class="hr"></div>' +
         rows.map(x => '<div class="r"><span>' + esc(x[0]) + '</span><b>' + esc(x[1]) + '</b></div>').join('') +
-        '<div class="hr"></div><div class="r big"><span>To\'lov</span><span>TEKIN</span></div>' +
+        '<div class="hr"></div><div class="r big"><span>To\'lov</span><span>' + (over ? 'LIMIT TUGAGAN' : 'TEKIN') + '</span></div>' +
+        (over ? '<div class="c" style="font-size:11px;font-weight:700">Bepul limitdan ' + num(r.over_lessons) + ' ta dars oshdi — to\'lov kerak</div>' : '') +
         '<div class="hr"></div><div class="c" id="kzQr"></div><div class="code">' + esc(r.code) + '</div>' +
         '<div class="c" style="font-size:10px;margin-top:6px">Chekni instruktorga bering — u Avtodrom ilovasida QR ni skanerlaydi</div></div>' +
         '<div style="display:flex;gap:8px;margin-top:16px">' +
@@ -2648,7 +2704,10 @@ const Kassa = {
       + '<div><b>' + esc(r.code) + '</b><div class="muted" style="font-size:12px">'
       + esc(r.student_name || r.customer_name || '—')
       + (r.instructor_name ? ' · ' + esc(r.instructor_name) : '')
-      + ' · ' + (r.planned_minutes || 60) + ' daq</div></div>'
+      + ' · ' + (r.planned_minutes || 60) + ' daq'
+      + (r.visit_index ? ' · <b>' + num(r.visit_index) + '-kelishi</b>' : '')
+      + (num(r.over_lessons) > 0 ? ' · <b class="text-red">limitdan oshgan</b>' : '')
+      + '</div></div>'
       + '<div style="display:flex;align-items:center;gap:8px">'
       + '<span class="badge ' + (stCls[r.status] || 'badge-grey') + '">' + (stName[r.status] || r.status) + '</span>'
       + (r.status === 'issued' ? '<button class="btn btn-light btn-sm" type="button" data-act="kzCancel" data-id="' + esc(r.id) + '">Bekor</button>' : '')
@@ -2656,7 +2715,7 @@ const Kassa = {
   },
 
   async cancel(id) {
-    const ok = await confirmModal({ title: 'Chekni bekor qilasizmi?', text: 'Bekor qilingan chek bilan dars boshlanmaydi.', okText: 'Bekor qilish' });
+    const ok = await confirmModal({ title: 'Chekni bekor qilasizmi?', text: 'Bekor qilingan chek bilan dars boshlanmaydi. Shu chek bilan yozilgan davomat ham bekor qilinadi.', okText: 'Bekor qilish' });
     if (!ok) return;
     try { await api('/receipts/' + encodeURIComponent(id) + '/cancel', { method: 'POST', body: '{}' }); toast('Chek bekor qilindi.'); this.load(); }
     catch (e) { toast(e.message || 'Bekor qilinmadi', 'error'); }
