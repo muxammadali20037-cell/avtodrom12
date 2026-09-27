@@ -916,8 +916,10 @@ body.admin-open { overflow: hidden; }
 #kzReceipt .r{display:flex;justify-content:space-between;gap:8px}
 #kzReceipt .big{font-size:18px;font-weight:900}
 #kzReceipt .code{text-align:center;font-size:22px;font-weight:900;letter-spacing:.14em;margin-top:6px}
-@media print{body *{visibility:hidden!important}#kzReceipt,#kzReceipt *{visibility:visible!important}
- #kzReceipt{position:absolute;left:0;top:0}@page{size:80mm auto;margin:2mm}}
+/* QR chek endi butun sahifadan emas, alohida 80 mm ramkadan chop etiladi
+   (EntryTicket80.printDoc). Ilgari bu yerda «body * {visibility:hidden}»
+   turardi: yashirilgan sahifa baribir joy egallab, printerga oq varaq
+   chiqardi, chekning o'zi esa varaqdan tashqarida qolardi. */
 
 /* ---- Avtoshkola -> guruh -> o'quvchi (yig'iladigan ro'yxat) ---- */
 .grp{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:#fff;overflow:hidden}
@@ -2663,7 +2665,14 @@ const Kassa = {
         '<button class="btn btn-light" style="flex:1" data-act="closeModal">Yopish</button>' +
         '<button class="btn btn-green" style="flex:1" data-act="kzPrint">Chop etish</button></div>', { noFocus: true });
     this.lastCode = r.code;
+    this.lastReceipt = r;
     setTimeout(() => this.drawQr(r.code), 60);
+  },
+
+  /* «Chop etish» — chek alohida 80 mm ramkada chiqadi (boshqa cheklar kabi) */
+  print() {
+    if (!this.lastReceipt) { toast('Chop etiladigan chek yo\'q.', 'warn'); return; }
+    EntryTicket80.printDoc(EntryTicket80.qrReceiptHTML(this.lastReceipt));
   },
 
   drawQr(code) {
@@ -4507,6 +4516,40 @@ const EntryTicket80 = {
       bare);
   },
 
+  /* ============ QR CHEK (avtoshkola, Avtodrom instruktori skanerlaydi) ============
+     Davomat bilan birga yoziladi — chekda nechinchi kelishi va jami
+     darslar ham turadi. Qolgan cheklar kabi 80 mm, bir xil uslub. */
+  qrReceiptHTML(r) {
+    const row = (l, v) => this.tkRow(l, v);
+    const over = num(r.over_lessons) > 0;
+    let svg = '';
+    try {
+      if (typeof qrcode === 'function') {
+        const q = qrcode(0, 'M'); q.addData(String(r.code)); q.make();
+        svg = q.createSvgTag({ cellSize: 5, margin: 4, scalable: false });
+      }
+    } catch (e) { svg = ''; }
+    return this.ticketShell('QR chek',
+        '<style>.qr svg{display:block;width:44mm;height:auto;margin:4px auto 0}'
+      + '.qcode{text-align:center;font-family:Consolas,monospace;font-size:22px;font-weight:900;letter-spacing:3px;margin-top:2px}</style>'
+      + '<div class="b">INDEX AVTODROM</div>'
+      + '<div class="h">Amaliy haydash · avtoshkola</div>'
+      + '<div class="badge">AVTOSHKOLA<small>QR CHEK</small></div>'
+      + '<div class="nm">' + esc(r.student_name || r.customer_name || '—') + '</div>'
+      + row('Avtoshkola', r.school_name)
+      + row('Guruh', r.group_name)
+      + row('Davomiylik', num(r.planned_minutes || 60) + ' daqiqa')
+      + row('Nechinchi kelishi', r.visit_index ? num(r.visit_index) + '-kelishi' : '')
+      + row('Jami darslar', (r.total_lessons !== null && r.total_lessons !== undefined) ? num(r.total_lessons) + ' ta' : '')
+      + row('Berildi', this.tkTime(r.issued_at || new Date().toISOString()))
+      + '<div class="sum">' + (over ? 'LIMIT TUGAGAN' : 'TEKIN')
+      + (over ? '<small>BEPUL LIMITDAN ' + num(r.over_lessons) + ' TA DARS OSHDI</small>' : '') + '</div>'
+      + (svg ? '<div class="qr">' + svg + '</div>' : '')
+      + '<div class="qcode">' + esc(r.code || '') + '</div>'
+      + '<div class="ft">Chekni instruktorga bering —<br>u Avtodrom ilovasida QR ni skanerlaydi.</div>',
+      true);
+  },
+
   /* ============ YASHIRIN RAMKADA CHOP ETISH ============
      Ilgari chek alohida oynada ochilardi. Ba'zi o'rnatmalarda
      (masalan ilova qobig'i ichida) `window.open` alohida oyna
@@ -4516,7 +4559,10 @@ const EntryTicket80 = {
      Endi chek sahifaning o'zidagi ko'rinmas <iframe> ichida
      chop etiladi: yangi oyna ochilmaydi, yopiladigan narsa yo'q,
      pop-up bloklanmaydi, ilova joyida qoladi. */
-  printHidden(data) {
+  printHidden(data) { this.printDoc(this.ticketHTML(data, true)); },
+
+  /* Istalgan tayyor chek HTML'ini ko'rinmas ramkada chop etadi */
+  printDoc(html) {
     try {
       const old = document.getElementById('chekFrame');
       if (old && old.parentNode) old.parentNode.removeChild(old);
@@ -4530,7 +4576,7 @@ const EntryTicket80 = {
       document.body.appendChild(f);
 
       const d = f.contentWindow.document;
-      d.open(); d.write(this.ticketHTML(data, true)); d.close();
+      d.open(); d.write(html); d.close();
 
       const go = () => {
         try { f.contentWindow.focus(); f.contentWindow.print(); }
@@ -8605,7 +8651,7 @@ const ACTIONS = {
   kzPick: d => (d.id ? Kassa.pick(d.id) : Kassa.reset()),
   kzIssue: () => Kassa.issue(),
   kzCancel: d => Kassa.cancel(d.id),
-  kzPrint: () => window.print(),
+  kzPrint: () => Kassa.print(),
   closeModal: () => closeModal(),
 
   /* --- navbat --- */
