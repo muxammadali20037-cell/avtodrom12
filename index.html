@@ -1232,6 +1232,9 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
       <section id="p-kassa" class="page hidden">
         <div class="page-header">
           <div><h1>QR chek</h1><p>Belgilangan avtoshkola o'quvchisiga QR kodli chek beriladi va <b>davomat shu zahoti yoziladi</b>. O'quvchi chekni instruktorga beradi — instruktor uni <b>Avtodrom ilovasidagi o'z panelida</b> skanerlaydi. Avtoshkola darslari <b>tekin</b>.</p></div>
+          <div class="header-actions">
+            <a class="btn btn-green" href="/ekran" target="_blank" rel="noopener"><i class="fa-solid fa-tv" aria-hidden="true"></i> Katta ekran</a>
+          </div>
         </div>
 
         <div class="panel">
@@ -2716,11 +2719,22 @@ const Kassa = {
       + ' · ' + (r.planned_minutes || 60) + ' daq'
       + (r.visit_index ? ' · <b>' + num(r.visit_index) + '-kelishi</b>' : '')
       + (num(r.over_lessons) > 0 ? ' · <b class="text-red">limitdan oshgan</b>' : '')
+      + this.lessonState(r)
       + '</div></div>'
       + '<div style="display:flex;align-items:center;gap:8px">'
       + '<span class="badge ' + (stCls[r.status] || 'badge-grey') + '">' + (stName[r.status] || r.status) + '</span>'
       + (r.status === 'issued' ? '<button class="btn btn-light btn-sm" type="button" data-act="kzCancel" data-id="' + esc(r.id) + '">Bekor</button>' : '')
       + '</div></div>').join('');
+  },
+
+  /* Instruktor skanerlagan dars: qancha qoldi / tugadimi (katta ekrandagi bilan bir xil) */
+  lessonState(r) {
+    if (r.status !== 'scanned' || !r.scanned_at) return '';
+    if (r.completed_at) return ' · tugadi ' + esc(timeOnly(r.completed_at));
+    const left = Math.round((new Date(r.scanned_at).getTime() + num(r.planned_minutes || 60) * 60000 - Date.now()) / 60000);
+    return left >= 0
+      ? ' · <b style="color:var(--g-dark)">' + left + ' daq qoldi</b>'
+      : ' · <b class="text-red">' + (-left) + ' daq oshdi</b>';
   },
 
   async cancel(id) {

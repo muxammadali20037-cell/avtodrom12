@@ -18,6 +18,7 @@ const rootFrontend = new URL("../index.html", import.meta.url);
 const backupFrontend = new URL("../index.backup.html", import.meta.url);
 const instructorFrontend = new URL("../instructor.html", import.meta.url);
 const gateFrontend = new URL("../turniket.html", import.meta.url);
+const screenFrontend = new URL("../ekran.html", import.meta.url);
 
 export default async function handler(req, res) {
   const path = String(req.url || "").split("?",1)[0];
@@ -86,6 +87,7 @@ export default async function handler(req, res) {
       const filePath = path === "/index.backup.html" ? backupFrontend
         : path === "/instructor.html" || path === "/instructor" ? instructorFrontend
         : path === "/turniket.html" || path === "/turniket" ? gateFrontend
+        : path === "/ekran.html" || path === "/ekran" ? screenFrontend
         : rootFrontend;
       const html = await readFile(filePath, "utf8");
       res.statusCode=200; res.setHeader("Content-Type","text/html; charset=utf-8"); res.setHeader("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate"); res.setHeader("Pragma","no-cache"); res.setHeader("Expires","0");

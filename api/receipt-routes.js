@@ -136,6 +136,9 @@ function ensureSchema() {
              ON receipts(code) WHERE status='issued'`);
     /* Chek chiqarilganda yozilgan davomat qatori (sessions.id) */
     await q(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS attendance_id UUID NULL`);
+    /* Avtodrom'da instruktor «Ketdi» bosgan payt — katta ekrandagi
+       teskari sanoq shu bilan to'xtaydi */
+    await q(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ NULL`);
     if (first.length) { schemaPromise = null; throw first[0]; }
     /* Davomatda avtomobil yo'q — vehicle_id bo'sh bo'la olishi kerak.
        compat-routes.js ham shuni qiladi; bu yerda xato bo'lsa chekni
@@ -938,6 +941,14 @@ async function completeReceipt(req, res) {
         `SELECT * FROM receipts WHERE code=$1 AND status='scanned' ORDER BY scanned_at DESC LIMIT 1`, [code]);
   const rec = r.rows[0];
   if (!rec) return send(res, 404, { ok: false, error: 'Chek topilmadi' });
+
+  /* Dars tugadi — katta ekrandagi teskari sanoqdan olib tashlanadi.
+     Davomat chek chiqarilganda yozilgan bo'lsa (attendance_id), bu yerda
+     boshqa ish yo'q: dars ikki marta sanalmaydi. */
+  try {
+    await pool.query(`UPDATE receipts SET completed_at = COALESCE(completed_at, NOW()) WHERE id=$1`, [rec.id]);
+  } catch (e) { console.error('[receipt] completed_at:', e && e.message); }
+
   if (!rec.session_id) return send(res, 200, { ok: true, note: 'Bu chek bo‘yicha avtodrom12 da sessiya yo‘q' });
 
   const sr = await pool.query(`SELECT * FROM sessions WHERE id=$1`, [rec.session_id]);
@@ -1012,7 +1023,7 @@ async function releaseReceipt(req, res) {
       `SELECT 1 FROM receipts WHERE code=$1 AND status='issued' AND id<>$2 LIMIT 1`, [rec.code, rec.id])).rows[0];
     const newCode = taken ? await nextCode(rec.user_id) : rec.code;
     await c.query(`
-      UPDATE receipts SET status='issued', code=$1, scanned_at=NULL, session_id=NULL,
+      UPDATE receipts SET status='issued', code=$1, scanned_at=NULL, session_id=NULL, completed_at=NULL,
              scanned_by_name=NULL, scanned_by_ref=NULL, external_booking_id=NULL,
              note=COALESCE($2, note)
        WHERE id=$3`, [newCode, text(b.reason) || null, rec.id]);
@@ -1023,6 +1034,46 @@ async function releaseReceipt(req, res) {
     console.error('RELEASE:', e);
     return send(res, 500, { ok: false, error: 'Chek qaytarilmadi' });
   } finally { c.release(); }
+}
+
+/* =========================================================================
+   KATTA EKRAN — hozir ketayotgan darslar (teskari sanoq)
+
+   Instruktor Avtodrom'da chekni skanerlagan payt (scanned_at) — dars
+   boshlanishi. Tugashi = scanned_at + planned_minutes. Instruktor «Ketdi»
+   bosganda Avtodrom /complete chaqiradi → completed_at yoziladi va dars
+   ekrandan tushadi. Chek qaytarilsa (release) ham tushadi.
+
+   «Ketdi» bosilmay qolgan dars ekranda abadiy turmasin: vaqti 90 daqiqadan
+   ko'p oshgani ko'rsatilmaydi. Eski (sessiyali) cheklarda sessiya
+   yakunlangan bo'lsa ham ko'rsatilmaydi.
+   ========================================================================= */
+async function liveReceipts(req, res, user) {
+  const r = await pool.query(`
+    SELECT r.id, r.code, r.planned_minutes, r.scanned_at, r.scanned_by_name AS instructor_name,
+           r.vehicle_plate, COALESCE(st.full_name, r.customer_name) AS student_name,
+           ds.name AS school_name, g.name AS group_name,
+           NULLIF(to_jsonb(a)->>'visit_index','')::int AS visit_index
+      FROM receipts r
+      LEFT JOIN students st        ON st.id = r.student_id
+      LEFT JOIN driving_schools ds ON ds.id = r.school_id
+      LEFT JOIN school_groups g    ON g.id  = r.group_id
+      LEFT JOIN sessions a         ON a.id  = r.attendance_id
+     WHERE r.user_id=$1 AND r.status='scanned' AND r.completed_at IS NULL
+       AND r.scanned_at IS NOT NULL
+       AND r.scanned_at + make_interval(mins => COALESCE(r.planned_minutes,60) + 90) > NOW()
+       AND NOT EXISTS (SELECT 1 FROM sessions s
+                        WHERE s.id = r.session_id AND s.status IN ('completed','cancelled'))
+     ORDER BY r.scanned_at + make_interval(mins => COALESCE(r.planned_minutes,60)) ASC
+     LIMIT 60`, [user]);
+  return send(res, 200, {
+    now: new Date().toISOString(),
+    lessons: r.rows.map(x => ({
+      ...x,
+      planned_minutes: Number(x.planned_minutes || 60),
+      ends_at: new Date(new Date(x.scanned_at).getTime() + Number(x.planned_minutes || 60) * 60000).toISOString(),
+    })),
+  });
 }
 
 /* =========================================================================
@@ -1037,6 +1088,7 @@ export async function handleReceiptRequest(req, res) {
   const isOurs =
     path === '/api/receipts' ||
     path === '/api/receipts/config' ||
+    path === '/api/receipts/live' ||
     path === '/api/receipts/verify' ||
     path === '/api/receipts/redeem' ||
     path === '/api/receipts/complete' ||
@@ -1068,6 +1120,7 @@ export async function handleReceiptRequest(req, res) {
 
     if (path === '/api/receipts' && method === 'POST') return await issueReceipt(req, res, user);
     if (path === '/api/receipts' && method === 'GET')  return await listReceipts(req, res, user, url.searchParams);
+    if (path === '/api/receipts/live' && method === 'GET') return await liveReceipts(req, res, user);
 
     const cancel = path.match(/^\/api\/receipts\/([^/]+)\/cancel$/);
     if (cancel && method === 'POST') return await cancelReceipt(req, res, user, cancel[1]);
