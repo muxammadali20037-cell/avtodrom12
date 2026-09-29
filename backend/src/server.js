@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import zlib from 'node:zlib';
 import { pool } from './db.js';
 
 dotenv.config();
@@ -756,7 +757,62 @@ const REPORT_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,v.driv
   LEFT JOIN students st ON st.id::text=s.student_id::text
   LEFT JOIN instructors i ON i.id::text=s.instructor_id::text`;
 
-app.get('/api/reports/daily',auth,async(req,res)=>{try{const date=/^\d{4}-\d{2}-\d{2}$/.test(req.query.date||'')?req.query.date:new Date().toISOString().slice(0,10);const r=await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND s.status='completed' AND s.started_at::date=$2 ORDER BY s.started_at DESC`,[uid(req),date]);const summary=r.rows.reduce((a,x)=>{a.count++;a.seconds+=Number(x.duration_seconds||0);a.amount+=Number(x.amount||0);a.cash+=Number(x.cash_amount||0);a.terminal+=Number(x.terminal_amount||0);a.lessons+=Number(x.lessons_counted||0);return a},{count:0,seconds:0,amount:0,cash:0,terminal:0,lessons:0});res.json({date,summary,rows:r.rows})}catch(e){console.error('DAILY:',e.message);res.status(500).json({error:'Hisobotni olishda xatolik'})}});
+/* HISOBOT: bitta kun (?date=) yoki davr (?from=&to=, ko'pi bilan 92 kun).
+   Bitta kun avvalgidek ishlaydi. Davrda o'quvchining jami darslari har
+   qator uchun alohida emas, bitta guruhlangan so'rov bilan olinadi —
+   aks holda bir oylik hisobot sekinlashardi. Javob katta bo'lsa (1 MB+)
+   va brauzer qabul qilsa, gzip qilib yuboriladi. */
+const REPORT_MAX_DAYS = 92;
+const isoDay = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v||'')) && !isNaN(Date.parse(v+'T00:00:00Z'));
+const REPORT_RANGE_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,v.driver_name) driver_name,s.started_at,s.finished_at,s.duration_seconds,
+    s.amount,s.cash_amount,s.terminal_amount,s.payment_method,s.lessons_counted,s.student_id,
+    s.customer_type,s.instructor_id,COALESCE(i.full_name,i.bio,s.instructor_name) instructor_label,
+    ds.name school_name,g.name group_name,st.full_name student_name,i.full_name instructor_name,
+    (st.id IS NOT NULL) _has_student
+  FROM sessions s LEFT JOIN vehicles v ON v.id=s.vehicle_id
+  LEFT JOIN driving_schools ds ON ds.id::text=s.school_id::text
+  LEFT JOIN school_groups g ON g.id::text=s.group_id::text
+  LEFT JOIN students st ON st.id::text=s.student_id::text
+  LEFT JOIN instructors i ON i.id::text=s.instructor_id::text
+  WHERE s.user_id=$1 AND s.status='completed' AND s.started_at::date BETWEEN $2::date AND $3::date
+  ORDER BY s.started_at DESC`;
+/* Davrdagi o'quvchilarning jami darslari — BITTA guruhlangan so'rov
+   (har qator uchun alohida hisoblansa 30 kunda soniyalab ketardi). */
+async function rangeReportRows(userId,from,to){
+  const r=await pool.query(REPORT_RANGE_SELECT,[userId,from,to]);
+  const ids=[...new Set(r.rows.filter(x=>x._has_student&&x.student_id).map(x=>String(x.student_id)))];
+  const att=new Map();
+  if(ids.length){
+    const a=await pool.query(`SELECT student_id::text sid, COALESCE(SUM(CASE WHEN lessons_counted > 0 THEN lessons_counted ELSE 1 END),0)::int n
+        FROM sessions WHERE status='completed' AND student_id::text = ANY($1::text[]) GROUP BY 1`,[ids]);
+    a.rows.forEach(x=>att.set(x.sid,x.n));
+  }
+  for(const x of r.rows){ x.attendance_count=x._has_student?(att.get(String(x.student_id))||0):0; delete x._has_student; }
+  return r.rows;
+}
+function reportSummary(rows){return rows.reduce((a,x)=>{a.count++;a.seconds+=Number(x.duration_seconds||0);a.amount+=Number(x.amount||0);a.cash+=Number(x.cash_amount||0);a.terminal+=Number(x.terminal_amount||0);a.lessons+=Number(x.lessons_counted||0);return a},{count:0,seconds:0,amount:0,cash:0,terminal:0,lessons:0});}
+function sendReport(req,res,data){
+  const body=JSON.stringify(data);
+  if(body.length>1000000&&/\bgzip\b/.test(String(req.headers['accept-encoding']||''))){
+    const z=zlib.gzipSync(body);
+    res.status(200);res.setHeader('Content-Type','application/json; charset=utf-8');res.setHeader('Content-Encoding','gzip');res.setHeader('Vary','Accept-Encoding');
+    return res.end(z);
+  }
+  res.status(200);res.setHeader('Content-Type','application/json; charset=utf-8');return res.end(body);
+}
+app.get('/api/reports/daily',auth,async(req,res)=>{try{
+  const from=req.query.from,to=req.query.to;
+  if(from!==undefined||to!==undefined){
+    if(!isoDay(from)||!isoDay(to))return res.status(400).json({error:'Sanalar noto‘g‘ri (YYYY-MM-DD)'});
+    let a=String(from),b=String(to);if(a>b){const t=a;a=b;b=t;}
+    const days=Math.round((Date.parse(b)-Date.parse(a))/86400000)+1;
+    if(days>REPORT_MAX_DAYS)return res.status(400).json({error:`Davr juda uzun — ko‘pi bilan ${REPORT_MAX_DAYS} kun tanlang`});
+    const r=a===b
+      ? await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND s.status='completed' AND s.started_at::date=$2 ORDER BY s.started_at DESC`,[uid(req),a])
+      : {rows:await rangeReportRows(uid(req),a,b)};
+    return sendReport(req,res,{date:a,from:a,to:b,days,summary:reportSummary(r.rows),rows:r.rows});
+  }
+  const date=/^\d{4}-\d{2}-\d{2}$/.test(req.query.date||'')?req.query.date:new Date().toISOString().slice(0,10);const r=await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND s.status='completed' AND s.started_at::date=$2 ORDER BY s.started_at DESC`,[uid(req),date]);res.json({date,summary:reportSummary(r.rows),rows:r.rows})}catch(e){console.error('DAILY:',e.message);res.status(500).json({error:'Hisobotni olishda xatolik'})}});
 app.get('/api/history',auth,async(req,res)=>{const plate=String(req.query.plate||'').trim().toUpperCase();if(!plate)return res.status(400).json({error:'Avtomobil raqami kerak'});const like='%'+plate.replace(/\s+/g,'%')+'%';const r=await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND v.plate ILIKE $2 AND s.status='completed' ORDER BY s.started_at DESC`,[uid(req),like]);res.json({plate,rows:r.rows})});
 app.get('/api/dashboard',auth,async(req,res)=>{const r=await pool.query(`SELECT COUNT(*) FILTER(WHERE status='active')::int active,COUNT(*) FILTER(WHERE status='frozen')::int frozen,COUNT(*) FILTER(WHERE status='completed' AND started_at::date=CURRENT_DATE)::int today_count,COALESCE(SUM(duration_seconds) FILTER(WHERE status='completed' AND started_at::date=CURRENT_DATE),0)::bigint today_seconds,COALESCE(SUM(amount) FILTER(WHERE status='completed' AND started_at::date=CURRENT_DATE),0)::numeric today_amount,COALESCE(SUM(cash_amount) FILTER(WHERE status='completed' AND started_at::date=CURRENT_DATE),0)::numeric today_cash,COALESCE(SUM(terminal_amount) FILTER(WHERE status='completed' AND started_at::date=CURRENT_DATE),0)::numeric today_terminal,COALESCE(SUM(lessons_counted) FILTER(WHERE status='completed' AND started_at::date=CURRENT_DATE),0)::int today_lessons FROM sessions WHERE user_id=$1`,[uid(req)]);const x=r.rows[0];res.json({active:Number(x.active),frozen:Number(x.frozen),todayCount:Number(x.today_count),todaySeconds:Number(x.today_seconds),todayAmount:Number(x.today_amount),todayCash:Number(x.today_cash),todayTerminal:Number(x.today_terminal),todayLessons:Number(x.today_lessons),cash:Number(x.today_cash),terminal:Number(x.today_terminal)})});
 

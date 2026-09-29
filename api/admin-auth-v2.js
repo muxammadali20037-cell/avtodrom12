@@ -139,6 +139,105 @@ async function listGroups(req,owner){
   if(id){p.push(id);w+=' AND g.school_id=$2';}
   const r=await pool.query(`SELECT g.*,s.name school_name,COUNT(st.id)::int student_count FROM school_groups g JOIN driving_schools s ON s.id=g.school_id LEFT JOIN students st ON st.group_id=g.id AND st.active=true WHERE ${w} GROUP BY g.id,s.name ORDER BY LOWER(s.name),LOWER(g.name)`,p); return r.rows;
 }
+/* ==========================================================================
+   O'CHIRILGAN GURUHNI TIKLASH
+   Guruh o'chirilganda hech narsa bazadan yo'qolmaydi: guruh va undagi
+   o'quvchilar active=false bo'ladi, davomatlari (sessions) joyida qoladi.
+   Shu sababli guruhni o'quvchilari va darslari bilan qaytarish mumkin.
+
+   Aniqlik uchun endi o'chirish vaqti ham yoziladi (deactivated_at):
+   guruh bilan BIRGA o'chgan o'quvchilar aynan shu vaqt bilan belgilanadi,
+   tiklashda faqat ular qaytadi. Oldinroq alohida o'chirilgan o'quvchi
+   qaytib kelmaydi. Vaqt yozilmagan eski o'chirishlarda guruhning barcha
+   o'chirilgan o'quvchilari qaytadi.
+
+   Shu avtoshkolada o'sha nomli guruh qaytadan ochilgan bo'lsa, ikkita
+   bir xil guruh paydo bo'lmasin: o'quvchilar va darslar yangisiga
+   qo'shiladi.
+   ========================================================================== */
+let restoreSchemaP=null;
+function ensureRestoreSchema(){
+  if(restoreSchemaP) return restoreSchemaP;
+  restoreSchemaP=(async()=>{
+    /* Ustun bor bo'lsa ALTER umuman chaqirilmaydi — jadval qulflanmasin */
+    const r=await pool.query(`SELECT table_name FROM information_schema.columns
+      WHERE table_schema='public' AND column_name='deactivated_at' AND table_name IN ('students','school_groups')`);
+    const have=new Set(r.rows.map(x=>x.table_name));
+    if(!have.has('school_groups')) await pool.query(`ALTER TABLE school_groups ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMPTZ`);
+    if(!have.has('students')) await pool.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMPTZ`);
+  })().catch(e=>{restoreSchemaP=null;throw e;});
+  return restoreSchemaP;
+}
+const restoreReady=()=>ensureRestoreSchema().then(()=>true).catch(e=>{console.error('RESTORE SCHEMA:',e.message);return false;});
+
+async function deletedGroups(req,owner){
+  await ensureRestoreSchema();
+  const u=new URL(req.url,'http://localhost'); const sid=u.searchParams.get('schoolId');
+  const p=[owner]; let w='g.owner_key=$1 AND g.active=false';
+  if(sid){p.push(String(sid));w+=' AND g.school_id::text=$2';}
+  const r=await pool.query(`
+    SELECT g.id,g.name,g.school_id,s.name school_name,(s.active IS NOT FALSE) school_active,g.deactivated_at,
+      (SELECT COUNT(*)::int FROM students st WHERE st.group_id=g.id AND st.active=false
+          AND (g.deactivated_at IS NULL OR st.deactivated_at=g.deactivated_at)) students,
+      (SELECT COALESCE(SUM(CASE WHEN se.lessons_counted>0 THEN se.lessons_counted ELSE 1 END),0)::int
+         FROM sessions se WHERE se.group_id::text=g.id::text AND se.status='completed') lessons,
+      (SELECT MAX(se.started_at) FROM sessions se WHERE se.group_id::text=g.id::text AND se.status='completed') last_at,
+      (SELECT g2.name FROM school_groups g2 WHERE g2.school_id=g.school_id AND g2.active IS NOT FALSE AND g2.id<>g.id
+          AND lower(btrim(g2.name))=lower(btrim(g.name)) LIMIT 1) twin_name
+    FROM school_groups g JOIN driving_schools s ON s.id=g.school_id
+    WHERE ${w}
+    ORDER BY g.deactivated_at DESC NULLS LAST, length(g.name), g.name
+    LIMIT 300`,p);
+  /* Yangisiga qo'shib bo'lingan bo'sh qoldiqlar ro'yxatni to'ldirmasin */
+  return r.rows.filter(x=>x.students>0||x.lessons>0||!x.twin_name);
+}
+
+async function restoreGroup(res,id,owner){
+  await ensureRestoreSchema();
+  const c=await pool.connect();
+  let out;
+  try{
+    await c.query('BEGIN');
+    const g=(await c.query(`SELECT g.id,g.name,g.school_id,g.active,g.deactivated_at,s.name school_name,s.active school_active
+        FROM school_groups g JOIN driving_schools s ON s.id=g.school_id
+       WHERE g.id::text=$1 AND g.owner_key=$2 FOR UPDATE OF g`,[String(id),owner])).rows[0];
+    if(!g){await c.query('ROLLBACK');return send(res,404,{error:'Guruh topilmadi'});}
+    if(g.active!==false){await c.query('ROLLBACK');return send(res,409,{error:'Bu guruh o‘chirilmagan'});}
+    if(g.school_active===false){await c.query('ROLLBACK');return send(res,409,{error:`«${g.school_name}» avtoshkolasi ham o‘chirilgan — avval avtoshkolani tiklang`});}
+    const twin=(await c.query(`SELECT id,name FROM school_groups
+        WHERE school_id=$1 AND active IS NOT FALSE AND id<>$2 AND lower(btrim(name))=lower(btrim($3))
+        ORDER BY created_at NULLS LAST, id LIMIT 1`,[g.school_id,g.id,g.name])).rows[0]||null;
+    const target=twin?twin.id:g.id;
+    /* Vaqt SQL ichida solishtiriladi — JS sanasi mikrosoniyani yo'qotadi */
+    const exact=g.deactivated_at?' AND deactivated_at=(SELECT deactivated_at FROM school_groups WHERE id=$2)':'';
+    const st=await c.query(`UPDATE students SET active=true, group_id=$1, deactivated_at=NULL
+        WHERE group_id=$2 AND active=false${exact} RETURNING id`,[target,g.id]);
+    if(twin){
+      await c.query(`UPDATE sessions SET group_id=$1 WHERE group_id::text=$2::text`,[target,g.id]);
+      const w=await c.query(`SELECT to_regclass('public.waiting_sessions') t`);
+      if(w.rows[0]&&w.rows[0].t) await c.query(`UPDATE waiting_sessions SET group_id=$1 WHERE group_id::text=$2::text`,[target,g.id]);
+    }else{
+      await c.query(`UPDATE school_groups SET active=true, deactivated_at=NULL WHERE id=$1`,[g.id]);
+    }
+    const les=await c.query(`SELECT COALESCE(SUM(CASE WHEN lessons_counted>0 THEN lessons_counted ELSE 1 END),0)::int n
+        FROM sessions WHERE group_id::text=$1::text AND status='completed'`,[target]);
+    const dup=await c.query(`SELECT COUNT(*)::int n FROM (
+        SELECT lower(btrim(regexp_replace(full_name,'[[:space:]]+',' ','g'))) k FROM students
+         WHERE group_id=$1 AND active=true GROUP BY 1 HAVING COUNT(*)>1) x`,[target]);
+    await c.query('COMMIT');
+    out={ok:true,groupId:target,name:twin?twin.name:g.name,schoolId:g.school_id,schoolName:g.school_name,
+         merged:!!twin,students:st.rowCount,lessons:les.rows[0].n,duplicates:dup.rows[0].n};
+  }catch(e){
+    try{await c.query('ROLLBACK');}catch(e2){}
+    c.release();
+    return send(res,500,{error:e.message||'Tiklashda xatolik'});
+  }
+  c.release();
+  await logChange(null,owner,{entity:'group',entityId:out.groupId,entityName:`${out.schoolName} — ${out.name}`,
+    action:'group_restore',newValue:`${out.students} o‘quvchi`,reason:out.merged?'O‘chirilgan guruh shu nomli guruhga qo‘shildi':'O‘chirilgan guruh tiklandi'});
+  return send(res,200,out);
+}
+
 async function listStudents(req,owner){
   const u=new URL(req.url,'http://localhost'); const p=[owner]; let w='st.owner_key=$1 AND st.active=true';
   const add=(v,sql)=>{p.push(v);w+=` AND ${sql.replace('#',String(p.length))}`;};
@@ -221,14 +320,16 @@ async function handleResource(req,res,resource,id,owner){
     if(method==='GET')return send(res,200,await listGroups(req,owner));
     if(method==='POST'){const schoolId=String(b.schoolId||b.school_id||'').trim(),name=String(b.name||'').trim();if(!schoolId||!name)return send(res,400,{error:'Avtoshkola va guruh kerak'});const r=await pool.query(`INSERT INTO school_groups(owner_key,school_id,name,notes,active) VALUES($1,$2,$3,$4,true) RETURNING *`,[owner,schoolId,name,b.notes||null]);return send(res,201,r.rows[0]);}
     if(!id)return send(res,400,{error:'ID kerak'}); if(method==='DELETE'){
+      /* Ustun tekshiruvi tranzaksiyadan OLDIN — ichida DDL qulf kutib qotib qoladi */
+      const ts = (await restoreReady()) ? ', deactivated_at=NOW()' : '';
       const c = await pool.connect();
       try {
         await c.query('BEGIN');
-        let r = await c.query(`UPDATE school_groups SET active=false WHERE id=$1 AND owner_key=$2 RETURNING id`,[id,owner]);
-        if(!r.rows[0]) r = await c.query(`UPDATE school_groups SET active=false WHERE id=$1 RETURNING id`,[id]);
+        let r = await c.query(`UPDATE school_groups SET active=false${ts} WHERE id=$1 AND owner_key=$2 RETURNING id`,[id,owner]);
+        if(!r.rows[0]) r = await c.query(`UPDATE school_groups SET active=false${ts} WHERE id=$1 RETURNING id`,[id]);
         if(!r.rows[0]){ await c.query('ROLLBACK'); c.release(); return send(res,404,{error:'Guruh topilmadi'}); }
-        /* Guruh o'chirilsa undagi o'quvchilar ham o'chadi */
-        const st = await c.query(`UPDATE students SET active=false WHERE group_id=$1 AND active IS NOT FALSE`,[id]);
+        /* Guruh o'chirilsa undagi o'quvchilar ham o'chadi (keyin «Tiklash» bilan qaytadi) */
+        const st = await c.query(`UPDATE students SET active=false${ts} WHERE group_id=$1 AND active IS NOT FALSE`,[id]);
         await c.query('COMMIT');
         c.release();
         return send(res,200,{ok:true, students:st.rowCount});
@@ -286,9 +387,10 @@ async function handleResource(req,res,resource,id,owner){
     }
     if(!id)return send(res,400,{error:'ID kerak'});
     if(method==='DELETE'){
+      const ts=(await restoreReady())?', deactivated_at=NOW()':'';
       const r=await ownerSafeQuery(
-        `UPDATE students SET active=false WHERE id=$1 AND owner_key=$2 RETURNING id`,[id,owner],
-        `UPDATE students SET active=false WHERE id=$1 RETURNING id`,[id]);
+        `UPDATE students SET active=false${ts} WHERE id=$1 AND owner_key=$2 RETURNING id`,[id,owner],
+        `UPDATE students SET active=false${ts} WHERE id=$1 RETURNING id`,[id]);
       return r.rows[0]?send(res,200,{ok:true}):send(res,404,{error:'O‘quvchi topilmadi'});
     }
     /* YANGI: avtoshkola, dars soni va holat ham yangilanadi */
@@ -353,6 +455,8 @@ export async function handleAdminRequest(req,res){
       const date=new URL(req.url,'http://localhost').searchParams.get('date')||new Date().toISOString().slice(0,10);const r=await pool.query(`SELECT se.id,v.plate,v.model,v.driver_name,se.started_at,se.finished_at,se.duration_seconds,se.amount,se.cash_amount,se.terminal_amount,se.payment_method,ds.name school_name,g.name group_name,st.full_name student_name FROM sessions se LEFT JOIN vehicles v ON v.id=se.vehicle_id LEFT JOIN driving_schools ds ON ds.id=se.school_id LEFT JOIN school_groups g ON g.id=se.group_id LEFT JOIN students st ON st.id=se.student_id WHERE se.status='completed' AND se.started_at >= $1::date AND se.started_at < ($1::date + INTERVAL '1 day') AND se.user_id::text=$2 ORDER BY se.started_at DESC`,[date,owner]);const summary=r.rows.reduce((a,x)=>(a.count++,a.seconds+=Number(x.duration_seconds||0),a.amount+=Number(x.amount||0),a.cash+=Number(x.cash_amount||0),a.terminal+=Number(x.terminal_amount||0),a),{count:0,seconds:0,amount:0,cash:0,terminal:0});return send(res,200,{date,summary,rows:r.rows});
     }
     if(resource==='sessions'&&parts[1]&&req.method==='GET')return handleResource(req,res,'sessions_'+parts[1],null,owner);
+    if(resource==='groups'&&parts[1]==='deleted'&&req.method==='GET')return send(res,200,{rows:await deletedGroups(req,owner)});
+    if(resource==='groups'&&id&&parts[2]==='restore'&&req.method==='POST')return restoreGroup(res,id,owner);
     return handleResource(req,res,resource,id,owner);
   }catch(e){console.error('ADMIN API:',e);return send(res,500,{error:e?.message||'Admin server xatosi'});}
 }
