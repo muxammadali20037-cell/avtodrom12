@@ -2647,29 +2647,27 @@ const Kassa = {
   },
 
   showReceipt(r) {
-    const rows = [
-      ["O'quvchi", r.student_name || r.customer_name || '—'],
-      ['Avtoshkola', r.school_name || '—'],
-      ['Guruh', r.group_name || '—'],
-      ['Davomiylik', (r.planned_minutes || 60) + ' daqiqa'],
-      /* Davomat chek bilan birga yozildi */
-      ['Nechinchi kelishi', r.visit_index ? num(r.visit_index) + '-kelishi' : '—'],
-      ['Jami darslar', (r.total_lessons !== null && r.total_lessons !== undefined) ? num(r.total_lessons) + ' ta' : '—']
-    ];
-    const over = num(r.over_lessons) > 0;
-    openModal('<div id="kzReceipt"><h3>AVTODROM</h3>' +
-        '<div class="c" style="font-size:11px">Amaliy haydash · avtoshkola</div><div class="hr"></div>' +
-        rows.map(x => '<div class="r"><span>' + esc(x[0]) + '</span><b>' + esc(x[1]) + '</b></div>').join('') +
-        '<div class="hr"></div><div class="r big"><span>To\'lov</span><span>' + (over ? 'LIMIT TUGAGAN' : 'TEKIN') + '</span></div>' +
-        (over ? '<div class="c" style="font-size:11px;font-weight:700">Bepul limitdan ' + num(r.over_lessons) + ' ta dars oshdi — to\'lov kerak</div>' : '') +
-        '<div class="hr"></div><div class="c" id="kzQr"></div><div class="code">' + esc(r.code) + '</div>' +
-        '<div class="c" style="font-size:10px;margin-top:6px">Chekni instruktorga bering — u Avtodrom ilovasida QR ni skanerlaydi</div></div>' +
-        '<div style="display:flex;gap:8px;margin-top:16px">' +
-        '<button class="btn btn-light" style="flex:1" data-act="closeModal">Yopish</button>' +
-        '<button class="btn btn-green" style="flex:1" data-act="kzPrint">Chop etish</button></div>', { noFocus: true });
+    /* Ekranda — aynan chop etiladigan qisqa chekning o'zi (ramka ichida) */
     this.lastCode = r.code;
     this.lastReceipt = r;
-    setTimeout(() => this.drawQr(r.code), 60);
+    const over0 = num(r.over_lessons) > 0;
+    openModal('<div style="text-align:center">'
+        + '<iframe id="kzPreview" title="Chek" style="width:80mm;max-width:100%;height:60mm;border:1px solid var(--line);border-radius:10px;background:#fff" srcdoc="'
+        + esc(EntryTicket80.qrReceiptHTML(r)) + '"></iframe></div>'
+        + (over0 ? '<div class="text-red" style="text-align:center;font-weight:700;margin-top:8px">Bepul limitdan '
+          + num(r.over_lessons) + ' ta dars oshdi — to\'lov kerak</div>' : '')
+        + '<div style="display:flex;gap:8px;margin-top:16px">'
+        + '<button class="btn btn-light" style="flex:1" data-act="closeModal">Yopish</button>'
+        + '<button class="btn btn-green" style="flex:1" data-act="kzPrint">Chop etish</button></div>', { noFocus: true });
+    const f = $('kzPreview');
+    if (f) f.onload = () => {
+      try {
+        const d = f.contentDocument;
+        d.body.style.background = '#fff';
+        const m = d.querySelector('main'); if (m) m.style.margin = '0 auto';
+        f.style.height = Math.ceil(d.documentElement.scrollHeight) + 'px';
+      } catch (e) { /* noop */ }
+    };
   },
 
   /* «Chop etish» — chek alohida 80 mm ramkada chiqadi (boshqa cheklar kabi) */
@@ -4531,36 +4529,52 @@ const EntryTicket80 = {
   },
 
   /* ============ QR CHEK (avtoshkola, Avtodrom instruktori skanerlaydi) ============
-     Davomat bilan birga yoziladi — chekda nechinchi kelishi va jami
-     darslar ham turadi. Qolgan cheklar kabi 80 mm, bir xil uslub. */
+     QISQA chek (foydalanuvchi talabi, 2026-09-29): ilgari ~19 sm edi.
+     Endi QR chapda, ma'lumot yonida — bitta blok. Faqat kerakli narsa:
+     ism, avtoshkola va guruh, dars davomiyligi, nechinchi kelishi, sana,
+     TEKIN yoki LIMIT TUGAGAN. Jami darslar, izoh va sarlavhalar olib
+     tashlandi. QR 30 mm — telefon kamerasi bemalol o'qiydi. */
   qrReceiptHTML(r) {
-    const row = (l, v) => this.tkRow(l, v);
     const over = num(r.over_lessons) > 0;
     let svg = '';
     try {
       if (typeof qrcode === 'function') {
         const q = qrcode(0, 'M'); q.addData(String(r.code)); q.make();
-        svg = q.createSvgTag({ cellSize: 5, margin: 4, scalable: false });
+        svg = q.createSvgTag({ cellSize: 4, margin: 2, scalable: false });
       }
     } catch (e) { svg = ''; }
+    const t = new Date(r.issued_at || Date.now());
+    const when = Number.isNaN(t.getTime()) ? '' : t.toLocaleString('uz-UZ', {
+      timeZone: 'Asia/Tashkent', day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: false });
+    const place = [r.school_name, r.group_name ? r.group_name + '-guruh' : ''].filter(Boolean).join(' · ');
+    const lesson = [num(r.planned_minutes || 60) + ' daq',
+      r.visit_index ? num(r.visit_index) + '-kelishi' : ''].filter(Boolean).join(' · ');
     return this.ticketShell('QR chek',
-        '<style>.qr svg{display:block;width:44mm;height:auto;margin:4px auto 0}'
-      + '.qcode{text-align:center;font-family:Consolas,monospace;font-size:22px;font-weight:900;letter-spacing:3px;margin-top:2px}</style>'
-      + '<div class="b">INDEX AVTODROM</div>'
-      + '<div class="h">Amaliy haydash · avtoshkola</div>'
-      + '<div class="badge">AVTOSHKOLA<small>QR CHEK</small></div>'
-      + '<div class="nm">' + esc(r.student_name || r.customer_name || '—') + '</div>'
-      + row('Avtoshkola', r.school_name)
-      + row('Guruh', r.group_name)
-      + row('Davomiylik', num(r.planned_minutes || 60) + ' daqiqa')
-      + row('Nechinchi kelishi', r.visit_index ? num(r.visit_index) + '-kelishi' : '')
-      + row('Jami darslar', (r.total_lessons !== null && r.total_lessons !== undefined) ? num(r.total_lessons) + ' ta' : '')
-      + row('Berildi', this.tkTime(r.issued_at || new Date().toISOString()))
-      + '<div class="sum">' + (over ? 'LIMIT TUGAGAN' : 'TEKIN')
-      + (over ? '<small>BEPUL LIMITDAN ' + num(r.over_lessons) + ' TA DARS OSHDI</small>' : '') + '</div>'
-      + (svg ? '<div class="qr">' + svg + '</div>' : '')
-      + '<div class="qcode">' + esc(r.code || '') + '</div>'
-      + '<div class="ft">Chekni instruktorga bering —<br>u Avtodrom ilovasida QR ni skanerlaydi.</div>',
+        '<style>'
+      + '.t{padding:2mm 3mm}.pad{height:4mm}'
+      + '.qh{text-align:center;font-size:12px;font-weight:900;letter-spacing:.5px;'
+      +   'border-bottom:1px dashed #000;padding-bottom:1.5mm;margin-bottom:2mm}'
+      + '.qrow{display:flex;gap:3mm;align-items:center}'
+      + '.qbox{flex:none;width:30mm;text-align:center}'
+      + '.qbox svg{display:block;width:30mm;height:30mm}'
+      + '.qbox b{display:block;font-family:Consolas,monospace;font-size:13px;letter-spacing:1px;margin-top:1mm}'
+      + '.qi{flex:1;min-width:0;font-size:12px;line-height:1.3}'
+      + '.qi .n{font-size:14px;font-weight:900;line-height:1.2;overflow-wrap:anywhere;margin-bottom:1mm}'
+      + '.qi .s{font-weight:800;font-size:13px}'
+      + '.qi .f{display:inline-block;margin-top:1.2mm;padding:.5mm 2mm;border:1.5px solid #000;font-weight:900}'
+      + '.qi .f.x{background:#000;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+      + '</style>'
+      + '<div class="qh">INDEX AVTODROM · AVTOSHKOLA</div>'
+      + '<div class="qrow">'
+      + '<div class="qbox">' + svg + '<b>' + esc(r.code || '') + '</b></div>'
+      + '<div class="qi">'
+      + '<div class="n">' + esc(r.student_name || r.customer_name || '—') + '</div>'
+      + (place ? '<div>' + esc(place) + '</div>' : '')
+      + '<div class="s">' + esc(lesson) + '</div>'
+      + (when ? '<div>' + esc(when) + '</div>' : '')
+      + '<div class="f' + (over ? ' x' : '') + '">' + (over ? 'LIMIT TUGAGAN' : 'TEKIN') + '</div>'
+      + '</div></div>',
       true);
   },
 
