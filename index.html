@@ -4452,54 +4452,78 @@ const EntryTicket80 = {
       ? this.paidHTML(data, bare) : this.attendanceHTML(data, bare);
   },
 
-  /* ============ AVTOSHKOLA DAVOMAT CHEKI (bepul) ============ */
-  attendanceHTML(data, bare) {
-    const row = (l, v) => this.tkRow(l, v);
-    const dars = Math.max(1, num(data.hours) || 1);
+  /* ============ AVTOSHKOLA DAVOMAT CHEKI (bepul) ============
+     QISQA chek (foydalanuvchi talabi, 2026-09-29): ilgari ~22 sm edi.
+     Faqat kerakli narsa: ism, avtoshkola va guruh, bugungi darslar va
+     jami, instruktor va mashina, sana va chek raqami. Yirtiladigan qism
+     (koreshok) saqlandi, lekin ikki qatorga qisqardi — nazoratchi uni
+     darvozada yirtib oladi.
 
-    /* Shartnoma va bepul kirish soni chekda KO'RSATILMAYDI — bu
-       avtodrom bilan avtoshkola o'rtasidagi ichki hisob. O'quvchining
-       qo'lidagi qog'ozda faqat uning darsi haqidagi ma'lumot turadi. */
+     Shartnoma va bepul kirish soni chekda KO'RSATILMAYDI — bu avtodrom
+     bilan avtoshkola o'rtasidagi ichki hisob.
+
+     «Bugun N dars» deb yoziladi: ilgari katta «1 DARS» turardi va
+     o'quvchilar uni «birinchi darsim» deb tushunib chalkashardi. */
+  attendanceHTML(data, bare) {
+    const dars = Math.max(1, num(data.hours) || 1);
+    /* Sana kun.oy ko'rinishida (uz-UZ qisqa sanani «09-29» deb yozadi) */
+    const t = new Date(data.issued || Date.now());
+    const P = Number.isNaN(t.getTime()) ? null : Object.fromEntries(
+      new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', day: '2-digit', month: '2-digit',
+        year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
+        .formatToParts(t).map(x => [x.type, x.value]));
+    const when = P ? P.day + '.' + P.month + '.' + P.year + ' ' + P.hour + ':' + P.minute : '';
+    const whenShort = P ? P.day + '.' + P.month + ' ' + P.hour + ':' + P.minute : '';
+    const place = [data.school, data.group ? data.group + '-guruh' : ''].filter(Boolean).join(' · ');
+    const lesson = 'Bugun ' + dars + ' dars' + (num(data.total) > 0 ? ' · jami ' + num(data.total) + ' ta' : '');
+    const who = [data.instructor, data.plate].filter(Boolean).join(' · ');
+    const tail = [when, data.code ? '#' + data.code : ''].filter(Boolean).join(' · ');
+
+    /* Turniket QR (sozlamada yoqilgan bo'lsa) — chapda, ma'lumot yonida */
+    let qr = '';
+    if (data.gateCode) {
+      try {
+        if (typeof qrcode === 'function') {
+          const q = qrcode(0, 'M'); q.addData(String(data.gateCode)); q.make();
+          qr = q.createSvgTag({ cellSize: 4, margin: 2, scalable: false });
+        }
+      } catch (e) { qr = ''; }
+    }
+    const info = '<div class="ai">'
+      + '<div class="n">' + esc(data.person || '—') + '</div>'
+      + (place ? '<div>' + esc(place) + '</div>' : '')
+      + '<div class="s">' + esc(lesson) + '</div>'
+      + (who ? '<div>' + esc(who) + '</div>' : '')
+      + (tail ? '<div>' + esc(tail) + '</div>' : '')
+      + '</div>';
 
     return this.ticketShell('Davomat cheki',
-        '<div class="b">INDEX AVTODROM</div>'
-      + '<div class="h">Prava imtihoniga tayyorlov markazi</div>'
-      + '<div class="badge">AVTOSHKOLA<small>DAVOMAT</small></div>'
-      + '<div class="nm">' + esc(data.person || '—') + '</div>'
-      /* Ilgari bu yerda katta «1 DARS» turardi va o'quvchilar uni
-         «birinchi darsim» deb tushunib chalkashardi. Endi chekning
-         nima ekani yozilgan, darslar soni esa pastdagi qatorda. */
-      + '<div class="big">KIRISH TALONI</div>'
-      + this.gateBlock(data.gateCode)
-      + row('Kelish maqsadi', 'Avtodromda amaliy haydash')
-      + row('Bugungi dars', dars + ' ta')
-      + row('Avtoshkola', data.school)
-      + row('Guruh', data.group)
-      + row('Instruktor', data.instructor)
-      + row('Avtomobil', data.plate)
-      + row('Qayd etildi', this.tkTime(data.issued))
-      + row('Jami darslar', num(data.total) > 0 ? num(data.total) + ' ta' : '')
-      + row('Chek raqami', data.code)
-      + '<div class="hr"></div>'
-      + '<div class="ft">Bu chek avtodromga kirish va dars qayd etilganini tasdiqlaydi.<br>'
-      + 'Chekni yo‘qotmang — nazoratda so‘ralishi mumkin.<br>Yaxshi yo‘l!</div>'
+        '<style>'
+      + '.t{padding:2mm 3mm}.pad{height:4mm}'
+      + '.ah{text-align:center;font-size:12px;font-weight:900;letter-spacing:.5px;'
+      +   'border-bottom:1px dashed #000;padding-bottom:1.5mm;margin-bottom:2mm}'
+      + '.arow{display:flex;gap:3mm;align-items:center}'
+      + '.aq{flex:none;width:28mm;text-align:center}'
+      + '.aq svg{display:block;width:28mm;height:28mm}'
+      + '.aq b{display:block;font-family:Consolas,monospace;font-size:10px;margin-top:.5mm}'
+      + '.ai{flex:1;min-width:0;font-size:12px;line-height:1.3}'
+      + '.ai .n{font-size:15px;font-weight:900;line-height:1.2;overflow-wrap:anywhere;margin-bottom:1mm}'
+      + '.ai .s{font-weight:800;font-size:13px}'
+      + '.acut{border-top:1.5px dashed #000;margin:2.5mm 0 1.5mm;position:relative}'
+      + '.acut span{position:absolute;left:0;top:-7px;background:#fff;font-size:10px;padding-right:1mm}'
+      + '.astub{font-size:11px;line-height:1.35}'
+      + '.astub b{font-size:12px}'
+      + '</style>'
+      + '<div class="ah">INDEX AVTODROM · KIRISH TALONI</div>'
+      + (qr
+        ? '<div class="arow"><div class="aq">' + qr + '<b>' + esc(String(data.gateCode).replace(/(\d{4})(?=\d)/g, '$1 ')) + '</b></div>' + info + '</div>'
+        : info)
 
-      /* ===== YIRTILADIGAN QISM (koreshok) =====
-         O'quvchi darvozadan kirganda nazoratchi shu pastki qismni
-         yirtib oladi. Chekning o'zi o'quvchida qoladi, yirtilgan
-         qism esa avtodromda — kim kirganini qog'ozdan ham
-         tekshirish mumkin bo'ladi. */
-      + '<div class="cut"><span>✂ shu yerdan yirtilsin</span></div>'
-      + '<div class="stub">'
-      + '<div class="stub-t">AVTODROMGA KIRDI</div>'
-      + '<div class="stub-nm">' + esc(data.person || '—') + '</div>'
-      + '<div class="stub-r">' + esc(data.school || '') + (data.group ? ' · ' + esc(data.group) + '-guruh' : '') + '</div>'
-      + '<div class="stub-r"><b>' + dars + ' dars</b>'
-      + (data.plate ? ' · ' + esc(data.plate) : '')
-      + (data.code ? ' · ' + esc(data.code) : '') + '</div>'
-      + '<div class="stub-r">' + esc(this.tkTime(data.issued)) + '</div>'
-      + '<div class="sign">Nazoratchi: ______________</div>'
-      + '</div>',
+      /* ===== YIRTILADIGAN QISM (koreshok) — ikki qator ===== */
+      + '<div class="acut"><span>✂</span></div>'
+      + '<div class="astub"><b>KIRDI: ' + esc(data.person || '—') + '</b> · <span style="white-space:nowrap">' + dars + ' dars</span><br>'
+      + esc([whenShort, data.code ? '#' + data.code : ''].filter(Boolean).join(' · '))
+      + ' · Nazoratchi: __________</div>',
       bare);
   },
 
