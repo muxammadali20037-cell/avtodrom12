@@ -944,6 +944,14 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 .be-in{width:100%;padding:6px 8px;border:1px solid #d7dee7;border-radius:8px;font:inherit}
 .be-in:focus{outline:none;border-color:#16a34a;box-shadow:0 0 0 3px rgba(22,163,74,.12)}
 
+/* ===== FACE ID ===== */
+.face-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+.face-row:last-child{border-bottom:0}
+.face-row > span{color:var(--muted)}
+.face-steps{margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.7;color:var(--text-secondary)}
+.face-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px}
+@media (max-width:640px){.face-grid{grid-template-columns:1fr}}
+
 /* ===== TURNIKET ===== */
 .gate-sub{font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
 .gate-h3{margin:0 0 2px;font-size:16px}
@@ -1061,6 +1069,7 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
     <div class="nav-section">Nazorat</div>
     <button class="nav-btn" type="button" data-p="control"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> Xatoliklar va aniqliklar <span id="ctrlCount" class="nav-badge amber"></span></button>
     <button class="nav-btn" type="button" data-p="turniket"><i class="fa-solid fa-door-open" aria-hidden="true"></i> Turniket <span id="gateCount" class="nav-badge red"></span></button>
+    <button class="nav-btn" type="button" data-p="faceid"><i class="fa-solid fa-face-smile" aria-hidden="true"></i> Face ID</button>
 
     <div class="nav-section">Boshqaruv</div>
     <button class="nav-btn" type="button" data-p="instructors"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktorlar</button>
@@ -1522,6 +1531,45 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
           <h3 class="gate-h3"><i class="fa-solid fa-clipboard-list" style="color:#b45309" aria-hidden="true"></i> Turniket jurnali</h3>
           <div class="text-muted gate-hint">Har bir urilgan chek. Rad etilgan va qo'lda ochilganlar ajratib ko'rsatiladi.</div>
           <div id="gateEventsWrap"></div>
+        </div>
+      </section>
+
+      <!-- ===== FACE ID ===== -->
+      <section id="p-faceid" class="page hidden">
+        <div class="page-header">
+          <div>
+            <h1>Face ID</h1>
+            <p>Chek chiqarishdan oldin o'quvchi bugun avtodromdagi Face ID dan o'tganmi — Hikvision qurilmasidan tekshiriladi</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-green" type="button" data-act="faceLoad"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Yangilash</button>
+          </div>
+        </div>
+
+        <div class="panel"><div id="faceState">—</div></div>
+
+        <div class="panel">
+          <h3 class="gate-h3"><i class="fa-solid fa-desktop" style="color:var(--blue)" aria-hidden="true"></i> Kassa kompyuteriga dastur</h3>
+          <div class="text-muted gate-hint">Dastur Face ID qurilmasidan «bugun kim o'tdi» ro'yxatini faqat o'qiydi va shu yerga yuboradi. Qurilma sozlamalariga tegmaydi — e-avtota'lim avvalgidek ishlayveradi.</div>
+          <div class="face-grid">
+            <div class="fg" style="margin:0"><label for="faceIp">Qurilmaning IP manzili</label><input id="faceIp" placeholder="192.168.1.64" inputmode="decimal" autocomplete="off"></div>
+            <div class="fg" style="margin:0"><label for="faceLogin">Login</label><input id="faceLogin" value="admin" autocomplete="off"></div>
+            <div class="fg" style="margin:0"><label for="facePass">Parol</label><input id="facePass" type="password" autocomplete="new-password"></div>
+          </div>
+          <div id="faceDlErr" class="text-error" role="alert"></div>
+          <button class="btn btn-green" type="button" data-act="faceDownload" style="margin-top:12px"><i class="fa-solid fa-download" aria-hidden="true"></i> Dasturni yuklab olish</button>
+          <ol class="face-steps">
+            <li>Face ID qurilmasi bilan <b>bitta routerga ulangan</b> kassa kompyuterida shu sahifani oching va dasturni yuklab oling.</li>
+            <li><b>avtodrom-faceid.bat</b> fayliga ikki marta bosing. Qora oyna ochiladi — uni yopmang.</li>
+            <li>Yuqorida «ishlayapti» chiqsa — tayyor. Kompyuter qayta yonganda dastur o'zi ishga tushadi.</li>
+          </ol>
+          <div class="text-muted" style="font-size:12px;margin-top:6px"><i class="fa-solid fa-lock" aria-hidden="true"></i> Parol faqat yuklab olinadigan faylga yoziladi, serverga yuborilmaydi.</div>
+        </div>
+
+        <div class="panel">
+          <h3 class="gate-h3"><i class="fa-solid fa-list-check" style="color:var(--g)" aria-hidden="true"></i> Bugun Face ID dan o'tganlar</h3>
+          <div class="text-muted gate-hint">Face ID dan boshqa avtoshkolalar o'quvchilari ham o'tadi — ular «bazada yo'q» bo'lib turadi. O'zimizning o'quvchi topilmasa, «Bog'lash» bilan bir marta qo'lda ko'rsating.</div>
+          <div id="faceList" aria-live="polite"></div>
         </div>
       </section>
 
@@ -2270,7 +2318,7 @@ function showLoginScreen() {
 const PAGE_TITLES = {
   add: 'Yangi avtomobil', active: 'Jarayonda', queue: 'Kutish rejimi', finish: 'Tugatish',
   frozen: 'Muzlatilgan', daily: 'Kunlik hisobot', history: 'Tarix', instructors: 'Instruktorlar',
-  kassa: 'QR chek — avtoshkola', control: 'Xatoliklar va aniqliklar', turniket: 'Turniket'
+  kassa: 'QR chek — avtoshkola', control: 'Xatoliklar va aniqliklar', turniket: 'Turniket', faceid: 'Face ID'
 };
 function go(page) {
   const el = $('p-' + page);
@@ -2296,6 +2344,7 @@ function go(page) {
   if (page === 'kassa') Kassa.onEnter();
   if (page === 'control') Control.onEnter();
   if (page === 'turniket') Gate.onEnter();
+  if (page === 'faceid') FaceId.onEnter();
 }
 function closeSidebar() {
   $('side').classList.remove('open');
@@ -2559,6 +2608,35 @@ const Kassa = {
         : ' (qoladi: ' + Math.max(0, num(q.limit) - next) + ')');
   },
 
+  /* ===== FACE ID ===== (Add dagi bilan bir xil qoida) */
+  face: null,
+  faceFor: '',
+  async loadFace(id, notify) {
+    if (!id) return;
+    id = String(id);
+    this.face = null; this.faceFor = id;
+    this.paintFace();
+    const f = await FaceId.status(id);
+    if (this.faceFor !== id) return;
+    this.face = f;
+    if (notify) toast(FaceId.blocked(f) ? (f.error || 'Face ID dan o\'tmagan') : (f && f.passed ? 'Face ID dan o\'tgan.' : 'Tekshirildi.'), FaceId.blocked(f) ? 'error' : undefined);
+    this.paintFace();
+  },
+  faceBlocked() {
+    return !!(this.student && this.faceFor === String(this.student.id) && FaceId.blocked(this.face));
+  },
+  paintFace() {
+    const el = $('kzFace');
+    const on = this.student && this.faceFor === String(this.student.id);
+    if (el) el.innerHTML = on ? FaceId.boxHTML(this.face, 'kassa') : '';
+    const b = $('kzIssueBtn');
+    if (b && !this.busy) {
+      const blocked = this.faceBlocked();
+      b.disabled = blocked;
+      b.textContent = blocked ? 'Face ID dan o\'tmagan — chek chiqarilmaydi' : 'QR chek chiqarish';
+    }
+  },
+
   focusFirst() {
     setTimeout(() => { const el = $('kzSearch'); if (el) { try { el.focus(); } catch (e) {} } }, 60);
   },
@@ -2598,9 +2676,11 @@ const Kassa = {
     box.innerHTML = '<div><b>' + esc(s.full_name || s.fullName) + '</b>'
       + '<div class="muted" style="font-size:12px">' + esc(s.school_name || s.schoolName || '')
       + (s.group_name || s.groupName ? ' · ' + esc(s.group_name || s.groupName) : '') + '</div>'
-      + '<div id="kzQuota" style="font-size:13px;margin-top:6px"></div></div>'
+      + '<div id="kzQuota" style="font-size:13px;margin-top:6px"></div>'
+      + '<div id="kzFace"></div></div>'
       + '<button class="btn btn-light btn-sm" type="button" data-act="kzPick" data-id="">O\'zgartirish</button>';
     this.loadQuota(s.id);
+    this.loadFace(s.id);
     setTimeout(() => { const b = $('kzIssueBtn'); if (b) b.focus(); }, 60);
   },
 
@@ -2610,6 +2690,7 @@ const Kassa = {
     if (this.busy) return;                       // ikkinchi bosish o'tmaydi
     if (!this.schoolId) return err('Avval chek beriladigan avtoshkolani tanlang');
     if (!this.student) return err("O'quvchini tanlang");
+    if (this.faceBlocked()) return err(this.face.error || 'Face ID dan o\'tmagan — chek chiqarilmaydi');
 
     this.busy = true;
     const btn = $('kzIssueBtn'); btn.disabled = true; btn.textContent = 'Chiqarilmoqda…';
@@ -2631,15 +2712,21 @@ const Kassa = {
       toast('Davomat yozildi: ' + (r.student_name || stName(picked))
         + (r.visit_index ? ' — ' + num(r.visit_index) + '-kelishi' : ''),
         num(r.over_lessons) > 0 ? 'warn' : undefined);
+      if (d.face && d.face.warning) toast(d.face.warning + ' — chek tekshiruvsiz chiqdi.', 'warn');
       this.reset();
       this.load();
-    } catch (e) { err(e.message || 'Chek chiqarilmadi'); }
-    finally { this.busy = false; btn.disabled = false; btn.textContent = 'QR chek chiqarish'; }
+    } catch (e) {
+      err(e.message || 'Chek chiqarilmadi');
+      if (/Face ID/i.test(String(e.message)) && this.student) { this.busy = false; this.loadFace(this.student.id); }
+    }
+    finally { this.busy = false; btn.disabled = false; btn.textContent = 'QR chek chiqarish'; this.paintFace(); }
   },
 
   reset() {
     this.student = null;
     this.quota = null; this.quotaFor = '';
+    this.face = null; this.faceFor = '';
+    this.paintFace();
     $('kzSearch').value = '';
     $('kzPicked').classList.add('hidden');
     $('kzSuggest').classList.add('hidden');
@@ -2749,7 +2836,7 @@ document.addEventListener('keydown', e => {
   if ($('modal') && $('modal').innerHTML) return;
   /* Tugma bosilgan holatda bo'lsa Enter ikkinchi so'rov yubormaydi —
      aks holda ikkita chek chiqib, bazadagi cheklov xatosi ko'rinardi. */
-  if (e.key === 'Enter' && Kassa.student && !Kassa.busy) { e.preventDefault(); Kassa.issue(); }
+  if (e.key === 'Enter' && Kassa.student && !Kassa.busy) { e.preventDefault(); if (!Kassa.faceBlocked()) Kassa.issue(); }
 });
 document.addEventListener('input', e => {
   if (e.target && e.target.id === 'kzSearch') Kassa.renderSuggest();
@@ -3033,6 +3120,39 @@ const Add = {
     this.renderStudentPanel();
   },
 
+  /* ===== FACE ID =====
+     O'quvchi tanlanishi bilan bugun Face ID dan o'tganmi — tekshiramiz.
+     «Majburiy» yoqilgan va o'tmagan bo'lsa tugmalar bloklanadi (server
+     ham baribir rad etadi). Kesh yo'q: o'quvchi hozirgina o'tgan
+     bo'lishi mumkin, «Qayta tekshirish» shu uchun. */
+  face: null,
+  faceFor: '',
+  async loadFace(force, notify) {
+    const st = STATE.form.student;
+    if (!st || !st.id || STATE.form.customerType !== 'school') { this.face = null; this.faceFor = ''; this.syncFaceBlock(); return; }
+    const id = String(st.id);
+    if (!force && this.faceFor === id && this.face) return;
+    this.faceFor = id; this.face = null;
+    const f = await FaceId.status(id);
+    if (this.faceFor !== id) return;
+    this.face = f;
+    if (notify) toast(FaceId.blocked(f) ? (f.error || 'Face ID dan o\'tmagan') : (f && f.passed ? 'Face ID dan o\'tgan.' : 'Tekshirildi.'), FaceId.blocked(f) ? 'error' : undefined);
+    this.renderStudentPanel();
+  },
+  faceNow() {
+    const s = STATE.form.student;
+    return (s && this.faceFor === String(s.id)) ? this.face : null;
+  },
+  syncFaceBlock() {
+    const blocked = STATE.form.customerType === 'school' && FaceId.blocked(this.faceNow());
+    ['startBtn', 'attendOnlyBtn'].forEach(id => {
+      const b = $(id);
+      if (!b || b.classList.contains('is-busy')) return;
+      b.disabled = !!blocked;
+      if (blocked) b.title = 'Face ID dan o\'tmagan — chek chiqarilmaydi'; else b.removeAttribute('title');
+    });
+  },
+
   /* Panelda ko'rinadigan limit qatori */
   quotaHTML() {
     const q = this.quota;
@@ -3079,6 +3199,7 @@ const Add = {
     this.renderCarOptions();
     /* Shartnoma limitini fonda olamiz — formani kutib turmaydi */
     this.loadQuota();
+    this.loadFace(true);
   },
   renderCarOptions() {
     const sel = $('schoolCar');
@@ -3212,6 +3333,7 @@ const Add = {
 
     setError('startErr', '');
     setError('plateErr', '');
+    this.syncFaceBlock();
   },
 
   /** Avtoshkola rejimidami? */
@@ -3336,7 +3458,7 @@ const Add = {
     const box = $('studentBox');
     const s = STATE.form.student;
     if (typeof CascadePick !== 'undefined') CascadePick.sync(s);
-    if (!s) { box.innerHTML = ''; return; }
+    if (!s) { box.innerHTML = ''; this.syncFaceBlock(); return; }
     const total = attCount(s);
     const today = Data.todayLessons(s.id);
     const planned = Math.round(this.targetSeconds() / CONFIG.LESSON_SECONDS);
@@ -3353,8 +3475,10 @@ const Add = {
       + '<div class="autofill-item"><span>Kelgan darslari</span><b>' + total + ' dars</b></div>'
       + '</div>'
       + this.quotaHTML()
+      + FaceId.boxHTML(this.faceNow(), 'add')
       + '<div class="field-help" style="margin-top:8px">1 soat = 1 dars. Yakuniy hisob serverda yangilanadi.</div></div>';
     this.syncChekButton();
+    this.syncFaceBlock();
   },
 
   /* Limit tugagan bo'lsa tugmada ham ko'rinib tursin: chek chiqmaydi */
@@ -3463,6 +3587,10 @@ const Add = {
     const d = this.collect();
     const err = this.validate(d);
     if (err) { setError('startErr', err); return; }
+    if (d.type === 'school' && FaceId.blocked(this.faceNow())) {
+      setError('startErr', this.face.error || 'Face ID dan o\'tmagan — chek chiqarilmaydi');
+      return;
+    }
 
     /* ============ AVTOSHKOLA = DAVOMAT ============
        Vaqt ochilmaydi: dars darhol yozib qo'yiladi. Nechta soat
@@ -3485,6 +3613,7 @@ const Add = {
             reason: d.reason || ''
           }) });
           const n = num(res && res.lessons) || d.lessons;
+          if (res && res.face && res.face.required) { this.face = res.face; this.faceFor = String(d.student.id); }
 
           /* Natija DARHOL ko'rinsin — lekin BUTUN ro'yxatni qayta
              yuklamaymiz. 3000 o'quvchida u ~1 MB bo'ladi va har bir
@@ -3544,6 +3673,7 @@ const Add = {
           }
 
           toast('Davomat yozildi: ' + stName(d.student) + ' — ' + n + ' dars. Jami: ' + jami + ' dars');
+          if (res && res.face && res.face.warning) toast(res.face.warning + ' — chek tekshiruvsiz chiqdi.', 'warn');
 
           /* ===== SHARTNOMA LIMITI =====
              Server shu yozuv limitdan oshganini aytsa, operator buni
@@ -3576,8 +3706,11 @@ const Add = {
               + 'api/compat-routes.js ni deploy qiling.'
             : e.message;
           setError('startErr', m);
+          /* Server Face ID sababli rad etdi — panel ham yangilansin */
+          if (/Face ID/i.test(String(e.message))) this.loadFace(true);
         }
       });
+      this.syncFaceBlock();
       return;
     }
 
@@ -4277,6 +4410,213 @@ const Gate = {
         if (STATE.page === 'turniket') this.load(true);
       } catch (e) { setError('gateDevErr', e.message); }
     });
+  }
+};
+
+/* ===================== FACE ID =====================
+   Chek chiqarishdan oldin o'quvchi bugun avtodromdagi Hikvision Face ID
+   qurilmasidan o'tganmi (api/face-routes.js). Qurilmadagi o'tishlarni
+   kassa kompyuteridagi ko'prik dasturi yuboradi; dasturni shu bo'limdan
+   yuklab olinadi. «Majburiy» yoqilganda o'tmagan o'quvchiga davomat ham,
+   chek ham yozilmaydi — tekshiruvni server ham qiladi. */
+const FaceId = {
+  data: null,
+  filter: 'all',
+  setFilter(f) { this.filter = f === 'found' || f === 'missing' ? f : 'all'; this.render(); },
+
+  /* Bitta o'quvchi holati. Xato bo'lsa null — kassa to'xtab qolmasin
+     (server baribir o'zi tekshiradi). */
+  async status(studentId) {
+    if (!studentId) return null;
+    try { return await api('/face/status?studentId=' + encodeURIComponent(studentId), { timeout: 8000 }); }
+    catch (e) { console.warn('[face]', e); return null; }
+  },
+  blocked(f) { return !!(f && f.required && f.ok === false); },
+
+  /* O'quvchi panelidagi qator: yashil — o'tgan, qizil — o'tmagan, sariq — tekshirib bo'lmadi */
+  boxHTML(f, scope) {
+    if (!f || !f.required) return '';
+    const retry = '<button class="btn btn-light btn-sm" type="button" data-act="faceRetry" data-scope="' + esc(scope) + '" style="margin-top:6px">Qayta tekshirish</button>';
+    if (f.passed) {
+      return '<div class="quota-box ok"><div class="quota-line"><i class="fa-solid fa-face-smile" aria-hidden="true"></i> '
+        + 'Face ID: <b>' + esc(timeOnly(f.at)) + '</b> da o\'tgan'
+        + (f.name ? ' <span class="text-muted">(' + esc(f.name) + ')</span>' : '') + '</div></div>';
+    }
+    if (f.ok === false) {
+      return '<div class="quota-box over"><div class="quota-title"><i class="fa-solid fa-user-xmark" aria-hidden="true"></i> '
+        + esc(f.error || 'Face ID dan o\'tmagan — chek chiqarilmaydi') + '</div>'
+        + '<div class="quota-line">O\'quvchi avval avtodromdagi Face ID dan o\'tsin, keyin qayta tekshiring.</div>' + retry + '</div>';
+    }
+    return '<div class="quota-box warn"><div class="quota-line"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> '
+      + esc(f.warning || 'Face ID tekshirib bo\'lmadi') + ' — chek chiqaveradi.</div></div>';
+  },
+
+  /* ===== «Face ID» bo'limi ===== */
+  onEnter() { this.load(); },
+
+  async load(silent) {
+    const host = $('faceList');
+    if (!silent && host) host.innerHTML = loadingLine('Yuklanmoqda...');
+    try {
+      this.data = await api('/face/today');
+      this.render();
+    } catch (e) {
+      if (host) host.innerHTML = emptyState('fa-triangle-exclamation', 'Face ID ma\'lumoti olinmadi', e.message, true);
+    }
+  },
+
+  render() {
+    const d = this.data || {};
+    const st = $('faceState');
+    if (st) {
+      const seen = d.lastSeenAt ? timeOnly(d.lastSeenAt) : '';
+      const bridge = d.healthy
+        ? '<span class="badge badge-green">ishlayapti</span> <span class="text-muted">oxirgi aloqa ' + esc(seen) + '</span>'
+        : d.lastSeenAt
+          ? '<span class="badge badge-red">aloqa yo\'q</span> <span class="text-muted">' + esc(seen) + ' dan beri</span>'
+          : '<span class="badge badge-amber">hali ulanmagan</span>';
+      st.innerHTML =
+          '<div class="face-row"><span>Kassa kompyuteridagi dastur</span><div>' + bridge + '</div></div>'
+        + '<div class="face-row"><span>Bugun Face ID dan o\'tganlar</span><div><b>' + num(d.summary && d.summary.total) + '</b> ta · bazada topildi <b>'
+        + num(d.summary && d.summary.matched) + '</b> ta</div></div>'
+        + '<div class="face-row"><span>Chek chiqarishda Face ID</span><div>'
+        + (d.required ? '<span class="badge badge-green">majburiy</span>' : '<span class="badge badge-amber">o\'chiq — tekshirilmaydi</span>')
+        + ' <button class="btn ' + (d.required ? 'btn-light' : 'btn-green') + ' btn-sm" type="button" data-act="faceToggle">'
+        + (d.required ? 'O\'chirish' : 'Yoqish') + '</button></div></div>';
+    }
+    const host = $('faceList');
+    if (!host) return;
+    const all = Array.isArray(d.rows) ? d.rows : [];
+    const found = all.filter(r => r.student).length;
+    const f = this.filter;
+    const rows = all.filter(r => f === 'found' ? r.student : f === 'missing' ? !r.student : true);
+    const chips = all.length ? '<div class="seg" style="margin-bottom:12px">'
+      + [['all', 'Hammasi', all.length], ['found', 'Bazada bor', found], ['missing', 'Bazada yo\'q', all.length - found]]
+        .map(x => '<button type="button" class="seg-btn' + (f === x[0] ? ' active' : '') + '" data-act="faceFilter" data-f="' + x[0] + '">'
+          + x[1] + ' (' + x[2] + ')</button>').join('') + '</div>' : '';
+    if (!rows.length && all.length) { host.innerHTML = chips + emptyState('fa-filter', 'Bu ro\'yxat bo\'sh', ''); return; }
+    if (!rows.length) {
+      host.innerHTML = emptyState('fa-face-smile', 'Bugun hali hech kim o\'tmagan',
+        d.lastSeenAt ? 'O\'quvchi Face ID dan o\'tishi bilan shu yerda paydo bo\'ladi.' : 'Avval kassa kompyuteriga dasturni o\'rnating (yuqorida).');
+      return;
+    }
+    const cols = ['Vaqt', 'Face ID dagi ism', 'Avtodrom 12 dagi o\'quvchi', ''];
+    host.innerHTML = chips + '<div class="table-wrap responsive"><table class="tbl"><thead><tr>'
+      + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
+      + rows.map(r => {
+        const who = r.student
+          ? '<b>' + esc(r.student.full_name) + '</b><div class="text-muted" style="font-size:12px">'
+            + esc(r.student.school_name || '') + (r.by === 'ref' ? ' · qo\'lda bog\'langan' : ' · ism bo\'yicha') + '</div>'
+          : '<span class="text-muted">bazada yo\'q</span>' + (r.by === 'many' ? '<div class="text-muted" style="font-size:12px">bir nechta o\'xshash ism — qo\'lda bog\'lang</div>' : '');
+        const cells = [
+          esc(timeOnly(r.first_at)) + (num(r.n) > 1 ? '<div class="text-muted" style="font-size:12px">' + num(r.n) + ' marta, oxirgi ' + esc(timeOnly(r.last_at)) + '</div>' : ''),
+          esc(r.person_name || '—') + (r.person_ref ? '<div class="text-muted" style="font-size:12px">№ ' + esc(r.person_ref) + '</div>' : ''),
+          who,
+          r.person_ref ? '<button class="btn btn-light btn-sm" type="button" data-act="faceLink" data-ref="' + esc(r.person_ref)
+            + '" data-name="' + esc(r.person_name || '') + '">' + (r.student ? 'O\'zgartirish' : 'Bog\'lash') + '</button>' : ''
+        ];
+        return '<tr>'
+          + cells.map((c, i) => '<td data-label="' + esc(cols[i] || 'Amal') + '">' + c + '</td>').join('') + '</tr>';
+      }).join('')
+      + '</tbody></table></div>';
+  },
+
+  async toggle(btn) {
+    const d = this.data || {};
+    const on = !d.required;
+    if (on && !d.healthy) {
+      const ok = await confirmModal({
+        title: 'Face ID tekshiruvini yoqasizmi?',
+        text: 'Kassa kompyuteridagi dastur hali ulanmagan. Ungacha cheklar ogohlantirish bilan chiqaveradi — dastur ulangach tekshiruv o\'zi boshlanadi.',
+        okText: 'Yoqish' });
+      if (!ok) return;
+    }
+    await withBusy('faceToggle', btn, async () => {
+      try {
+        await api('/face/settings', { method: 'PUT', body: jsonBody({ required: on }) });
+        toast(on ? 'Face ID tekshiruvi yoqildi.' : 'Face ID tekshiruvi o\'chirildi.');
+        await this.load(true);
+      } catch (e) { toast(e.message, 'error'); }
+    });
+  },
+
+  /* ===== Kassa kompyuteriga dastur =====
+     Qurilma IP, login va paroli faqat shu brauzerda faylga yoziladi —
+     serverga YUBORILMAYDI. Har yuklab olishda yangi kalit beriladi,
+     eski dastur ishlamay qoladi (yo'qolgan faylni o'chirib qo'yish uchun). */
+  async download(btn) {
+    setError('faceDlErr', '');
+    const ip = ($('faceIp').value || '').trim();
+    const login = ($('faceLogin').value || '').trim() || 'admin';
+    const pass = $('facePass').value || '';
+    if (!/^\d{1,3}(\.\d{1,3}){3}(:\d{1,5})?$/.test(ip)) { setError('faceDlErr', 'IP manzilni to\'g\'ri yozing, masalan 192.168.1.64'); return; }
+    if (!pass) { setError('faceDlErr', 'Qurilma parolini yozing.'); return; }
+    if ((this.data || {}).hasKey) {
+      const ok = await confirmModal({ title: 'Yangi dastur yuklab olinsinmi?',
+        text: 'Avval yuklab olingan dastur bundan keyin ishlamaydi. Uni kassa kompyuteridan o\'chirib, yangisini ishga tushiring.',
+        okText: 'Yuklab olish' });
+      if (!ok) return;
+    }
+    await withBusy('faceDownload', btn, async () => {
+      try {
+        const r = await fetch(CONFIG.API + '/face/bridge', { headers: { Authorization: 'Bearer ' + STATE.auth.token } });
+        if (!r.ok) throw new Error('Dastur shabloni olinmadi (' + r.status + ')');
+        const tpl = await r.text();
+        const k = await api('/face/key', { method: 'POST', body: '{}' });
+        const q = v => String(v).replace(/'/g, "''");          /* PowerShell '...' ichida */
+        const file = tpl
+          .replace("'__SERVER__'", "'" + q(location.origin) + "'")
+          .replace("'__KEY__'", "'" + q(k.key) + "'")
+          .replace("'__IP__'", "'" + q(ip) + "'")
+          .replace("'__LOGIN__'", "'" + q(login) + "'")
+          .replace("'__PAROL__'", "'" + q(pass) + "'")
+          .replace(/\r?\n/g, '\r\n');                            /* .bat — Windows qator oxiri */
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([file], { type: 'application/octet-stream' }));
+        a.download = 'avtodrom-faceid.bat';
+        document.body.appendChild(a); a.click();
+        setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+        $('facePass').value = '';
+        toast('Dastur yuklab olindi: avtodrom-faceid.bat');
+        await this.load(true);
+      } catch (e) { setError('faceDlErr', e.message); }
+    });
+  },
+
+  /* ===== Qo'lda bog'lash: Face ID dagi shaxs → Avtodrom 12 dagi o'quvchi ===== */
+  linkRef: '',
+  async linkAsk(ref, name) {
+    this.linkRef = String(ref || '');
+    if (!STATE.studentsLoaded) { try { await Data.reloadStudents(); } catch (e) { /* noop */ } }
+    openModal('<div class="modal-head"><div><h2>O\'quvchini bog\'lash</h2><p class="text-muted">Face ID dagi: <b>'
+      + esc(name || '—') + '</b> (№ ' + esc(ref) + '). Avtodrom 12 dagi qaysi o\'quvchi?</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div class="fg"><label for="faceLinkQ">Ism bo\'yicha qidiring</label><input id="faceLinkQ" autocomplete="off" value="' + esc(name || '') + '"></div>'
+      + '<div id="faceLinkList" class="kz-suggest"></div><div id="faceLinkErr" class="text-error" role="alert"></div>');
+    const inp = $('faceLinkQ');
+    if (inp) { inp.addEventListener('input', () => this.linkSearch()); inp.select(); }
+    this.linkSearch();
+  },
+  linkSearch() {
+    const q = searchNorm(($('faceLinkQ') && $('faceLinkQ').value) || '');
+    const words = q.split(' ').filter(Boolean);
+    const box = $('faceLinkList'); if (!box) return;
+    const list = !words.length ? [] : (STATE.students || []).filter(s => {
+      const n = searchNorm(s.full_name || s.fullName || '');
+      return words.every(w => n.indexOf(w) >= 0);
+    }).slice(0, 12);
+    box.innerHTML = list.length
+      ? list.map(s => '<button type="button" data-act="faceLinkPick" data-id="' + esc(s.id) + '"><b>' + esc(s.full_name || s.fullName)
+          + '</b><span>' + esc([s.school_name, s.group_name ? s.group_name + '-guruh' : ''].filter(Boolean).join(' · ')) + '</span></button>').join('')
+      : '<div class="muted" style="padding:10px">Topilmadi — ismning bir qismini yozing.</div>';
+  },
+  async linkPick(studentId) {
+    try {
+      await api('/face/link', { method: 'POST', body: jsonBody({ studentId: studentId, personRef: this.linkRef }) });
+      closeModal();
+      toast('Bog\'landi.');
+      this.load(true);
+    } catch (e) { setError('faceLinkErr', e.message); }
   }
 };
 
@@ -8672,6 +9012,15 @@ const ACTIONS = {
   exportControl: () => Control.exportExcel(),
   controlDetails: d => Control.details(d.key),
 
+  /* --- face id --- */
+  faceLoad: () => FaceId.load(),
+  faceToggle: (d, el) => FaceId.toggle(el),
+  faceDownload: (d, el) => FaceId.download(el),
+  faceLink: d => FaceId.linkAsk(d.ref, d.name),
+  faceLinkPick: d => FaceId.linkPick(d.id),
+  faceRetry: d => (d.scope === 'kassa' ? Kassa.loadFace(Kassa.student && Kassa.student.id, true) : Add.loadFace(true, true)),
+  faceFilter: d => FaceId.setFilter(d.f),
+
   /* --- turniket --- */
   gateLoad: () => Gate.load(),
   gateOffset: d => Gate.setOffset(d.off),
@@ -8918,6 +9267,7 @@ function startPolling() {
       if (STATE.page === 'active' || STATE.page === 'finish' || STATE.page === 'queue') Active.load(true);
       if (STATE.page === 'frozen') Frozen.load(true);
       if (STATE.page === 'turniket') Gate.load(true); else Gate.pollBadge();
+      if (STATE.page === 'faceid') FaceId.load(true);
     }
     if (STATE.admin.token && Admin.tab === 'dashboard' && adminOpen) Admin.realtime();
   }, CONFIG.POLL_ACTIVE_MS);

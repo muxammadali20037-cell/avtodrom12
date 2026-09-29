@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { pool } from '../backend/src/db.js';
 import { ensureQuotaSchema, quotaForInsert } from './quota-routes.js';
 import { logChange } from './audit-routes.js';
+import { faceCheck } from './face-routes.js';
 
 /* =========================================================================
    QR CHEK — avtoshkola o'quvchisi uchun (CHEK SHU YERDA CHIQADI)
@@ -420,6 +421,10 @@ async function issueReceipt(req, res, user) {
     [studentId, user]);
   const st = sr.rows[0];
   if (!st) return send(res, 404, { error: 'O‘quvchi topilmadi' });
+
+  /* FACE ID: majburiy bo'lsa, bugun Face ID dan o'tmagan o'quvchiga chek yo'q */
+  const face = await faceCheck(user, st.id);
+  if (!face.ok) return send(res, 403, { error: face.error, face });
   if (String(st.school_id || '') !== String(cfg.school_id)) {
     return send(res, 400, { error: 'Bu o‘quvchi chek beriladigan avtoshkolaga tegishli emas' });
   }
@@ -475,7 +480,8 @@ async function issueReceipt(req, res, user) {
       left_after: q ? q.leftAfter : null,
       over_lessons: q ? q.overLessons : 0,
     },
-    attendance: { id: att.id, lessons: att.lessons, total: att.total, quota: q }
+    attendance: { id: att.id, lessons: att.lessons, total: att.total, quota: q },
+    face,
   });
 }
 

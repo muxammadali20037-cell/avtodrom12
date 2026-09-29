@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
 import { ensureQuotaSchema, quotaForInsert } from './quota-routes.js';
 import { logChange, reasonError, LESSONS_NEED_REASON } from './audit-routes.js';
+import { faceCheck } from './face-routes.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 
@@ -432,6 +433,11 @@ export async function handleCompatRequest(req, res) {
         const st = sr.rows[0];
         if (!st) throw new Error('O‘quvchi topilmadi');
 
+        /* FACE ID: sozlamada majburiy bo'lsa, bugun Face ID dan o'tmagan
+           o'quvchiga davomat ham, chek ham yozilmaydi (api/face-routes.js). */
+        const face = await faceCheck(user, st.id);
+        if (!face.ok) throw new Error(face.error);
+
         const set = await c.query(
           `SELECT hourly_rate, minimum_payment, calculation_mode FROM user_settings WHERE user_id=$1`, [user]);
         const cfg = set.rows[0] || { hourly_rate: 30000, minimum_payment: 0, calculation_mode: 'hour' };
@@ -610,7 +616,7 @@ export async function handleCompatRequest(req, res) {
             reason: sabab, actor: user });
         }
 
-        send(res, 201, { ok: true, lessons, ids, total,
+        send(res, 201, { ok: true, lessons, ids, total, face,
                          studentId: st.id, studentName: st.full_name, instructorName: insName,
                          quota: quota });
         return true;

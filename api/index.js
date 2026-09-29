@@ -9,6 +9,7 @@ import { handleFleetRequest } from "./fleet-routes.js";
 import { handleQuotaRequest, ensureQuotaSchema } from "./quota-routes.js";
 import { handleAuditRequest } from "./audit-routes.js";
 import { handleGateRequest } from "./gate-routes.js";
+import { handleFaceRequest, ensureFaceSchema } from "./face-routes.js";
 import instructorHandler from "./instructor.js";
 import instructorsFixed from "./instructors-fixed.js";
 import instructorDailyHandler from "./instructor-daily.js";
@@ -29,6 +30,9 @@ export default async function handler(req, res) {
      muhim: limitni saqlash boshqa fayldan (admin) chaqirilsa ham,
      ro'yxatni o'qish esa Express'dan kelsa ham ustun mavjud bo'ladi. */
   if (path.startsWith("/api/")) { try { await ensureQuotaSchema(); } catch (e) { /* noop */ } }
+  /* Face ID jadvallari ham shu yerda — tranzaksiyadan TASHQARIDA. Davomat
+     tranzaksiyasi ichida students jadvaliga ALTER qilinsa so'rov osilardi. */
+  if (path.startsWith("/api/")) { try { await ensureFaceSchema(); } catch (e) { /* noop */ } }
 
   /* Telegram instruktor mini-ilovasi — FAQAT birlikdagi /api/instructor/...
      Ilgari bu shart `startsWith("/api/instructor")` edi va ko'plikdagi
@@ -64,6 +68,9 @@ export default async function handler(req, res) {
 
   /* TURNIKET — chekdagi QR bilan kirish/chiqish */
   const gateHandled = await handleGateRequest(req, res); if (gateHandled) return gateHandled;
+
+  /* FACE ID — chekdan oldin o'quvchi Face ID dan o'tganmi */
+  const faceHandled = await handleFaceRequest(req, res); if (faceHandled) return faceHandled;
 
   /* AVTOSHKOLA MASHINALARI */
   const fleetHandled = await handleFleetRequest(req, res); if (fleetHandled) return fleetHandled;
