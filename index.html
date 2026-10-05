@@ -2972,6 +2972,7 @@ const Add = {
     $('customMinutes').addEventListener('input', e => {
       STATE.form.customMinutes = Math.min(600, Math.max(15, num(e.target.value) || 15));
     });
+    this.wireTypeToSearch();
   },
 
   onEnter() {
@@ -2984,6 +2985,8 @@ const Add = {
     /* «Bugun» ko'rsatkichi uchun bugungi hisobot kerak */
     Data.ensureToday().then(() => { if (STATE.form.student) Add.renderStudentPanel(); });
     Queue.render();
+    /* Sahifa ochilishi bilan ism yozishga tayyor */
+    setTimeout(() => Add.focusStudent(true), 60);
   },
 
   syncStudentSource() {
@@ -3059,17 +3062,51 @@ const Add = {
     if ($('student')) $('student').value = '';
     this.focusStudent();
   },
-  /* Kursorni ism maydoniga qaytaradi — lekin operator boshqa joyni
-     bosib ulgurgan bo'lsa yoki oyna ochiq bo'lsa, tegmaydi. */
-  focusStudent() {
-    if (STATE.page !== 'add' || STATE.form.customerType !== 'school' || STATE.form.student) return;
-    if ($('modal') && $('modal').innerHTML) return;
+  /* Ism maydoni hozir kursorni olishi mumkinmi: davomat rejimi, o'quvchi
+     tanlanmagan, oyna yoki tanlash ro'yxati ochiq emas. */
+  studentFieldWanted() {
+    if (STATE.page !== 'add' || STATE.form.customerType !== 'school' || STATE.form.student) return false;
+    if ($('modal') && $('modal').innerHTML) return false;
+    if (typeof CascadePick !== 'undefined' && CascadePick.step) return false;
+    if (typeof GroupPick !== 'undefined' && GroupPick.open_) return false;
+    const inp = $('comboStudentInput');
+    return !!(inp && !inp.disabled && inp.offsetParent !== null);
+  },
+  /* Kursorni ism maydoniga qo'yadi. Operator boshqa maydonga yozayotgan
+     bo'lsa tegmaydi — faqat kursor hech qayerda bo'lmasa yoki tugma
+     bosilgan bo'lsa. `auto` — sahifa ochilganda / oyna qaytganda
+     (telefonda klaviatura o'zi ochilib ketmasin). */
+  focusStudent(auto) {
+    if (!this.studentFieldWanted()) return;
+    if (auto && window.matchMedia && !window.matchMedia('(pointer: fine)').matches) return;
     const a = document.activeElement;
-    const free = !a || a === document.body || a.tagName === 'IFRAME'
-      || a.id === 'startBtn' || a.id === 'attendOnlyBtn' || a.id === 'comboStudentInput';
+    const free = !a || a === document.body || a === document.documentElement
+      || a.tagName === 'IFRAME' || a.tagName === 'BUTTON' || a.id === 'comboStudentInput';
     if (!free) return;
     if (this.comboStudent) this.comboStudent.focus(true);
     else if ($('comboStudentInput')) $('comboStudentInput').focus();
+  },
+  /* HARF BOSILSA — ISMGA YOZILADI.
+     Kursor biror sabab bilan ism maydonida bo'lmasa ham (chek oynasidan
+     keyin, sahifaning bo'sh joyi bosilganda) operator yozishni boshlashi
+     bilan harf ism maydoniga tushadi — avval maydonni bosish shart emas. */
+  wireTypeToSearch() {
+    document.addEventListener('keydown', e => {
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+      if (!e.key || e.key.length !== 1 || e.key === ' ') return;
+      const a = document.activeElement;
+      if (a && a !== document.body && a !== document.documentElement && a.tagName !== 'BUTTON' && a.tagName !== 'IFRAME') return;
+      if (!this.studentFieldWanted()) return;
+      const inp = $('comboStudentInput');
+      e.preventDefault();
+      if (this.comboStudent) this.comboStudent.focus(true); else inp.focus();
+      inp.value = inp.value + e.key;
+      try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (err) { /* noop */ }
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+    }, true);
+    /* Oyna qaytib faollashganda (chek oynasi yopilgach, boshqa dasturdan
+       qaytilganda) kursor ism maydoniga qaytadi */
+    window.addEventListener('focus', () => setTimeout(() => this.focusStudent(true), 40));
   },
 
   /* Panelda ko'rinadigan limit qatori */
@@ -3251,6 +3288,8 @@ const Add = {
 
     setError('startErr', '');
     setError('plateErr', '');
+    /* «Avtoshkola o'quvchisi» tanlanganda kursor darhol ism maydonida */
+    if (isSchool) setTimeout(() => this.focusStudent(true), 30);
   },
 
   /** Avtoshkola rejimidami? */
@@ -4677,6 +4716,17 @@ const EntryTicket80 = {
 
       const d = f.contentWindow.document;
       d.open(); d.write(html); d.close();
+
+      /* Chek ramkasi kursorni o'zida ushlab qolsa, bosilgan harf asosiy
+         sahifaga uzatiladi (masalan, ism maydoniga yoziladi) */
+      try {
+        f.contentWindow.addEventListener('keydown', e => {
+          if (e.ctrlKey || e.metaKey || e.altKey || !e.key || e.key.length !== 1) return;
+          e.preventDefault();
+          try { window.focus(); } catch (er) { /* noop */ }
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: e.key, bubbles: true, cancelable: true }));
+        });
+      } catch (e) { /* noop */ }
 
       const go = () => {
         try {
