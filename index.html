@@ -2358,6 +2358,7 @@ function Combobox(hostId, options) {
   let cursor = -1;
   let picked = null;
   let open = false;
+  let quietFocus = false;   /* dasturiy fokus: ro'yxat ochilmasin */
 
   function render(q) {
     const query = lower(q).trim();
@@ -2420,7 +2421,10 @@ function Combobox(hostId, options) {
     if (items.length <= 250) { render(input.value); show(); }
     else debouncedRender(input.value);
   });
-  input.addEventListener('focus', () => { render(input.value); show(); });
+  input.addEventListener('focus', () => {
+    if (quietFocus) { quietFocus = false; return; }
+    render(input.value); show();
+  });
   input.addEventListener('keydown', e => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -2454,7 +2458,13 @@ document.addEventListener('click', e => { if (!host.contains(e.target)) hide(); 
     value() { return picked; },
     setValue(it) { if (it) pick(it); else clear(true); },
     clear(silent) { clear(silent !== false); },
-    focus() { input.focus(); },
+    /* quiet=true — kursor qo'yiladi, lekin ro'yxat yozishni boshlaganda ochiladi */
+    focus(quiet) {
+      if (quiet && document.activeElement !== input) quietFocus = true;
+      input.focus();
+      quietFocus = false;
+      if (quiet) hide();
+    },
     setPlaceholder(t) { input.placeholder = t; },
     setDisabled(v) { input.disabled = !!v; }
   };
@@ -3039,6 +3049,29 @@ const Add = {
     this.renderStudentPanel();
   },
 
+  /* ===== KEYINGI O'QUVCHIGA TAYYOR =====
+     Davomat yozilgach ism maydoni tozalanadi va kursor o'sha yerda
+     turadi — operator darhol keyingi ismni yoza boshlaydi. Avtoshkola
+     va guruh tugmalari joyida qoladi (keyingisi ko'pincha o'sha guruhdan). */
+  readyForNext() {
+    if (this.comboStudent) this.comboStudent.clear(false);   /* onClear: panel va ro'yxatlar yangilanadi */
+    else { STATE.form.student = null; this.renderStudentPanel(); this.onStudentPicked(); }
+    if ($('student')) $('student').value = '';
+    this.focusStudent();
+  },
+  /* Kursorni ism maydoniga qaytaradi — lekin operator boshqa joyni
+     bosib ulgurgan bo'lsa yoki oyna ochiq bo'lsa, tegmaydi. */
+  focusStudent() {
+    if (STATE.page !== 'add' || STATE.form.customerType !== 'school' || STATE.form.student) return;
+    if ($('modal') && $('modal').innerHTML) return;
+    const a = document.activeElement;
+    const free = !a || a === document.body || a.tagName === 'IFRAME'
+      || a.id === 'startBtn' || a.id === 'attendOnlyBtn' || a.id === 'comboStudentInput';
+    if (!free) return;
+    if (this.comboStudent) this.comboStudent.focus(true);
+    else if ($('comboStudentInput')) $('comboStudentInput').focus();
+  },
+
   /* Panelda ko'rinadigan limit qatori */
   quotaHTML() {
     const q = this.quota;
@@ -3477,6 +3510,7 @@ const Add = {
       /* Chek yangi oynada emas, ko'rinmas ramkada chop etiladi —
          pop-up bloklanmaydi va ilova joyida qoladi. */
       const actBtn = withChek ? $('startBtn') : ($('attendOnlyBtn') || $('startBtn'));
+      let saved = false, chekSent = false;
       await withBusy('att:' + (d.student && d.student.id), actBtn, async () => {
         try {
           const car = this.carInfo();
@@ -3531,6 +3565,7 @@ const Add = {
             const sid = (res && Array.isArray(res.ids) && res.ids[0]) ? String(res.ids[0]) : '';
             /* Turniket kodi — chekdagi QR. Olinmasa chek QR'siz chiqadi. */
             const gateCode = await Gate.codeFor(sid);
+            chekSent = true;
             EntryTicket80.printHidden({
               gateCode: gateCode,
               person: stName(d.student),
@@ -3546,7 +3581,7 @@ const Add = {
               /* Yozuvni keyin topish uchun qisqa raqam */
               code: sid ? sid.replace(/-/g, '').slice(-6).toUpperCase() : '',
               issued: new Date().toISOString()
-            });
+            }, () => Add.focusStudent());
           }
 
           toast('Davomat yozildi: ' + stName(d.student) + ' — ' + n + ' dars. Jami: ' + jami + ' dars');
@@ -3576,6 +3611,7 @@ const Add = {
                 + ' ta bepul kirish qoldi.', 'warn');
             }
           }
+          saved = true;
         } catch (e) {
           const m = /404|topilmadi|not found/i.test(String(e.message))
             ? 'Server hali yangilanmagan: /api/attendance topilmadi. '
@@ -3584,6 +3620,8 @@ const Add = {
           setError('startErr', m);
         }
       });
+      /* Yozildi — ism tozalanadi, kursor keyingi o'quvchiga tayyor */
+      if (saved) this.readyForNext();
       return;
     }
 
@@ -4617,10 +4655,14 @@ const EntryTicket80 = {
      Endi chek sahifaning o'zidagi ko'rinmas <iframe> ichida
      chop etiladi: yangi oyna ochilmaydi, yopiladigan narsa yo'q,
      pop-up bloklanmaydi, ilova joyida qoladi. */
-  printHidden(data) { this.printDoc(this.ticketHTML(data, true)); },
+  printHidden(data, after) { this.printDoc(this.ticketHTML(data, true), after); },
 
   /* Istalgan tayyor chek HTML'ini ko'rinmas ramkada chop etadi */
-  printDoc(html) {
+  /* `after` — chop etilgach (oyna yopilgach) chaqiriladi: masalan kursorni
+     yana ism maydoniga qaytarish uchun. Chop etish ramkasi fokusni o'ziga
+     oladi, shuning uchun bu kerak. */
+  printDoc(html, after) {
+    const back = () => { if (typeof after === 'function') { try { after(); } catch (e) { /* noop */ } } };
     try {
       const old = document.getElementById('chekFrame');
       if (old && old.parentNode) old.parentNode.removeChild(old);
@@ -4637,8 +4679,13 @@ const EntryTicket80 = {
       d.open(); d.write(html); d.close();
 
       const go = () => {
-        try { f.contentWindow.focus(); f.contentWindow.print(); }
+        try {
+          try { f.contentWindow.addEventListener('afterprint', () => setTimeout(back, 50)); } catch (e) { /* noop */ }
+          f.contentWindow.focus(); f.contentWindow.print();
+        }
         catch (e) { console.error('[chek]', e); toast('Chek chiqmadi: ' + e.message, 'warn'); }
+        /* print() oyna yopilguncha kutadi; jim chop etishda darhol qaytadi */
+        setTimeout(back, 50);
       };
       if (d.readyState === 'complete') setTimeout(go, 150);
       else f.onload = () => setTimeout(go, 150);
@@ -4648,6 +4695,7 @@ const EntryTicket80 = {
     } catch (e) {
       console.error('[chek]', e);
       toast('Chek chiqmadi: ' + (e.message || e), 'warn');
+      back();
     }
   },
   /* Oldindan ochilgan oynani to'ldirib, chop etishga yuboradi */
