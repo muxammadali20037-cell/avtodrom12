@@ -9,6 +9,7 @@ import { handleFleetRequest } from "./fleet-routes.js";
 import { handleQuotaRequest, ensureQuotaSchema } from "./quota-routes.js";
 import { handleAuditRequest } from "./audit-routes.js";
 import { handleGateRequest } from "./gate-routes.js";
+import { handleAccessRequest, ensureAccessSchema } from "./access-routes.js";
 import instructorHandler from "./instructor.js";
 import instructorsFixed from "./instructors-fixed.js";
 import instructorDailyHandler from "./instructor-daily.js";
@@ -29,6 +30,8 @@ export default async function handler(req, res) {
      muhim: limitni saqlash boshqa fayldan (admin) chaqirilsa ham,
      ro'yxatni o'qish esa Express'dan kelsa ham ustun mavjud bo'ladi. */
   if (path.startsWith("/api/")) { try { await ensureQuotaSchema(); } catch (e) { /* noop */ } }
+  /* Kirish muddati ustunlari — har qanday tranzaksiyadan OLDIN (ichida DDL qotib qoladi) */
+  if (path.startsWith("/api/")) { try { await ensureAccessSchema(); } catch (e) { /* noop */ } }
 
   /* Telegram instruktor mini-ilovasi — FAQAT birlikdagi /api/instructor/...
      Ilgari bu shart `startsWith("/api/instructor")` edi va ko'plikdagi
@@ -61,6 +64,9 @@ export default async function handler(req, res) {
   /* QR chek (avtoshkola). Avtodrom instruktor paneli ham shu yerga
      murojaat qiladi — /api/receipts/verify|redeem|complete. */
   const receiptHandled = await handleReceiptRequest(req, res); if (receiptHandled) return receiptHandled;
+
+  /* KIRISH MUDDATI — guruh muddati va shaxsiy muhlat */
+  const accessHandled = await handleAccessRequest(req, res); if (accessHandled) return accessHandled;
 
   /* TURNIKET — chekdagi QR bilan kirish/chiqish */
   const gateHandled = await handleGateRequest(req, res); if (gateHandled) return gateHandled;

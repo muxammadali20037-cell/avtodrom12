@@ -1,3 +1,4 @@
+import { accessCheck } from './access-routes.js';
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
 import { pool } from '../backend/src/db.js';
@@ -423,6 +424,9 @@ async function issueReceipt(req, res, user) {
   if (String(st.school_id || '') !== String(cfg.school_id)) {
     return send(res, 400, { error: 'Bu o‘quvchi chek beriladigan avtoshkolaga tegishli emas' });
   }
+  /* Avtodromga kirish muddati tugagan bo'lsa — chek chiqmaydi */
+  const access = await accessCheck(user, st.id);
+  if (!access.ok) return send(res, 403, { error: access.error, access });
 
   /* Ochiq chek ikkilanmasin: bitta o'quvchida bir vaqtda bitta chek */
   const dup = await pool.query(

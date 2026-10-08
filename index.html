@@ -700,20 +700,31 @@ body.admin-open { overflow: hidden; }
   box-shadow: 0 2px 14px rgba(0,0,0,0.18);
 }
 
-#adminPanel #adminTabs {
-  position: sticky;
-  top: 84px;
-  z-index: 11;
-  background: var(--bg);
-  padding: 8px 0;
-  margin-bottom: 16px;
-  width: 100%;
-  overflow-x: auto;
-  flex-wrap: nowrap;
-  scrollbar-width: none;
+/* Bo'limlar — chap ustun (operator panelidagi kabi) */
+#adminPanel .admin-layout { display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 24px; align-items: start; }
+#adminPanel .admin-side {
+  position: sticky; top: 96px; z-index: 11;
+  display: flex; flex-direction: column; gap: 2px;
+  background: linear-gradient(180deg, var(--g-darkest), #022c22);
+  border-radius: 16px; padding: 12px 10px 14px;
+  box-shadow: 0 6px 20px rgba(2, 44, 34, 0.18);
 }
-#adminPanel #adminTabs::-webkit-scrollbar { display: none; }
-#adminPanel #adminTabs .seg-btn { flex-shrink: 0; }
+#adminPanel .admin-side-label {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+  color: rgba(255,255,255,0.38); padding: 12px 12px 4px;
+}
+#adminPanel .admin-side-label:first-child { padding-top: 4px; }
+#adminPanel .admin-nav {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 10px 12px; min-height: 42px; border-radius: 10px;
+  font-weight: 600; font-size: 13.5px; color: rgba(255,255,255,0.72);
+  background: transparent; border: 0; cursor: pointer; transition: var(--transition);
+}
+#adminPanel .admin-nav i { width: 18px; text-align: center; font-size: 14px; }
+#adminPanel .admin-nav:hover { color: #fff; background: rgba(255,255,255,0.07); }
+#adminPanel .admin-nav.active { color: #fff; background: rgba(255,255,255,0.12); box-shadow: inset 3px 0 0 var(--g-light); }
+#adminPanel .admin-nav:focus-visible { outline: 2px solid var(--g-light); outline-offset: 1px; }
+#adminPanel .admin-main { min-width: 0; }
 
 #adminPanel .admin-card > *:not(.admin-topbar) {
   max-width: 1600px;
@@ -724,7 +735,18 @@ body.admin-open { overflow: hidden; }
 @media (max-width: 860px) {
   #adminPanel .admin-card { padding: 0 14px 32px; }
   #adminPanel .admin-topbar { margin: 0 -14px 16px; padding: 14px; }
-  #adminPanel #adminTabs { top: 76px; }
+  /* Telefonda bo'limlar tepada, gorizontal suriladi */
+  #adminPanel .admin-layout { grid-template-columns: 1fr; gap: 14px; }
+  /* Telefonda sarlavha balandroq — u surilib ketadi, bo'limlar esa tepada qotadi */
+  #adminPanel .admin-topbar { position: relative; }
+  #adminPanel .admin-side {
+    top: 0; flex-direction: row; overflow-x: auto; scrollbar-width: none;
+    padding: 6px; border-radius: 0 0 12px 12px; gap: 4px; margin: 0 -14px;
+  }
+  #adminPanel .admin-side::-webkit-scrollbar { display: none; }
+  #adminPanel .admin-side-label { display: none; }
+  #adminPanel .admin-nav { width: auto; flex: none; white-space: nowrap; min-height: 38px; padding: 8px 12px; }
+  #adminPanel .admin-nav.active { box-shadow: inset 0 -3px 0 var(--g-light); }
 }
 
 /* ===== 25. HISOBOT ===== */
@@ -1588,24 +1610,33 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
         <button class="btn btn-light" type="button" data-act="closeAdminPanel"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Operator paneliga qaytish</button>
       </div>
 
-      <div class="stats-grid" style="margin-bottom:18px">
-        <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-school" aria-hidden="true"></i></div><div class="stat-label">Avtoshkolalar</div><div class="stat-value" id="adSchools">0</div></div>
-        <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-users-rectangle" aria-hidden="true"></i></div><div class="stat-label">Guruhlar</div><div class="stat-value" id="adGroups">0</div></div>
-        <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i></div><div class="stat-label">O'quvchilar</div><div class="stat-value" id="adStudents">0</div></div>
-        <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i></div><div class="stat-label">Bugun kirgan</div><div class="stat-value" id="adToday">0</div></div>
-        <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-car-side" aria-hidden="true"></i></div><div class="stat-label">Hozir avtodromda</div><div class="stat-value" id="adActive">0</div></div>
-      </div>
+      <!-- Bo'limlar chap ustunda (telefonda — tepada gorizontal) -->
+      <div class="admin-layout">
+        <nav class="admin-side" id="adminTabs" role="tablist" aria-label="Admin bo'limlari">
+          <div class="admin-side-label">Asosiy</div>
+          <button class="admin-nav active" type="button" role="tab" aria-selected="true" data-act="adminTab" data-tab="dashboard"><i class="fa-solid fa-gauge-high" aria-hidden="true"></i> Dashboard</button>
+          <div class="admin-side-label">O'quv</div>
+          <button class="admin-nav" type="button" role="tab" data-act="adminTab" data-tab="schools"><i class="fa-solid fa-school" aria-hidden="true"></i> Avtoshkolalar</button>
+          <button class="admin-nav" type="button" role="tab" data-act="adminTab" data-tab="students"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> O'quvchilar</button>
+          <button class="admin-nav" type="button" role="tab" data-act="adminTab" data-tab="access"><i class="fa-solid fa-calendar-check" aria-hidden="true"></i> Kirish muddatlari</button>
+          <div class="admin-side-label">Avtodrom</div>
+          <button class="admin-nav" type="button" role="tab" data-act="adminTab" data-tab="instructors"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktorlar</button>
+          <button class="admin-nav" type="button" role="tab" data-act="adminTab" data-tab="cars"><i class="fa-solid fa-car-side" aria-hidden="true"></i> Mashinalar</button>
+          <div class="admin-side-label">Hisobot</div>
+          <button class="admin-nav" type="button" role="tab" data-act="adminTab" data-tab="excel"><i class="fa-solid fa-file-excel" aria-hidden="true"></i> Excel</button>
+        </nav>
+        <div class="admin-main">
+        <div class="stats-grid" style="margin-bottom:18px">
+          <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-school" aria-hidden="true"></i></div><div class="stat-label">Avtoshkolalar</div><div class="stat-value" id="adSchools">0</div></div>
+          <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-users-rectangle" aria-hidden="true"></i></div><div class="stat-label">Guruhlar</div><div class="stat-value" id="adGroups">0</div></div>
+          <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i></div><div class="stat-label">O'quvchilar</div><div class="stat-value" id="adStudents">0</div></div>
+          <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i></div><div class="stat-label">Bugun kirgan</div><div class="stat-value" id="adToday">0</div></div>
+          <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-car-side" aria-hidden="true"></i></div><div class="stat-label">Hozir avtodromda</div><div class="stat-value" id="adActive">0</div></div>
+        </div>
 
-      <div class="seg" id="adminTabs" role="tablist" style="margin-bottom:16px">
-        <button class="seg-btn active" type="button" role="tab" data-act="adminTab" data-tab="dashboard"><i class="fa-solid fa-gauge-high" aria-hidden="true"></i> Dashboard</button>
-        <button class="seg-btn" type="button" role="tab" data-act="adminTab" data-tab="schools"><i class="fa-solid fa-school" aria-hidden="true"></i> Avtoshkolalar</button>
-        <button class="seg-btn" type="button" role="tab" data-act="adminTab" data-tab="students"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> O'quvchilar</button>
-        <button class="seg-btn" type="button" role="tab" data-act="adminTab" data-tab="instructors"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktorlar</button>
-        <button class="seg-btn" type="button" role="tab" data-act="adminTab" data-tab="cars"><i class="fa-solid fa-car-side" aria-hidden="true"></i> Mashinalar</button>
-        <button class="seg-btn" type="button" role="tab" data-act="adminTab" data-tab="excel"><i class="fa-solid fa-file-excel" aria-hidden="true"></i> Excel</button>
+          <div id="adminContent"></div>
+        </div>
       </div>
-
-      <div id="adminContent"></div>
     </div>
   </div>
 </div>
@@ -2575,6 +2606,34 @@ const Kassa = {
         : ' (qoladi: ' + Math.max(0, num(q.limit) - next) + ')');
   },
 
+  /* ===== KIRISH MUDDATI ===== (davomat formasidagi bilan bir xil) */
+  access: null,
+  accessFor: '',
+  async loadAccess(id) {
+    if (!id) return;
+    id = String(id);
+    this.access = null; this.accessFor = id;
+    this.paintAccess();
+    const a = await Access.status(id);
+    if (this.accessFor !== id) return;
+    this.access = a;
+    this.paintAccess();
+  },
+  accessBlocked() {
+    return !!(this.student && this.accessFor === String(this.student.id) && Access.blocked(this.access));
+  },
+  paintAccess() {
+    const el = $('kzAccess');
+    const on = this.student && this.accessFor === String(this.student.id);
+    if (el) el.innerHTML = on ? Access.boxHTML(this.access, 'kassa') : '';
+    const b = $('kzIssueBtn');
+    if (b && !this.busy) {
+      const blocked = this.accessBlocked();
+      b.disabled = blocked;
+      b.textContent = blocked ? 'Kirish muddati tugagan — chek chiqmaydi' : 'QR chek chiqarish';
+    }
+  },
+
   focusFirst() {
     setTimeout(() => { const el = $('kzSearch'); if (el) { try { el.focus(); } catch (e) {} } }, 60);
   },
@@ -2614,9 +2673,11 @@ const Kassa = {
     box.innerHTML = '<div><b>' + esc(s.full_name || s.fullName) + '</b>'
       + '<div class="muted" style="font-size:12px">' + esc(s.school_name || s.schoolName || '')
       + (s.group_name || s.groupName ? ' · ' + esc(s.group_name || s.groupName) : '') + '</div>'
-      + '<div id="kzQuota" style="font-size:13px;margin-top:6px"></div></div>'
+      + '<div id="kzQuota" style="font-size:13px;margin-top:6px"></div>'
+      + '<div id="kzAccess"></div></div>'
       + '<button class="btn btn-light btn-sm" type="button" data-act="kzPick" data-id="">O\'zgartirish</button>';
     this.loadQuota(s.id);
+    this.loadAccess(s.id);
     setTimeout(() => { const b = $('kzIssueBtn'); if (b) b.focus(); }, 60);
   },
 
@@ -2626,6 +2687,7 @@ const Kassa = {
     if (this.busy) return;                       // ikkinchi bosish o'tmaydi
     if (!this.schoolId) return err('Avval chek beriladigan avtoshkolani tanlang');
     if (!this.student) return err("O'quvchini tanlang");
+    if (this.accessBlocked()) return err(this.access.error || 'Kirish muddati tugagan');
 
     this.busy = true;
     const btn = $('kzIssueBtn'); btn.disabled = true; btn.textContent = 'Chiqarilmoqda…';
@@ -2649,13 +2711,18 @@ const Kassa = {
         num(r.over_lessons) > 0 ? 'warn' : undefined);
       this.reset();
       this.load();
-    } catch (e) { err(e.message || 'Chek chiqarilmadi'); }
-    finally { this.busy = false; btn.disabled = false; btn.textContent = 'QR chek chiqarish'; }
+    } catch (e) {
+      err(e.message || 'Chek chiqarilmadi');
+      if (/muddat|muhlat|kira oladi/i.test(String(e.message)) && this.student) { this.busy = false; this.loadAccess(this.student.id); }
+    }
+    finally { this.busy = false; btn.disabled = false; btn.textContent = 'QR chek chiqarish'; this.paintAccess(); }
   },
 
   reset() {
     this.student = null;
     this.quota = null; this.quotaFor = '';
+    this.access = null; this.accessFor = '';
+    this.paintAccess();
     $('kzSearch').value = '';
     $('kzPicked').classList.add('hidden');
     $('kzSuggest').classList.add('hidden');
@@ -2765,7 +2832,7 @@ document.addEventListener('keydown', e => {
   if ($('modal') && $('modal').innerHTML) return;
   /* Tugma bosilgan holatda bo'lsa Enter ikkinchi so'rov yubormaydi —
      aks holda ikkita chek chiqib, bazadagi cheklov xatosi ko'rinardi. */
-  if (e.key === 'Enter' && Kassa.student && !Kassa.busy) { e.preventDefault(); Kassa.issue(); }
+  if (e.key === 'Enter' && Kassa.student && !Kassa.busy) { e.preventDefault(); if (!Kassa.accessBlocked()) Kassa.issue(); }
 });
 document.addEventListener('input', e => {
   if (e.target && e.target.id === 'kzSearch') Kassa.renderSuggest();
@@ -3052,6 +3119,36 @@ const Add = {
     this.renderStudentPanel();
   },
 
+  /* ===== AVTODROMGA KIRISH MUDDATI =====
+     O'quvchi tanlanishi bilan guruh muddati tekshiriladi. Tugagan bo'lsa
+     tugmalar bloklanadi va «Muhlat berish» chiqadi (server ham rad etadi). */
+  access: null,
+  accessFor: '',
+  async loadAccess(force) {
+    const st = STATE.form.student;
+    if (!st || !st.id || STATE.form.customerType !== 'school') { this.access = null; this.accessFor = ''; this.syncAccessBlock(); return; }
+    const id = String(st.id);
+    if (!force && this.accessFor === id && this.access) return;
+    this.accessFor = id; this.access = null;
+    const a = await Access.status(id);
+    if (this.accessFor !== id) return;
+    this.access = a;
+    this.renderStudentPanel();
+  },
+  accessNow() {
+    const s = STATE.form.student;
+    return (s && this.accessFor === String(s.id)) ? this.access : null;
+  },
+  syncAccessBlock() {
+    const blocked = STATE.form.customerType === 'school' && Access.blocked(this.accessNow());
+    ['startBtn', 'attendOnlyBtn'].forEach(id => {
+      const b = $(id);
+      if (!b || b.classList.contains('is-busy')) return;
+      b.disabled = !!blocked;
+      if (blocked) b.title = 'Kirish muddati tugagan'; else b.removeAttribute('title');
+    });
+  },
+
   /* ===== KEYINGI O'QUVCHIGA TAYYOR =====
      Davomat yozilgach ism maydoni tozalanadi va kursor o'sha yerda
      turadi — operator darhol keyingi ismni yoza boshlaydi. Avtoshkola
@@ -3155,6 +3252,7 @@ const Add = {
     this.renderCarOptions();
     /* Shartnoma limitini fonda olamiz — formani kutib turmaydi */
     this.loadQuota();
+    this.loadAccess(true);
   },
   renderCarOptions() {
     const sel = $('schoolCar');
@@ -3288,6 +3386,7 @@ const Add = {
 
     setError('startErr', '');
     setError('plateErr', '');
+    this.syncAccessBlock();
     /* «Avtoshkola o'quvchisi» tanlanganda kursor darhol ism maydonida */
     if (isSchool) setTimeout(() => this.focusStudent(true), 30);
   },
@@ -3414,7 +3513,7 @@ const Add = {
     const box = $('studentBox');
     const s = STATE.form.student;
     if (typeof CascadePick !== 'undefined') CascadePick.sync(s);
-    if (!s) { box.innerHTML = ''; return; }
+    if (!s) { box.innerHTML = ''; this.syncAccessBlock(); return; }
     const total = attCount(s);
     const today = Data.todayLessons(s.id);
     const planned = Math.round(this.targetSeconds() / CONFIG.LESSON_SECONDS);
@@ -3431,8 +3530,10 @@ const Add = {
       + '<div class="autofill-item"><span>Kelgan darslari</span><b>' + total + ' dars</b></div>'
       + '</div>'
       + this.quotaHTML()
+      + Access.boxHTML(this.accessNow(), 'add')
       + '<div class="field-help" style="margin-top:8px">1 soat = 1 dars. Yakuniy hisob serverda yangilanadi.</div></div>';
     this.syncChekButton();
+    this.syncAccessBlock();
   },
 
   /* Limit tugagan bo'lsa tugmada ham ko'rinib tursin: chek chiqmaydi */
@@ -3541,6 +3642,10 @@ const Add = {
     const d = this.collect();
     const err = this.validate(d);
     if (err) { setError('startErr', err); return; }
+    if (d.type === 'school' && Access.blocked(this.accessNow())) {
+      setError('startErr', this.access.error || 'Kirish muddati tugagan');
+      return;
+    }
 
     /* ============ AVTOSHKOLA = DAVOMAT ============
        Vaqt ochilmaydi: dars darhol yozib qo'yiladi. Nechta soat
@@ -3657,6 +3762,8 @@ const Add = {
               + 'api/compat-routes.js ni deploy qiling.'
             : e.message;
           setError('startErr', m);
+          /* Server muddat sababli rad etdi — panel ham yangilansin */
+          if (/muddat|muhlat|kira oladi/i.test(String(e.message))) this.loadAccess(true);
         }
       });
       /* Yozildi — ism tozalanadi, kursor keyingi o'quvchiga tayyor */
@@ -4359,6 +4466,305 @@ const Gate = {
         toast('Saqlandi. Chekda QR: ' + (this.qrOn ? 'yoqilgan' : "o'chiq") + ', chegirma: ' + v + ' daqiqa.');
         if (STATE.page === 'turniket') this.load(true);
       } catch (e) { setError('gateDevErr', e.message); }
+    });
+  }
+};
+
+/* ===================== AVTODROMGA KIRISH MUDDATI =====================
+   Guruhga «qachondan — qachongacha» avtodromga kirishi mumkinligi
+   belgilanadi. Muddat tugasa davomat va QR chek yozilmaydi (tekshiruvni
+   server qiladi: api/access-routes.js). Sababli kelolmagan BITTA
+   o'quvchiga shaxsiy muhlat beriladi — sababsiz emas, jurnalga yoziladi. */
+const Access = {
+  groups: null,        /* /access/groups → {today, rows} */
+  groupMap: {},
+  extMap: {},          /* studentId → muhlat */
+  today: '',
+  loadedAt: 0,
+
+  fmt(d) { return d ? String(d).slice(8, 10) + '.' + String(d).slice(5, 7) + '.' + String(d).slice(0, 4) : ''; },
+  addDays(d, k) {
+    const x = new Date(Date.parse(d + 'T12:00:00Z') + k * 86400000);
+    return x.toISOString().slice(0, 10);
+  },
+  daysLeft(d) { return Math.round((Date.parse(d + 'T00:00:00Z') - Date.parse((this.today || localDateISO(0)) + 'T00:00:00Z')) / 86400000); },
+  groupLabel(n) { const s = String(n || '').trim(); return !s ? 'Guruh' : (/guruh/i.test(s) ? s : s + '-guruh'); },
+
+  /* Bitta o'quvchi holati. Xato bo'lsa null — kassa to'xtab qolmasin
+     (server baribir o'zi tekshiradi). */
+  async status(studentId) {
+    if (!studentId) return null;
+    try { return await api('/access/status?studentId=' + encodeURIComponent(studentId), { timeout: 8000 }); }
+    catch (e) { console.warn('[access]', e.message); return null; }
+  },
+  blocked(a) { return !!(a && a.ok === false); },
+
+  /* Guruhlar va muhlatlar keshi (admin ro'yxatlari uchun) */
+  async loadMaps(force) {
+    if (!force && this.groups && Date.now() - this.loadedAt < 60000) return;
+    try {
+      const [g, e] = await Promise.all([api('/access/groups'), api('/access/extensions')]);
+      this.groups = g; this.today = g.today || e.today || localDateISO(0);
+      this.groupMap = {}; (g.rows || []).forEach(x => { this.groupMap[String(x.id)] = x; });
+      this.ext = e.rows || [];
+      this.extMap = {}; this.ext.forEach(x => { this.extMap[String(x.id)] = x; });
+      this.loadedAt = Date.now();
+    } catch (err) { console.warn('[access] ro\'yxat:', err.message); }
+  },
+
+  /* Guruh holati: {cls, text, state} yoki null (muddatsiz) */
+  groupState(g) {
+    if (!g || (!g.access_from && !g.access_until)) return null;
+    const t = this.today || localDateISO(0);
+    if (g.access_from && t < g.access_from) return { state: 'notStarted', cls: 'badge-amber', text: this.fmt(g.access_from) + ' dan' };
+    if (g.access_until) {
+      const left = this.daysLeft(g.access_until);
+      if (left < 0) return { state: 'expired', cls: 'badge-red', text: 'muddati tugagan · ' + this.fmt(g.access_until) };
+      if (left <= 3) return { state: 'soon', cls: 'badge-amber', text: this.fmt(g.access_until) + ' gacha · ' + (left ? left + ' kun' : 'bugun oxirgi') };
+      return { state: 'ok', cls: 'badge-blue', text: this.fmt(g.access_until) + ' gacha' };
+    }
+    return { state: 'ok', cls: 'badge-blue', text: this.fmt(g.access_from) + ' dan' };
+  },
+  groupBadge(gid) {
+    const s = this.groupState(this.groupMap[String(gid)]);
+    return s ? '<span class="badge ' + s.cls + '" title="Avtodromga kirish muddati"><i class="fa-regular fa-calendar" aria-hidden="true"></i> ' + esc(s.text) + '</span>' : '';
+  },
+
+  /* O'quvchi panelidagi qator (davomat formasi va QR chek) */
+  boxHTML(a, scope) {
+    if (!a || !a.limited) return '';
+    const btn = '<button class="btn btn-light btn-sm" type="button" data-act="accessExtend" data-id="' + esc(a.studentId)
+      + '" data-scope="' + esc(scope) + '" style="margin-top:6px"><i class="fa-solid fa-calendar-plus" aria-hidden="true"></i> '
+      + (a.ext ? 'Muhlatni o\'zgartirish' : 'Muhlat berish') + '</button>';
+    if (a.ok === false) {
+      return '<div class="quota-box over"><div class="quota-title"><i class="fa-solid fa-calendar-xmark" aria-hidden="true"></i> '
+        + esc(a.error) + '</div>'
+        + (a.state === 'expired'
+          ? '<div class="quota-line">Sababli kelolmagan bo\'lsa — faqat shu o\'quvchiga muhlat bering.</div>' + btn : '')
+        + '</div>';
+    }
+    if (!a.effectiveUntil) {
+      return '<div class="quota-box ok"><div class="quota-line"><i class="fa-regular fa-calendar" aria-hidden="true"></i> Avtodromga kirish: '
+        + esc(this.fmt(a.from)) + ' dan</div></div>';
+    }
+    const left = num(a.daysLeft);
+    return '<div class="quota-box ' + (a.state === 'soon' ? 'warn' : 'ok') + '"><div class="quota-line">'
+      + '<i class="fa-regular fa-calendar" aria-hidden="true"></i> Avtodromga kirish: <b>' + esc(this.fmt(a.effectiveUntil)) + '</b> gacha · '
+      + (left === 0 ? '<b>bugun oxirgi kun</b>' : left + ' kun qoldi')
+      + (a.byExtension ? ' <span class="badge badge-amber">shaxsiy muhlat</span>' : '') + '</div>'
+      + (a.byExtension ? '<div class="quota-line text-muted">Guruh muddati ' + esc(this.fmt(a.until)) + ' da tugagan'
+        + (a.ext && a.ext.reason ? ' · sabab: ' + esc(a.ext.reason) : '') + '</div>' : '')
+      + '</div>';
+  },
+
+  /* ===== SHAXSIY MUHLAT OYNASI ===== */
+  extStudent: '', extScope: '',
+  async extendModal(studentId, scope) {
+    const a = await this.status(studentId);
+    if (!a) { toast('Ma\'lumot olinmadi — internetni tekshiring.', 'error'); return; }
+    if (!a.until) { toast('Bu o\'quvchining guruhiga muddat qo\'yilmagan — muhlat kerak emas.', 'warn'); return; }
+    this.extStudent = String(studentId); this.extScope = scope || '';
+    const today = a.today || localDateISO(0);
+    const min = this.addDays(a.until > today ? a.until : today, a.until >= today ? 1 : 0);
+    const val = a.ext && a.ext.until >= min ? a.ext.until : (this.addDays(today, 7) > min ? this.addDays(today, 7) : min);
+    openModal('<div class="modal-head"><div><h2>Shaxsiy muhlat</h2>'
+      + '<p class="text-muted"><b>' + esc(a.studentName || '') + '</b> · ' + esc(this.groupLabel(a.group)) + '</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div class="search-hint" style="margin-bottom:12px"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> '
+      + 'Guruhning avtodromga kirish muddati: <b>' + (a.from ? esc(this.fmt(a.from)) + ' — ' : '') + esc(this.fmt(a.until)) + '</b>. '
+      + 'Muhlat faqat shu o\'quvchiga beriladi, guruhdoshlariga ta\'sir qilmaydi.</div>'
+      + '<form data-act="accessExtSave">'
+      + '<div class="fg"><label class="field-label" for="axUntil">Qaysi sanagacha kelishi mumkin</label>'
+      + '<input id="axUntil" type="date" required min="' + esc(min) + '" value="' + esc(val) + '">'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'
+      + [3, 7, 14, 30].map(k => '<button class="btn btn-light btn-sm" type="button" data-act="accessExtQuick" data-d="'
+        + esc(this.addDays(today, k) < min ? min : this.addDays(today, k)) + '">+' + k + ' kun</button>').join('')
+      + '</div></div>'
+      + '<div class="fg" style="margin-top:10px"><label class="field-label" for="axReason">Sababi <span class="text-red">*</span></label>'
+      + '<textarea id="axReason" rows="3" required placeholder="Masalan: kasal bo\'lgan, ma\'lumotnoma bor">' + esc(a.ext ? a.ext.reason : '') + '</textarea>'
+      + '<div class="field-help">Sababsiz saqlanmaydi. Bu yozuv o\'zgartirishlar jurnaliga tushadi.</div></div>'
+      + '<div class="actions-row"><button class="btn btn-green" type="submit" id="axBtn"><span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Muhlat berish</span></button>'
+      + (a.ext ? '<button class="btn btn-ghost" type="button" data-act="accessExtCancel"><i class="fa-solid fa-ban" aria-hidden="true"></i> Muhlatni bekor qilish</button>' : '')
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Yopish</button></div>'
+      + '<div id="axErr" class="text-error" role="alert"></div></form>');
+    setTimeout(() => { const r = $('axReason'); if (r) r.focus(); }, 80);
+  },
+  async saveExtend() {
+    setError('axErr', '');
+    const until = $('axUntil').value, reason = $('axReason').value.trim();
+    if (!until) { setError('axErr', 'Sanani tanlang.'); return; }
+    if (reason.length < 5) { setError('axErr', 'Sababini yozing (kamida 5 ta belgi).'); return; }
+    await withBusy('accessExt', $('axBtn'), async () => {
+      try {
+        const r = await api('/access/extend', { method: 'POST', body: jsonBody({ studentId: this.extStudent, until: until, reason: reason }) });
+        closeModal();
+        toast('Muhlat berildi: ' + (r.studentName || '') + ' — ' + this.fmt(until) + ' gacha.');
+        this.afterChange();
+      } catch (e) { setError('axErr', e.message); }
+    });
+  },
+  async cancelExtend() {
+    const ok = await confirmModal({ title: 'Muhlat bekor qilinsinmi?', text: 'O\'quvchi yana guruh muddati bo\'yicha cheklanadi.', okText: 'Bekor qilish', danger: true });
+    if (!ok) return;
+    try {
+      await api('/access/extend', { method: 'POST', body: jsonBody({ studentId: this.extStudent, until: null, reason: 'Muhlat bekor qilindi' }) });
+      toast('Muhlat bekor qilindi.');
+      this.afterChange();
+    } catch (e) { toast(e.message, 'error'); }
+  },
+  /* Muhlat o'zgargach — qayerdan ochilgan bo'lsa o'sha joy yangilanadi */
+  afterChange() {
+    const sc = this.extScope;
+    this.loadMaps(true).then(() => {
+      if (sc === 'admin' && typeof Admin !== 'undefined' && Admin.schoolShown) Admin.renderSchoolDetail();
+      if (sc === 'page') this.renderPage();
+    });
+    if (sc === 'add' && typeof Add !== 'undefined') Add.loadAccess(true);
+    if (sc === 'kassa' && typeof Kassa !== 'undefined' && Kassa.student) Kassa.loadAccess(Kassa.student.id);
+  },
+
+  /* ===== GURUH MUDDATI (guruh oynasidagi maydonlar) ===== */
+  groupFieldsHTML(gid) {
+    const g = gid ? this.groupMap[String(gid)] : null;
+    return '<div class="fg" style="margin-top:12px"><label class="field-label">Avtodromga kirish muddati</label>'
+      + '<div class="form-grid" style="margin-top:4px">'
+      + '<div><label class="field-help" for="grpFrom" style="margin:0">Qachondan (ixtiyoriy)</label><input id="grpFrom" type="date" value="' + esc(g && g.access_from || '') + '"></div>'
+      + '<div><label class="field-help" for="grpUntil" style="margin:0">Qachongacha</label><input id="grpUntil" type="date" value="' + esc(g && g.access_until || '') + '"></div>'
+      + '</div><div class="field-help">Bo\'sh qolsa — cheklanmaydi. Muddat tugagach bu guruh o\'quvchilariga davomat va QR chek yozilmaydi.</div></div>';
+  },
+  async saveGroupDates(gid, from, until) {
+    const g = this.groupMap[String(gid)] || {};
+    if ((g.access_from || '') === (from || '') && (g.access_until || '') === (until || '')) return;
+    await api('/access/group', { method: 'PUT', body: jsonBody({ groupIds: [gid], from: from || null, until: until || null }) });
+    await this.loadMaps(true);
+  },
+
+  /* ===== ADMIN: «MUDDATLAR» BO'LIMI ===== */
+  pageFilter: 'all', pageSchool: '', picked: {},
+  pageHTML() {
+    return '<div class="page-header"><div><h2>Kirish muddatlari</h2>'
+      + '<p class="text-muted">Har bir guruh avtodromga qachongacha kira oladi va kimga shaxsiy muhlat berilgan</p></div></div>'
+      + '<div class="panel"><div class="report-filters" style="margin-bottom:0">'
+      + '<div class="fg"><label for="axSchool">Avtoshkola</label><select id="axSchool" data-act="accessFilter"><option value="">Hammasi</option>'
+      + Data.activeSchools().map(s => '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>').join('') + '</select></div>'
+      + '<div class="seg" role="tablist" id="axSeg">'
+      + [['all', 'Hammasi'], ['expired', 'Tugagan'], ['soon', '7 kun ichida'], ['none', 'Muddatsiz']].map(x =>
+        '<button class="seg-btn' + (this.pageFilter === x[0] ? ' active' : '') + '" type="button" data-act="accessSeg" data-f="' + x[0] + '">' + x[1] + '</button>').join('')
+      + '</div></div></div>'
+      + '<div class="panel" id="axBulk"></div>'
+      + '<div class="panel"><div id="axGroups">' + loadingLine('Yuklanmoqda...') + '</div></div>'
+      + '<div class="panel"><h3 class="gate-h3"><i class="fa-solid fa-user-clock" style="color:var(--amber,#d97706)" aria-hidden="true"></i> Shaxsiy muhlatlar</h3>'
+      + '<div id="axExt"></div></div>';
+  },
+  async loadPage() {
+    this.picked = {};
+    await this.loadMaps(true);
+    if (!this.groups) { const h = $('axGroups'); if (h) h.innerHTML = emptyState('fa-triangle-exclamation', 'Ma\'lumot olinmadi', 'Server hali yangilanmagan bo\'lishi mumkin.', true); return; }
+    this.renderPage();
+  },
+  pageRows() {
+    const rows = (this.groups && this.groups.rows) || [];
+    const sc = this.pageSchool;
+    return rows.filter(g => {
+      if (sc && String(g.school_id) !== String(sc)) return false;
+      const st = this.groupState(g);
+      if (this.pageFilter === 'none') return !st;
+      if (this.pageFilter === 'expired') return st && st.state === 'expired';
+      if (this.pageFilter === 'soon') return st && g.access_until && this.daysLeft(g.access_until) >= 0 && this.daysLeft(g.access_until) <= 7;
+      return true;
+    });
+  },
+  renderPage() {
+    const host = $('axGroups'); if (!host) return;
+    const rows = this.pageRows();
+    const n = Object.keys(this.picked).filter(k => this.picked[k]).length;
+    const bulk = $('axBulk');
+    if (bulk) bulk.innerHTML = '<div class="report-filters" style="margin-bottom:0;align-items:end">'
+      + '<div style="font-size:13px;min-width:160px"><b>' + n + '</b> ta guruh tanlandi<div class="field-help" style="margin:2px 0 0">Ro\'yxatdan belgilang</div></div>'
+      + '<div class="fg"><label for="axFrom">Qachondan</label><input id="axFrom" type="date"></div>'
+      + '<div class="fg"><label for="axTo">Qachongacha</label><input id="axTo" type="date"></div>'
+      + '<button class="btn btn-green" type="button" data-act="accessBulkSave"' + (n ? '' : ' disabled') + '><i class="fa-solid fa-calendar-check" aria-hidden="true"></i> Tanlanganlarga qo\'yish</button>'
+      + '</div><div id="axBulkErr" class="text-error" role="alert"></div>';
+    if (!rows.length) { host.innerHTML = emptyState('fa-calendar', 'Guruh topilmadi', 'Boshqa filtrni tanlang.'); }
+    else {
+      const allOn = rows.every(g => this.picked[g.id]);
+      const cols = ['', 'Avtoshkola', 'Guruh', 'O\'quvchi', 'Kirish muddati', 'Holat', ''];
+      host.innerHTML = '<div class="table-wrap responsive"><table class="tbl"><thead><tr>'
+        + '<th><input type="checkbox" data-act="accessPickAll" aria-label="Hammasini tanlash"' + (allOn ? ' checked' : '') + '></th>'
+        + cols.slice(1).map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
+        + rows.map(g => {
+          const st = this.groupState(g);
+          const period = (g.access_from || g.access_until)
+            ? (g.access_from ? esc(this.fmt(g.access_from)) : '…') + ' — ' + (g.access_until ? '<b>' + esc(this.fmt(g.access_until)) + '</b>' : '…')
+            : '<span class="text-muted">belgilanmagan</span>';
+          const cells = [
+            '<input type="checkbox" data-act="accessPick" data-id="' + esc(g.id) + '"' + (this.picked[g.id] ? ' checked' : '') + ' aria-label="Tanlash">',
+            esc(g.school_name),
+            '<b>' + esc(this.groupLabel(g.name)) + '</b>',
+            num(g.students) + (num(g.extended) ? ' <span class="badge badge-amber">' + num(g.extended) + ' muhlatli</span>' : ''),
+            period,
+            st ? '<span class="badge ' + st.cls + '">' + esc(st.state === 'expired' ? 'tugagan' : st.state === 'notStarted' ? 'boshlanmagan' : st.state === 'soon' ? 'tugayapti' : 'ochiq') + '</span>' : '<span class="text-muted">cheklanmagan</span>',
+            '<button class="btn btn-light btn-sm" type="button" data-act="accessGroupEdit" data-id="' + esc(g.id) + '"><i class="fa-solid fa-pen" aria-hidden="true"></i> Muddat</button>'
+          ];
+          return '<tr' + (st && st.state === 'expired' ? ' class="row-att-red"' : '') + '>' + cells.map((c, i) => '<td data-label="' + esc(cols[i] || 'Tanlash') + '">' + c + '</td>').join('') + '</tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+    const eh = $('axExt'); if (!eh) return;
+    const ext = (this.ext || []).filter(x => !this.pageSchool || (this.groupMap[String(x.group_id)] && String(this.groupMap[String(x.group_id)].school_id) === String(this.pageSchool)));
+    if (!ext.length) { eh.innerHTML = '<div class="text-muted" style="font-size:13px">Hozircha hech kimga shaxsiy muhlat berilmagan.</div>'; return; }
+    const ec = ['O\'quvchi', 'Guruh', 'Guruh muddati', 'Muhlat', 'Sabab', ''];
+    eh.innerHTML = '<div class="table-wrap responsive"><table class="tbl"><thead><tr>' + ec.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
+      + ext.map(x => {
+        const left = this.daysLeft(x.until);
+        const cells = [
+          '<b>' + esc(x.full_name) + '</b>',
+          esc((x.school_name || '') + ' · ' + this.groupLabel(x.group_name)),
+          esc(this.fmt(x.group_until) || '—'),
+          '<b>' + esc(this.fmt(x.until)) + '</b> ' + (left < 0 ? '<span class="badge badge-red">tugagan</span>' : '<span class="badge badge-amber">' + (left ? left + ' kun' : 'bugun') + '</span>'),
+          esc(x.reason || ''),
+          '<button class="btn btn-light btn-sm" type="button" data-act="accessExtend" data-id="' + esc(x.id) + '" data-scope="page">O\'zgartirish</button>'
+        ];
+        return '<tr>' + cells.map((c, i) => '<td data-label="' + esc(ec[i] || 'Amal') + '">' + c + '</td>').join('') + '</tr>';
+      }).join('') + '</tbody></table></div>';
+  },
+  pick(id, on) { this.picked[id] = on; this.renderPage(); },
+  pickAll(on) { this.pageRows().forEach(g => { this.picked[g.id] = on; }); this.renderPage(); },
+  async bulkSave(btn) {
+    setError('axBulkErr', '');
+    const ids = Object.keys(this.picked).filter(k => this.picked[k]);
+    const from = $('axFrom').value || null, until = $('axTo').value || null;
+    if (!ids.length) return;
+    if (!from && !until) { setError('axBulkErr', 'Kamida «Qachongacha» sanasini tanlang.'); return; }
+    if (from && until && from > until) { setError('axBulkErr', 'Boshlanish sanasi tugash sanasidan keyin bo\'lmasin.'); return; }
+    await withBusy('accessBulk', btn, async () => {
+      try {
+        const r = await api('/access/group', { method: 'PUT', body: jsonBody({ groupIds: ids, from: from, until: until }) });
+        toast(num(r.updated) + ' ta guruhga muddat qo\'yildi.');
+        this.picked = {};
+        await this.loadMaps(true); this.renderPage();
+      } catch (e) { setError('axBulkErr', e.message); }
+    });
+  },
+  groupEdit(gid) {
+    const g = this.groupMap[String(gid)]; if (!g) return;
+    openModal('<div class="modal-head"><div><h2>Kirish muddati</h2><p class="text-muted">' + esc(g.school_name) + ' · <b>' + esc(this.groupLabel(g.name)) + '</b></p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<form data-act="accessGroupSave" data-id="' + esc(gid) + '">' + this.groupFieldsHTML(gid)
+      + '<div class="actions-row"><button class="btn btn-green" type="submit" id="axGBtn"><span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Saqlash</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
+      + '<div id="axGErr" class="text-error" role="alert"></div></form>');
+  },
+  async groupEditSave(gid) {
+    setError('axGErr', '');
+    const from = $('grpFrom').value || null, until = $('grpUntil').value || null;
+    if (from && until && from > until) { setError('axGErr', 'Boshlanish sanasi tugash sanasidan keyin bo\'lmasin.'); return; }
+    await withBusy('accessGroup', $('axGBtn'), async () => {
+      try {
+        await this.saveGroupDates(gid, from, until);
+        closeModal(); toast('Muddat saqlandi.');
+        this.renderPage();
+        if (typeof Admin !== 'undefined' && Admin.schoolShown) Admin.renderSchoolDetail();
+      } catch (e) { setError('axGErr', e.message); }
     });
   }
 };
@@ -7401,7 +7807,11 @@ const Admin = {
 
   setTab(tab) {
     this.tab = tab;
-    $$('#adminTabs .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    $$('#adminTabs [data-tab]').forEach(b => {
+      const on = b.dataset.tab === tab;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', String(on));
+    });
     const c = $('adminContent');
     if (tab === 'dashboard') { c.innerHTML = this.dashboardHTML(); this.realtime(); return; }
     if (tab === 'schools') { c.innerHTML = this.schoolsHTML(); this.renderSchools(); return; }
@@ -7421,6 +7831,7 @@ const Admin = {
       return;
     }
     if (tab === 'cars') { c.innerHTML = Fleet.pageHTML(); Fleet.load(); return; }
+    if (tab === 'access') { c.innerHTML = Access.pageHTML(); Access.loadPage(); return; }
     if (tab === 'excel') { c.innerHTML = this.excelHTML(); }
   },
 
@@ -7492,7 +7903,8 @@ const Admin = {
     const schools = Data.activeSchools();
     if (!schools.length) { c.innerHTML = emptyState('fa-school', "Avtoshkola yo'q", "\"Avtoshkola\" tugmasi orqali qo'shing."); return; }
     c.innerHTML = schools.map(s => {
-      const gCount = Data.activeGroups(s.id).length;
+      /* Server yuborgan aniq son — STATE.groups da faqat ochilgan avtoshkolalarniki bo'ladi */
+      const gCount = Math.max(num(s.group_count), Data.activeGroups(s.id).length);
       const sCount = STATE.students.filter(st => String(st.school_id || st.schoolId) === String(s.id)).length;
       return '<div class="card is-clickable" data-act="schoolDetail" data-id="' + esc(s.id) + '" role="button" tabindex="0">'
         + '<h3><i class="fa-solid fa-school" style="color:var(--g)" aria-hidden="true"></i> ' + esc(s.name) + '</h3>'
@@ -7525,7 +7937,7 @@ const Admin = {
     if (String(this.schoolShown || '') !== String(sid)) this.openGroup = null;
     this.schoolShown = sid;
     c.innerHTML = '<div class="panel">' + loadingLine('Guruhlar yuklanmoqda...') + '</div>';
-    await Data.reloadGroups(sid);
+    await Promise.all([Data.reloadGroups(sid), Access.loadMaps()]);
     this.renderSchoolDetail();
     /* Ro'yxatga silliq o'tamiz — pastda qolib ketmasin */
     try { c.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
@@ -7560,6 +7972,7 @@ const Admin = {
         + '<div class="grp-head" data-act="toggleGroup" data-id="' + esc(g.id) + '" role="button" tabindex="0">'
         + '<span class="grp-ico"><i class="fa-solid fa-chevron-' + (open ? 'down' : 'right') + '" aria-hidden="true"></i></span>'
         + '<b class="grp-name">' + esc(g.name) + '</b>'
+        + Access.groupBadge(g.id)
         + '<span class="badge badge-green">' + gst.length + " o'quvchi</span>"
         + '<span class="grp-act">'
         + '<button class="btn btn-light btn-sm" type="button" data-act="groupModal" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '" data-stop="1" title="Tahrirlash"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>'
@@ -7570,9 +7983,17 @@ const Admin = {
               + '<button class="btn btn-green btn-sm" type="button" data-act="studentsBulk" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '"><i class="fa-solid fa-user-plus" aria-hidden="true"></i> Ommaviy o\'quvchi qo\'shish</button>'
               + '<button class="btn btn-light btn-sm" type="button" data-act="studentsBulkEdit" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '" style="margin-left:8px"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> Ommaviy tahrirlash</button>'
               + '</div>' + (gst.length
-                ? gst.slice().sort((a, b) => stName(a).localeCompare(stName(b), 'uz')).map(st =>
-                    '<div class="grp-st"><span>' + esc(stName(st)) + '</span>'
-                    + '<span class="badge badge-blue">' + attCount(st) + ' dars</span></div>').join('')
+                ? gst.slice().sort((a, b) => stName(a).localeCompare(stName(b), 'uz')).map(st => {
+                    /* Guruhga muddat qo'yilgan bo'lsa — har bir o'quvchiga shaxsiy muhlat */
+                    const gm = Access.groupMap[String(g.id)];
+                    const ex = Access.extMap[String(st.id)];
+                    const extOn = ex && gm && gm.access_until && ex.until > gm.access_until;
+                    return '<div class="grp-st"><span>' + esc(stName(st))
+                      + (extOn ? ' <span class="badge badge-amber" title="' + esc(ex.reason || '') + '">muhlat ' + esc(Access.fmt(ex.until)) + ' gacha</span>' : '')
+                      + '</span><span style="display:flex;gap:6px;align-items:center">'
+                      + (gm && gm.access_until ? '<button class="btn btn-light btn-sm" type="button" data-act="accessExtend" data-id="' + esc(st.id) + '" data-scope="admin" title="Shaxsiy muhlat"><i class="fa-solid fa-calendar-plus" aria-hidden="true"></i> Muhlat</button>' : '')
+                      + '<span class="badge badge-blue">' + attCount(st) + ' dars</span></span></div>';
+                  }).join('')
                 : '<div class="grp-st text-muted">Bu guruhda o\'quvchi yo\'q.</div>')
               + '</div>'
             : '')
@@ -7766,6 +8187,7 @@ const Admin = {
       + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
       + '<form data-act="groupSave" data-id="' + esc(id || '') + '" data-school="' + esc(schoolId || '') + '">'
       + '<div class="fg"><label class="field-label" for="grpName">Guruh nomi</label><input id="grpName" required value="' + esc(g && g.name) + '" placeholder="40"></div>'
+      + Access.groupFieldsHTML(id)
       + '<div class="actions-row"><button class="btn btn-green" type="submit" id="grpBtn"><span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Saqlash</span></button>'
       + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
       + '<div id="grpErr" class="text-error" role="alert"></div></form>');
@@ -7774,12 +8196,20 @@ const Admin = {
     setError('grpErr', '');
     const name = $('grpName').value.trim();
     if (!name) { setError('grpErr', 'Guruh nomini kiriting.'); return; }
+    const from = ($('grpFrom') && $('grpFrom').value) || null, until = ($('grpUntil') && $('grpUntil').value) || null;
+    if (from && until && from > until) { setError('grpErr', 'Kirish boshlanishi tugash sanasidan keyin bo\'lmasin.'); return; }
     const payload = { name: name, school_id: schoolId || null, schoolId: schoolId || null };
     await withBusy('group:' + (id || 'new'), $('grpBtn'), async () => {
       try {
         const base = CONFIG.ADMIN_GROUPS_PATH;
-        if (id) await adminApi(base + '/' + encodeURIComponent(id), { method: 'PUT', body: jsonBody(payload) });
-        else await adminApi(base, { method: 'POST', body: jsonBody(payload) });
+        let saved;
+        if (id) saved = await adminApi(base + '/' + encodeURIComponent(id), { method: 'PUT', body: jsonBody(payload) });
+        else saved = await adminApi(base, { method: 'POST', body: jsonBody(payload) });
+        const gid = id || (saved && saved.id);
+        if (gid && (from || until || Access.groupMap[String(gid)])) {
+          try { await Access.saveGroupDates(gid, from, until); }
+          catch (e2) { setError('grpErr', 'Guruh saqlandi, lekin muddat saqlanmadi: ' + e2.message); return; }
+        }
         closeModal();
         toast('Saqlandi.');
         await Data.reloadGroups(schoolId);
@@ -8080,6 +8510,7 @@ const Admin = {
         + '<div class="field-help">Bu yozuv o\'chirilmaydi. Keyin «nega bunday bo\'lgan?» degan savolga javob shu yerdan topiladi.</div>'
         + '</div>' : '')
       + '</div>'
+      + (id ? '<div id="stAccessWrap"></div>' : '')
       + (id ? '<div id="stChgWrap" style="margin-top:6px"></div>' : '')
       + '<div class="actions-row"><button class="btn btn-green" type="submit" id="stBtn"><span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Saqlash</span></button>'
       + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
@@ -8107,7 +8538,18 @@ const Admin = {
         sync();
       }
       this.loadChangeLog(id);
+      this.loadStudentAccess(id);
     }
+  },
+  /* O'quvchi oynasida: avtodromga kirish muddati va shaxsiy muhlat */
+  async loadStudentAccess(id) {
+    const a = await Access.status(id);
+    const host = $('stAccessWrap');
+    if (!host || !a || !a.limited) return;
+    host.innerHTML = Access.boxHTML(a, 'admin')
+      + (a.ok && a.until ? '<button class="btn btn-light btn-sm" type="button" data-act="accessExtend" data-id="' + esc(id)
+        + '" data-scope="admin" style="margin-top:6px"><i class="fa-solid fa-calendar-plus" aria-hidden="true"></i> '
+        + (a.ext ? 'Muhlatni o\'zgartirish' : 'Shaxsiy muhlat berish') + '</button>' : '');
   },
 
   /* Shu o'quvchi bo'yicha o'zgartirishlar tarixi */
@@ -9068,6 +9510,18 @@ const ACTIONS = {
   groupModal: d => Admin.groupModal(d.id || '', d.school || ''),
   groupSave: d => Admin.groupSave(d.id || '', d.school || ''),
   groupDelete: d => Admin.groupDelete(d.id, d.school || ''),
+  /* --- kirish muddati --- */
+  accessExtend: d => Access.extendModal(d.id, d.scope || ''),
+  accessExtSave: () => Access.saveExtend(),
+  accessExtCancel: () => Access.cancelExtend(),
+  accessExtQuick: d => { if ($('axUntil')) $('axUntil').value = d.d; },
+  accessSeg: d => { Access.pageFilter = d.f; $$('#axSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.f === d.f)); Access.renderPage(); },
+  accessFilter: (d, el) => { Access.pageSchool = el.value; Access.renderPage(); },
+  accessPick: (d, el) => Access.pick(d.id, el.checked),
+  accessPickAll: (d, el) => Access.pickAll(el.checked),
+  accessBulkSave: (d, el) => Access.bulkSave(el),
+  accessGroupEdit: d => Access.groupEdit(d.id),
+  accessGroupSave: d => Access.groupEditSave(d.id),
   deletedGroups: d => Admin.deletedGroups(d.school || ''),
   restoreGroup: (d, el) => Admin.restoreGroup(d, el),
   studentModal: async d => {

@@ -1,3 +1,4 @@
+import { accessCheck } from './access-routes.js';
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
 import { ensureQuotaSchema, quotaForInsert } from './quota-routes.js';
@@ -422,6 +423,12 @@ export async function handleCompatRequest(req, res) {
         }
       }
 
+      /* ===== AVTODROMGA KIRISH MUDDATI =====
+         Guruh muddati tugagan (va shaxsiy muhlat berilmagan) bo'lsa
+         davomat yozilmaydi. Tekshiruv tranzaksiyadan oldin. */
+      const access = await accessCheck(user, studentId);
+      if (!access.ok) { send(res, 403, { error: access.error, access }); return true; }
+
       const c = await pool.connect();
       try {
         await c.query('BEGIN');
@@ -612,7 +619,7 @@ export async function handleCompatRequest(req, res) {
 
         send(res, 201, { ok: true, lessons, ids, total,
                          studentId: st.id, studentName: st.full_name, instructorName: insName,
-                         quota: quota });
+                         quota: quota, access: access });
         return true;
       } catch (e) {
         try { await c.query('ROLLBACK'); } catch {}
