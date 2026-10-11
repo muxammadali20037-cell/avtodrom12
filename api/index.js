@@ -10,6 +10,7 @@ import { handleQuotaRequest, ensureQuotaSchema } from "./quota-routes.js";
 import { handleAuditRequest } from "./audit-routes.js";
 import { handleGateRequest } from "./gate-routes.js";
 import { handleAccessRequest, ensureAccessSchema } from "./access-routes.js";
+import { handleBridgeRequest } from "./bridge-analytics.js";
 import instructorHandler from "./instructor.js";
 import instructorsFixed from "./instructors-fixed.js";
 import instructorDailyHandler from "./instructor-daily.js";
@@ -32,6 +33,10 @@ export default async function handler(req, res) {
   if (path.startsWith("/api/")) { try { await ensureQuotaSchema(); } catch (e) { /* noop */ } }
   /* Kirish muddati ustunlari — har qanday tranzaksiyadan OLDIN (ichida DDL qotib qoladi) */
   if (path.startsWith("/api/")) { try { await ensureAccessSchema(); } catch (e) { /* noop */ } }
+
+  /* ANALITIKA KO'PRIGI — Avtodrom admin «Analitika» sahifasi uchun
+     (faqat o'qiydi; kalit: RECEIPT_SHARED_KEY, QR chek ko'prigi bilan bir xil) */
+  if (path === "/api/bridge/analytics") return handleBridgeRequest(req, res);
 
   /* Telegram instruktor mini-ilovasi — FAQAT birlikdagi /api/instructor/...
      Ilgari bu shart `startsWith("/api/instructor")` edi va ko'plikdagi
