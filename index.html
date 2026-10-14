@@ -583,6 +583,8 @@ table.tbl td b { font-weight: 700; }
 .combo-item .combo-tag { font-size: 11px; font-weight: 700; color: var(--g-dark); background: var(--g-surface); padding: 3px 8px; border-radius: 99px; white-space: nowrap; }
 .combo-item.active .combo-tag { background: #fff; }
 .combo-empty { padding: 14px 12px; color: var(--muted); font-size: 13px; text-align: center; }
+.combo-sep { padding: 8px 12px 4px; font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.combo-item.combo-extra b i { color: var(--g); margin-right: 4px; }
 .combo-create { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 6px; }
 .combo.is-picked .combo-input { border-color: #6ee7b7; background: var(--g-surface); font-weight: 600; }
 
@@ -916,11 +918,16 @@ body.admin-open { overflow: hidden; }
 }
 
 /* ===== KASSA (QR chek) ===== */
-.kz-suggest{border:1px solid var(--line,#e1e9e5);border-radius:12px;margin-top:8px;overflow:hidden;max-height:240px;overflow-y:auto;background:#fff}
+.kz-suggest{border:1px solid var(--line,#e1e9e5);border-radius:12px;margin-top:8px;overflow:hidden;max-height:380px;overflow-y:auto;background:#fff}
 .kz-suggest button{display:block;width:100%;text-align:left;border:0;background:#fff;padding:12px 14px;border-bottom:1px solid #eef2f0;cursor:pointer;font:inherit}
 .kz-suggest button:hover{background:#f2f8f5}
 .kz-suggest button b{display:block;font-size:14.5px}
 .kz-suggest button span{display:block;font-size:12px;color:#71827b;margin-top:2px}
+.kz-suggest button small{display:block;font-size:12px;color:#71827b;margin-top:2px}
+.kz-sep{padding:8px 14px 4px;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#71827b;background:#fafcfb}
+.kz-grp-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;background:#f1f8f4;border-bottom:1px solid #e1e9e5;font-size:13.5px;position:sticky;top:0}
+.kz-grp-head i{color:var(--g)}
+.kz-suggest .kz-grp-x{width:auto;border:0;background:#fff;border-radius:8px;padding:6px 10px;border-bottom:0}
 .kz-picked{margin-top:10px;border:1.5px solid #0b5b3e;background:#f1f8f4;border-radius:14px;padding:13px}
 .kz-picked b{font-size:15.5px}
 .kz-picked span{display:block;font-size:12.5px;color:#5c6b64;margin-top:3px}
@@ -1082,7 +1089,6 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 
     <div class="nav-section">Nazorat</div>
     <button class="nav-btn" type="button" data-p="control"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> Xatoliklar va aniqliklar <span id="ctrlCount" class="nav-badge amber"></span></button>
-    <button class="nav-btn" type="button" data-p="turniket"><i class="fa-solid fa-door-open" aria-hidden="true"></i> Turniket <span id="gateCount" class="nav-badge red"></span></button>
 
     <div class="nav-section">Boshqaruv</div>
     <button class="nav-btn" type="button" data-p="instructors"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktorlar</button>
@@ -1136,7 +1142,7 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
               </div>
               <div id="cpPanel" class="cp-panel hidden"></div>
               <div id="comboStudent"></div>
-              <div class="field-help">Qanday yozsangiz ham topadi: <b>ibroximov</b> yoki <b>ibrohimov</b>, qisqartirib <b>ibrxm mali</b>, teskari <b>mali ibrxm</b>, bosh harflar <b>im</b>, telefon oxiri <b>4567</b>. Harf xato yozilsa ham tushunadi.</div>
+              <div class="field-help">Guruh raqamini yozing — masalan <b>12</b>: hamma avtoshkolalarning 12-guruhlari chiqadi. Ism xato yozilsa ham topadi: <b>abbosov</b> = <b>abbasov</b>, <b>ibrohimov</b> = <b>ibroximov</b>, qisqartirib <b>ibrxm mali</b>, telefon oxiri <b>4567</b>. Topilmasa — eng o'xshashlari chiqadi.</div>
               <div id="studentFallback" class="hidden">
                 <div class="form-grid" style="margin-top:12px">
                   <div><label class="field-label muted-label" for="school">Avtoshkola</label><select id="school"><option value="">Tanlang</option></select></div>
@@ -1268,7 +1274,7 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
         <div class="panel" style="margin-top:16px">
           <div id="kzStudentWrap">
             <label class="field-label" for="kzSearch"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> O'quvchi (F.I.Sh. bo'yicha qidiring)</label>
-            <input id="kzSearch" autocomplete="off" placeholder="Ism yozing...">
+            <input id="kzSearch" autocomplete="off" placeholder="Ism-familiya yoki guruh raqami (masalan 12)">
             <div id="kzSuggest" class="kz-suggest hidden"></div>
             <div id="kzPicked" class="kz-picked hidden"></div>
           </div>
@@ -1487,69 +1493,6 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
             Har avtoshkolaning limiti «Admin panel → Avtoshkolalar» da kiritiladi.
           </div>
           <div id="ctrlQuotaWrap" aria-live="polite"></div>
-        </div>
-      </section>
-
-      <!-- ===== TURNIKET ===== -->
-      <section id="p-turniket" class="page hidden">
-        <div class="page-header">
-          <div>
-            <h1>Turniket</h1>
-            <p>Chekdagi QR bilan kim kirdi, kim chiqdi va kim to'lagan vaqtidan oshib ketdi</p>
-          </div>
-          <div class="header-actions">
-            <button class="btn btn-light" type="button" data-act="gateDevices"><i class="fa-solid fa-microchip" aria-hidden="true"></i> Qurilmalar</button>
-            <button class="btn btn-green" type="button" data-act="gateLoad"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Yangilash</button>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="report-filters">
-            <div class="fg"><label for="gateDate">Sana</label><input id="gateDate" type="date"></div>
-            <div class="report-quick">
-              <button class="btn btn-light" type="button" data-act="gateOffset" data-off="0">Bugun</button>
-              <button class="btn btn-light" type="button" data-act="gateOffset" data-off="-1">Kecha</button>
-            </div>
-          </div>
-          <div class="search-hint">
-            <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
-            Vaqt o'quvchi turniketdan kirgan paytdan chiqqan paytgacha hisoblanadi. «To'langan» — kassada ochilgan soat
-            (avtoshkolada darslar soni). Chegirmadan ko'p oshsa qator qizil bo'ladi.
-          </div>
-          <div class="text-muted" style="font-size:13px" id="gateInfo">—</div>
-        </div>
-
-        <div class="stats-grid">
-          <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-person-walking-arrow-right" aria-hidden="true"></i></div><div class="stat-label">Hozir ichkarida</div><div class="stat-value" id="gInside">0</div><div class="gate-sub" id="gInsideSub"></div></div>
-          <div class="stat-card"><div class="stat-icon red"><i class="fa-solid fa-hourglass-end" aria-hidden="true"></i></div><div class="stat-label">Vaqtidan oshgan</div><div class="stat-value red" id="gOverdue">0</div><div class="gate-sub" id="gOverSub"></div></div>
-          <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i></div><div class="stat-label">Platniy</div><div class="stat-value" id="gPaid">0</div><div class="gate-sub" id="gPaidSub"></div></div>
-          <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i></div><div class="stat-label">Avtoshkola</div><div class="stat-value" id="gSchool">0</div><div class="gate-sub" id="gSchoolSub"></div></div>
-          <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-ticket" aria-hidden="true"></i></div><div class="stat-label">Chek olib kirmagan</div><div class="stat-value" id="gNoShow">0</div><div class="gate-sub">chek berilgan, turniketdan o'tmagan</div></div>
-          <div class="stat-card"><div class="stat-icon red"><i class="fa-solid fa-hand" aria-hidden="true"></i></div><div class="stat-label">Rad etilgan / qo'lda ochilgan</div><div class="stat-value" id="gDenied">0</div><div class="gate-sub" id="gDeniedSub"></div></div>
-        </div>
-
-        <div class="panel">
-          <h3 class="gate-h3"><i class="fa-solid fa-person-walking" style="color:var(--g)" aria-hidden="true"></i> Hozir ichkarida</h3>
-          <div class="text-muted gate-hint">Chiqishda chekni urmay ketgan bo'lsa, «Chiqdi» tugmasi bilan yoping — sabab jurnalga yoziladi.</div>
-          <div id="gateInsideWrap" aria-live="polite"></div>
-        </div>
-
-        <div class="panel">
-          <h3 class="gate-h3"><i class="fa-solid fa-chart-column" style="color:var(--blue)" aria-hidden="true"></i> Soatlar kesimida</h3>
-          <div class="text-muted gate-hint">Har soatda avtodromda nechta platniy va nechta avtoshkola o'quvchisi bo'lgan.</div>
-          <div id="gateHoursWrap"></div>
-        </div>
-
-        <div class="panel">
-          <h3 class="gate-h3"><i class="fa-solid fa-list-check" style="color:var(--g)" aria-hidden="true"></i> Kirish-chiqishlar</h3>
-          <div class="text-muted gate-hint">Tanlangan kunda berilgan barcha cheklar. Qizil — to'lagan vaqtidan oshgan.</div>
-          <div id="gatePassesWrap"></div>
-        </div>
-
-        <div class="panel">
-          <h3 class="gate-h3"><i class="fa-solid fa-clipboard-list" style="color:#b45309" aria-hidden="true"></i> Turniket jurnali</h3>
-          <div class="text-muted gate-hint">Har bir urilgan chek. Rad etilgan va qo'lda ochilganlar ajratib ko'rsatiladi.</div>
-          <div id="gateEventsWrap"></div>
         </div>
       </section>
 
@@ -1820,6 +1763,86 @@ function searchFold(s) {
   return t;
 }
 
+/* ===== YANADA YUMSHOQ KO'RINISH (unli harflar adashganda) =====
+   Operator eshitganini yozadi: Abbosov / Abbasov, Otabek / Atabek,
+   Yo'ldosh / Yuldash, Komilov / Kamilov, Djuraev / Jurayev,
+   Khodjaev / Xo'jayev. Bu yerda a/o/u bitta harf deb olinadi,
+   dj/dzh/zh = j, kh = h. Faqat aniq moslik topilmaganda ishlatiladi —
+   aniq yozilgan ism baribir birinchi turadi. */
+const looseCache = new Map();
+function looseFold(s) {
+  const raw = String(s === null || s === undefined ? '' : s);
+  if (!raw) return '';
+  const hit = looseCache.get(raw);
+  if (hit !== undefined) return hit;
+  const t = searchFold(raw)
+    .replace(/dzh|dj|zh/g, 'j')
+    .replace(/kh/g, 'h')
+    .replace(/[ou]/g, 'a')
+    .replace(/ie/g, 'e')          /* Jurayev = Juraev, Aliyev = Aliev */
+    .replace(/([a-z])\1+/g, '$1');
+  if (looseCache.size > 20000) looseCache.clear();
+  looseCache.set(raw, t);
+  return t;
+}
+/* Ikki so'z orasidagi to'liq farq (harf qo'shish/o'chirish/almashtirish) */
+function editDist(a, b) {
+  const la = a.length, lb = b.length;
+  if (!la) return lb; if (!lb) return la;
+  let prev = new Array(lb + 1), cur = new Array(lb + 1);
+  for (let j = 0; j <= lb; j++) prev[j] = j;
+  for (let i = 1; i <= la; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= lb; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    const t = prev; prev = cur; cur = t;
+  }
+  return prev[lb];
+}
+/* «YO'Q» DEMASIN: hech narsa topilmasa — eng o'xshash ismlar.
+   Har bir yozilgan bo'lak ismdagi eng yaqin so'z (yoki uning boshi)
+   bilan solishtiriladi; farq eng kami birinchi chiqadi. */
+function nearestByName(items, getText, q, limit) {
+  const qWords = looseFold(q).split(' ').filter(w => w.length >= 2);
+  if (!qWords.length || /^\d+$/.test(String(q).trim())) return [];
+  const qLen = qWords.join('').length;
+  const scored = [];
+  for (let i = 0; i < items.length; i++) {
+    const words = looseFold(getText(items[i])).split(' ').filter(Boolean);
+    if (!words.length) continue;
+    let d = 0;
+    for (const qw of qWords) {
+      let best = 99;
+      for (const w of words) {
+        const x = Math.min(editDist(qw, w), editDist(qw, w.slice(0, qw.length)) + 0.5);
+        if (x < best) best = x;
+        if (!best) break;
+      }
+      d += best;
+    }
+    scored.push({ it: items[i], d: d, i: i });
+  }
+  scored.sort((a, b) => a.d - b.d || a.i - b.i);
+  /* Juda uzoqlari chiqmasin — lekin bittasi bo'lsa ham ko'rsatiladi */
+  const cap = Math.max(2, Math.ceil(qLen * 0.5));
+  const close = scored.filter(x => x.d <= cap);
+  return (close.length ? close : scored.slice(0, 3)).slice(0, limit || 8).map(x => x.it);
+}
+/* «12», «12-guruh», «12 guruh» → «12». Boshqa narsa bo'lsa — '' */
+function groupQuery(q) {
+  const m = String(q || '').trim().match(/^(\d{1,3})\s*-?\s*(guruh|gr)?\.?$/i);
+  return m ? m[1] : '';
+}
+/* Guruh nomi shu raqamga mosmi: 0 — yo'q, 2 — aynan, 1 — shu bilan boshlanadi */
+function groupNumMatch(name, num) {
+  const n = String(name || '').trim().toLowerCase().replace(/\s*-?\s*guruh$/, '');
+  if (n === num) return 2;
+  const lead = (n.match(/^\d+/) || [''])[0];
+  if (lead === num) return 2;
+  return lead.indexOf(num) === 0 ? 1 : 0;
+}
+
 /* «ibrxm» -> «ibrohimov»: harflar tartibi saqlangan holda ichida bormi */
 function isSubsequence(needle, hay) {
   if (needle.length > hay.length) return false;
@@ -1923,10 +1946,15 @@ function matchScore(text, q, extra) {
   if (matchAllWords(qWords, words, (qw, w) => qw.length >= 3 && isSubsequence(qw, w))) return 45;
   if (qWords.length === 1 && qGlued.length >= 4 && isSubsequence(qGlued, glued)) return 40;
 
-  /* 7) XATO YOZILGAN: bitta-ikkita harf farqi bilan */
-  const tol = w => (w.length <= 4 ? 0 : w.length <= 7 ? 1 : 2);
+  /* 6b) UNLI ADASHGAN: a/o/u, dj/j, kh/h farqi — Abbosov = Abbasov */
+  const lq = looseFold(q).split(' ').filter(Boolean);
+  const lw = looseFold(text).split(' ').filter(Boolean);
+  if (lq.length && lq.every(w => w.length >= 3)
+      && matchAllWords(lq, lw, (qw, w) => w.indexOf(qw) === 0)) return 35;
+
+  const tolOld = w => (w.length <= 4 ? 0 : w.length <= 7 ? 1 : 2);
   if (matchAllWords(qWords, words, (qw, w) => {
-    const t = tol(qw);
+    const t = tolOld(qw);
     if (!t) return false;
     /* Birinchi harf bir xil bo'lsin: xato odatda o'rtada bo'ladi.
        Bu 3000 ta ism ustida ortiqcha solishtirishning katta qismini
@@ -1935,6 +1963,16 @@ function matchScore(text, q, extra) {
     const head = w.slice(0, qw.length + t);
     return closeEnough(qw, head, t) || closeEnough(qw, w, t);
   })) return 25;
+
+  /* 7b) Xato + unli adashgan (a/o/u): Otabek/Atabek ham bir xil boshlanadi */
+  const tol = w => (w.length <= 3 ? 0 : w.length <= 8 ? 1 : 2);
+  if (lq.length && matchAllWords(lq, lw, (qw, w) => {
+    const t = tol(qw);
+    if (!t) return false;
+    if (qw[0] !== w[0]) return false;
+    const head = w.slice(0, qw.length + t);
+    return closeEnough(qw, head, t) || closeEnough(qw, w, t);
+  })) return 22;
 
   return 0;
 }
@@ -2288,7 +2326,7 @@ function bootInner() {
   go('add');
   startPolling();
   /* Chekka QR chiqsinmi — sozlamani bir marta o'qib olamiz */
-  Gate.loadSettings();
+  /* Turniket bo'limi olib tashlangan — chekka QR qo'yilmaydi (Gate.qrOn = false) */
   /* Kunlik hisobotni bir marta oldindan yuklaymiz — "Bugungi tushum" KPI va
      o'quvchining bugungi darslari shu ma'lumotdan olinadi. */
   Reports.loadDaily();
@@ -2307,7 +2345,7 @@ function showLoginScreen() {
 const PAGE_TITLES = {
   add: 'Yangi avtomobil', active: 'Jarayonda', queue: 'Kutish rejimi', finish: 'Tugatish',
   frozen: 'Muzlatilgan', daily: 'Kunlik hisobot', history: 'Tarix', instructors: 'Instruktorlar',
-  kassa: 'QR chek — avtoshkola', control: 'Xatoliklar va aniqliklar', turniket: 'Turniket'
+  kassa: 'QR chek — avtoshkola', control: 'Xatoliklar va aniqliklar'
 };
 function go(page) {
   const el = $('p-' + page);
@@ -2332,7 +2370,6 @@ function go(page) {
   if (page === 'instructors') Instructors.load();
   if (page === 'kassa') Kassa.onEnter();
   if (page === 'control') Control.onEnter();
-  if (page === 'turniket') Gate.onEnter();
 }
 function closeSidebar() {
   $('side').classList.remove('open');
@@ -2393,6 +2430,9 @@ function Combobox(hostId, options) {
 
   function render(q) {
     const query = lower(q).trim();
+    /* Qo'shimcha natijalar (masalan «12» → guruhlar) ro'yxat tepasida */
+    const special = (query && cfg.extra) ? (cfg.extra(q) || []) : [];
+    let fuzzy = false;
     if (!query) {
       filtered = items.slice(0, cfg.limit);
     } else if (cfg.score) {
@@ -2409,15 +2449,35 @@ function Combobox(hostId, options) {
     } else {
       filtered = items.filter(it => cfg.match(it, query)).slice(0, cfg.limit);
     }
+    /* «Topilmadi» demaymiz — eng o'xshash ismlar chiqadi */
+    if (query && !filtered.length && cfg.fallback) {
+      filtered = cfg.fallback(items, q) || [];
+      fuzzy = filtered.length > 0;
+    }
+    const nSpecial = special.length;
+    filtered = special.concat(filtered);
+    const row = (it, i) => {
+      if (it && it.__extra) {
+        return '<div class="combo-item combo-extra' + (i === cursor ? ' active' : '') + '" role="option" data-i="' + i + '" aria-selected="' + (i === cursor) + '">'
+          + '<div><b><i class="fa-solid ' + esc(it.icon || 'fa-users') + '" aria-hidden="true"></i> ' + esc(it.title) + '</b>'
+          + (it.sub ? '<span>' + esc(it.sub) + '</span>' : '') + '</div>'
+          + (it.tag ? '<span class="combo-tag">' + esc(it.tag) + '</span>' : '') + '</div>';
+      }
+      const sub = cfg.getSub(it), tag = cfg.getTag(it);
+      return '<div class="combo-item' + (i === cursor ? ' active' : '') + '" role="option" data-i="' + i + '" aria-selected="' + (i === cursor) + '">'
+        + '<div><b>' + esc(cfg.getText(it)) + '</b>' + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</div>'
+        + (tag ? '<span class="combo-tag">' + esc(tag) + '</span>' : '') + '</div>';
+    };
     let html = '';
     if (!filtered.length) {
       html = '<div class="combo-empty">' + esc(cfg.emptyText) + '</div>';
     } else {
       html = filtered.map((it, i) => {
-        const sub = cfg.getSub(it), tag = cfg.getTag(it);
-        return '<div class="combo-item' + (i === cursor ? ' active' : '') + '" role="option" data-i="' + i + '" aria-selected="' + (i === cursor) + '">'
-          + '<div><b>' + esc(cfg.getText(it)) + '</b>' + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</div>'
-          + (tag ? '<span class="combo-tag">' + esc(tag) + '</span>' : '') + '</div>';
+        let sep = '';
+        if (i === 0 && nSpecial && cfg.extraTitle) sep = '<div class="combo-sep">' + esc(cfg.extraTitle) + '</div>';
+        if (i === nSpecial && nSpecial && filtered.length > nSpecial) sep = '<div class="combo-sep">' + (fuzzy ? 'Aniq topilmadi — o\'xshash ismlar' : 'O\'quvchilar') + '</div>';
+        else if (i === nSpecial && fuzzy) sep = '<div class="combo-sep">Aniq topilmadi — o\'xshash ismlar</div>';
+        return sep + row(it, i);
       }).join('');
     }
     if (cfg.createText && cfg.onCreate) {
@@ -2428,6 +2488,14 @@ function Combobox(hostId, options) {
   function show() { open = true; list.classList.remove('hidden'); input.setAttribute('aria-expanded', 'true'); }
   function hide() { open = false; list.classList.add('hidden'); input.setAttribute('aria-expanded', 'false'); cursor = -1; }
   function pick(it) {
+    if (it && it.__extra) {
+      /* Guruh kabi qo'shimcha natija: maydon tozalanadi, tanlov tashqarida davom etadi */
+      input.value = '';
+      host.classList.remove('has-value', 'is-picked');
+      hide();
+      if (cfg.onExtra) cfg.onExtra(it);
+      return;
+    }
     picked = it;
     input.value = cfg.getText(it);
     host.classList.add('has-value', 'is-picked');
@@ -2545,6 +2613,7 @@ const Kassa = {
   async setSchool(id) {
     this.schoolId = String(id || '');
     this.student = null;
+    this.groupPick = '';
     $('kzPicked').classList.add('hidden');
     $('kzSearch').value = '';
     this.renderSuggest();
@@ -2644,28 +2713,84 @@ const Kassa = {
     return STATE.students.filter(s => String(s.school_id || s.schoolId) === String(this.schoolId) && s.active !== false);
   },
 
+  /* Shu avtoshkolaning guruhlari (o'quvchilar ro'yxatidan) */
+  schoolGroups() {
+    const sc = (GroupPick.build() || []).find(x => String(x.id) === String(this.schoolId));
+    return sc ? sc.groups.filter(g => g.id) : [];
+  },
+  /* Tanlangan guruh (raqam yozib guruh tanlansa — faqat uning o'quvchilari) */
+  groupPick: '',
+  setGroup(gid) {
+    this.groupPick = String(gid || '');
+    const inp = $('kzSearch');
+    if (inp) { inp.value = ''; try { inp.focus(); } catch (e) { /* noop */ } }
+    this.renderSuggest();
+  },
+
+  /* QIDIRUV:
+       «12»        → shu avtoshkolaning 12-guruhi → bosilsa ichidagi o'quvchilar
+       ism/familiya → xato yozilsa ham (a/o, h/x, q/k) topadi;
+                      topilmasa — eng o'xshash ismlar chiqadi */
   renderSuggest() {
     const box = $('kzSuggest'); if (!box) return;
-    const q = lower($('kzSearch') ? $('kzSearch').value : '').trim();
+    const raw = $('kzSearch') ? $('kzSearch').value : '';
+    const q = raw.trim();
     if (!this.schoolId) { box.classList.add('hidden'); return; }
-    if (!q) { box.classList.add('hidden'); box.innerHTML = ''; return; }
-    const list = this.pool().filter(s => lower(s.full_name || s.fullName).indexOf(q) >= 0).slice(0, 8);
-    if (!list.length) {
+    const stBtn = (s, sub) => '<button type="button" data-act="kzPick" data-id="' + esc(s.id) + '">'
+      + '<b>' + esc(s.full_name || s.fullName) + '</b>'
+      + '<small>' + esc(sub !== undefined ? sub : (s.group_name || s.groupName ? CascadePick.groupLabel(s.group_name || s.groupName) : 'guruhsiz')) + '</small></button>';
+    const rank = (list, query) => list
+      .map((s, i) => ({ s: s, sc: matchScore(stName(s), query, s.phone), i: i }))
+      .filter(x => x.sc > 0).sort((a, b) => b.sc - a.sc || a.i - b.i).map(x => x.s);
+    const sep = t => '<div class="kz-sep">' + t + '</div>';
+
+    /* 1) Guruh tanlangan: faqat shu guruh o'quvchilari */
+    const g = this.groupPick ? this.schoolGroups().find(x => String(x.id) === this.groupPick) : null;
+    if (g) {
+      let list = q ? rank(g.list, q) : g.list.slice();
+      let note = '';
+      if (q && !list.length) { list = nearestByName(g.list, x => stName(x), q, 8); note = sep('Aniq topilmadi — o\'xshash ismlar'); }
       box.classList.remove('hidden');
-      box.innerHTML = '<div class="muted" style="padding:10px">Bu avtoshkolada bunday o\'quvchi topilmadi.</div>';
+      box.innerHTML = '<div class="kz-grp-head"><span><i class="fa-solid fa-users" aria-hidden="true"></i> <b>'
+        + esc(CascadePick.groupLabel(g.name)) + '</b> · ' + g.n + ' o\'quvchi</span>'
+        + '<button type="button" class="kz-grp-x" data-act="kzGroupClear" aria-label="Guruhni bekor qilish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+        + note + (list.length ? list.slice(0, 200).map(s => stBtn(s, attCount(s) + ' dars')).join('')
+          : '<div class="muted" style="padding:10px">Bu guruhda o\'quvchi yo\'q.</div>');
       return;
     }
+    if (!q) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+
+    /* 2) Raqam: guruhlar */
+    const num = groupQuery(q);
+    if (num) {
+      const gs = this.schoolGroups().map(x => ({ g: x, r: groupNumMatch(x.name, num) })).filter(x => x.r)
+        .sort((a, b) => b.r - a.r || String(a.g.name).localeCompare(String(b.g.name), 'uz', { numeric: true }))
+        .map(x => x.g);
+      const phone = q.length >= 3 ? rank(this.pool(), q).slice(0, 5) : [];
+      box.classList.remove('hidden');
+      box.innerHTML = (gs.length
+          ? sep('Guruhlar') + gs.slice(0, 20).map(x => '<button type="button" data-act="kzGroup" data-id="' + esc(x.id) + '">'
+              + '<b><i class="fa-solid fa-users" aria-hidden="true" style="color:var(--g)"></i> ' + esc(CascadePick.groupLabel(x.name)) + '</b>'
+              + '<small>' + x.n + ' o\'quvchi — bosing, ro\'yxat chiqadi</small></button>').join('')
+          : '<div class="muted" style="padding:10px">Bu avtoshkolada ' + esc(num) + '-guruh yo\'q.</div>')
+        + (phone.length ? sep('Telefon raqami bo\'yicha') + phone.map(s => stBtn(s)).join('') : '');
+      return;
+    }
+
+    /* 3) Ism / familiya */
+    let list = rank(this.pool(), q).slice(0, 12);
+    let note = '';
+    if (!list.length) { list = nearestByName(this.pool(), x => stName(x), q, 8); note = sep('Aniq topilmadi — o\'xshash ismlar'); }
     box.classList.remove('hidden');
-    box.innerHTML = list.map(s =>
-      '<button type="button" data-act="kzPick" data-id="' + esc(s.id) + '">'
-      + '<b>' + esc(s.full_name || s.fullName) + '</b>'
-      + '<small>' + esc(s.group_name || s.groupName || 'guruhsiz') + '</small></button>').join('');
+    box.innerHTML = list.length ? note + list.map(s => stBtn(s)).join('')
+      : '<div class="muted" style="padding:10px">Bu avtoshkolada o\'quvchi yo\'q.</div>';
   },
 
   pick(id) {
     const s = this.pool().find(x => String(x.id) === String(id));
     if (!s) return;
     this.student = s;
+    this.groupPick = '';
     $('kzSearch').value = '';
     $('kzSuggest').classList.add('hidden');
     const box = $('kzPicked');
@@ -2720,6 +2845,7 @@ const Kassa = {
 
   reset() {
     this.student = null;
+    this.groupPick = '';
     this.quota = null; this.quotaFor = '';
     this.access = null; this.accessFor = '';
     this.paintAccess();
@@ -2832,6 +2958,12 @@ document.addEventListener('keydown', e => {
   if ($('modal') && $('modal').innerHTML) return;
   /* Tugma bosilgan holatda bo'lsa Enter ikkinchi so'rov yubormaydi —
      aks holda ikkita chek chiqib, bazadagi cheklov xatosi ko'rinardi. */
+  /* Qidiruvda Enter — ro'yxatdagi birinchisi tanlanadi (guruh yoki o'quvchi) */
+  if (e.key === 'Enter' && e.target && e.target.id === 'kzSearch') {
+    const box = $('kzSuggest');
+    const first = box && !box.classList.contains('hidden') && box.querySelector('button[data-act="kzPick"], button[data-act="kzGroup"]');
+    if (first && (e.target.value.trim() || Kassa.groupPick)) { e.preventDefault(); first.click(); return; }
+  }
   if (e.key === 'Enter' && Kassa.student && !Kassa.busy) { e.preventDefault(); if (!Kassa.accessBlocked()) Kassa.issue(); }
 });
 document.addEventListener('input', e => {
@@ -2987,7 +3119,7 @@ const Add = {
 
     this.comboStudent = Combobox('comboStudent', {
       inputId: 'comboStudentInput',
-      placeholder: "O'quvchi F.I.Sh. (masalan: Ali Vali)",
+      placeholder: "O'quvchi F.I.Sh. yoki guruh raqami (masalan: 12)",
       icon: 'fa-graduation-cap',
       emptyText: "O'quvchi topilmadi",
       createText: "Yangi o'quvchi yaratish",
@@ -2996,6 +3128,11 @@ const Add = {
       getTag: it => attCount(it) + ' dars',
       match: (it, q) => smartMatch(stName(it), q, it.phone),
       score: (it, q) => matchScore(stName(it), q, it.phone),
+      /* «12» yozilsa — hamma avtoshkolalarning 12-guruhlari; tanlansa ichidagi o'quvchilar */
+      extra: q => CascadePick.groupHits(q, 12),
+      extraTitle: 'Guruhlar',
+      onExtra: it => CascadePick.openGroup(it.schoolId, it.groupId),
+      fallback: (items, q) => nearestByName(items, it => stName(it), q, 8),
       onSelect: it => { STATE.form.student = it; Add.renderStudentPanel(); Add.onStudentPicked(); },
       onClear: () => { STATE.form.student = null; Add.renderStudentPanel(); Add.onStudentPicked(); },
       onCreate: name => Add.createStudentQuick(name)
@@ -6422,6 +6559,46 @@ const CascadePick = {
     return !n ? '' : (/guruh/i.test(n) ? n : n + '-guruh');
   },
 
+  /* ===== GURUH RAQAMI BO'YICHA (hamma avtoshkolalardan) =====
+     «12» → AVTO DEVA 12-guruh, Avto Lady 12-guruh, ... Tanlangan
+     avtoshkolaniki birinchi, keyin aynan mos, keyin «12...» bilan
+     boshlanadiganlar. */
+  allGroups(q) {
+    const idx = GroupPick.build() || [];
+    const num = groupQuery(q);
+    const text = num ? '' : searchNorm(q);
+    const out = [];
+    idx.forEach(sc => sc.groups.forEach(g => {
+      if (!g.id) return;
+      let rank = 1;
+      if (num) { rank = groupNumMatch(g.name, num); if (!rank) return; }
+      else if (text) {
+        const hay = searchNorm(g.name + ' ' + sc.name);
+        if (!text.split(' ').every(w => hay.indexOf(w) >= 0)) return;
+      }
+      out.push({ sc: sc, g: g, rank: rank, mine: String(sc.id) === String(this.schoolId) ? 1 : 0 });
+    }));
+    const byNum = (a, b) => String(a.g.name).localeCompare(String(b.g.name), 'uz', { numeric: true });
+    out.sort((a, b) => b.mine - a.mine || b.rank - a.rank || byNum(a, b)
+      || String(a.sc.name).localeCompare(String(b.sc.name), 'uz'));
+    return out;
+  },
+  /* Ism maydoniga raqam yozilganda chiqadigan guruhlar */
+  groupHits(q, limit) {
+    if (!groupQuery(q)) return [];
+    return this.allGroups(q).slice(0, limit || 12).map(x => ({
+      __extra: true, icon: 'fa-users', schoolId: x.sc.id, groupId: x.g.id,
+      title: this.groupLabel(x.g.name), sub: x.sc.name, tag: x.g.n + " o'quvchi"
+    }));
+  },
+  /* Guruh tanlandi — ichidagi o'quvchilar ro'yxati ochiladi */
+  openGroup(schoolId, groupId) {
+    if (STATE.form.customerType !== 'school') Add.setType('school');
+    this.schoolId = String(schoolId); this.groupId = String(groupId); this.noGroup = false;
+    this.step = '';
+    this.open('student');
+  },
+
   items() {
     const q = this.q;
     const idx = GroupPick.build() || [];
@@ -6431,19 +6608,29 @@ const CascadePick = {
     }
     if (this.step === 'group') {
       const sc = this.school();
-      return (sc ? sc.groups : []).filter(g => !q || lower(g.name).indexOf(lower(q)) >= 0)
-        .map(g => ({ id: g.id || 'none', name: g.id ? this.groupLabel(g.name) : g.name, sub: g.n + ' ta' }));
+      /* Avtoshkola tanlangan va hech narsa yozilmagan — o'sha avtoshkola guruhlari */
+      if (sc && !String(q).trim()) {
+        return sc.groups.map(g => ({ id: g.id || 'none', name: g.id ? this.groupLabel(g.name) : g.name, sub: g.n + ' ta' }));
+      }
+      /* Raqam yozilsa yoki avtoshkola tanlanmagan — hamma avtoshkolalardan */
+      return this.allGroups(q).slice(0, 300).map(x => ({
+        id: x.sc.id + '|' + x.g.id, name: this.groupLabel(x.g.name), sub: x.sc.name + ' · ' + x.g.n + ' ta'
+      }));
     }
     if (this.step === 'student') {
       const g = this.group();
       const list = g ? g.list : [];
       if (!q) return list.map(s => ({ id: s.id, name: stName(s), sub: attCount(s) + ' dars' }));
       /* Mosligi bo'yicha saralanadi — aniq topilgani birinchi turadi */
-      return list
+      const hits = list
         .map((s, i) => ({ s: s, sc: matchScore(stName(s), q, s.phone), i: i }))
         .filter(x => x.sc > 0)
         .sort((a, b) => b.sc - a.sc || a.i - b.i)
         .map(x => ({ id: x.s.id, name: stName(x.s), sub: attCount(x.s) + ' dars' }));
+      if (hits.length) return hits;
+      /* «Topilmadi» o'rniga — shu guruhdagi eng o'xshash ismlar */
+      return nearestByName(list, x => stName(x), q, 8)
+        .map(x => ({ id: x.id, name: stName(x), sub: "o'xshash · " + attCount(x) + ' dars' }));
     }
     return [];
   },
@@ -6462,7 +6649,7 @@ const CascadePick = {
       v.classList.toggle('empty', !text);
     };
     set('school', sc ? sc.name : '', 'Tanlang', true, !!sc);
-    set('group', g ? (g.id ? this.groupLabel(g.name) : g.name) : '', sc ? 'Tanlang' : 'Avval avtoshkola', !!sc, !!g);
+    set('group', g ? (g.id ? this.groupLabel(g.name) : g.name) : '', sc ? 'Tanlang' : 'Raqamini yozing', true, !!g);
     const stInGroup = cur && g && g.list.some(s => String(s.id) === String(cur.id));
     set('student', stInGroup ? stName(cur) : '', g ? 'Tanlang' : 'Avval guruh', !!g, !!stInGroup);
   },
@@ -6473,7 +6660,7 @@ const CascadePick = {
     if (!p) return;
     if (!this.step) { p.classList.add('hidden'); p.innerHTML = ''; return; }
     const titles = { school: 'Avtoshkolani tanlang', group: 'Guruhni tanlang', student: "O'quvchini tanlang" };
-    const hints = { school: 'Avtoshkola nomi...', group: 'Guruh raqami...', student: 'Ism yoki familiya...' };
+    const hints = { school: 'Avtoshkola nomi...', group: 'Guruh raqami, masalan 12 — hamma avtoshkolalardan', student: 'Ism yoki familiya...' };
     if (!keepFocus || !$('cpFilter')) {
       p.innerHTML = '<div class="cp-panel-head"><b>' + esc(titles[this.step]) + '</b>'
         + '<button class="btn btn-ghost btn-sm" type="button" data-act="cpClose"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Yopish</button></div>'
@@ -6482,7 +6669,9 @@ const CascadePick = {
     }
     p.classList.remove('hidden');
     const activeId = this.step === 'school' ? this.schoolId
-      : this.step === 'group' ? (this.groupId || (this.school() && this.group() ? 'none' : ''))
+      : this.step === 'group' ? (String(this.q).trim() || !this.school()
+          ? this.schoolId + '|' + this.groupId
+          : (this.groupId || (this.school() && this.group() ? 'none' : '')))
       : (STATE.form.student ? String(STATE.form.student.id) : '');
     const list = this.items();
     $('cpList').innerHTML = list.length
@@ -6490,7 +6679,9 @@ const CascadePick = {
           + ' data-act="cpChoose" data-step="' + this.step + '" data-id="' + esc(x.id) + '">'
           + '<span class="cp-num">' + (i + 1) + '.</span>'
           + '<span class="cp-name">' + esc(x.name) + '</span><span class="text-muted">' + esc(x.sub) + '</span></button>').join('')
-      : '<div class="field-help">' + (this.q ? 'Topilmadi.' : "Ro'yxat bo'sh.") + '</div>';
+      : '<div class="field-help">' + (this.q
+          ? (this.step === 'group' ? 'Bunday guruh topilmadi.' : 'Topilmadi.')
+          : "Ro'yxat bo'sh.") + '</div>';
   },
 
   open(step) {
@@ -6501,8 +6692,7 @@ const CascadePick = {
       Data.reloadStudents().then(() => { GroupPick.index = null; this.step = ''; this.open(step); });
       return;
     }
-    if (step === 'group' && !this.school()) step = 'school';
-    if (step === 'student' && !this.group()) step = this.school() ? 'group' : 'school';
+    if (step === 'student' && !this.group()) step = 'group';
     this.step = step;
     this.q = '';
     this.renderButtons();
@@ -6527,6 +6717,14 @@ const CascadePick = {
       return;
     }
     if (step === 'group') {
+      /* Hamma avtoshkolalardan tanlansa: «avtoshkola|guruh» */
+      if (String(id).indexOf('|') > 0) {
+        const p = String(id).split('|');
+        this.schoolId = p[0]; this.groupId = p[1]; this.noGroup = false;
+        this.step = '';
+        this.open('student');
+        return;
+      }
       /* «Guruhsiz» o'quvchilar ham tanlanishi uchun */
       this.groupId = id === 'none' ? '' : String(id);
       this.noGroup = id === 'none';
@@ -9435,6 +9633,8 @@ const ACTIONS = {
   /* --- QR chek (avtoshkola) --- */
   kzMin: d => Kassa.setMinutes(d.m),
   kzPick: d => (d.id ? Kassa.pick(d.id) : Kassa.reset()),
+  kzGroup: d => Kassa.setGroup(d.id),
+  kzGroupClear: () => Kassa.setGroup(''),
   kzIssue: () => Kassa.issue(),
   kzCancel: d => Kassa.cancel(d.id),
   kzPrint: () => Kassa.print(),
@@ -9666,7 +9866,6 @@ function startPolling() {
     if (!adminOpen) {
       if (STATE.page === 'active' || STATE.page === 'finish' || STATE.page === 'queue') Active.load(true);
       if (STATE.page === 'frozen') Frozen.load(true);
-      if (STATE.page === 'turniket') Gate.load(true); else Gate.pollBadge();
     }
     if (STATE.admin.token && Admin.tab === 'dashboard' && adminOpen) Admin.realtime();
   }, CONFIG.POLL_ACTIVE_MS);
