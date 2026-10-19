@@ -10,6 +10,7 @@ import { handleQuotaRequest, ensureQuotaSchema } from "./quota-routes.js";
 import { handleAuditRequest } from "./audit-routes.js";
 import { handleGateRequest } from "./gate-routes.js";
 import { handleAccessRequest, ensureAccessSchema } from "./access-routes.js";
+import { handleKassaRequest, ensureKassaSchema } from "./kassa-routes.js";
 import { handleBridgeRequest } from "./bridge-analytics.js";
 import instructorHandler from "./instructor.js";
 import instructorsFixed from "./instructors-fixed.js";
@@ -33,6 +34,8 @@ export default async function handler(req, res) {
   if (path.startsWith("/api/")) { try { await ensureQuotaSchema(); } catch (e) { /* noop */ } }
   /* Kirish muddati ustunlari — har qanday tranzaksiyadan OLDIN (ichida DDL qotib qoladi) */
   if (path.startsWith("/api/")) { try { await ensureAccessSchema(); } catch (e) { /* noop */ } }
+  /* Klik ustuni, erkin yozuvli avtomobil, xarajatlar jadvali — ham tranzaksiyadan oldin */
+  if (path.startsWith("/api/")) { try { await ensureKassaSchema(); } catch (e) { console.error("KASSA SCHEMA:", e.message); } }
 
   /* ANALITIKA KO'PRIGI — Avtodrom admin «Analitika» sahifasi uchun
      (faqat o'qiydi; kalit: RECEIPT_SHARED_KEY, QR chek ko'prigi bilan bir xil) */
@@ -69,6 +72,9 @@ export default async function handler(req, res) {
   /* QR chek (avtoshkola). Avtodrom instruktor paneli ham shu yerga
      murojaat qiladi — /api/receipts/verify|redeem|complete. */
   const receiptHandled = await handleReceiptRequest(req, res); if (receiptHandled) return receiptHandled;
+
+  /* RASXOD — xarajatlar */
+  const kassaHandled = await handleKassaRequest(req, res); if (kassaHandled) return kassaHandled;
 
   /* KIRISH MUDDATI — guruh muddati va shaxsiy muhlat */
   const accessHandled = await handleAccessRequest(req, res); if (accessHandled) return accessHandled;

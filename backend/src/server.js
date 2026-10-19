@@ -247,7 +247,8 @@ async function ensureFeatureSchema(){
   await q(`ALTER TABLE vehicles ALTER COLUMN first_letter DROP NOT NULL`);
   await q(`ALTER TABLE vehicles ALTER COLUMN last_letters TYPE VARCHAR(3)`);
 
-  await q(`UPDATE sessions SET cash_amount=COALESCE(amount,0),payment_method='cash' WHERE status='completed' AND COALESCE(amount,0)>0 AND COALESCE(cash_amount,0)=0 AND COALESCE(terminal_amount,0)=0`);
+  /* Klik bilan to'langanlar (click_amount) naqdga aylantirilmasin */
+  await q(`UPDATE sessions SET cash_amount=COALESCE(amount,0),payment_method='cash' WHERE status='completed' AND COALESCE(amount,0)>0 AND COALESCE(cash_amount,0)=0 AND COALESCE(terminal_amount,0)=0 AND COALESCE((to_jsonb(sessions)->>'click_amount')::numeric,0)=0 AND payment_method<>'click'`);
   /* Eski yakunlangan sessiyalar: 1 tashrif = kamida 1 dars */
   await q(`UPDATE sessions SET lessons_counted=GREATEST(1,ROUND(COALESCE(duration_seconds,0)/3600.0)::int) WHERE status='completed' AND student_id IS NOT NULL AND lessons_counted=0`);
 
@@ -548,6 +549,7 @@ const SESSION_SELECT = `SELECT s.id, v.plate, v.model, COALESCE(s.driver_name, v
     s.hourly_rate, s.minimum_payment, s.calculation_mode,
     s.school_id, s.group_id, s.student_id, s.instructor_id, s.receipt_id,
     s.amount, s.cash_amount, s.terminal_amount, s.payment_method,
+    COALESCE((to_jsonb(s)->>'click_amount')::numeric,0) click_amount,
     ds.name school_name, g.name group_name, st.full_name student_name,
     i.full_name instructor_name
   FROM sessions s
@@ -676,6 +678,16 @@ app.post('/api/sessions/:id/resume', auth, async (req, res) => {
    - cash_amount / terminal_amount (yangi frontend) ham, cashAmount / amount (eski) ham qabul qilinadi
    - muzlatilgan sessiyani ham yakunlaydi
    - lessons_counted yoziladi: 1 soat = 1 dars                                */
+/* sessions.click_amount bormi (api/kassa-routes.js qo'shadi) — bir marta tekshiriladi */
+let clickColumn = null;
+async function hasClickColumn() {
+  if (clickColumn === true) return true;
+  try {
+    const r = await pool.query(`SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='sessions' AND column_name='click_amount'`);
+    clickColumn = !!r.rows[0];
+  } catch (e) { clickColumn = false; }
+  return clickColumn;
+}
 app.post('/api/sessions/:id/finish', auth, async (req, res) => {
   const c = await pool.connect();
   try {
@@ -692,18 +704,37 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
     if (!r.rows[0]) { await c.query('ROLLBACK'); return res.status(404).json({ error: 'Faol sessiya topilmadi' }); }
 
     const s = r.rows[0];
-    const end = new Date();
-    const seconds = elapsedSeconds(s);
+    let end = new Date();
+    let seconds = elapsedSeconds(s);
+    /* CHIQISH VAQTI QO'LDA: «10:30 da chiqdi» — kech yopilganda yoki
+       o'tgan vaqtni yozganda. Boshlanishdan oldin va hozirdan keyin
+       bo'lolmaydi; muzlatib-davom ettirilgan sessiyada ishlamaydi. */
+    const endReq = req.body.finished_at ?? req.body.finishedAt;
+    if (endReq && s.status === 'active' && !s.resumed_at) {
+      const e = new Date(endReq), st = new Date(s.started_at);
+      if (!isNaN(e.getTime())) {
+        if (e.getTime() < st.getTime()) { await c.query('ROLLBACK'); return res.status(400).json({ error: 'Chiqish vaqti kirish vaqtidan oldin bo‘lishi mumkin emas' }); }
+        if (e.getTime() <= Date.now() + 60000) {
+          end = e;
+          seconds = Math.max(0, Math.round((e.getTime() - st.getTime()) / 1000));
+        }
+      }
+    }
 
     let cash = num(req.body.cash_amount ?? req.body.cashAmount);
     let terminal = num(req.body.terminal_amount ?? req.body.terminalAmount);
-    let amount = req.body.amount === undefined ? cash + terminal : num(req.body.amount);
-    if (cash === 0 && terminal === 0 && amount > 0) {
-      if (req.body.paymentMethod === 'terminal') terminal = amount; else cash = amount;
+    let click = num(req.body.click_amount ?? req.body.clickAmount);
+    let amount = req.body.amount === undefined ? cash + terminal + click : num(req.body.amount);
+    if (cash === 0 && terminal === 0 && click === 0 && amount > 0) {
+      if (req.body.paymentMethod === 'terminal') terminal = amount;
+      else if (req.body.paymentMethod === 'click') click = amount;
+      else cash = amount;
     }
-    if (cash < 0 || terminal < 0 || amount < 0) { await c.query('ROLLBACK'); return res.status(400).json({ error: 'To‘lov summasi noto‘g‘ri' }); }
-    amount = cash + terminal;
-    let method = terminal > 0 && cash > 0 ? 'mixed' : terminal > 0 ? 'terminal' : 'cash';
+    if (cash < 0 || terminal < 0 || click < 0 || amount < 0) { await c.query('ROLLBACK'); return res.status(400).json({ error: 'To‘lov summasi noto‘g‘ri' }); }
+    if (click > 0 && !(await hasClickColumn())) { await c.query('ROLLBACK'); return res.status(400).json({ error: 'Klik to‘lovi uchun baza hali tayyor emas — sahifani yangilab qayta urinib ko‘ring' }); }
+    amount = cash + terminal + click;
+    const used = [cash > 0, terminal > 0, click > 0].filter(Boolean).length;
+    let method = used > 1 ? 'mixed' : terminal > 0 ? 'terminal' : click > 0 ? 'click' : 'cash';
 
     /* QR CHEK (avtoshkola darsi): dars TEKIN. Sessiya chekdan ochilgan
        bo'lsa summani bu yerda yozmaymiz — chekdagi qiymat (0) qoladi,
@@ -726,16 +757,19 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
     /* 1 soat = 1 dars. Faqat avtoshkola o'quvchisi uchun hisoblanadi. */
     const lessons = s.student_id ? Math.max(1, Math.round(seconds / LESSON_SECONDS)) : 0;
 
+    const withClick = await hasClickColumn();
     const u = await c.query(
       `UPDATE sessions SET finished_at=$1, duration_seconds=$2, amount=$3, cash_amount=$4, terminal_amount=$5,
               payment_method=$6, lessons_counted=$7, status='completed', resumed_at=NULL, frozen_at=NULL
+              ${withClick ? ', click_amount=$10' : ''}
        WHERE id=$8 AND user_id=$9 RETURNING *`,
-      [end, seconds, amount, cash, terminal, method, lessons, s.id, uid(req)]
+      withClick ? [end, seconds, amount, cash, terminal, method, lessons, s.id, uid(req), click]
+                : [end, seconds, amount, cash, terminal, method, lessons, s.id, uid(req)]
     );
     await c.query('COMMIT');
     res.json({
       ...u.rows[0], plate: s.plate,
-      amount: Number(amount), cash_amount: Number(cash), terminal_amount: Number(terminal),
+      amount: Number(amount), cash_amount: Number(cash), terminal_amount: Number(terminal), click_amount: Number(click),
       lessons_counted: lessons,
       school_name: s.school_name, group_name: s.group_name, student_name: s.student_name
     });
@@ -748,6 +782,7 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
 /* ---------------------- HISOBOT / TARIX / DASHBOARD ---------------------- */
 const REPORT_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,v.driver_name) driver_name,s.started_at,s.finished_at,s.duration_seconds,
     s.amount,s.cash_amount,s.terminal_amount,s.payment_method,s.lessons_counted,s.student_id,
+    COALESCE((to_jsonb(s)->>'click_amount')::numeric,0) click_amount, s.target_duration,
     s.customer_type,s.instructor_id,COALESCE(i.full_name,i.bio,s.instructor_name) instructor_label,
     ds.name school_name,g.name group_name,st.full_name student_name,i.full_name instructor_name,
     ${STUDENT_ATTENDANCE_SQL} attendance_count
@@ -766,6 +801,7 @@ const REPORT_MAX_DAYS = 92;
 const isoDay = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v||'')) && !isNaN(Date.parse(v+'T00:00:00Z'));
 const REPORT_RANGE_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,v.driver_name) driver_name,s.started_at,s.finished_at,s.duration_seconds,
     s.amount,s.cash_amount,s.terminal_amount,s.payment_method,s.lessons_counted,s.student_id,
+    COALESCE((to_jsonb(s)->>'click_amount')::numeric,0) click_amount, s.target_duration,
     s.customer_type,s.instructor_id,COALESCE(i.full_name,i.bio,s.instructor_name) instructor_label,
     ds.name school_name,g.name group_name,st.full_name student_name,i.full_name instructor_name,
     (st.id IS NOT NULL) _has_student
@@ -790,7 +826,7 @@ async function rangeReportRows(userId,from,to){
   for(const x of r.rows){ x.attendance_count=x._has_student?(att.get(String(x.student_id))||0):0; delete x._has_student; }
   return r.rows;
 }
-function reportSummary(rows){return rows.reduce((a,x)=>{a.count++;a.seconds+=Number(x.duration_seconds||0);a.amount+=Number(x.amount||0);a.cash+=Number(x.cash_amount||0);a.terminal+=Number(x.terminal_amount||0);a.lessons+=Number(x.lessons_counted||0);return a},{count:0,seconds:0,amount:0,cash:0,terminal:0,lessons:0});}
+function reportSummary(rows){return rows.reduce((a,x)=>{a.count++;a.seconds+=Number(x.duration_seconds||0);a.amount+=Number(x.amount||0);a.cash+=Number(x.cash_amount||0);a.terminal+=Number(x.terminal_amount||0);a.click+=Number(x.click_amount||0);a.lessons+=Number(x.lessons_counted||0);return a},{count:0,seconds:0,amount:0,cash:0,terminal:0,click:0,lessons:0});}
 function sendReport(req,res,data){
   const body=JSON.stringify(data);
   if(body.length>1000000&&/\bgzip\b/.test(String(req.headers['accept-encoding']||''))){

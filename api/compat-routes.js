@@ -244,13 +244,31 @@ export async function handleCompatRequest(req, res) {
     // ===== START: compact plate is stored exactly as typed =====
     if (req.method === 'POST' && pathname === '/api/sessions/start') {
       const body = bodyOf(req);
+      /* ERKIN YOZUV: kassada raqam o'rniga istalgan matn — «455 dilnoza»,
+         «Cobalt oq», «01A555AA». Shu matn avtomobil sifatida saqlanadi va
+         hamma joyda (Jarayonda, hisobot, Excel) shunday ko'rinadi. */
+      const label = String(body.label || '').replace(/\s+/g, ' ').trim().toUpperCase().slice(0, 60);
       let p;
-      try {
-        p = parsePlate(body.regionCode, body.plateBody || body.plate);
-      } catch (e) {
-        send(res, 400, { error: e.message });
-        return true;
+      if (label) {
+        p = { label: label, plate: label, body: label };
+      } else {
+        try {
+          p = parsePlate(body.regionCode, body.plateBody || body.plate);
+        } catch (e) {
+          send(res, 400, { error: e.message });
+          return true;
+        }
       }
+
+      /* OLDINDAN TO'LOV (ixtiyoriy): mijoz vaqt ochilganda to'lagan bo'lsa */
+      const pre = {
+        cash: Math.max(0, Number(body.cash_amount ?? body.cashAmount) || 0),
+        terminal: Math.max(0, Number(body.terminal_amount ?? body.terminalAmount) || 0),
+        click: Math.max(0, Number(body.click_amount ?? body.clickAmount) || 0),
+      };
+      pre.total = pre.cash + pre.terminal + pre.click;
+      const preUsed = [pre.cash > 0, pre.terminal > 0, pre.click > 0].filter(Boolean).length;
+      pre.method = preUsed > 1 ? 'mixed' : pre.terminal > 0 ? 'terminal' : pre.click > 0 ? 'click' : 'cash';
 
       const c = await pool.connect();
       try {
@@ -258,7 +276,13 @@ export async function handleCompatRequest(req, res) {
 
         let vr = await c.query(`SELECT * FROM vehicles WHERE plate=$1 AND user_id=$2`, [p.plate, user]);
         let v = vr.rows[0];
-        if (!v) {
+        if (!v && p.label) {
+          vr = await c.query(`
+            INSERT INTO vehicles(user_id,plate,model,driver_name)
+            VALUES($1,$2,$3,$4) RETURNING *
+          `, [user,p.plate,body.model||null,body.driverName||null]);
+          v = vr.rows[0];
+        } else if (!v) {
           vr = await c.query(`
             INSERT INTO vehicles(user_id,region_code,first_letter,number,last_letters,plate,model,driver_name)
             VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *
@@ -333,7 +357,8 @@ export async function handleCompatRequest(req, res) {
           const d = new Date(rawStart);
           if (!Number.isNaN(d.getTime())) {
             const diff = Math.abs(d.getTime() - Date.now());
-            if (diff <= 12 * 3600 * 1000) startAt = d.toISOString();
+            /* kelajakdagi vaqt bilan ochilmasin (10 daqiqa farq — soat farqi uchun) */
+            if (diff <= 12 * 3600 * 1000 && d.getTime() <= Date.now() + 10 * 60000) startAt = d.toISOString();
           }
         }
 
@@ -362,8 +387,13 @@ export async function handleCompatRequest(req, res) {
           ['customer_type', customerType],
           ['target_duration', target],
           ['driver_name', body.driverName || null],
-          ['manual_price', true]
+          ['manual_price', true],
+          /* oldindan to'lov — yakunlashda faqat ortiqcha vaqt so'raladi */
+          ...(pre.total > 0 ? [
+            ['amount', pre.total], ['cash_amount', pre.cash], ['terminal_amount', pre.terminal],
+            ['click_amount', pre.click], ['payment_method', pre.method]] : [])
         ].filter(([k, val]) => sessCols.has(k) && !(k === 'started_at' && val === null));
+        if (pre.click > 0 && !sessCols.has('click_amount')) throw new Error('Klik to‘lovi uchun baza hali tayyor emas');
 
         const r = await c.query(
           `INSERT INTO sessions(${cand.map(([k]) => k).join(',')})
@@ -372,7 +402,8 @@ export async function handleCompatRequest(req, res) {
 
         await c.query('COMMIT');
         send(res,201,{id:r.rows[0].id,plate:p.plate,plateBody:p.body,startedAt:r.rows[0].started_at,
-                      schoolId,groupId,studentId,instructorId,target_duration:target});
+                      schoolId,groupId,studentId,instructorId,target_duration:target,
+                      prepaid: pre.total > 0 ? pre : null});
         return true;
       } catch (e) {
         try { await c.query('ROLLBACK'); } catch {}

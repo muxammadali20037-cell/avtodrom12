@@ -104,21 +104,24 @@ async function finishFrozen(req,res,id){
       if(!r.rows[0]){await c.query('ROLLBACK');return res.status(404).json({error:'Muzlatilgan sessiya topilmadi'});}
       const s=r.rows[0], body=bodyOf(req), amount=num(body.amount);
       if(amount<0)return res.status(400).json({error:'Narx noto‘g‘ri'});
-      let cash=num(body.cashAmount),terminal=num(body.terminalAmount);
-      const method=['cash','terminal','mixed'].includes(body.paymentMethod)?body.paymentMethod:'cash';
+      let cash=num(body.cashAmount??body.cash_amount),terminal=num(body.terminalAmount??body.terminal_amount),click=num(body.clickAmount??body.click_amount);
+      const method=['cash','terminal','click','mixed'].includes(body.paymentMethod)?body.paymentMethod:'cash';
       if(s.student_id){
         if(amount!==0)return res.status(400).json({error:'Avtoshkola o‘quvchisi uchun to‘lov 0 bo‘lishi kerak'});
-        cash=0; terminal=0;
-      } else if(method==='cash'){cash=amount;terminal=0;}
-      else if(method==='terminal'){cash=0;terminal=amount;}
-      else if(Math.abs(cash+terminal-amount)>0.01)return res.status(400).json({error:'Naqd + terminal summasi umumiy narxga teng bo‘lishi kerak'});
+        cash=0; terminal=0; click=0;
+      } else if(method==='cash'){cash=amount;terminal=0;click=0;}
+      else if(method==='terminal'){cash=0;terminal=amount;click=0;}
+      else if(method==='click'){cash=0;terminal=0;click=amount;}
+      else if(Math.abs(cash+terminal+click-amount)>0.01)return res.status(400).json({error:'Naqd + terminal + Klik summasi umumiy narxga teng bo‘lishi kerak'});
       const end=new Date();
       const frozenNow=Math.max(0,Math.floor((end-new Date(s.frozen_at))/1000));
       const seconds=Math.max(0,Math.floor((end-new Date(s.started_at))/1000)-Number(s.frozen_seconds||0)-frozenNow);
       const u=await c.query(`UPDATE sessions SET finished_at=$1,duration_seconds=$2,amount=$3,cash_amount=$4,terminal_amount=$5,payment_method=$6,status='completed',frozen_at=NULL WHERE id=$7 AND user_id=$8 AND status='frozen' RETURNING *`,[end,seconds,amount,cash,terminal,method,id,String(user.sub)]);
       if(!u.rows[0]){await c.query('ROLLBACK');return res.status(409).json({error:'Sessiya allaqachon tugatilgan yoki davom ettirilgan'});}
+      /* Klik to'lovi alohida ustunda (api/kassa-routes.js qo'shadi) */
+      if(click>0||Number((u.rows[0]||{}).click_amount||0)>0) await c.query(`UPDATE sessions SET click_amount=$1 WHERE id=$2`,[click,id]);
       await c.query('COMMIT');
-      return res.json({...u.rows[0],plate:s.plate,amount:Number(amount),cash_amount:Number(cash),terminal_amount:Number(terminal),school_name:s.school_name,group_name:s.group_name,student_name:s.student_name});
+      return res.json({...u.rows[0],plate:s.plate,amount:Number(amount),cash_amount:Number(cash),terminal_amount:Number(terminal),click_amount:Number(click),school_name:s.school_name,group_name:s.group_name,student_name:s.student_name});
     }catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}
   }catch(e){return res.status(400).json({error:e.message||'Muzlatilgan avtomobilni tugatishda server xatosi'});}
 }
