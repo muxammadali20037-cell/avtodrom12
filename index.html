@@ -775,6 +775,24 @@ body.admin-open { overflow: hidden; }
 .qe-row #carLabel { flex: 1; min-width: 0; }
 .qe-row .btn { min-height: 56px; white-space: nowrap; }
 .qe-row .qe-go { min-width: 150px; font-size: 18px; justify-content: center; }
+.qe-pick { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+.qe-lbl { flex: none; width: 52px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.qe-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.qe-chip { border: 1.5px solid var(--line); background: #fff; border-radius: 10px; padding: 7px 12px; cursor: pointer; font: inherit;
+  color: inherit; text-align: center; line-height: 1.15; min-width: 64px; transition: var(--transition); }
+.qe-chip b { display: block; font-size: 14.5px; }
+.qe-chip small { display: block; font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+.qe-chip:hover:not(:disabled) { border-color: var(--g); }
+.qe-chip.active { border-color: var(--g); background: var(--g-surface); box-shadow: inset 0 0 0 1px var(--g); }
+.qe-chip.active small { color: var(--g-dark); font-weight: 700; }
+.qe-chip:disabled { opacity: .45; cursor: not-allowed; }
+.qe-chip.later.active { border-color: #f59e0b; background: #fffbeb; box-shadow: inset 0 0 0 1px #f59e0b; }
+.qe-sum { margin-top: 12px; border-radius: 12px; background: var(--g-surface); border: 1px solid #a7f3d0; padding: 10px 14px;
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; }
+.qe-sum b.big { font-size: 18px; }
+.qe-sum .qs-price { font-size: 20px; font-weight: 800; color: var(--g-dark); }
+.qe-sum.unpaid { background: #fffbeb; border-color: #fcd34d; }
+.qe-sum.unpaid .qs-price { color: #b45309; }
 .qe-links { display: flex; gap: 6px 18px; flex-wrap: wrap; align-items: center; margin-top: 10px; font-size: 13px; }
 .qe-links .qe-rate { color: var(--muted); }
 .qe-links #paidStartRow { display: inline-flex; gap: 6px; align-items: center; }
@@ -785,6 +803,8 @@ body.admin-open { overflow: hidden; }
 .link-btn:hover { color: var(--g); }
 .link-btn i { margin-right: 3px; }
 @media (max-width: 640px) {
+  .qe-pick { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .qe-lbl { width: auto; }
   .qe-row { flex-wrap: wrap; }
   .qe-row #carLabel { flex-basis: 100%; }
   .qe-row .btn { flex: 1; }
@@ -801,6 +821,17 @@ body.admin-open { overflow: hidden; }
 .in-money b { display: block; font-size: 17px; color: var(--g-dark); }
 .in-money small { display: block; font-size: 12px; color: var(--muted); }
 .in-row.over .in-money b, .in-row.over .in-sub .ov { color: var(--red); }
+#carLabel::-webkit-calendar-picker-indicator { display: none !important; }
+.in-money.unpaid b { color: #b45309; }
+.in-tag { display: inline-block; font-size: 11.5px; font-weight: 700; border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
+.in-tag.paid { background: #dcfce7; color: #166534; }
+.in-tag.unpaid { background: #fef3c7; color: #92400e; }
+.in-tag.auto { background: #e0f2fe; color: #075985; }
+.debt-panel .in-money b { color: #b45309; }
+.debt-panel .panel-head .dp-total { font-weight: 800; color: #b45309; }
+.debt-list { margin: 6px 0 4px; }
+.debt-list .dl-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 2px; border-top: 1px dashed var(--line); font-size: 14px; }
+.debt-list .dl-row:first-child { border-top: 0; }
 .in-out { flex: none; min-width: 120px; justify-content: center; min-height: 46px; font-size: 16px; }
 @media (max-width: 640px) {
   .in-row { flex-wrap: wrap; gap: 8px 12px; }
@@ -1231,22 +1262,31 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 
             <div class="form-grid" style="margin-top:14px">
               <!-- ===== ODDIY MIJOZ: KASSA =====
-                   Bitta maydon: nom yoziladi → «Kirdi» (yoki Enter). Pul chiqishda.
-                   Oldindan to'lov — alohida tugma (soat + to'lov turi, katta tugmalar). -->
+                   Nom → (kerak bo'lsa) necha soat → (kerak bo'lsa) to'lov → «Kirdi».
+                   Hech narsa tanlanmasa: vaqt ochiq, pul chiqishda. Soat tanlansa —
+                   vaqti tugaganda o'zi yopiladi; to'lamagan bo'lsa «To'lanmagan»ga tushadi. -->
               <div class="span-2" id="labelField">
                 <label class="field-label" for="carLabel"><i class="fa-solid fa-car" aria-hidden="true"></i> Mashina raqami yoki ism</label>
                 <div class="qe-row">
-                  <input id="carLabel" class="input-lg" autocomplete="off" maxlength="60" placeholder="Masalan: 455 Dilnoza">
+                  <input id="carLabel" class="input-lg" autocomplete="off" maxlength="60" list="labelList" placeholder="Masalan: 455 Dilnoza">
+                  <datalist id="labelList"></datalist>
                   <button class="btn btn-green btn-lg qe-go" id="kirdiBtn" type="submit">
                     <span class="spinner" aria-hidden="true"></span>
                     <i class="fa-solid fa-right-to-bracket btn-icon" aria-hidden="true"></i>
                     <span class="btn-text">Kirdi</span>
                   </button>
-                  <button class="btn btn-light btn-lg qe-pre" type="button" data-act="preOpen"><i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i> Oldindan to'lov</button>
                 </div>
                 <div id="labelErr" class="text-error" role="alert" aria-live="polite"></div>
+                <div class="qe-pick">
+                  <span class="qe-lbl">Vaqt</span>
+                  <div class="qe-chips" id="qeMin" role="radiogroup" aria-label="Necha soat"></div>
+                </div>
+                <div class="qe-pick">
+                  <span class="qe-lbl">To'lov</span>
+                  <div class="qe-chips" id="qePay" role="radiogroup" aria-label="To'lov"></div>
+                </div>
+                <div class="qe-sum" id="qeSum" aria-live="polite"></div>
                 <div class="qe-links">
-                  <span class="qe-rate" id="paidRateLbl"></span>
                   <button class="link-btn" type="button" data-act="paidStartToggle" id="paidStartToggle"></button>
                   <span id="paidStartRow" class="hidden">
                     <i class="fa-regular fa-clock" aria-hidden="true"></i> Kirish:
@@ -1359,6 +1399,9 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 
         <!-- Oddiy mijoz: hozir ichkaridagi mashinalar — shu yerning o'zida «Chiqdi» -->
         <div id="insideWrap"></div>
+
+        <!-- To'lanmagan: oxirida «qancha bo'ldi?» deb birdan to'laydiganlar -->
+        <div id="debtsWrap"></div>
 
         <div id="waitingQueueAdd"></div>
       </section>
@@ -1503,6 +1546,7 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
           <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-mobile-screen" aria-hidden="true"></i></div><div class="stat-label">Klik</div><div class="stat-value green" id="rdclick">0</div></div>
           <div class="stat-card is-clickable" data-act="goRasxod" role="button" tabindex="0"><div class="stat-icon red"><i class="fa-solid fa-receipt" aria-hidden="true"></i></div><div class="stat-label">Rasxod</div><div class="stat-value" id="rdexp">0</div></div>
           <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-cash-register" aria-hidden="true"></i></div><div class="stat-label">Kassada naqd qoldi</div><div class="stat-value" id="rdleft">0</div></div>
+          <div class="stat-card is-clickable" data-act="goDebts" role="button" tabindex="0"><div class="stat-icon red"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i></div><div class="stat-label">To'lanmagan</div><div class="stat-value" id="rddebt">0</div></div>
           <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i></div><div class="stat-label">Jami vaqt</div><div class="stat-value" id="rdtime">0</div></div>
         </div>
         <!-- Platniy va avtoshkola alohida -->
@@ -2177,6 +2221,7 @@ const dateInput = v => {
 
 /* --- Yagona kanonik plate normalizatsiyasi (butun loyihada shu ishlatiladi) --- */
 const normalizePlate = p => String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+const PAY_NAMES = { cash: 'naqd', terminal: 'terminal', click: 'Klik' };
 /* Erkin yozuv (oddiy mijoz) kaliti: harf va raqamlar, istalgan alifboda */
 const labelKey = s => String(s || '').toUpperCase().replace(/[^\p{L}\p{N}]/gu, '');
 const carKey = (r, b) => { const rv = normalizePlate(r), bv = normalizePlate(b); return !bv ? rv : (rv && !bv.startsWith(rv) ? rv + bv : bv); };
@@ -3347,7 +3392,7 @@ const Add = {
     $('customMinutes').addEventListener('input', e => {
       STATE.form.customMinutes = Math.min(600, Math.max(15, num(e.target.value) || 15));
     });
-    if ($('carLabel')) $('carLabel').addEventListener('input', () => { setError('labelErr', ''); this.renderInside(); });
+    if ($('carLabel')) $('carLabel').addEventListener('input', () => { setError('labelErr', ''); this.renderInside(); Debts.render(); });
     if ($('paidStart')) $('paidStart').addEventListener('input', () => this.renderPaidSum());
     /* «Ichkarida» ro'yxatidagi vaqt va narx yangilanib tursin */
     setInterval(() => { if (STATE.page === 'add' && STATE.form.customerType !== 'school' && !document.hidden) { this.renderPaidSum(); this.renderInside(); } }, 20000);
@@ -3365,9 +3410,10 @@ const Add = {
     /* «Bugun» ko'rsatkichi uchun bugungi hisobot kerak */
     Data.ensureToday().then(() => { if (STATE.form.student) Add.renderStudentPanel(); });
     Queue.render();
-    /* Ichkaridagi mashinalar ro'yxati */
+    /* Ichkaridagi mashinalar va to'lanmaganlar */
     this.renderInside();
     Active.load(true);
+    Debts.load(true);
     /* Sahifa ochilishi bilan ism yozishga tayyor */
     setTimeout(() => { Add.focusStudent(true); Add.focusLabel(true); }, 60);
   },
@@ -3691,6 +3737,7 @@ const Add = {
     if ($('instructorField')) $('instructorField').classList.toggle('hidden', !isSchool && !hasIns);
     if ($('insToggle')) $('insToggle').classList.toggle('hidden', isSchool || hasIns);
     this.renderInside();
+    if (typeof Debts !== 'undefined') Debts.render();
     /* Davomat rejimida avtoshkolaning mashinasi ro'yxatdan tanlanadi */
     if ($('schoolCarField')) $('schoolCarField').classList.toggle('hidden', !isSchool);
     if (isSchool) this.renderCarOptions();
@@ -3745,13 +3792,19 @@ const Add = {
     return Math.max(1, Math.min(12, num(h || 1)));
   },
   /* ===== ODDIY MIJOZ: KASSA =====
-     Asosiy yo'l: nom yoziladi → «Kirdi» (Enter). Vaqt ochiq turadi, pul
-     chiqishda olinadi — pastdagi «Ichkarida» ro'yxatidan «Chiqdi».
-     «Oldindan to'lov» — alohida oyna: necha soat + qanday to'ladi.
-     Kirish vaqti odatda hozir; kerak bo'lsa «Kirish: hozir» bosiladi
-     (masalan 8:30). Soatiga CONFIG.HOURLY_RATE (100 000 so'm). */
-  PAID_OPTIONS: [30, 60, 90, 120, 150, 180, 210, 240],
-  isPre() { return STATE.form.payWay === 'pre'; },
+     Hayotdagi holatlar:
+       • «vaqt och» — nom → Kirdi. Vaqt ochiq, pul chiqishda («Chiqdi»).
+       • «1 soatga och» — nom → 1 soat → Kirdi. Vaqti tugaganda O'ZI
+         yopiladi. Pul berdimi — Naqd/Terminal/Klik; bermadimi — «Keyin
+         to'laydi»: «To'lanmagan» ro'yxatiga tushadi.
+       • «yarim soatga», pulini joyida beradi — 30 daq → Naqd → Kirdi.
+       • kun davomida 4–5 marta kelib, oxirida «qancha bo'ldi?» deb
+         birdan to'laydi — «To'lanmagan» ro'yxatidan «To'lash».
+     Kirish vaqti odatda hozir; «Kirish: hozir» bosilsa qo'lda (8:30).
+     Soatiga CONFIG.HOURLY_RATE (100 000 so'm). */
+  PAID_OPTIONS: [30, 60, 90, 120, 150, 180, 240],
+  /* Soat tanlanganmi (vaqti tugaganda o'zi yopiladi) */
+  isPre() { return num(STATE.form.paidMin) > 0; },
   paidRate() { return num(tariff(null).rate) || 0; },
   paidPrice(min) { const st = num(CONFIG.ROUND_TO) || 1000; return Math.round(num(min) / 60 * this.paidRate() / st) * st; },
   paidMinLabel(m) { return m < 60 ? m + ' daq' : (m % 60 ? (Math.floor(m / 60) + ',5') : String(m / 60)) + ' soat'; },
@@ -3764,31 +3817,64 @@ const Add = {
   paidWindow() {
     const st = this.paidStartDate() || new Date();
     const manual = !!this.paidStartDate();
-    if (!this.isPre()) return { start: st, end: null, min: 0, manual: manual, past: false, open: true };
-    const min = Math.max(30, num(STATE.form.paidMin) || 60);
+    const min = num(STATE.form.paidMin) || 0;
+    if (!min) return { start: st, end: null, min: 0, manual: manual, past: false, open: true };
     const end = addMin(st, min);
     return { start: st, end: end, min: min, manual: manual, past: end.getTime() <= Date.now(), open: false };
   },
   renderPaid() {
-    if (!STATE.form.paidMin) STATE.form.paidMin = 60;
+    if (STATE.form.paidMin === undefined || STATE.form.paidMin === null) STATE.form.paidMin = 0;
     if (STATE.form.payNow === undefined) STATE.form.payNow = '';
-    if (!STATE.form.payWay) STATE.form.payWay = 'end';
+    const pre = this.isPre();
+    if (!pre) STATE.form.payNow = '';
+    const m = num(STATE.form.paidMin);
+    const mh = $('qeMin');
+    if (mh) mh.innerHTML = '<button class="qe-chip' + (!m ? ' active' : '') + '" type="button" role="radio" aria-checked="' + (!m) + '" data-act="paidMin" data-m="0"><b>Ochiq</b><small>chiqqanda</small></button>'
+      + this.PAID_OPTIONS.map(o => '<button class="qe-chip' + (o === m ? ' active' : '') + '" type="button" role="radio" aria-checked="' + (o === m) + '" data-act="paidMin" data-m="' + o + '">'
+        + '<b>' + esc(this.paidMinLabel(o)) + '</b><small>' + esc(money(this.paidPrice(o)).replace(/ so'm$/, '')) + '</small></button>').join('');
+    const ph = $('qePay');
+    const p = STATE.form.payNow || '';
+    const chip = (k, icon, label) => '<button class="qe-chip' + (k === '' ? ' later' : '') + (p === k ? ' active' : '') + '" type="button" role="radio" aria-checked="' + (p === k) + '"'
+      + (k && !pre ? ' disabled title="Avval soatni tanlang — ochiq vaqtda pul chiqishda olinadi"' : '')
+      + ' data-act="paidPay" data-p="' + k + '"><b><i class="fa-solid ' + icon + '" aria-hidden="true"></i> ' + label + '</b></button>';
+    if (ph) ph.innerHTML = chip('', 'fa-hourglass-half', pre ? 'Keyin to\'laydi' : 'Chiqishda')
+      + chip('cash', 'fa-money-bill-wave', 'Naqd') + chip('terminal', 'fa-credit-card', 'Terminal') + chip('click', 'fa-mobile-screen', 'Klik');
     this.renderPaidSum();
   },
-  /* Maydon ostidagi kichik qator: narx, kirish vaqti */
+  /* Xulosa qatori va «Kirdi» tugmasi */
   renderPaidSum() {
     const rate = this.paidRate();
-    const lbl = $('paidRateLbl');
-    if (lbl) lbl.innerHTML = '<i class="fa-solid fa-coins" aria-hidden="true"></i> Pul chiqishda · soatiga <b>' + esc(money(rate)) + '</b>';
     const st = this.paidStartDate();
     const tg = $('paidStartToggle');
     if (tg) tg.innerHTML = '<i class="fa-regular fa-clock" aria-hidden="true"></i> Kirish: ' + (st ? '<b>' + esc(hhmm(st)) + '</b>' : 'hozir');
     const row = $('paidStartRow');
     if (tg && row) tg.classList.toggle('hidden', !row.classList.contains('hidden'));
-    if (typeof PrePay !== 'undefined' && PrePay.isOpen()) PrePay.renderSum();
+    const box = $('qeSum');
+    const w = this.paidWindow();
+    const t = $('kirdiBtn') && $('kirdiBtn').querySelector('.btn-text');
+    if (box) {
+      if (w.open) {
+        box.classList.remove('unpaid');
+        box.innerHTML = '<span><b class="big">' + esc(hhmm(w.start)) + ' →</b> chiqqanda · pul chiqishda olinadi</span>'
+          + '<span class="text-muted">soatiga <b>' + esc(money(rate)) + '</b></span>';
+      } else {
+        const price = this.paidPrice(w.min);
+        const pay = STATE.form.payNow || '';
+        box.classList.toggle('unpaid', !pay);
+        box.innerHTML = '<span><b class="big">' + esc(hhmm(w.start)) + ' → ' + esc(hhmm(w.end)) + '</b> · ' + esc(this.paidMinLabel(w.min))
+          + (w.past ? ' · <b>vaqti o\'tgan — darhol yopiladi</b>' : ' · vaqti tugaganda o\'zi yopiladi') + '</span>'
+          + '<span><span class="qs-price">' + esc(money(price)) + '</span> '
+          + (pay ? '<span class="in-tag paid">' + esc(PAY_NAMES[pay]) + ' olindi</span>' : '<span class="in-tag unpaid">to\'lanmagan</span>') + '</span>';
+      }
+    }
+    if (t && STATE.form.customerType !== 'school') t.textContent = w.past ? 'Yozish' : 'Kirdi';
   },
-  setPaidMin(m) { STATE.form.paidMin = Math.max(30, num(m) || 60); this.renderPaid(); },
-  setPayNow(p) { STATE.form.payNow = ['cash', 'terminal', 'click'].indexOf(p) >= 0 ? p : ''; this.renderPaid(); },
+  setPaidMin(m) { STATE.form.paidMin = Math.max(0, num(m) || 0); this.renderPaid(); this.focusLabel(); },
+  setPayNow(p) {
+    if (!this.isPre() && p) return;
+    STATE.form.payNow = ['cash', 'terminal', 'click'].indexOf(p) >= 0 ? p : '';
+    this.renderPaid(); this.focusLabel();
+  },
   paidNow() {
     const el = $('paidStart'); if (el) el.value = '';
     const row = $('paidStartRow'); if (row) row.classList.add('hidden');
@@ -3809,6 +3895,17 @@ const Add = {
     f.classList.toggle('hidden', !on);
     if ($('insToggle')) $('insToggle').classList.toggle('hidden', on);
     if (on) setTimeout(() => { const i = $('comboInstructorInput'); if (i) i.focus(); }, 30);
+  },
+  /* Bugun kelganlar, ichkaridagilar va to'lanmaganlar nomlari — yozayotganda
+     taklif qilinadi (bir xil yozilsin: «455 DILNOZA» kun bo'yi bitta nom) */
+  fillLabelList() {
+    const dl = $('labelList'); if (!dl) return;
+    const seen = {}, out = [];
+    const add = n => { const k = labelKey(n); if (n && k && !seen[k]) { seen[k] = 1; out.push(String(n)); } };
+    (STATE.active || []).forEach(v => { if (!isSchoolSession(v)) add(v.plate); });
+    (typeof Debts !== 'undefined' ? Debts.rows : []).forEach(r => add(r.plate));
+    ((STATE.daily && STATE.daily.rows) || []).forEach(r => { if (!r.student_id && !r.student_name) add(r.plate); });
+    dl.innerHTML = out.slice(0, 300).map(n => '<option value="' + esc(n) + '"></option>').join('');
   },
   /* Oddiy mijoz rejimida kursor nom maydonida turadi */
   focusLabel(auto) {
@@ -3846,21 +3943,25 @@ const Add = {
       h += rows.map(r => {
         const v = r.v, t = r.t;
         const st = Chiqish.state(v, t.elapsed);
+        const auto = !!v.auto_close;
         let money1, sub2 = '';
         if (st.pre) {
           if (st.due > 0) { money1 = '+' + money(st.due); sub2 = 'qo\'shimcha'; }
           else { money1 = 'To\'langan'; sub2 = money(st.pre.total); }
-        } else { money1 = st.price === null ? '—' : money(st.price); sub2 = 'hozircha'; }
+        } else if (auto) { money1 = st.price === null ? '—' : money(st.price); sub2 = 'to\'lanmagan'; }
+        else { money1 = st.price === null ? '—' : money(st.price); sub2 = 'hozircha'; }
         let left = '';
         if (t.target) {
-          left = t.remaining > 0 ? ' · <b>' + esc(ranText(t.remaining)) + '</b> qoldi'
-                                 : ' · <span class="ov"><b>vaqti tugadi</b></span>';
+          const endAt = new Date(new Date(v.started_at).getTime() + t.target * 1000);
+          left = (auto ? ' – ' + esc(hhmm(endAt)) : '')
+            + (t.remaining > 0 ? ' · <b>' + esc(ranText(t.remaining)) + '</b> qoldi'
+                               : ' · <span class="ov"><b>' + (auto ? 'yopilmoqda…' : 'vaqti tugadi') + '</b></span>');
         }
         const over = t.target && t.remaining <= 0;
         return '<div class="in-row' + (r.match ? ' match' : '') + (over ? ' over' : '') + '" data-sid="' + esc(v.id) + '">'
           + '<div class="in-main"><b class="in-name">' + esc(v.plate || '—') + '</b>'
-          + '<span class="in-sub">' + esc(timeOnly(v.started_at)) + ' dan · ' + esc(ranText(t.elapsed)) + left + '</span></div>'
-          + '<div class="in-money"><b>' + esc(money1) + '</b><small>' + esc(sub2) + '</small></div>'
+          + '<span class="in-sub">' + esc(timeOnly(v.started_at)) + (t.target && auto ? '' : ' dan · ' + esc(ranText(t.elapsed))) + left + '</span></div>'
+          + '<div class="in-money' + (!st.pre && auto ? ' unpaid' : '') + '"><b>' + esc(money1) + '</b><small>' + esc(sub2) + '</small></div>'
           + '<button class="btn btn-green in-out" type="button" data-act="exitOpen" data-id="' + esc(v.id) + '"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Chiqdi</button>'
           + '</div>';
       }).join('');
@@ -4055,8 +4156,10 @@ const Add = {
       delete payload.regionCode; delete payload.plate; delete payload.plateBody;
       const w = this.paidWindow();
       if (w.manual) { payload.startAt = w.start.toISOString(); payload.start_at = payload.startAt; }
-      /* Oxirida to'laydi — server rejadagi vaqtni yozmaydi (ochiq vaqt) */
+      /* Ochiq vaqt — server rejadagi vaqtni yozmaydi; soat tanlangan bo'lsa —
+         vaqti tugaganda o'zi yopiladi, rejadagi narx (qarz uchun) yuboriladi */
       if (w.open) { payload.openEnded = true; payload.open_ended = true; }
+      else { payload.autoClose = true; payload.auto_close = true; payload.plannedAmount = this.paidPrice(w.min); payload.planned_amount = payload.plannedAmount; }
     }
     /* Soat oralig'i tanlangan bo'lsa boshlanish vaqti ham yuboriladi */
     const pStart = isPaid ? '' : this.periodStartISO();
@@ -4105,7 +4208,6 @@ const Add = {
       const w = this.paidWindow();
       if (w.manual && w.start.getTime() > Date.now() + 5 * 60000) return "Kirish vaqti hozirgidan keyin bo'lishi mumkin emas.";
       if (w.manual && Date.now() - w.start.getTime() > 12 * 3600e3) return "Kirish vaqti 12 soatdan oldin bo'lmasin (faqat bugungi yozuvlar).";
-      if (!w.open && !STATE.form.payNow) return "Pulni qanday berdi? Naqd, Terminal yoki Klik ni tanlang. To'lamagan bo'lsa — «Oxirida to'laydi» ni tanlang.";
       return '';
     }
     if (!d.body) return "Avtomobil raqamini kiriting.";
@@ -4281,27 +4383,20 @@ const Add = {
         const pay = w.open ? '' : (STATE.form.payNow || '');
         const payload = Object.assign({}, d.payload);
         const field = { cash: 'cash_amount', terminal: 'terminal_amount', click: 'click_amount' }[pay];
-        /* Oldindan to'lov (vaqt hali tugamagan bo'lsa) */
-        if (field && !w.past) payload[field] = price;
+        /* Hozir to'landi (vaqti o'tgan yozuvda ham) */
+        if (field) payload[field] = price;
         const res = await api('/sessions/start', { method: 'POST', body: jsonBody(payload) });
         const sid = res && (res.id || (res.session && res.session.id));
 
-        /* VAQTI O'TGAN YOZUV (8:30–10:30, hozir 11:00): darhol to'lov bilan yopiladi */
+        /* VAQTI O'TGAN YOZUV (8:30–10:30, hozir 11:00): server uni darhol
+           reja bo'yicha yopadi (faol ro'yxat so'ralganda); to'lanmagan bo'lsa
+           «To'lanmagan» ro'yxatiga tushadi */
         if (w.past) {
-          const fin = { amount: price, paymentMethod: pay, cash_amount: 0, terminal_amount: 0, click_amount: 0,
-                        finished_at: w.end.toISOString(), finishedAt: w.end.toISOString() };
-          fin[field] = price;
-          fin.cashAmount = fin.cash_amount; fin.terminalAmount = fin.terminal_amount; fin.clickAmount = fin.click_amount;
-          try {
-            await api('/sessions/' + encodeURIComponent(sid) + '/finish', { method: 'POST', body: jsonBody(fin) });
-          } catch (e2) {
-            await Active.load(true);
-            setError(E, 'Yozildi, lekin yopilmadi: ' + e2.message + ' — pastdagi ro\'yxatdan «Chiqdi» ni bosing.');
-            return;
-          }
-          toast('Yozildi va yopildi: ' + d.body + ' — ' + hhmm(w.start) + '–' + hhmm(w.end) + ', ' + money(price));
+          toast('Yozildi: ' + d.body + ' — ' + hhmm(w.start) + '–' + hhmm(w.end) + ', ' + money(price)
+            + (field ? ' (' + PAY_NAMES[pay] + ')' : ' · to\'lanmagan'));
           this.reset();
-          Active.load(true);
+          await Active.load(true);
+          Debts.load(true);
           Reports.loadDaily();
           setTimeout(() => this.focusLabel(), 60);
           return;
@@ -4330,7 +4425,8 @@ const Add = {
 
         toast(w.open
           ? 'Kirdi: ' + d.body + ' — ' + hhmm(w.start) + '. Pul chiqishda.'
-          : 'Kirdi: ' + d.body + ' — ' + hhmm(w.start) + '–' + hhmm(w.end) + ' · to\'langan ' + money(price));
+          : 'Kirdi: ' + d.body + ' — ' + hhmm(w.start) + '–' + hhmm(w.end) + ' · ' + money(price)
+            + (field ? ' ' + PAY_NAMES[pay] + ' olindi' : ' to\'lanmagan') + '. Vaqti tugaganda o\'zi yopiladi.');
         /* Shu sahifada qolamiz: mashina pastdagi «Ichkarida» ro'yxatiga
            tushadi, kursor keyingi mashina uchun tayyor */
         this.reset();
@@ -4368,7 +4464,7 @@ const Add = {
     if ($('carLabel')) $('carLabel').value = '';
     if ($('paidStart')) $('paidStart').value = '';
     if ($('paidStartRow')) $('paidStartRow').classList.add('hidden');
-    STATE.form.paidMin = 60; STATE.form.payNow = ''; STATE.form.payWay = 'end';
+    STATE.form.paidMin = 0; STATE.form.payNow = '';
     setError('labelErr', '');
     setError('plateErr', '');
     setError('startErr', '');
@@ -4486,6 +4582,7 @@ const Queue = {
     const w = d.type === 'school' ? null : Add.paidWindow();
     if (w && w.past) { setError('startErr', "Vaqti o'tgan yozuvni navbatga qo'yib bo'lmaydi — «Yozish va yopish» ni bosing."); return; }
     const prepay = w && !w.open && STATE.form.payNow ? { method: STATE.form.payNow, amount: Add.paidPrice(w.min) } : null;
+    const planned = w && !w.open ? Add.paidPrice(w.min) : 0;
     await withBusy('queue:add', $('queueBtn'), async () => {
       const ok = this.enqueue({
         studentId: d.student ? d.student.id : null,
@@ -4505,6 +4602,7 @@ const Queue = {
         customerType: d.type,
         targetSeconds: d.targetSeconds,
         openEnded: !!(w && w.open),
+        planned: planned,
         prepay: prepay
       });
       if (!ok) { toast('Bu mijoz shu avtomobil navbatida allaqachon bor.', 'warn'); return; }
@@ -4592,6 +4690,7 @@ const Queue = {
           payload.instructor_name = q.instructorName || null;
         }
         if (q.openEnded) { payload.openEnded = true; payload.open_ended = true; }
+        else if (q.planned && (q.customerType || 'ordinary') !== 'school') { payload.autoClose = true; payload.plannedAmount = num(q.planned); }
         const pf = q.prepay && { cash: 'cash_amount', terminal: 'terminal_amount', click: 'click_amount' }[q.prepay.method];
         if (pf && num(q.prepay.amount) > 0) payload[pf] = num(q.prepay.amount);
         const res = await api('/sessions/start', { method: 'POST', body: jsonBody(payload) });
@@ -5596,6 +5695,11 @@ const DayExcel = {
       [7, 8, 9, 10].forEach(c => { row.getCell(c).numFmt = MONEY; });
       for (let c = 1; c <= jCols; c++) row.getCell(c).alignment = { horizontal: c === 2 || c === 3 ? 'left' : 'center', vertical: 'middle' };
       if (x.open) row.getCell(5).note = 'Hali yopilmagan';
+      /* To'lanmagan (qarz) — JAMI to'lov katagi qizg'ish, izohda summa */
+      if (!x.open && num(r.debt_amount) > 0) {
+        row.getCell(7).note = 'To\'lanmagan: ' + money(num(r.debt_amount));
+        row.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDE2E2' } };
+      }
       row.height = 21;
       rr++;
     });
@@ -5708,6 +5812,9 @@ const DayExcel = {
     const hN = line('NAQT', 'JISMONIY!H' + jTotalRow);
     const hK = line('KLIK', 'JISMONIY!J' + jTotalRow);
     const hJ = line('JAMI KIRIM', 'E' + hT + '+E' + hN + '+E' + hK, true);
+    const debtSum = paidRows.reduce((a, r) => a + num(r.debt_amount), 0);
+    if (debtSum > 0) { const dr = H.getRow(h); dr.getCell(2).value = 'To\'lanmagan (keyin to\'laydi)'; dr.getCell(5).value = debtSum; dr.getCell(5).numFmt = MONEY;
+      dr.getCell(5).font = { color: { argb: 'FFB91C1C' }, bold: true }; box(H, h, h, 2, 5); h++; }
     const cnt = H.getRow(h); cnt.getCell(2).value = 'Avtomobillar soni'; cnt.getCell(5).value = all.length; box(H, h, h, 2, 5); h++;
     const att = H.getRow(h); att.getCell(2).value = 'Avtoshkola davomati (dars)'; att.getCell(5).value = { formula: 'KURS!H' + (kEnd + 1) }; box(H, h, h, 2, 5); h++;
     h++;
@@ -6261,13 +6368,29 @@ const Active = {
     this.loading = true;
     const host = $('activeList');
     if (host && !silent && !STATE.active.length) host.innerHTML = skeleton(3);
+    /* Vaqti tugab o'zi yopilganlar — yuklangandan keyin xabar beriladi
+       (operator «Chiqdi» bilan yopganlari bundan mustasno) */
+    const prevAuto = (STATE.active || []).filter(v => v.auto_close);
     try {
       const r = await api('/sessions/active');
       STATE.active = Array.isArray(r) ? r : (r && r.rows) || [];
+      const gone = prevAuto.filter(v => !STATE.active.some(x => String(x.id) === String(v.id)));
+      const closed = gone.filter(v => !Chiqish.closedIds[v.id] && (sessionTiming(v).remaining === null || sessionTiming(v).remaining <= 120));
+      if (gone.length) { Debts.load(true); Reports.loadDaily(); }
+      if (closed.length) {
+        closed.forEach(v => {
+          const pre = Finish.prepaidOf(v), plan = num(v.planned_amount);
+          const owe = Math.max(0, plan - (pre ? pre.total : 0));
+          toast('Vaqti tugadi, yopildi: ' + (v.plate || '') + (owe > 0 ? ' — ' + money(owe) + ' to\'lanmagan' : ' — to\'langan'), owe > 0 ? 'warn' : undefined);
+          delete STATE.meta[v.id];
+        });
+        saveMeta();
+      }
       pruneMeta(STATE.active.map(a => a.id).concat(STATE.frozen.map(f => f.id)));
       this.render();
       Finish.renderList();
       Add.renderInside();
+      Add.fillLabelList();
       this.badge();
     } catch (e) {
       if (host && !STATE.active.length) host.innerHTML = emptyState('fa-triangle-exclamation', 'Ma\'lumot yuklanmadi', e.message, true);
@@ -6358,7 +6481,7 @@ const Active = {
     const openPay = !isSchoolSession(v) && !t.target && !pre;
     const metaLine = [
       v.model || '',
-      isSchoolSession(v) ? "Avtoshkola o'quvchisi" : (openPay ? "Oddiy mijoz · oxirida to'laydi" : 'Oddiy mijoz'),
+      isSchoolSession(v) ? "Avtoshkola o'quvchisi" : (openPay ? "Oddiy mijoz · oxirida to'laydi" : (v.auto_close ? "Oddiy mijoz · vaqti tugaganda o'zi yopiladi" : 'Oddiy mijoz')),
       v.school_name || '',
       v.group_name || ''
     ].filter(Boolean).map(esc).join(' &bull; ')
@@ -6467,9 +6590,8 @@ const Active = {
    kifoya: pul yoziladi va vaqt yopiladi. Oldindan to'langan va vaqti
    oshmagan bo'lsa — bitta «Chiqdi» tugmasi. Chiqish vaqtini o'zgartirish,
    summani tahrirlash yoki aralash to'lov — «Boshqa» (to'liq oyna). */
-const PAY_NAMES = { cash: 'naqd', terminal: 'terminal', click: 'Klik' };
 const Chiqish = {
-  id: null, snap: null, busy: false,
+  id: null, snap: null, busy: false, closedIds: {},
   state(v, elapsed) {
     const price = sessionPrice(v, elapsed);
     const pre = Finish.prepaidOf(v);
@@ -6509,7 +6631,10 @@ const Chiqish = {
       const btn = (p, icon, label) => '<button class="btn ' + (p === 'cash' ? 'btn-green' : 'btn-light') + '" type="button" data-act="exitPay" data-p="' + p + '">'
         + '<span><i class="fa-solid ' + icon + '" aria-hidden="true"></i> ' + label + '</span><small>' + esc(money(sum)) + '</small></button>';
       actions = '<div class="field-label">Qanday to\'ladi?</div><div class="pay-big">'
-        + btn('cash', 'fa-money-bill-wave', 'Naqd') + btn('terminal', 'fa-credit-card', 'Terminal') + btn('click', 'fa-mobile-screen', 'Klik') + '</div>';
+        + btn('cash', 'fa-money-bill-wave', 'Naqd') + btn('terminal', 'fa-credit-card', 'Terminal') + btn('click', 'fa-mobile-screen', 'Klik') + '</div>'
+        /* Hozir to'lamaydi — kun oxirida «To'lanmagan»dan birdan to'laydi */
+        + '<button class="btn btn-light" type="button" data-act="exitPay" data-p="later" style="width:100%;margin-top:10px;min-height:48px;justify-content:center;border-color:#fcd34d;background:#fffbeb;color:#92400e">'
+        + '<i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> Keyin to\'laydi — «To\'lanmagan»ga yozish</button>';
     }
     openModal('<div class="modal-head"><div><h2 style="letter-spacing:.02em">' + esc(v.plate || '—') + '</h2>'
       + '<p class="ex-time">' + esc(timeOnly(v.started_at)) + ' → ' + esc(hhmm(new Date())) + ' · <b>' + esc(ranText(t.elapsed)) + '</b>'
@@ -6528,8 +6653,11 @@ const Chiqish = {
     if (!v || !this.snap) { closeModal(); Active.load(true); return; }
     const st = this.snap;
     const pre = st.pre || { cash: 0, terminal: 0, click: 0, total: 0 };
-    /* Ko'rsatilgan summa olinadi (oyna ochilgandagi hisob) */
-    const add = method === 'prepaid' ? 0 : (st.pre ? st.due : num(st.price));
+    /* Ko'rsatilgan summa olinadi (oyna ochilgandagi hisob).
+       «Keyin to'laydi» — pul olinmaydi, shu summa qarzga yoziladi. */
+    const owe = st.pre ? st.due : num(st.price);
+    const later = method === 'later';
+    const add = method === 'prepaid' || later ? 0 : owe;
     const cash = pre.cash + (method === 'cash' ? add : 0);
     const term = pre.terminal + (method === 'terminal' ? add : 0);
     const click = pre.click + (method === 'click' ? add : 0);
@@ -6537,15 +6665,18 @@ const Chiqish = {
     const used = [cash > 0, term > 0, click > 0].filter(Boolean).length;
     const pm = used > 1 ? 'mixed' : term > 0 ? 'terminal' : click > 0 ? 'click' : 'cash';
     this.busy = true;
+    this.closedIds[id] = 1;
     $$('#modal [data-act="exitPay"]').forEach(b => { b.disabled = true; });
     setError('exitErr', '');
     try {
       await api('/sessions/' + encodeURIComponent(id) + '/finish', { method: 'POST', body: jsonBody({
         cash_amount: cash, terminal_amount: term, click_amount: click,
         cashAmount: cash, terminalAmount: term, clickAmount: click,
-        amount: total, paymentMethod: pm }) });
+        amount: total, paymentMethod: pm, debt_amount: later ? owe : 0 }) });
       closeModal();
-      toast('Chiqdi: ' + (v.plate || '') + ' — ' + money(total) + (add > 0 ? ' (' + PAY_NAMES[method] + ')' : ''));
+      toast(later ? 'Chiqdi: ' + (v.plate || '') + ' — ' + money(owe) + ' to\'lanmagan («To\'lanmagan» ro\'yxatida)'
+                  : 'Chiqdi: ' + (v.plate || '') + ' — ' + money(total) + (add > 0 ? ' (' + PAY_NAMES[method] + ')' : ''));
+      if (later && typeof Debts !== 'undefined') Debts.load(true);
       delete STATE.meta[id]; saveMeta();
       await Active.load(true);
       Reports.loadDaily();
@@ -6558,59 +6689,89 @@ const Chiqish = {
   }
 };
 
-/* ===================== ODDIY MIJOZ: OLDINDAN TO'LOV =====================
-   Ikki bosish: necha soat (1 soat oldindan tanlangan) → qanday to'ladi.
-   To'lov tugmasi bosilishi bilan vaqt ochiladi. Kirish vaqti qo'lda
-   yozilgan va vaqti o'tib bo'lgan bo'lsa — darhol yopiladi. */
-const PrePay = {
-  min: 60,
-  isOpen() { return !!$('preSum'); },
-  name() { const lb = $('carLabel'); return lb ? lb.value.replace(/\s+/g, ' ').trim() : ''; },
-  open() {
-    if (this.name().length < 2) {
-      setError('labelErr', 'Avval mashina raqami yoki ismni yozing.');
-      if ($('carLabel')) $('carLabel').focus();
-      return;
-    }
-    setError('labelErr', '');
-    this.min = 60;
-    const btn = (p, icon, label) => '<button class="btn ' + (p === 'cash' ? 'btn-green' : 'btn-light') + '" type="button" data-act="prePay" data-p="' + p + '">'
-      + '<span><i class="fa-solid ' + icon + '" aria-hidden="true"></i> ' + label + '</span><small class="js-pre-price"></small></button>';
-    openModal('<div class="modal-head"><div><h2>Oldindan to\'lov</h2><p class="text-muted" style="font-weight:700;letter-spacing:.02em">' + esc(this.name().toUpperCase()) + '</p></div>'
-      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
-      + '<div class="field-label">Necha soatga?</div><div class="big-grid" id="preGrid"></div>'
-      + '<div class="price-hero" id="preSum"></div>'
-      + '<div class="field-label">Qanday to\'ladi?</div><div class="pay-big">'
-      + btn('cash', 'fa-money-bill-wave', 'Naqd') + btn('terminal', 'fa-credit-card', 'Terminal') + btn('click', 'fa-mobile-screen', 'Klik') + '</div>'
-      + '<div style="text-align:right;margin-top:12px"><button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>');
+/* ===================== TO'LANMAGAN (qarz) =====================
+   «1 soatga och», pulni keyin beraman — vaqti tugab o'zi yopilgan yoki
+   «Chiqdi → Keyin to'laydi» bosilgan yozuvlar shu yerda ism bo'yicha
+   jamlanadi. Kun oxirida mijoz «qancha bo'ldi?» desa — «To'lash»: har
+   bir kirish-chiqish va jami ko'rinadi, bitta tugma bilan hammasi to'lanadi. */
+const Debts = {
+  rows: [], total: 0, key: null, busy: false,
+  async load(silent) {
+    try {
+      const r = await api('/debts');
+      this.rows = (r && r.rows) || [];
+      this.total = num(r && r.total);
+    } catch (e) { if (!silent) toast(e.message, 'error'); }
     this.render();
+    Add.fillLabelList();
+  },
+  groups() {
+    const map = {};
+    this.rows.forEach(r => {
+      const k = labelKey(r.plate) || String(r.id);
+      const g = map[k] || (map[k] = { key: k, name: r.plate || '—', rows: [], total: 0, secs: 0 });
+      g.rows.push(r); g.total += num(r.debt_amount); g.secs += num(r.duration_seconds);
+    });
+    return Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
   },
   render() {
-    const g = $('preGrid'); if (!g) return;
-    g.innerHTML = Add.PAID_OPTIONS.map(m => '<button class="big-opt' + (m === this.min ? ' active' : '') + '" type="button" data-act="preMin" data-m="' + m + '">'
-      + '<b>' + esc(Add.paidMinLabel(m)) + '</b><small>' + esc(money(Add.paidPrice(m))) + '</small></button>').join('');
-    this.renderSum();
+    const host = $('debtsWrap');
+    if (!host) return;
+    if (STATE.page !== 'add' || STATE.form.customerType === 'school' || !this.rows.length) { host.innerHTML = ''; return; }
+    const q = labelKey(($('carLabel') && $('carLabel').value) || '');
+    const gs = this.groups().map(g => Object.assign(g, { match: q.length >= 2 && g.key.indexOf(q) >= 0 }))
+      .sort((a, b) => (b.match - a.match));
+    host.innerHTML = '<div class="panel inside-panel debt-panel"><div class="panel-head"><h3><i class="fa-solid fa-hourglass-half" style="color:#d97706" aria-hidden="true"></i> To\'lanmagan</h3>'
+      + '<span class="dp-total">jami ' + esc(money(this.total)) + '</span></div>'
+      + gs.map(g => '<div class="in-row' + (g.match ? ' match' : '') + '">'
+        + '<div class="in-main"><b class="in-name">' + esc(g.name) + '</b>'
+        + '<span class="in-sub">' + g.rows.length + ' marta · ' + esc(ranText(g.secs)) + '</span></div>'
+        + '<div class="in-money"><b>' + esc(money(g.total)) + '</b><small>to\'lanmagan</small></div>'
+        + '<button class="btn btn-green in-out" type="button" data-act="debtOpen" data-k="' + esc(g.key) + '"><i class="fa-solid fa-coins" aria-hidden="true"></i> To\'lash</button>'
+        + '</div>').join('')
+      + '</div>';
   },
-  renderSum() {
-    const box = $('preSum'); if (!box) return;
-    const start = Add.paidStartDate() || new Date();
-    const end = addMin(start, this.min);
-    const past = end.getTime() <= Date.now();
-    const price = Add.paidPrice(this.min);
-    box.classList.toggle('extra', false);
-    box.style.background = past ? '#fffbeb' : '';
-    box.innerHTML = '<div class="ph-sum">' + esc(money(price)) + '</div>'
-      + '<div class="ph-sub">' + esc(hhmm(start)) + ' → ' + esc(hhmm(end)) + ' · ' + esc(Add.paidMinLabel(this.min))
-      + (past ? ' · <b>vaqti o\'tgan — darhol yopiladi</b>' : '') + '</div>';
-    $$('#modal .js-pre-price').forEach(el => { el.textContent = money(price); });
+  open(key) {
+    const g = this.groups().find(x => x.key === key);
+    if (!g) { this.load(true); return; }
+    this.key = key;
+    const today = dayOf(new Date().toISOString());
+    const line = r => {
+      const st = new Date(r.started_at), en = r.finished_at ? new Date(r.finished_at) : null;
+      const d = dayOf(r.started_at);
+      return '<div class="dl-row"><span>' + (d !== today ? esc(d.slice(8, 10) + '.' + d.slice(5, 7)) + ' · ' : '')
+        + '<b>' + esc(hhmm(st)) + (en ? '–' + esc(hhmm(en)) : '') + '</b> · ' + esc(ranText(num(r.duration_seconds))) + '</span>'
+        + '<b>' + esc(money(num(r.debt_amount))) + '</b></div>';
+    };
+    const btn = (p, icon, label) => '<button class="btn ' + (p === 'cash' ? 'btn-green' : 'btn-light') + '" type="button" data-act="debtPay" data-p="' + p + '">'
+      + '<span><i class="fa-solid ' + icon + '" aria-hidden="true"></i> ' + label + '</span><small>' + esc(money(g.total)) + '</small></button>';
+    openModal('<div class="modal-head"><div><h2 style="letter-spacing:.02em">' + esc(g.name) + '</h2>'
+      + '<p class="ex-time">' + g.rows.length + ' marta keldi · jami <b>' + esc(ranText(g.secs)) + '</b></p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div class="debt-list">' + g.rows.map(line).join('') + '</div>'
+      + '<div class="price-hero"><div class="ph-sum">' + esc(money(g.total)) + '</div><div class="ph-sub">hammasi birga</div></div>'
+      + '<div class="field-label">Qanday to\'ladi?</div><div class="pay-big">'
+      + btn('cash', 'fa-money-bill-wave', 'Naqd') + btn('terminal', 'fa-credit-card', 'Terminal') + btn('click', 'fa-mobile-screen', 'Klik') + '</div>'
+      + '<div id="debtErr" class="text-error" role="alert"></div>'
+      + '<div style="text-align:right;margin-top:12px"><button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>');
   },
-  setMin(m) { this.min = Math.max(30, num(m) || 60); this.render(); },
-  async pay(p) {
-    if (['cash', 'terminal', 'click'].indexOf(p) < 0) return;
-    STATE.form.payWay = 'pre'; STATE.form.paidMin = this.min; STATE.form.payNow = p;
-    closeModal();
-    try { await Add.submit(true); }
-    finally { STATE.form.payWay = 'end'; STATE.form.payNow = ''; STATE.form.paidMin = 60; }
+  async pay(method) {
+    if (this.busy) return;
+    const g = this.groups().find(x => x.key === this.key);
+    if (!g) { closeModal(); return; }
+    this.busy = true;
+    $$('#modal [data-act="debtPay"]').forEach(b => { b.disabled = true; });
+    try {
+      await api('/debts/pay', { method: 'POST', body: jsonBody({ ids: g.rows.map(r => r.id), method: method, name: g.name, total: g.total }) });
+      closeModal();
+      toast('To\'landi: ' + g.name + ' — ' + money(g.total) + ' (' + PAY_NAMES[method] + ')');
+      await this.load(true);
+      Reports.loadDaily();
+      setTimeout(() => Add.focusLabel(), 60);
+    } catch (e) {
+      setError('debtErr', e.message);
+      $$('#modal [data-act="debtPay"]').forEach(b => { b.disabled = false; });
+    } finally { this.busy = false; }
   }
 };
 
@@ -6821,6 +6982,7 @@ const Finish = {
 
   async submit(id, source, form) {
     setError('finishModalErr', '');
+    Chiqish.closedIds[id] = 1;
     const pool = source === 'frozen' ? STATE.frozen : STATE.active;
     const sess = pool.find(x => String(x.id) === String(id));
     const wasSchool = !!(sess && isSchoolSession(sess));
@@ -7284,6 +7446,7 @@ const Reports = {
       $('rdcash').textContent = money(s.cash);
       $('rdterm').textContent = money(s.terminal);
       if ($('rdclick')) $('rdclick').textContent = money(s.click || 0);
+      if ($('rddebt')) { $('rddebt').textContent = money(s.debt || 0); $('rddebt').classList.toggle('red', num(s.debt) > 0); }
       /* Rasxod va kassadagi naqd qoldiq (naqd kirim − naqd rasxod) */
       api('/expenses?from=' + encodeURIComponent(r.from) + '&to=' + encodeURIComponent(r.to)).then(x => {
         if (seq !== this.loadSeq) return;
@@ -10787,10 +10950,9 @@ const ACTIONS = {
   exitOpen: d => Chiqish.open(d.id),
   exitPay: d => Chiqish.pay(d.p),
   exitMore: d => { const id = Chiqish.id; closeModal(); Finish.open(id, 'active'); },
-  preOpen: () => PrePay.open(),
-  preMin: d => PrePay.setMin(d.m),
-  prePay: d => PrePay.pay(d.p),
-  insToggle: () => Add.insToggle(true),
+  debtOpen: d => Debts.open(d.k),
+  debtPay: d => Debts.pay(d.p),
+  goDebts: () => { go('add'); Add.setType('ordinary'); Debts.load(true).then(() => { const el = $('debtsWrap'); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); },  insToggle: () => Add.insToggle(true),
   finishSubmit: (d, el) => Finish.submit(d.id, d.source, el),
   finishPay: d => Finish.quickPay(d.mode),
   finEndNow: () => Finish.setEnd(''),
@@ -11028,6 +11190,12 @@ function init() {
   updateClock();
   setInterval(updateClock, 1000);
   setInterval(() => { try { Active.tick(); } catch (e) { console.error('[tick]', e); } }, 1000);
+  /* «1 soatga» kabi yozuvning vaqti tugadimi — server yopadi, ro'yxat yangilanadi */
+  setInterval(() => {
+    if (!STATE.auth.token || document.hidden) return;
+    const due = (STATE.active || []).some(v => v.auto_close && sessionTiming(v).remaining !== null && sessionTiming(v).remaining <= 0);
+    if (due) Active.load(true);
+  }, 5000);
   if ($('reportFrom')) $('reportFrom').value = localDateISO(0);
   if ($('reportTo')) $('reportTo').value = localDateISO(0);
   Queue.load();

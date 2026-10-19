@@ -550,6 +550,8 @@ const SESSION_SELECT = `SELECT s.id, v.plate, v.model, COALESCE(s.driver_name, v
     s.school_id, s.group_id, s.student_id, s.instructor_id, s.receipt_id,
     s.amount, s.cash_amount, s.terminal_amount, s.payment_method,
     COALESCE((to_jsonb(s)->>'click_amount')::numeric,0) click_amount,
+    COALESCE((to_jsonb(s)->>'auto_close')::boolean,false) auto_close,
+    (to_jsonb(s)->>'planned_amount')::numeric planned_amount,
     ds.name school_name, g.name group_name, st.full_name student_name,
     i.full_name instructor_name
   FROM sessions s
@@ -758,6 +760,8 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
     const lessons = s.student_id ? Math.max(1, Math.round(seconds / LESSON_SECONDS)) : 0;
 
     const withClick = await hasClickColumn();
+    /* «Keyin to'laydi»: to'lanmagan qismi qarzga (oxirida birdan to'laydi) */
+    const debt = s.student_id ? 0 : Math.max(0, Math.round(num(req.body.debt_amount ?? req.body.debtAmount)));
     const u = await c.query(
       `UPDATE sessions SET finished_at=$1, duration_seconds=$2, amount=$3, cash_amount=$4, terminal_amount=$5,
               payment_method=$6, lessons_counted=$7, status='completed', resumed_at=NULL, frozen_at=NULL
@@ -766,9 +770,10 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
       withClick ? [end, seconds, amount, cash, terminal, method, lessons, s.id, uid(req), click]
                 : [end, seconds, amount, cash, terminal, method, lessons, s.id, uid(req)]
     );
+    if (debt > 0) await c.query(`UPDATE sessions SET debt_amount=$1 WHERE id=$2`, [debt, s.id]);
     await c.query('COMMIT');
     res.json({
-      ...u.rows[0], plate: s.plate,
+      ...u.rows[0], plate: s.plate, debt_amount: debt,
       amount: Number(amount), cash_amount: Number(cash), terminal_amount: Number(terminal), click_amount: Number(click),
       lessons_counted: lessons,
       school_name: s.school_name, group_name: s.group_name, student_name: s.student_name
@@ -783,6 +788,7 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
 const REPORT_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,v.driver_name) driver_name,s.started_at,s.finished_at,s.duration_seconds,
     s.amount,s.cash_amount,s.terminal_amount,s.payment_method,s.lessons_counted,s.student_id,
     COALESCE((to_jsonb(s)->>'click_amount')::numeric,0) click_amount, s.target_duration,
+    COALESCE((to_jsonb(s)->>'debt_amount')::numeric,0) debt_amount, COALESCE((to_jsonb(s)->>'auto_closed')::boolean,false) auto_closed,
     s.customer_type,s.instructor_id,COALESCE(i.full_name,i.bio,s.instructor_name) instructor_label,
     ds.name school_name,g.name group_name,st.full_name student_name,i.full_name instructor_name,
     ${STUDENT_ATTENDANCE_SQL} attendance_count
@@ -802,6 +808,7 @@ const isoDay = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v||'')) && !isNaN(Date.par
 const REPORT_RANGE_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,v.driver_name) driver_name,s.started_at,s.finished_at,s.duration_seconds,
     s.amount,s.cash_amount,s.terminal_amount,s.payment_method,s.lessons_counted,s.student_id,
     COALESCE((to_jsonb(s)->>'click_amount')::numeric,0) click_amount, s.target_duration,
+    COALESCE((to_jsonb(s)->>'debt_amount')::numeric,0) debt_amount, COALESCE((to_jsonb(s)->>'auto_closed')::boolean,false) auto_closed,
     s.customer_type,s.instructor_id,COALESCE(i.full_name,i.bio,s.instructor_name) instructor_label,
     ds.name school_name,g.name group_name,st.full_name student_name,i.full_name instructor_name,
     (st.id IS NOT NULL) _has_student
@@ -826,7 +833,7 @@ async function rangeReportRows(userId,from,to){
   for(const x of r.rows){ x.attendance_count=x._has_student?(att.get(String(x.student_id))||0):0; delete x._has_student; }
   return r.rows;
 }
-function reportSummary(rows){return rows.reduce((a,x)=>{a.count++;a.seconds+=Number(x.duration_seconds||0);a.amount+=Number(x.amount||0);a.cash+=Number(x.cash_amount||0);a.terminal+=Number(x.terminal_amount||0);a.click+=Number(x.click_amount||0);a.lessons+=Number(x.lessons_counted||0);return a},{count:0,seconds:0,amount:0,cash:0,terminal:0,click:0,lessons:0});}
+function reportSummary(rows){return rows.reduce((a,x)=>{a.count++;a.seconds+=Number(x.duration_seconds||0);a.amount+=Number(x.amount||0);a.cash+=Number(x.cash_amount||0);a.terminal+=Number(x.terminal_amount||0);a.click+=Number(x.click_amount||0);a.debt+=Number(x.debt_amount||0);a.lessons+=Number(x.lessons_counted||0);return a},{count:0,seconds:0,amount:0,cash:0,terminal:0,click:0,debt:0,lessons:0});}
 function sendReport(req,res,data){
   const body=JSON.stringify(data);
   if(body.length>1000000&&/\bgzip\b/.test(String(req.headers['accept-encoding']||''))){

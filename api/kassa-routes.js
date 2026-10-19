@@ -11,9 +11,21 @@
 
    2) RASXOD:
         GET    /api/expenses?date=YYYY-MM-DD  yoki ?from=&to=
+        (3- va 4-bandlar pastda)
         POST   /api/expenses                  { spent_on, person, category, vehicle, amount, pay_method, liters, odometer, note }
         PUT    /api/expenses/:id
         DELETE /api/expenses/:id              (yozuv o'chirilmaydi — deleted_at; jurnalga tushadi)
+
+   3) VAQTI TUGAGANDA O'ZI YOPILADI: «1 soatga» kabi ochilgan oddiy mijoz
+      (auto_close) rejadagi vaqt tugashi bilan yopiladi — chiqish vaqti
+      aynan reja bo'yicha. To'lanmagan qismi qarzga (debt_amount) yoziladi.
+      Fon jarayoni shart emas: faol ro'yxat, hisobot va qarzlar
+      so'ralganda avval muddati o'tganlar yopiladi (autoCloseDue).
+
+   4) TO'LANMAGAN (qarz): bir kunda 4–5 marta kelib, oxirida «qancha
+      bo'ldi?» deb hammasini birdan to'laydiganlar uchun.
+        GET  /api/debts                       to'lanmagan yozuvlar
+        POST /api/debts/pay { ids, method }   hammasini to'lash (naqd/terminal/Klik)
    ========================================================================== */
 
 import jwt from 'jsonwebtoken';
@@ -61,13 +73,23 @@ export function ensureKassaSchema() {
       SELECT table_name, column_name, is_nullable, character_maximum_length
         FROM information_schema.columns
        WHERE table_schema='public' AND (
-         (table_name='sessions' AND column_name='click_amount') OR
+         (table_name='sessions' AND column_name IN ('click_amount','debt_amount','auto_close','planned_amount','settled_at','auto_closed')) OR
          (table_name='vehicles' AND column_name IN ('region_code','first_letter','number','last_letters','plate')))`);
     const col = {};
     cols.rows.forEach(r => { col[r.table_name + '.' + r.column_name] = r; });
 
     if (!col['sessions.click_amount']) {
       await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS click_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
+    }
+    /* Qarz va avtomatik yopish */
+    if (!col['sessions.debt_amount']) await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS debt_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
+    if (!col['sessions.auto_close']) await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS auto_close BOOLEAN NOT NULL DEFAULT FALSE`);
+    if (!col['sessions.planned_amount']) await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS planned_amount NUMERIC(12,2)`);
+    if (!col['sessions.settled_at']) await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS settled_at TIMESTAMPTZ`);
+    if (!col['sessions.auto_closed']) await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS auto_closed BOOLEAN NOT NULL DEFAULT FALSE`);
+    if (!col['sessions.debt_amount'] || !col['sessions.auto_close']) {
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_sessions_debt ON sessions(user_id) WHERE debt_amount > 0`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_sessions_autoclose ON sessions(user_id) WHERE auto_close AND status = 'active'`);
     }
 
     /* vehicles — erkin matn uchun */
@@ -184,8 +206,109 @@ async function remove(req, res, user, id) {
   return json(res, 200, { ok: true });
 }
 
+/* ---------- VAQTI TUGAGANLARNI YOPISH ----------
+   Chiqish vaqti — aynan rejadagi tugash (muzlatib-davom ettirilganda
+   qolgan vaqt hisobga olinadi). Olingan pul o'zgarmaydi; rejadagi narxdan
+   kami qarzga yoziladi. */
+export async function autoCloseDue(user) {
+  if (!user) return 0;
+  await ensureKassaSchema();
+  const r = await pool.query(`
+    WITH due AS (
+      SELECT id,
+             CASE WHEN resumed_at IS NOT NULL
+                  THEN resumed_at + make_interval(secs => GREATEST(target_duration - COALESCE(duration_seconds, 0), 0))
+                  ELSE started_at + make_interval(secs => target_duration) END AS end_at,
+             COALESCE(cash_amount, 0) + COALESCE(terminal_amount, 0) + COALESCE(click_amount, 0) AS paid
+        FROM sessions
+       WHERE user_id = $1 AND status = 'active' AND auto_close = TRUE
+         AND COALESCE(target_duration, 0) > 0 AND student_id IS NULL)
+    UPDATE sessions s
+       SET status = 'completed', finished_at = due.end_at, duration_seconds = s.target_duration,
+           amount = due.paid, debt_amount = GREATEST(COALESCE(s.planned_amount, 0) - due.paid, 0),
+           auto_closed = TRUE, resumed_at = NULL, frozen_at = NULL
+      FROM due
+     WHERE s.id = due.id AND due.end_at <= now()
+    RETURNING s.id`, [String(user)]);
+  return r.rowCount;
+}
+/* api/index.js chaqiradi: faol ro'yxat / hisobot so'ralishidan oldin */
+export async function sweepForRequest(req) {
+  if (req.method !== 'GET') return;
+  const path = String(req.url || '').split('?', 1)[0];
+  if (!['/api/sessions/active', '/api/reports/daily', '/api/sessions/frozen'].includes(path)) return;
+  const user = auth(req);
+  if (user) await autoCloseDue(user);
+}
+
+/* ---------- TO'LANMAGAN (QARZ) ---------- */
+async function debtList(req, res, user) {
+  await autoCloseDue(user);
+  const r = await pool.query(`
+    SELECT s.id, v.plate, s.started_at, s.finished_at, COALESCE(s.duration_seconds, 0) AS duration_seconds,
+           s.target_duration, s.debt_amount, COALESCE(s.amount, 0) AS amount, s.auto_closed
+      FROM sessions s LEFT JOIN vehicles v ON v.id = s.vehicle_id
+     WHERE s.user_id = $1 AND s.status = 'completed' AND s.debt_amount > 0
+     ORDER BY v.plate, s.started_at
+     LIMIT 3000`, [user]);
+  const total = r.rows.reduce((a, x) => a + Number(x.debt_amount || 0), 0);
+  json(res, 200, { rows: r.rows, total });
+}
+async function debtPay(req, res, user) {
+  const b = await readBody(req);
+  const ids = (Array.isArray(b.ids) ? b.ids : []).map(x => text(x)).filter(Boolean).slice(0, 500);
+  const method = ['cash', 'terminal', 'click'].includes(text(b.method)) ? text(b.method) : '';
+  if (!ids.length) return json(res, 400, { error: 'To‘lanadigan yozuv tanlanmagan' });
+  if (!method) return json(res, 400, { error: 'To‘lov turini tanlang: naqd, terminal yoki Klik' });
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    const r = await c.query(`
+      UPDATE sessions s
+         SET cash_amount = s.cash_amount + CASE WHEN $3 = 'cash' THEN s.debt_amount ELSE 0 END,
+             terminal_amount = s.terminal_amount + CASE WHEN $3 = 'terminal' THEN s.debt_amount ELSE 0 END,
+             click_amount = s.click_amount + CASE WHEN $3 = 'click' THEN s.debt_amount ELSE 0 END,
+             amount = COALESCE(s.amount, 0) + s.debt_amount,
+             settled_at = now(), debt_amount = 0
+       WHERE s.user_id = $1 AND s.id::text = ANY($2::text[]) AND s.status = 'completed' AND s.debt_amount > 0
+       RETURNING s.id`, [user, ids, method]);
+    const done = r.rows.map(x => String(x.id));
+    if (done.length) {
+      await c.query(`
+        UPDATE sessions SET payment_method = CASE
+            WHEN ((cash_amount > 0)::int + (terminal_amount > 0)::int + (click_amount > 0)::int) > 1 THEN 'mixed'
+            WHEN terminal_amount > 0 THEN 'terminal' WHEN click_amount > 0 THEN 'click' ELSE 'cash' END
+         WHERE user_id = $1 AND id::text = ANY($2::text[])`, [user, done]);
+    }
+    await c.query('COMMIT');
+    const sum = Number(b.total || 0);
+    await logChange(null, user, { entity: 'session', entityId: done[0] || null, entityName: text(b.name) || null,
+      action: 'debt_paid', field: method, newValue: (sum ? sum + ' so‘m, ' : '') + done.length + ' ta yozuv',
+      reason: 'To‘lanmagan vaqtlar birdan to‘landi' });
+    json(res, 200, { ok: true, count: done.length, ids: done });
+  } catch (e) {
+    try { await c.query('ROLLBACK'); } catch { /* noop */ }
+    throw e;
+  } finally { c.release(); }
+}
+
 export async function handleKassaRequest(req, res) {
   const path = String(req.url || '').split('?', 1)[0];
+  if (path === '/api/debts' || path === '/api/debts/pay') {
+    if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return true; }
+    const user = auth(req);
+    if (!user) { json(res, 401, { error: 'Kirish talab qilinadi' }); return true; }
+    try {
+      await ensureKassaSchema();
+      if (path === '/api/debts' && req.method === 'GET') { await debtList(req, res, user); return true; }
+      if (path === '/api/debts/pay' && req.method === 'POST') { await debtPay(req, res, user); return true; }
+      json(res, 405, { error: 'Method ruxsat etilmagan' }); return true;
+    } catch (e) {
+      console.error('DEBTS ERROR:', e);
+      json(res, 500, { error: e.message || 'To‘lanmaganlar bo‘yicha xatolik' });
+      return true;
+    }
+  }
   if (path !== '/api/expenses' && !path.startsWith('/api/expenses/')) return false;
   if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return true; }
   const user = auth(req);

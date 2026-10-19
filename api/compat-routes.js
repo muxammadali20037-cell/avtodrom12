@@ -347,6 +347,11 @@ export async function handleCompatRequest(req, res) {
         const openEnded = !studentId && customerType !== 'school'
           && (body.openEnded === true || body.open_ended === true);
         if (openEnded) target = null;
+        /* «1 soatga» kabi: vaqti tugashi bilan o'zi yopiladi (kassa-routes
+           autoCloseDue). Rejadagi narx — to'lanmagan qismi qarzga yoziladi. */
+        const autoClose = !openEnded && !studentId && customerType !== 'school'
+          && (body.autoClose === true || body.auto_close === true);
+        const plannedAmount = autoClose ? Math.max(0, Math.round(Number(body.plannedAmount ?? body.planned_amount) || 0)) : null;
 
         /* ===== VAQT ORALIG'I (masalan 11:00 dan 12:00 gacha) =====
            Operator aniq soatni tanlagan bo'lsa, sessiya o'sha soatda
@@ -393,6 +398,8 @@ export async function handleCompatRequest(req, res) {
           ['target_duration', target],
           ['driver_name', body.driverName || null],
           ['manual_price', true],
+          ['auto_close', autoClose],
+          ['planned_amount', plannedAmount],
           /* oldindan to'lov — yakunlashda faqat ortiqcha vaqt so'raladi */
           ...(pre.total > 0 ? [
             ['amount', pre.total], ['cash_amount', pre.cash], ['terminal_amount', pre.terminal],
@@ -407,7 +414,7 @@ export async function handleCompatRequest(req, res) {
 
         await c.query('COMMIT');
         send(res,201,{id:r.rows[0].id,plate:p.plate,plateBody:p.body,startedAt:r.rows[0].started_at,
-                      schoolId,groupId,studentId,instructorId,target_duration:target,
+                      schoolId,groupId,studentId,instructorId,target_duration:target,auto_close:autoClose,
                       prepaid: pre.total > 0 ? pre : null});
         return true;
       } catch (e) {

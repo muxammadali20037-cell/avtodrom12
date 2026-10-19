@@ -10,7 +10,7 @@ import { handleQuotaRequest, ensureQuotaSchema } from "./quota-routes.js";
 import { handleAuditRequest } from "./audit-routes.js";
 import { handleGateRequest } from "./gate-routes.js";
 import { handleAccessRequest, ensureAccessSchema } from "./access-routes.js";
-import { handleKassaRequest, ensureKassaSchema } from "./kassa-routes.js";
+import { handleKassaRequest, ensureKassaSchema, sweepForRequest } from "./kassa-routes.js";
 import { handleBridgeRequest } from "./bridge-analytics.js";
 import instructorHandler from "./instructor.js";
 import instructorsFixed from "./instructors-fixed.js";
@@ -36,6 +36,8 @@ export default async function handler(req, res) {
   if (path.startsWith("/api/")) { try { await ensureAccessSchema(); } catch (e) { /* noop */ } }
   /* Klik ustuni, erkin yozuvli avtomobil, xarajatlar jadvali — ham tranzaksiyadan oldin */
   if (path.startsWith("/api/")) { try { await ensureKassaSchema(); } catch (e) { console.error("KASSA SCHEMA:", e.message); } }
+  /* Vaqti tugagan «1 soatga» kabi yozuvlar faol ro'yxat / hisobotdan oldin yopiladi */
+  try { await sweepForRequest(req); } catch (e) { console.error("AUTO CLOSE:", e.message); }
 
   /* ANALITIKA KO'PRIGI — Avtodrom admin «Analitika» sahifasi uchun
      (faqat o'qiydi; kalit: RECEIPT_SHARED_KEY, QR chek ko'prigi bilan bir xil) */
