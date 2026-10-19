@@ -767,7 +767,27 @@ body.admin-open { overflow: hidden; }
 .paid-sum .ps-sub { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
 .paid-sum .ps-price { font-size: 22px; font-weight: 800; color: var(--g-dark); }
 .paid-sum.past { background: #fffbeb; border-color: #fcd34d; }
+.paid-sum .ps-price small { display: block; font-size: 12px; font-weight: 600; color: var(--muted); text-align: right; }
 @media (max-width: 640px) { .paid-seg { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Ikki yo'l: oxirida to'laydi / oldindan to'laydi */
+#carLabel.input-lg { font-size: 18px; font-weight: 700; min-height: 52px; letter-spacing: .01em; }
+.pay-way { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pay-way .pw-opt { display: flex; gap: 12px; align-items: flex-start; text-align: left; font: inherit; color: inherit;
+  border: 1.5px solid var(--line); background: #fff; border-radius: 14px; padding: 14px; cursor: pointer; transition: var(--transition); }
+.pay-way .pw-opt:hover { border-color: var(--g); }
+.pay-way .pw-opt.active { border-color: var(--g); background: var(--g-surface); box-shadow: inset 0 0 0 1px var(--g); }
+.pay-way .pw-ico { flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center;
+  background: #f1f5f9; color: var(--muted); font-size: 16px; }
+.pay-way .pw-opt.active .pw-ico { background: var(--g); color: #fff; }
+.pay-way .pw-txt b { display: block; font-size: 16px; }
+.pay-way .pw-txt small { display: block; font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+.paid-start { margin-top: 8px; }
+.paid-start #paidStartRow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.paid-start #paidStartRow.hidden { display: none; }
+.link-btn { background: none; border: 0; padding: 4px 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--g-dark);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.link-btn:hover { color: var(--g); }
+@media (max-width: 640px) { .pay-way { grid-template-columns: 1fr; } }
 
 /* ===== 25. HISOBOT ===== */
 .report-filters { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-bottom: 16px; }
@@ -1173,8 +1193,52 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
             </div>
 
             <div class="form-grid" style="margin-top:14px">
+              <!-- ODDIY MIJOZ: istalgan matn — «455 Dilnoza», «01A555AA», «Cobalt oq» -->
+              <div class="span-2" id="labelField">
+                <label class="field-label" for="carLabel"><i class="fa-solid fa-car" aria-hidden="true"></i> Mashina yoki mijoz</label>
+                <input id="carLabel" class="input-lg" autocomplete="off" maxlength="60" placeholder="Masalan: 455 Dilnoza, 01A555AA yoki Cobalt oq">
+                <div id="labelErr" class="text-error" role="alert"></div>
+              </div>
+
+              <!-- ODDIY MIJOZ: ikki yo'l — oxirida to'laydi / oldindan to'laydi -->
+              <div class="span-2" id="paidBlock">
+                <div class="pay-way" role="radiogroup" aria-label="Qanday to'laydi">
+                  <button class="pw-opt active" type="button" role="radio" aria-checked="true" data-act="payWay" data-w="end">
+                    <span class="pw-ico"><i class="fa-solid fa-flag-checkered" aria-hidden="true"></i></span>
+                    <span class="pw-txt"><b>Oxirida to'laydi</b><small>Vaqt ochiladi. Chiqishda necha soat yurgan bo'lsa — shuncha to'laydi</small></span>
+                  </button>
+                  <button class="pw-opt" type="button" role="radio" aria-checked="false" data-act="payWay" data-w="pre">
+                    <span class="pw-ico"><i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i></span>
+                    <span class="pw-txt"><b>Oldindan to'laydi</b><small>Necha soat olishini tanlaydi, pulini hozir beradi</small></span>
+                  </button>
+                </div>
+
+                <div id="preBlock" class="hidden">
+                  <label class="field-label" style="margin-top:14px"><i class="fa-regular fa-hourglass" aria-hidden="true"></i> Necha soat? <span class="text-muted" style="font-weight:500" id="paidRateLbl"></span></label>
+                  <div class="paid-seg" id="paidSeg" role="group" aria-label="Vaqt"></div>
+                  <label class="field-label" style="margin-top:14px"><i class="fa-solid fa-wallet" aria-hidden="true"></i> Pulni qanday berdi?</label>
+                  <div class="seg" id="paidPaySeg" role="group" aria-label="To'lov">
+                    <button class="seg-btn" type="button" data-act="paidPay" data-p="cash"><i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i> Naqd</button>
+                    <button class="seg-btn" type="button" data-act="paidPay" data-p="terminal"><i class="fa-solid fa-credit-card" aria-hidden="true"></i> Terminal</button>
+                    <button class="seg-btn" type="button" data-act="paidPay" data-p="click"><i class="fa-solid fa-mobile-screen" aria-hidden="true"></i> Klik</button>
+                  </div>
+                </div>
+
+                <div class="paid-sum" id="paidSum" aria-live="polite"></div>
+                <div class="paid-start">
+                  <button class="link-btn" type="button" data-act="paidStartToggle" id="paidStartToggle"><i class="fa-regular fa-clock" aria-hidden="true"></i> Kirish vaqtini o'zgartirish</button>
+                  <div id="paidStartRow" class="hidden">
+                    <label class="field-label" for="paidStart" style="margin:0">Kirish vaqti</label>
+                    <input id="paidStart" type="time" step="60" style="max-width:140px" aria-describedby="paidStartHelp">
+                    <button class="chip" type="button" data-act="paidNow">Hozir</button>
+                    <span class="field-help" id="paidStartHelp" style="margin:0">Mashina oldinroq kirgan bo'lsa (masalan 8:30).</span>
+                  </div>
+                </div>
+                <div class="field-help" id="paidPayHelp"></div>
+              </div>
+
               <div class="span-2">
-                <label class="field-label muted-label" for="comboInstructorInput"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktor</label>
+                <label class="field-label muted-label" for="comboInstructorInput"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktor <span class="text-muted" style="font-weight:500" id="instructorOpt"></span></label>
                 <div id="comboInstructor"></div>
                 <div id="instructorBox"></div>
                 <div class="field-help" id="instructorHelp">Ixtiyoriy. Kim bilan uchishi tanlansa, «Nazorat → Xatoliklar va aniqliklar» bo'limida ochilgan soat bilan davomat solishtiriladi.</div>
@@ -1186,38 +1250,6 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
                 <select id="schoolCar" data-act="schoolCarChange"><option value="">Tanlanmagan</option></select>
                 <input id="schoolCarManual" class="hidden" autocomplete="off" placeholder="01 777 AAA" style="margin-top:8px">
                 <div class="field-help" id="schoolCarHelp">O'quvchi tanlangach, shu avtoshkolaning mashinalari chiqadi. Ro'yxatda bo'lmasa «Boshqa raqam» ni tanlab qo'lda yozing.</div>
-              </div>
-
-              <!-- ODDIY MIJOZ: istalgan matn — «455 Dilnoza», «01A555AA», «Cobalt oq» -->
-              <div class="span-2" id="labelField">
-                <label class="field-label muted-label" for="carLabel"><i class="fa-solid fa-car" aria-hidden="true"></i> Avtomobil raqami yoki mijoz</label>
-                <input id="carLabel" autocomplete="off" maxlength="60" placeholder="Masalan: 455 Dilnoza, 01A555AA yoki Cobalt oq">
-                <div class="field-help">Istalgan narsa yozish mumkin — hisobotda va Excelda xuddi shunday chiqadi.</div>
-                <div id="labelErr" class="text-error" role="alert"></div>
-              </div>
-
-              <div class="span-2" id="paidBlock">
-                <div class="paid-top">
-                  <div class="fg" style="margin:0">
-                    <label class="field-label" for="paidStart"><i class="fa-regular fa-clock" aria-hidden="true"></i> Kirish vaqti</label>
-                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                      <input id="paidStart" type="time" step="60" style="max-width:140px" aria-describedby="paidStartHelp">
-                      <button class="chip" type="button" data-act="paidNow">Hozir</button>
-                    </div>
-                    <div class="field-help" id="paidStartHelp">Bo'sh qolsa — hozirgi vaqt. O'tgan vaqtni ham yozish mumkin (masalan 8:30).</div>
-                  </div>
-                </div>
-                <label class="field-label" style="margin-top:12px"><i class="fa-regular fa-hourglass" aria-hidden="true"></i> Vaqt <span class="text-muted" style="font-weight:500" id="paidRateLbl"></span></label>
-                <div class="paid-seg" id="paidSeg" role="group" aria-label="Vaqt"></div>
-                <div class="paid-sum" id="paidSum" aria-live="polite"></div>
-                <label class="field-label" style="margin-top:12px"><i class="fa-solid fa-wallet" aria-hidden="true"></i> To'lov</label>
-                <div class="seg" id="paidPaySeg" role="group" aria-label="To'lov">
-                  <button class="seg-btn active" type="button" data-act="paidPay" data-p="">Keyin to'laydi</button>
-                  <button class="seg-btn" type="button" data-act="paidPay" data-p="cash"><i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i> Naqd</button>
-                  <button class="seg-btn" type="button" data-act="paidPay" data-p="terminal"><i class="fa-solid fa-credit-card" aria-hidden="true"></i> Terminal</button>
-                  <button class="seg-btn" type="button" data-act="paidPay" data-p="click"><i class="fa-solid fa-mobile-screen" aria-hidden="true"></i> Klik</button>
-                </div>
-                <div class="field-help" id="paidPayHelp"></div>
               </div>
 
               <div class="span-2 hidden" id="plateField">
@@ -1292,12 +1324,12 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
                 <i class="fa-solid fa-clipboard-check btn-icon" aria-hidden="true"></i>
                 <span class="btn-text">Davomat yozish (cheksiz)</span>
               </button>
-              <button class="btn btn-light btn-lg" type="button" data-act="printEntryForm"><i class="fa-solid fa-print" aria-hidden="true"></i> Kirish taloni — 80 mm</button>
-              <button class="btn btn-light btn-lg" id="queueBtn" type="button" data-act="addToQueue">
+              <button class="btn btn-light" id="queueBtn" type="button" data-act="addToQueue">
                 <span class="spinner" aria-hidden="true"></span>
                 <i class="fa-regular fa-clock btn-icon" aria-hidden="true"></i>
-                <span class="btn-text">Kutish rejimiga qo'shish</span>
+                <span class="btn-text">Navbatga qo'yish</span>
               </button>
+              <button class="btn btn-ghost" type="button" data-act="printEntryForm"><i class="fa-solid fa-print" aria-hidden="true"></i> Talon</button>
               <button class="btn btn-ghost" type="button" data-act="resetStart"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Tozalash</button>
             </div>
             <div id="startErr" class="text-error" role="alert" aria-live="polite"></div>
@@ -3448,6 +3480,17 @@ const Add = {
       if (!e.key || e.key.length !== 1 || e.key === ' ') return;
       const a = document.activeElement;
       if (a && a !== document.body && a !== document.documentElement && a.tagName !== 'BUTTON' && a.tagName !== 'IFRAME') return;
+      /* Oddiy mijoz: harf mashina/mijoz maydoniga tushadi */
+      if (STATE.page === 'add' && STATE.form.customerType !== 'school' && !($('modal') && $('modal').innerHTML)) {
+        const lb = $('carLabel');
+        if (!lb || lb.offsetParent === null) return;
+        e.preventDefault();
+        lb.focus();
+        lb.value = (lb.value + e.key).slice(0, 60);
+        try { lb.setSelectionRange(lb.value.length, lb.value.length); } catch (err) { /* noop */ }
+        lb.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
       if (!this.studentFieldWanted()) return;
       const inp = $('comboStudentInput');
       e.preventDefault();
@@ -3458,7 +3501,7 @@ const Add = {
     }, true);
     /* Oyna qaytib faollashganda (chek oynasi yopilgach, boshqa dasturdan
        qaytilganda) kursor ism maydoniga qaytadi */
-    window.addEventListener('focus', () => setTimeout(() => this.focusStudent(true), 40));
+    window.addEventListener('focus', () => setTimeout(() => { this.focusStudent(true); this.focusLabel(true); }, 40));
   },
 
   /* Panelda ko'rinadigan limit qatori */
@@ -3610,6 +3653,9 @@ const Add = {
     if ($('paidBlock')) $('paidBlock').classList.toggle('hidden', isSchool);
     if ($('hourBlock')) $('hourBlock').classList.toggle('hidden', !isSchool);
     if (!isSchool) this.renderPaid();
+    /* Oddiy mijozda instruktor — ixtiyoriy, uzun izohsiz */
+    if ($('instructorHelp')) $('instructorHelp').classList.toggle('hidden', !isSchool);
+    if ($('instructorOpt')) $('instructorOpt').textContent = isSchool ? '' : '(ixtiyoriy)';
     /* Davomat rejimida avtoshkolaning mashinasi ro'yxatdan tanlanadi */
     if ($('schoolCarField')) $('schoolCarField').classList.toggle('hidden', !isSchool);
     if (isSchool) this.renderCarOptions();
@@ -3648,8 +3694,10 @@ const Add = {
     setError('startErr', '');
     setError('plateErr', '');
     this.syncAccessBlock();
-    /* «Avtoshkola o'quvchisi» tanlanganda kursor darhol ism maydonida */
+    /* «Avtoshkola o'quvchisi» tanlanganda kursor darhol ism maydonida,
+       «Oddiy mijoz» da — mashina/mijoz maydonida */
     if (isSchool) setTimeout(() => this.focusStudent(true), 30);
+    else setTimeout(() => this.focusLabel(true), 30);
   },
 
   /** Avtoshkola rejimidami? */
@@ -3661,13 +3709,17 @@ const Add = {
     if (h === 'custom') return Math.max(1, Math.round(num(STATE.form.customMinutes || 60) / 60));
     return Math.max(1, Math.min(12, num(h || 1)));
   },
-  /* ===== ODDIY MIJOZ: VAQT, NARX, TO'LOV =====
-     Soatiga CONFIG.HOURLY_RATE (100 000 so'm), yarim soat — yarmi.
-     Kirish vaqti bo'sh — hozir; yozilsa (8:30) shu vaqtdan boshlanadi.
-     Tugash vaqti va narx darhol ko'rinadi. To'lov hozir olinsa —
-     yakunlashda faqat ortiqcha vaqt so'raladi. Vaqti o'tib bo'lgan
-     yozuv (8:30–10:30, hozir 11:00) to'lov bilan darhol yopiladi. */
+  /* ===== ODDIY MIJOZ: IKKI YO'L =====
+     1) OXIRIDA TO'LAYDI (asosiy): faqat nom yoziladi → «Vaqt ochish».
+        Soat tanlanmaydi, vaqt ochiq turadi. Chiqishda necha soat yurgan
+        bo'lsa — shuncha hisoblanadi (yarim soatlik, 5 daqiqa kechiriladi).
+     2) OLDINDAN TO'LAYDI: necha soat + pulni qanday berdi (naqd, terminal,
+        Klik). Ortiqcha vaqt bo'lsa yakunlashda qo'shiladi. Vaqti o'tib
+        bo'lgan yozuv (8:30–10:30, hozir 11:00) darhol yopiladi.
+     Kirish vaqti odatda «hozir» — kerak bo'lsa «Kirish vaqtini
+     o'zgartirish» bosiladi. Soatiga CONFIG.HOURLY_RATE (100 000 so'm). */
   PAID_OPTIONS: [30, 60, 90, 120, 150, 180, 210, 240],
+  isPre() { return STATE.form.payWay === 'pre'; },
   paidRate() { return num(tariff(null).rate) || 0; },
   paidPrice(min) { const st = num(CONFIG.ROUND_TO) || 1000; return Math.round(num(min) / 60 * this.paidRate() / st) * st; },
   paidMinLabel(m) { return m < 60 ? m + ' daq' : (m % 60 ? (Math.floor(m / 60) + ',5') : String(m / 60)) + ' soat'; },
@@ -3679,46 +3731,101 @@ const Add = {
   },
   paidWindow() {
     const st = this.paidStartDate() || new Date();
+    const manual = !!this.paidStartDate();
+    if (!this.isPre()) return { start: st, end: null, min: 0, manual: manual, past: false, open: true };
     const min = Math.max(30, num(STATE.form.paidMin) || 60);
     const end = addMin(st, min);
-    return { start: st, end: end, min: min, manual: !!this.paidStartDate(), past: end.getTime() <= Date.now() };
+    return { start: st, end: end, min: min, manual: manual, past: end.getTime() <= Date.now(), open: false };
+  },
+  setPayWay(w) {
+    STATE.form.payWay = w === 'pre' ? 'pre' : 'end';
+    this.renderPaid();
   },
   renderPaid() {
     const seg = $('paidSeg');
     if (!seg) return;
     if (!STATE.form.paidMin) STATE.form.paidMin = 60;
     if (STATE.form.payNow === undefined) STATE.form.payNow = '';
+    if (!STATE.form.payWay) STATE.form.payWay = 'end';
+    const pre = this.isPre();
+    $$('#paidBlock .pw-opt').forEach(b => {
+      const on = (b.dataset.w === 'pre') === pre;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+    if ($('preBlock')) $('preBlock').classList.toggle('hidden', !pre);
     const lbl = $('paidRateLbl');
     if (lbl) lbl.textContent = '(soatiga ' + money(this.paidRate()) + ')';
     seg.innerHTML = this.PAID_OPTIONS.map(m => '<button class="paid-opt' + (m === num(STATE.form.paidMin) ? ' active' : '')
       + '" type="button" data-act="paidMin" data-m="' + m + '"><b>' + esc(this.paidMinLabel(m)) + '</b><small>' + esc(money(this.paidPrice(m))) + '</small></button>').join('');
-    $$('#paidPaySeg .seg-btn').forEach(b => b.classList.toggle('active', (b.dataset.p || '') === (STATE.form.payNow || '')));
+    $$('#paidPaySeg .seg-btn').forEach(b => b.classList.toggle('active', !!STATE.form.payNow && b.dataset.p === STATE.form.payNow));
     this.renderPaidSum();
   },
   renderPaidSum() {
     const box = $('paidSum');
     if (!box) return;
     const w = this.paidWindow();
+    const rate = this.paidRate();
+    const startRow = $('paidStartRow');
+    if (startRow && w.manual) startRow.classList.remove('hidden');
+    const tg = $('paidStartToggle');
+    if (tg) tg.classList.toggle('hidden', !!(startRow && !startRow.classList.contains('hidden')));
+    const help = $('paidPayHelp');
+    const t = $('startBtn') && $('startBtn').querySelector('.btn-text');
+    const isOrd = STATE.form.customerType !== 'school';
+
+    if (w.open) {
+      /* OXIRIDA TO'LAYDI — tugash vaqti yo'q, narx chiqishda */
+      const runSec = Math.max(0, (Date.now() - w.start.getTime()) / 1000);
+      const sofar = w.manual && runSec >= 60;
+      box.classList.remove('past');
+      box.innerHTML = '<div><div class="ps-time">' + esc(hhmm(w.start)) + '<i class="fa-solid fa-arrow-right" aria-hidden="true"></i>chiqqanda</div>'
+        + '<div class="ps-sub">' + (w.manual ? 'Kirish qo\'lda yozildi' : 'Kirish hozir') + ' · har 30 daqiqa ' + esc(money(rate / 2))
+        + (sofar ? ' · hozirgacha <b>' + esc(hoursText(runSec / 3600)) + '</b>' : '') + '</div></div>'
+        + '<div class="ps-price">' + (sofar ? esc(money(this.paidPrice(billMinutes(runSec, 0)))) : esc(money(rate))) + '<small>' + (sofar ? 'hozircha' : 'soatiga') + '</small></div>';
+      if (help) help.innerHTML = '';
+      if (t && isOrd) t.textContent = 'Vaqt ochish';
+      return;
+    }
+
+    /* OLDINDAN TO'LAYDI */
     const price = this.paidPrice(w.min);
+    const pay = STATE.form.payNow || '';
+    const payName = { cash: 'naqd', terminal: 'terminal', click: 'Klik' }[pay];
     box.classList.toggle('past', w.past);
     box.innerHTML = '<div><div class="ps-time">' + esc(hhmm(w.start)) + '<i class="fa-solid fa-arrow-right" aria-hidden="true"></i>' + esc(hhmm(w.end)) + '</div>'
       + '<div class="ps-sub">' + esc(this.paidMinLabel(w.min)) + (w.manual ? ' · kirish qo\'lda yozildi' : ' · hozirdan')
-      + (w.past ? ' · <b>vaqti o\'tgan — to\'lov bilan darhol yopiladi</b>' : '') + '</div></div>'
-      + '<div class="ps-price">' + esc(money(price)) + '</div>';
-    const help = $('paidPayHelp');
-    const pay = STATE.form.payNow || '';
-    const payName = { cash: 'naqd', terminal: 'terminal', click: 'Klik' }[pay];
-    if (help) help.innerHTML = w.past
-      ? (pay ? 'Yozuv <b>' + esc(hhmm(w.start)) + '–' + esc(hhmm(w.end)) + '</b> bilan saqlanadi va ' + esc(money(price)) + ' ' + esc(payName) + ' bilan darhol yopiladi.'
-             : '<span class="text-error">Vaqti o\'tgan yozuv — to\'lov turini tanlang (naqd, terminal yoki Klik).</span>')
-      : (pay ? esc(money(price)) + ' ' + esc(payName) + ' bilan oldindan to\'landi deb yoziladi. Ortiqcha vaqt bo\'lsa yakunlashda qo\'shiladi.'
-             : 'To\'lov «Tugatish» da olinadi — narx chiqish vaqtiga qarab hisoblanadi.');
-    const t = $('startBtn') && $('startBtn').querySelector('.btn-text');
-    if (t && STATE.form.customerType !== 'school') t.textContent = w.past ? 'Yozish va yopish' : (pay ? 'Vaqt ochish (to\'langan)' : 'Vaqt ochish');
+      + (w.past ? ' · <b>vaqti o\'tgan — darhol yopiladi</b>' : '') + '</div></div>'
+      + '<div class="ps-price">' + esc(money(price)) + (pay ? '<small>' + esc(payName) + '</small>' : '') + '</div>';
+    if (help) help.innerHTML = pay ? '' : '<span class="text-muted"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Pulni qanday berganini tanlang: Naqd, Terminal yoki Klik.</span>';
+    if (t && isOrd) t.textContent = w.past ? 'Yozish va yopish'
+      : (pay ? money(price) + ' olindi — vaqt ochish' : 'Vaqt ochish');
   },
   setPaidMin(m) { STATE.form.paidMin = Math.max(30, num(m) || 60); this.renderPaid(); },
-  setPayNow(p) { STATE.form.payNow = ['cash', 'terminal', 'click'].indexOf(p) >= 0 ? p : ''; this.renderPaid(); },
-  paidNow() { const el = $('paidStart'); if (el) el.value = ''; this.renderPaidSum(); },
+  setPayNow(p) { STATE.form.payNow = ['cash', 'terminal', 'click'].indexOf(p) >= 0 ? p : ''; this.renderPaid(); setError('startErr', ''); },
+  paidNow() {
+    const el = $('paidStart'); if (el) el.value = '';
+    const row = $('paidStartRow'); if (row) row.classList.add('hidden');
+    this.renderPaidSum();
+  },
+  paidStartToggle() {
+    const row = $('paidStartRow'); if (!row) return;
+    row.classList.remove('hidden');
+    this.renderPaidSum();
+    const el = $('paidStart');
+    if (el) { if (!el.value) el.value = hhmm(new Date()); el.focus(); }
+    this.renderPaidSum();
+  },
+  /* Oddiy mijoz rejimida kursor nom maydonida turadi */
+  focusLabel(auto) {
+    if (STATE.page !== 'add' || STATE.form.customerType === 'school') return;
+    if ($('modal') && $('modal').innerHTML) return;
+    if (auto && window.matchMedia && !window.matchMedia('(pointer: fine)').matches) return;
+    const a = document.activeElement;
+    const free = !a || a === document.body || a === document.documentElement || a.tagName === 'IFRAME' || a.tagName === 'BUTTON';
+    const el = $('carLabel');
+    if (free && el && el.offsetParent !== null) el.focus();
+  },
 
   setHours(h) {
     STATE.form.hours = h;
@@ -3788,8 +3895,9 @@ const Add = {
     if (box) box.classList.toggle('hidden', !this.needsReason());
   },
   targetSeconds() {
-    /* Oddiy mijoz — tanlangan vaqt (30 daq, 1 soat, 1,5 soat ...) */
-    if (STATE.form.customerType !== 'school') return Math.max(30, num(STATE.form.paidMin) || 60) * 60;
+    /* Oddiy mijoz: oldindan to'laganda — tanlangan vaqt (30 daq, 1 soat, ...);
+       oxirida to'laydiganda — 0 (vaqt ochiq, narx haqiqiy vaqtdan) */
+    if (STATE.form.customerType !== 'school') return this.isPre() ? Math.max(30, num(STATE.form.paidMin) || 60) * 60 : 0;
     if (STATE.form.hours === 'period') {
       const m = this.periodMinutes();
       return m > 0 ? m * 60 : CONFIG.LESSON_SECONDS;
@@ -3906,6 +4014,8 @@ const Add = {
       delete payload.regionCode; delete payload.plate; delete payload.plateBody;
       const w = this.paidWindow();
       if (w.manual) { payload.startAt = w.start.toISOString(); payload.start_at = payload.startAt; }
+      /* Oxirida to'laydi — server rejadagi vaqtni yozmaydi (ochiq vaqt) */
+      if (w.open) { payload.openEnded = true; payload.open_ended = true; }
     }
     /* Soat oralig'i tanlangan bo'lsa boshlanish vaqti ham yuboriladi */
     const pStart = isPaid ? '' : this.periodStartISO();
@@ -3954,7 +4064,7 @@ const Add = {
       const w = this.paidWindow();
       if (w.manual && w.start.getTime() > Date.now() + 5 * 60000) return "Kirish vaqti hozirgidan keyin bo'lishi mumkin emas.";
       if (w.manual && Date.now() - w.start.getTime() > 12 * 3600e3) return "Kirish vaqti 12 soatdan oldin bo'lmasin (faqat bugungi yozuvlar).";
-      if (w.past && !STATE.form.payNow) return "Vaqti o'tgan yozuv: to'lov turini tanlang (naqd, terminal yoki Klik).";
+      if (!w.open && !STATE.form.payNow) return "Pulni qanday berdi? Naqd, Terminal yoki Klik ni tanlang. To'lamagan bo'lsa — «Oxirida to'laydi» ni tanlang.";
       return '';
     }
     if (!d.body) return "Avtomobil raqamini kiriting.";
@@ -4122,8 +4232,8 @@ const Add = {
           return;
         }
         const w = this.paidWindow();
-        const price = this.paidPrice(w.min);
-        const pay = STATE.form.payNow || '';
+        const price = w.open ? 0 : this.paidPrice(w.min);
+        const pay = w.open ? '' : (STATE.form.payNow || '');
         const payload = Object.assign({}, d.payload);
         const field = { cash: 'cash_amount', terminal: 'terminal_amount', click: 'click_amount' }[pay];
         /* Oldindan to'lov (vaqt hali tugamagan bo'lsa) */
@@ -4164,15 +4274,18 @@ const Add = {
           model: '',
           person: '',
           instructor: d.instructorName || (d.instructor ? insName(d.instructor) : ''),
-          hours: Math.round(w.min / 60 * 100) / 100,
+          hours: w.open ? 0 : Math.round(w.min / 60 * 100) / 100,
+          open: w.open,
+          paid: !!field,
           rate: this.paidRate(),
           total: price,
           issued: w.start.toISOString(),
-          until: w.end.toISOString()
+          until: w.end ? w.end.toISOString() : ''
         });
 
-        toast('Vaqt ochildi: ' + d.body + ' — ' + hhmm(w.start) + '–' + hhmm(w.end)
-          + (field ? ' · to\'langan ' + money(price) : ' · ' + money(price)));
+        toast(w.open
+          ? 'Vaqt ochildi: ' + d.body + ' — ' + hhmm(w.start) + ' dan. To\'lov chiqishda.'
+          : 'Vaqt ochildi: ' + d.body + ' — ' + hhmm(w.start) + '–' + hhmm(w.end) + ' · to\'langan ' + money(price));
         this.reset();
         go('active');
       } catch (e) { setError('startErr', e.message); }
@@ -4206,7 +4319,8 @@ const Add = {
     $('plateBody').value = '';
     if ($('carLabel')) $('carLabel').value = '';
     if ($('paidStart')) $('paidStart').value = '';
-    STATE.form.paidMin = 60; STATE.form.payNow = '';
+    if ($('paidStartRow')) $('paidStartRow').classList.add('hidden');
+    STATE.form.paidMin = 60; STATE.form.payNow = ''; STATE.form.payWay = 'end';
     setError('labelErr', '');
     setError('plateErr', '');
     setError('startErr', '');
@@ -4320,6 +4434,10 @@ const Queue = {
     const d = Add.collect();
     const err = Add.validate(d);
     if (err) { setError('startErr', err); return; }
+    /* Oddiy mijoz: yo'li (oxirida / oldindan) va oldindan to'lov navbatga ham yoziladi */
+    const w = d.type === 'school' ? null : Add.paidWindow();
+    if (w && w.past) { setError('startErr', "Vaqti o'tgan yozuvni navbatga qo'yib bo'lmaydi — «Yozish va yopish» ni bosing."); return; }
+    const prepay = w && !w.open && STATE.form.payNow ? { method: STATE.form.payNow, amount: Add.paidPrice(w.min) } : null;
     await withBusy('queue:add', $('queueBtn'), async () => {
       const ok = this.enqueue({
         studentId: d.student ? d.student.id : null,
@@ -4337,7 +4455,9 @@ const Queue = {
         model: d.payload.model,
         driverName: d.payload.driverName,
         customerType: d.type,
-        targetSeconds: d.targetSeconds
+        targetSeconds: d.targetSeconds,
+        openEnded: !!(w && w.open),
+        prepay: prepay
       });
       if (!ok) { toast('Bu mijoz shu avtomobil navbatida allaqachon bor.', 'warn'); return; }
       this.render();
@@ -4367,7 +4487,11 @@ const Queue = {
         return '<div class="queue-item"><div class="queue-left"><div class="queue-no">' + (i + 1) + '</div>'
           + '<div><b style="font-size:13.5px">' + esc(q.studentName || 'Oddiy mijoz') + '</b>'
           + '<div class="text-muted" style="font-size:12px">' + esc(sub) + '</div>'
-          + '<div class="text-muted" style="font-size:11.5px">Rejalashtirilgan: ' + esc(durShort(q.targetSeconds || CONFIG.LESSON_SECONDS)) + '</div></div></div>'
+          + '<div class="text-muted" style="font-size:11.5px">' + (q.openEnded
+              ? 'Ochiq vaqt · oxirida to\'laydi'
+              : 'Rejalashtirilgan: ' + esc(durShort(q.targetSeconds || CONFIG.LESSON_SECONDS))
+                + (q.prepay ? ' · to\'langan ' + esc(money(q.prepay.amount)) + ' ' + esc({ cash: 'naqd', terminal: 'terminal', click: 'Klik' }[q.prepay.method] || '') : ''))
+          + '</div></div></div>'
           + '<div class="actions-row" style="margin:0"><span class="badge badge-amber">KUTISHDA</span>'
           + '<button class="btn btn-green btn-sm" type="button" data-act="queueStart" data-id="' + esc(q.queueId) + '"><span class="spinner"></span><i class="fa-solid fa-play btn-icon" aria-hidden="true"></i><span class="btn-text">Boshlash</span></button>'
           + '<button class="btn btn-danger btn-sm" type="button" data-act="queueRemove" data-id="' + esc(q.queueId) + '" aria-label="Navbatdan chiqarish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div></div>';
@@ -4411,18 +4535,21 @@ const Queue = {
         if (CONFIG.SEND_EXTRA_START_FIELDS) {
           payload.instructorId = q.instructorId || null;
           payload.instructor_id = q.instructorId || null;
-          payload.targetDuration = q.targetSeconds || CONFIG.LESSON_SECONDS;
-          payload.target_duration = q.targetSeconds || CONFIG.LESSON_SECONDS;
+          payload.targetDuration = q.openEnded ? 0 : (q.targetSeconds || CONFIG.LESSON_SECONDS);
+          payload.target_duration = payload.targetDuration;
           payload.customerType = q.customerType || 'ordinary';
           payload.instructorName = q.instructorName || null;
           payload.instructor_name = q.instructorName || null;
         }
+        if (q.openEnded) { payload.openEnded = true; payload.open_ended = true; }
+        const pf = q.prepay && { cash: 'cash_amount', terminal: 'terminal_amount', click: 'click_amount' }[q.prepay.method];
+        if (pf && num(q.prepay.amount) > 0) payload[pf] = num(q.prepay.amount);
         const res = await api('/sessions/start', { method: 'POST', body: jsonBody(payload) });
         this.removeById(id);
         await Active.load(true);
         Add.attachMeta(res, {
           payload: payload, body: body,
-          targetSeconds: q.targetSeconds || CONFIG.LESSON_SECONDS,
+          targetSeconds: q.openEnded ? 0 : (q.targetSeconds || CONFIG.LESSON_SECONDS),
           instructor: q.instructorId ? { id: q.instructorId, full_name: q.instructorName, plate: '' } : null,
           student: q.studentId ? { id: q.studentId, full_name: q.studentName } : null,
           type: q.customerType || 'ordinary'
@@ -5823,9 +5950,10 @@ const EntryTicket80 = {
       + row('Rusumi', data.model)
       + row('Mijoz', data.person)
       + row('Instruktor', data.instructor)
-      + row('Foydalanish', hours > 0 ? hours + ' soat' : '')
+      + row('Foydalanish', hours > 0 ? hours + ' soat' : (data.open ? 'Ochiq vaqt' : ''))
       + row('Boshlandi', this.tkTime(data.issued))
       + row('Tugaydi', data.until ? this.tkTime(data.until) : '')
+      + row('To‘lov', data.open ? 'Chiqishda' : (data.paid ? 'To‘langan' : ''))
       + '<div class="hr"></div>'
       + '<div class="ft">Chekni yakunlashda ko‘rsating.<br>Yaxshi yo‘l!</div>',
       bare);
@@ -6175,9 +6303,11 @@ const Active = {
     const person = sessionPerson(v);
     const instructor = sessionInstructor(v);
     const pre = isSchoolSession(v) ? null : Finish.prepaidOf(v);
+    /* Oddiy mijoz, rejadagi vaqt yo'q va to'lanmagan — «oxirida to'laydi» */
+    const openPay = !isSchoolSession(v) && !t.target && !pre;
     const metaLine = [
       v.model || '',
-      isSchoolSession(v) ? "Avtoshkola o'quvchisi" : 'Oddiy mijoz',
+      isSchoolSession(v) ? "Avtoshkola o'quvchisi" : (openPay ? "Oddiy mijoz · oxirida to'laydi" : 'Oddiy mijoz'),
       v.school_name || '',
       v.group_name || ''
     ].filter(Boolean).map(esc).join(' &bull; ')
@@ -6206,10 +6336,13 @@ const Active = {
       + (instructor ? '<div class="vehicle-meta"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktor: <b>' + esc(instructor) + '</b></div>' : '')
       + '<div class="time-row">'
       + '<div class="time-block"><span>O\'tgan</span><b class="elapsed js-elapsed">' + dur(t.elapsed) + '</b></div>'
-      + '<div class="time-block"><span>Qolgan</span><b class="js-remaining ' + leftClass + '">' + (t.remaining === null ? 'Belgilanmagan' : (t.remaining <= 0 ? 'Tugagan' : dur(t.remaining))) + '</b></div>'
-      + '<div class="time-block"><span>Rejadagi</span><b style="font-size:15px;color:var(--muted)">' + (t.target ? esc(durShort(t.target)) : '—') + '</b></div>'
+      + (openPay
+        /* Oxirida to'laydi: rejadagi vaqt yo'q — necha soat bo'lsa shuncha */
+        ? '<div class="time-block"><span>To\'lov</span><b style="font-size:15px;color:var(--amber)">Chiqishda</b></div>'
+        : '<div class="time-block"><span>Qolgan</span><b class="js-remaining ' + leftClass + '">' + (t.remaining === null ? 'Ochiq' : (t.remaining <= 0 ? 'Tugagan' : dur(t.remaining))) + '</b></div>'
+          + '<div class="time-block"><span>Rejadagi</span><b style="font-size:15px;color:var(--muted)">' + (t.target ? esc(durShort(t.target)) : '—') + '</b></div>')
       + '<div class="time-block"><span>Boshlangan</span><b style="font-size:15px;color:var(--muted)">' + esc(timeOnly(v.started_at)) + '</b></div>'
-      + '<div class="time-block"><span>Hisoblangan</span><b class="js-price" style="font-size:15px;color:var(--g-dark)">' + (price === null ? '—' : esc(money(price))) + '</b></div>'
+      + '<div class="time-block"><span>' + (openPay ? 'Hozircha' : 'Hisoblangan') + '</span><b class="js-price" style="font-size:15px;color:var(--g-dark)">' + (price === null ? '—' : esc(money(price))) + '</b></div>'
       + '</div>'
       + (t.target ? '<div class="progress js-progress ' + (tier === 'ok' || tier === 'none' ? '' : tier) + '"><i style="width:' + pct.toFixed(1) + '%"></i></div>' : '')
       + '<div class="js-warn">' + warn + '</div>'
@@ -6247,7 +6380,7 @@ const Active = {
       if (el) el.textContent = dur(t.elapsed);
       const rem = card.querySelector('.js-remaining');
       if (rem) {
-        rem.textContent = t.remaining === null ? 'Belgilanmagan' : (t.remaining <= 0 ? 'Tugagan' : dur(t.remaining));
+        rem.textContent = t.remaining === null ? 'Ochiq' : (t.remaining <= 0 ? 'Tugagan' : dur(t.remaining));
         rem.className = 'js-remaining ' + (t.remaining === null ? 'left-none' : tier === 'amber' ? 'left-amber' : (tier === 'red' || tier === 'crit') ? 'left-red' : 'left-ok');
       }
       const pr = card.querySelector('.js-progress > i');
@@ -6297,7 +6430,7 @@ const Finish = {
      10:30), yarim soatlik narx, oldindan to'langan bo'lsa faqat ortiqcha
      vaqt so'raladi. To'lov: Naqd / Terminal / Klik / Aralash.
      Avtoshkola o'quvchisi: to'lovsiz (avvalgidek). */
-  sess: null, source: 'active', payMode: 'cash', suggested: 0, prepaid: null, endEditable: false,
+  sess: null, source: 'active', payMode: 'cash', suggested: 0, prepaid: null, endEditable: false, noExtra: false,
   endTouched: false, endExact: null,
 
   prepaidOf(v) {
@@ -6352,8 +6485,8 @@ const Finish = {
       + '<div class="kv-grid" style="margin-bottom:14px">'
       + '<div class="kv-item"><b>' + esc(person) + '</b><span>Mijoz</span></div>'
       + '<div class="kv-item"><b>' + esc(timeOnly(v.started_at)) + '</b><span>Kirish</span></div>'
-      + '<div class="kv-item"><b>' + (t.target ? esc(hoursText(t.target / 3600)) + (planEnd ? ' · ' + esc(hhmm(planEnd)) + ' gacha' : '') : '—') + '</b><span>Buyurtma</span></div>'
-      + '<div class="kv-item"><b id="finActual">' + esc(hoursText(t.elapsed / 3600)) + '</b><span>Haqiqiy vaqt</span></div>'
+      + '<div class="kv-item"><b>' + (t.target ? esc(hoursText(t.target / 3600)) + (planEnd ? ' · ' + esc(hhmm(planEnd)) + ' gacha' : '') : (isSchool ? '—' : 'Ochiq vaqt')) + '</b><span>' + (t.target || isSchool ? 'Buyurtma' : 'To\'lov oxirida') + '</span></div>'
+      + '<div class="kv-item"><b id="finActual">' + esc(ranText(t.elapsed)) + '</b><span>Yurgan vaqti</span></div>'
       + '</div>'
       + (instructor ? '<div class="field-help" style="margin-bottom:10px"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktor: <b>' + esc(instructor) + '</b></div>' : '')
       + (lessons ? '<div class="field-help" style="margin-bottom:10px"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> Bu sessiya <b>' + lessons + ' dars</b> sifatida hisoblanadi (1 soat = 1 dars).</div>' : '')
@@ -6370,7 +6503,9 @@ const Finish = {
         ? '<div class="autofill" style="margin-bottom:12px"><div class="autofill-head mb-0"><b><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> Avtoshkola o\'quvchisi</b><b style="color:var(--g-dark)">To\'lovsiz</b></div></div>'
         : '<div class="autofill" style="margin-bottom:12px" id="finCalc"></div>')
       + (isSchool ? '' :
-          '<label class="field-label"><i class="fa-solid fa-wallet" aria-hidden="true"></i> To\'lov turi</label>'
+          '<div id="finPaidNote" class="autofill hidden" style="margin-bottom:12px"><div class="autofill-head mb-0"><b><i class="fa-solid fa-circle-check" aria-hidden="true" style="color:var(--g)"></i> Oldindan to\'langan — qo\'shimcha to\'lov yo\'q</b></div></div>'
+        + '<div id="finPayWrap">'
+        + '<label class="field-label"><i class="fa-solid fa-wallet" aria-hidden="true"></i> To\'lov turi</label>'
         + '<div class="seg full" id="payModeSeg" style="margin-bottom:12px">'
         + '<button class="seg-btn active" type="button" data-act="finishPay" data-mode="cash"><i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i> Naqd</button>'
         + '<button class="seg-btn" type="button" data-act="finishPay" data-mode="terminal"><i class="fa-solid fa-credit-card" aria-hidden="true"></i> Terminal</button>'
@@ -6387,7 +6522,8 @@ const Finish = {
         + '<div><label class="field-label" for="finTerm"><i class="fa-solid fa-credit-card" aria-hidden="true"></i> Terminal</label><input id="finTerm" type="number" min="0" step="1000" value="0" inputmode="numeric"></div>'
         + '<div><label class="field-label" for="finClick"><i class="fa-solid fa-mobile-screen" aria-hidden="true"></i> Klik</label><input id="finClick" type="number" min="0" step="1000" value="0" inputmode="numeric"></div>'
         + '</div></div>'
-        + '<div class="autofill" style="margin-top:12px"><div class="autofill-head mb-0"><b>Jami to\'lov</b><b id="finTotal" style="font-size:20px;color:var(--g-dark)">0</b></div></div>')
+        + '<div class="autofill" style="margin-top:12px"><div class="autofill-head mb-0"><b>Jami to\'lov</b><b id="finTotal" style="font-size:20px;color:var(--g-dark)">0</b></div></div>'
+        + '</div>')
       + '<div class="actions-row">'
       + '<button class="btn btn-green btn-lg" type="submit" id="finBtn"><span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Yakunlash</span></button>'
       + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
@@ -6412,7 +6548,7 @@ const Finish = {
     const pre = this.prepaid;
     const due = price === null ? 0 : Math.max(0, price - (pre ? pre.total : 0));
     this.suggested = due;
-    const act = $('finActual'); if (act) act.textContent = hoursText(el / 3600);
+    const act = $('finActual'); if (act) act.textContent = ranText(el);
     const calc = $('finCalc');
     if (calc) {
       const mins = billMinutes(el, t.target);
@@ -6421,12 +6557,18 @@ const Finish = {
       calc.innerHTML = price === null
         ? '<div class="field-help"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Soatlik narx sozlanmagan — summani qo\'lda kiriting.</div>'
         : '<div class="autofill-head mb-0"><div><b>Hisoblangan narx</b><div class="text-muted" style="font-size:12px">'
-          + esc(hoursText(mins / 60)) + ' &bull; soatiga ' + esc(money(tariff(v).rate)) + ' (har 30 daqiqa — ' + esc(money(tariff(v).rate / 2)) + ')</div></div>'
+          + esc(ranText(el)) + ' yurdi &rarr; <b>' + esc(hoursText(mins / 60)) + '</b> hisoblandi &bull; har 30 daqiqa ' + esc(money(tariff(v).rate / 2)) + '</div></div>'
           + '<b style="font-size:22px;color:var(--g-dark)">' + esc(money(price)) + '</b></div>'
           + (pre ? '<div class="money-line" style="margin-top:8px"><span>Oldindan to\'langan</span><b>' + esc(preTxt) + '</b></div>'
             + '<div class="money-line"><span>' + (due > 0 ? 'Qo\'shimcha to\'lov (ortiqcha vaqt)' : 'Qo\'shimcha to\'lov') + '</span><b style="color:' + (due > 0 ? 'var(--red)' : 'var(--g-dark)') + '">' + esc(money(due)) + '</b></div>' : '');
     }
     const lbl = $('finAmountLbl'); if (lbl) lbl.textContent = pre ? 'Qo\'shimcha to\'lov summasi (so\'m)' : 'To\'lov summasi (so\'m)';
+    /* Oldindan to'langan va ortiqcha vaqt yo'q — to'lov so'ralmaydi, bitta tugma */
+    const noExtra = !!pre && price !== null && due === 0;
+    if ($('finPayWrap')) $('finPayWrap').classList.toggle('hidden', noExtra);
+    if ($('finPaidNote')) $('finPaidNote').classList.toggle('hidden', !noExtra);
+    this.noExtra = noExtra;
+    if (noExtra && this.payMode === 'mixed') this.quickPayMode('cash');
     if (fillAmount) {
       if (this.payMode === 'mixed') {
         if ($('finCash')) $('finCash').value = due; if ($('finTerm')) $('finTerm').value = 0; if ($('finClick')) $('finClick').value = 0;
@@ -6447,13 +6589,23 @@ const Finish = {
     const a = this.amounts(), pre = this.prepaid;
     const el = $('finTotal');
     if (el) el.textContent = money(a.cash + a.term + a.click + (pre ? pre.total : 0));
+    /* Tugmada shu safar olinadigan pul ko'rinadi */
+    const now = a.cash + a.term + a.click;
+    const fbt = $('finBtn') && $('finBtn').querySelector('.btn-text');
+    if (fbt && this.sess && !isSchoolSession(this.sess)) {
+      fbt.textContent = this.noExtra ? 'Yopish' : (now > 0 ? money(now) + ' olindi — yakunlash' : 'Yakunlash');
+    }
   },
-  quickPay(mode) {
+  /* To'lov turi tugmalarini almashtiradi (hisobni qayta qilmasdan) */
+  quickPayMode(mode) {
     this.payMode = mode;
     $$('#payModeSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
     const single = $('paySingleWrap'), mixed = $('payMixedWrap');
     if (single) single.classList.toggle('hidden', mode === 'mixed');
     if (mixed) mixed.classList.toggle('hidden', mode !== 'mixed');
+  },
+  quickPay(mode) {
+    this.quickPayMode(mode);
     this.recalc(true);
   },
   setEnd(hm) {
@@ -6648,6 +6800,8 @@ function hoursText(h) {
   if (!sa && !dq) return '0';
   return (sa ? sa + ' soat' : '') + (dq ? (sa ? ' ' : '') + dq + ' daq' : '');
 }
+/* Soniyadan «1 soat 40 daq»; bir daqiqadan kam bo'lsa «0 daq» */
+function ranText(sec) { const r = hoursText(num(sec) / 3600); return r === '0' ? '0 daq' : r; }
 
 const Reports = {
   seg: 'all',
@@ -10385,6 +10539,8 @@ const ACTIONS = {
   printEntrySession: d => EntryTicket80.fromSession(d.id),
   addToQueue: () => Queue.addFromForm(),
   paidMin: d => Add.setPaidMin(d.m),
+  payWay: d => Add.setPayWay(d.w),
+  paidStartToggle: () => Add.paidStartToggle(),
   /* --- rasxod va kunlik Excel --- */
   rxCat: d => Rasxod.setCat(d.c),
   rxPay: d => Rasxod.setPay(d.p),

@@ -342,6 +342,11 @@ export async function handleCompatRequest(req, res) {
         }
         if (!target) target = 3600;
         target = Math.min(12 * 3600, Math.max(900, Math.round(target)));
+        /* OXIRIDA TO'LAYDI: oddiy mijozning vaqti ochiq — rejadagi vaqt
+           yozilmaydi (NULL), narx chiqishda haqiqiy vaqtdan hisoblanadi. */
+        const openEnded = !studentId && customerType !== 'school'
+          && (body.openEnded === true || body.open_ended === true);
+        if (openEnded) target = null;
 
         /* ===== VAQT ORALIG'I (masalan 11:00 dan 12:00 gacha) =====
            Operator aniq soatni tanlagan bo'lsa, sessiya o'sha soatda
