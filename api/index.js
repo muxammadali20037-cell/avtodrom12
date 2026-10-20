@@ -12,6 +12,7 @@ import { handleGateRequest } from "./gate-routes.js";
 import { handleAccessRequest, ensureAccessSchema } from "./access-routes.js";
 import { handleKassaRequest, ensureKassaSchema, sweepForRequest } from "./kassa-routes.js";
 import { handleBridgeRequest } from "./bridge-analytics.js";
+import { handleOwnerBridgeRequest } from "./bridge-owner.js";
 import instructorHandler from "./instructor.js";
 import instructorsFixed from "./instructors-fixed.js";
 import instructorDailyHandler from "./instructor-daily.js";
@@ -42,6 +43,9 @@ export default async function handler(req, res) {
   /* ANALITIKA KO'PRIGI — Avtodrom admin «Analitika» sahifasi uchun
      (faqat o'qiydi; kalit: RECEIPT_SHARED_KEY, QR chek ko'prigi bilan bir xil) */
   if (path === "/api/bridge/analytics") return handleBridgeRequest(req, res);
+  /* BOSHLIQ KO'PRIGI — Avtodrom «Boshliq ilovasi» (iPhone): avtoshkola,
+     platniy (oddiy mijoz), xarajatlar. Faqat o'qiydi, kalit o'sha. */
+  if (path === "/api/bridge/owner") return handleOwnerBridgeRequest(req, res);
 
   /* Telegram instruktor mini-ilovasi — FAQAT birlikdagi /api/instructor/...
      Ilgari bu shart `startsWith("/api/instructor")` edi va ko'plikdagi
