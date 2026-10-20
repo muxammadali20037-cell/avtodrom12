@@ -1,7 +1,8 @@
 /**
  * BOSHLIQ KO'PRIGI — Avtodrom «Boshliq ilovasi» uchun (mashina-mashina)
  *
- *   GET /api/bridge/owner?from=YYYY-MM-DD&to=YYYY-MM-DD&bucket=hour|day|month
+ *   GET /api/bridge/owner?from=YYYY-MM-DD&to=YYYY-MM-DD&bucket=hour|day|month[&cut=ISO]
+ *   cut — davr hali tugamagan bo'lsa «hozir»: oldingi davr ham aynan shu nuqtagacha olinadi.
  *   Sarlavha: X-Receipt-Key: <RECEIPT_SHARED_KEY>   (Analitika ko'prigi bilan bir xil)
  *
  * Avtodrom serveri shu manzildan o'qiydi va boshliq telefonidagi ilovada
@@ -34,8 +35,9 @@ const todayTk = () => new Date(Date.now() + TZ_OFFSET_MS).toISOString().slice(0,
 const col = (alias, name) => `NULLIF(to_jsonb(${alias})->>'${name}', '')`;
 const numCol = (alias, name) => `COALESCE(${col(alias, name)}::numeric, 0)`;
 
-/** Avtoshkola sessiyasi. customer_type NULL bo'lsa ham to'g'ri ishlasin (NOT NULL = NULL tuzog'i). */
-export const IS_SCHOOL = `(s.school_id IS NOT NULL OR COALESCE(s.customer_type, '') = 'school')`;
+/** Avtoshkola sessiyasi (o'quvchi, avtoshkola yoki turi 'school' — boshqa hisobotlar bilan bir xil).
+ *  customer_type NULL bo'lsa ham to'g'ri ishlasin (NOT NULL = NULL tuzog'i). */
+export const IS_SCHOOL = `(s.school_id IS NOT NULL OR s.student_id IS NOT NULL OR COALESCE(s.customer_type, '') = 'school')`;
 export const IS_PAID = `NOT ${IS_SCHOOL}`;
 
 function send(res, status, data) {
@@ -70,7 +72,7 @@ function elapsedSec(s, now) {
 
 /* ======================================================================= */
 
-export async function buildOwnerBridge(range, db = pool) {
+export async function buildOwnerBridge(range, db = pool, cut = null) {
   const warnings = [];
   const safe = makeSafe(warnings, db);
   const keys = owners();
@@ -80,7 +82,10 @@ export async function buildOwnerBridge(range, db = pool) {
   const { from, to, prevFrom, bucket, fromYmd, toYmd } = range;
   const fmt = FMT[bucket] || FMT.day;
   const cur = withKeys([from.toISOString(), to.toISOString()]);
-  const prev = withKeys([prevFrom.toISOString(), from.toISOString()]);
+  /* Davr davom etyapti (bugun…) — oldingi davr shu vaqtgacha: ertalab «kechagidan kam» chiqmasin */
+  const cutMs = cut instanceof Date && !Number.isNaN(cut.getTime()) && cut > from && cut < to ? cut.getTime() : null;
+  const prevTo = cutMs ? new Date(prevFrom.getTime() + (cutMs - from.getTime())) : from;
+  const prev = withKeys([prevFrom.toISOString(), prevTo.toISOString()]);
   const done = `s.status = 'completed' AND s.started_at >= $1 AND s.started_at < $2${own('s.user_id', 3)}`;
   const tk = `(s.started_at AT TIME ZONE '${TZ}')`;
   const secs = `COALESCE(s.duration_seconds, 0)`;
@@ -196,7 +201,7 @@ export async function buildOwnerBridge(range, db = pool) {
         LEFT JOIN driving_schools ds ON ds.id::text = s.school_id::text
         LEFT JOIN instructors i      ON i.id::text = ${col('s', 'instructor_id')}
        WHERE s.status IN ('active', 'paused', 'frozen')${own('s.user_id', 1)}
-       ORDER BY s.started_at ASC LIMIT 80`, withKeys([])),
+       ORDER BY s.started_at ASC LIMIT 200`, withKeys([])),
     safe('waiting', `SELECT COUNT(*)::int AS n FROM waiting_sessions w WHERE TRUE${own('w.user_id', 1)}`, withKeys([])),
     safe('operators', `
       SELECT COALESCE(NULLIF(u.full_name, ''), u.username, 'Operator') AS name,
@@ -360,7 +365,7 @@ export async function buildOwnerBridge(range, db = pool) {
     source: 'avtodrom12',
     kind: 'owner',
     generated_at: new Date().toISOString(),
-    from_day: fromYmd, to_day: toYmd, days: range.days, bucket,
+    from_day: fromYmd, to_day: toYmd, days: range.days, bucket, previous_to: prevTo.toISOString(),
     scoped_to_owners: keys.length,
 
     paid: {
@@ -421,8 +426,10 @@ export async function handleOwnerBridgeRequest(req, res) {
   if (!checkBridgeKey(req)) return send(res, 401, { ok: false, error: 'Kalit noto‘g‘ri' });
   const range = bridgeRange(url.searchParams);
   if (range.error) return send(res, 400, { ok: false, error: range.error });
+  const cutRaw = url.searchParams.get('cut');
+  const cut = cutRaw ? new Date(cutRaw) : null;
   try {
-    return send(res, 200, await buildOwnerBridge(range));
+    return send(res, 200, await buildOwnerBridge(range, pool, cut));
   } catch (e) {
     console.error('OWNER BRIDGE:', e?.message || e);
     return send(res, 500, { ok: false, error: 'Boshliq ma’lumoti hisoblanmadi' });
