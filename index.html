@@ -822,6 +822,10 @@ body.admin-open { overflow: hidden; }
 .in-money small { display: block; font-size: 12px; color: var(--muted); }
 .in-row.over .in-money b, .in-row.over .in-sub .ov { color: var(--red); }
 #carLabel::-webkit-calendar-picker-indicator { display: none !important; }
+/* «Oddiy mijoz ←» / «Avtoshkola o'quvchisi →» — strelka bilan almashadi */
+.tab-kbd { display: inline-block; margin-left: 8px; padding: 0 7px; border: 1.5px solid currentColor; border-radius: 6px;
+  font-family: Arial, sans-serif; font-size: 15px; font-weight: 700; line-height: 18px; opacity: .65; vertical-align: middle; }
+@media (pointer: coarse) { .tab-kbd { display: none; } }
 .in-money.unpaid b { color: #b45309; }
 .in-tag { display: inline-block; font-size: 11.5px; font-weight: 700; border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
 .in-tag.paid { background: #dcfce7; color: #166534; }
@@ -1229,8 +1233,8 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 
         <div class="panel">
           <div class="seg full" id="typeSeg" role="tablist" aria-label="Mijoz turi">
-            <button class="seg-btn active" type="button" role="tab" aria-selected="true" data-act="setType" data-type="ordinary"><i class="fa-solid fa-user" aria-hidden="true"></i> Oddiy mijoz</button>
-            <button class="seg-btn" type="button" role="tab" aria-selected="false" data-act="setType" data-type="school"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> Avtoshkola o'quvchisi</button>
+            <button class="seg-btn active" type="button" role="tab" aria-selected="true" data-act="setType" data-type="ordinary" title="Klaviaturada ← (chap strelka)"><i class="fa-solid fa-user" aria-hidden="true"></i> Oddiy mijoz <kbd class="tab-kbd" aria-hidden="true">←</kbd></button>
+            <button class="seg-btn" type="button" role="tab" aria-selected="false" data-act="setType" data-type="school" title="Klaviaturada → (o'ng strelka)"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> Avtoshkola o'quvchisi <kbd class="tab-kbd" aria-hidden="true">→</kbd></button>
           </div>
 
           <form id="startForm" data-act="startSubmit" novalidate style="margin-top:18px">
@@ -3398,6 +3402,7 @@ const Add = {
     setInterval(() => { if (STATE.page === 'add' && STATE.form.customerType !== 'school' && !document.hidden) { this.renderPaidSum(); this.renderInside(); } }, 20000);
     this.renderPaid();
     this.wireTypeToSearch();
+    this.wireTypeArrows();
   },
 
   onEnter() {
@@ -3549,6 +3554,35 @@ const Add = {
      Kursor biror sabab bilan ism maydonida bo'lmasa ham (chek oynasidan
      keyin, sahifaning bo'sh joyi bosilganda) operator yozishni boshlashi
      bilan harf ism maydoniga tushadi — avval maydonni bosish shart emas. */
+  /* ===== ← → BILAN ALMASHISH =====
+     Klaviaturadagi chap strelka — «Oddiy mijoz», o'ng strelka —
+     «Avtoshkola o'quvchisi». Almashishi bilan kursor o'sha bo'limning
+     yozish maydonida turadi (sichqoncha shart emas). Maydonda matn
+     yozilgan bo'lsa strelka odatdagidek harf orasida yuradi. */
+  focusMain() {
+    if (STATE.form.customerType === 'school') {
+      if (this.comboStudent) this.comboStudent.focus(true);
+      else if ($('comboStudentInput')) $('comboStudentInput').focus();
+    } else if ($('carLabel')) $('carLabel').focus();
+  },
+  wireTypeArrows() {
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.isComposing) return;
+      if (STATE.page !== 'add') return;
+      if ($('modal') && $('modal').innerHTML) return;
+      if (typeof CascadePick !== 'undefined' && CascadePick.step) return;
+      if (typeof GroupPick !== 'undefined' && GroupPick.open_) return;
+      const a = document.activeElement;
+      const free = !a || a === document.body || a === document.documentElement || a.tagName === 'BUTTON' || a.tagName === 'IFRAME';
+      const emptyMain = a && (a.id === 'carLabel' || a.id === 'comboStudentInput') && !String(a.value || '').trim();
+      if (!free && !emptyMain) return;
+      e.preventDefault();
+      const to = e.key === 'ArrowRight' ? 'school' : 'ordinary';
+      if (STATE.form.customerType !== to) this.setType(to);
+      setTimeout(() => this.focusMain(), 40);
+    }, true);
+  },
   wireTypeToSearch() {
     document.addEventListener('keydown', e => {
       if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
