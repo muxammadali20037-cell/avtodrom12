@@ -132,6 +132,7 @@ export async function buildOwnerBridge(range, db = pool, cut = null) {
     liveRows, waitingRows, operatorRows,
     schoolRows, schoolMeta, overRows, schoolInstr, receiptRows, studentRows, expiringRows,
     expTot, expPrevRows, expCat, expVeh, expPerson, expSeries, expRecent,
+    schoolSeries, expCatSeries, schoolGroups,
   ] = await Promise.all([
     safe('totals', totalsSql, cur),
     safe('previous', totalsSql, prev),
@@ -284,7 +285,23 @@ export async function buildOwnerBridge(range, db = pool, cut = null) {
       SELECT e.id::text AS id, to_char(e.spent_on, 'YYYY-MM-DD') AS day, e.category, e.person, e.vehicle,
              e.amount::float8 AS amount, e.pay_method, e.liters::float8 AS liters, e.odometer, e.note, e.created_at
         FROM expenses e WHERE ${expWhere}
-       ORDER BY e.spent_on DESC, e.created_at DESC LIMIT 60`, expCur),
+       ORDER BY e.spent_on DESC, e.created_at DESC LIMIT 200`, expCur),
+
+    /* ---------------- har bir avtoshkola / xarajat turi bo'yicha dinamika ---------------- */
+    safe('school_series', `
+      SELECT s.school_id::text AS id, to_char(${tk}, '${fmt}') AS k,
+             COUNT(*)::int AS sessions, COALESCE(SUM(${lessons}), 0)::int AS lessons
+        FROM sessions s WHERE ${done} AND s.school_id IS NOT NULL GROUP BY 1, 2 ORDER BY 2`, cur),
+    safe('expenses_category_series', `
+      SELECT e.category AS name, ${expKey} AS k, COALESCE(SUM(e.amount), 0)::float8 AS total
+        FROM expenses e WHERE ${expWhere} GROUP BY 1, 2 ORDER BY 2`, expCur),
+    /* Avtoshkola guruhlari: davrdagi faollik */
+    safe('school_groups', `
+      SELECT s.school_id::text AS school_id, g.id::text AS id, COALESCE(g.name, 'Guruhsiz') AS name,
+             COUNT(*)::int AS sessions, COALESCE(SUM(${lessons}), 0)::int AS lessons, COUNT(DISTINCT s.student_id)::int AS students
+        FROM sessions s LEFT JOIN school_groups g ON g.id::text = s.group_id::text
+       WHERE ${done} AND s.school_id IS NOT NULL
+       GROUP BY 1, 2, 3 ORDER BY lessons DESC LIMIT 200`, cur),
   ]);
 
   /* ---------------- jamlash ---------------- */
@@ -330,6 +347,13 @@ export async function buildOwnerBridge(range, db = pool, cut = null) {
       over_lessons: 0, over_due: 0, revenue: 0, active_students: n(m.active_students), active_groups: n(m.active_groups),
       free_visits: m.free_visits ?? null });
   }
+  const serBy = new Map();
+  for (const r of schoolSeries) { const a = serBy.get(String(r.id)) || []; a.push({ key: r.k, sessions: n(r.sessions), lessons: n(r.lessons) }); serBy.set(String(r.id), a); }
+  const grpBy = new Map();
+  for (const g of schoolGroups) { const a = grpBy.get(String(g.school_id)) || []; a.push({ id: g.id || null, name: g.name, sessions: n(g.sessions), lessons: n(g.lessons), students: n(g.students) }); grpBy.set(String(g.school_id), a); }
+  for (const x of schools) { x.series = serBy.get(String(x.id)) || []; x.groups = grpBy.get(String(x.id)) || []; }
+  const ecs = new Map();
+  for (const r of expCatSeries) { const a = ecs.get(String(r.name)) || []; a.push({ key: r.k, total: n(r.total) }); ecs.set(String(r.name), a); }
   const overDue = overRows.reduce((a, o) => a + n(o.due), 0);
   const overStudents = overRows.reduce((a, o) => a + n(o.students), 0);
 
@@ -404,7 +428,7 @@ export async function buildOwnerBridge(range, db = pool, cut = null) {
     expenses: {
       total: n(E.total), count: n(E.n), previous_total: n(expPrevRows[0]?.total),
       by_method: { cash: n(E.cash), card: n(E.card), click: n(E.click) }, liters: n(E.liters),
-      categories: expCat.map((r) => ({ name: r.name, n: n(r.n), total: n(r.total), liters: n(r.liters) })),
+      categories: expCat.map((r) => ({ name: r.name, n: n(r.n), total: n(r.total), liters: n(r.liters), series: ecs.get(String(r.name)) || [] })),
       vehicles: expVeh.map((r) => ({ name: r.name, n: n(r.n), total: n(r.total), liters: n(r.liters), odometer: r.odometer ?? null })),
       people: expPerson.map((r) => ({ name: r.name, n: n(r.n), total: n(r.total) })),
       series: expSeries.map((r) => ({ key: r.k, total: n(r.total) })),
