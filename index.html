@@ -6090,16 +6090,16 @@ const EntryTicket80 = {
       bare);
   },
 
-  /* ============ ODDIY MIJOZ CHEKI (to'lovli) ============
-     Tepasida qora fonda oq «PLATNIY» katagi — kassir ham,
-     nazoratchi ham bir qarashda to'lovli ekanini ko'radi. */
+  /* ============ ODDIY MIJOZ: KIRISH TALONI ============
+     Tepasida qora fonda oq «KIRISH TALONI» katagi (ilgari «PLATNIY»
+     edi — foydalanuvchi talabi, 2026-10-20). */
   paidHTML(data, bare) {
     const row = (l, v) => this.tkRow(l, v);
     const hours = num(data.hours) || 0;
-    return this.ticketShell('To‘lov cheki',
+    return this.ticketShell('Kirish taloni',
         '<div class="b">INDEX AVTODROM</div>'
       + '<div class="h">Avtodromdan foydalanish</div>'
-      + '<div class="badge">PLATNIY<small>TO‘LOVLI XIZMAT</small></div>'
+      + '<div class="badge">KIRISH TALONI</div>'
       + '<div class="big">' + esc(data.plate || '—') + '</div>'
       + this.gateBlock(data.gateCode)
       /* Summa va narx chekda ko'rsatilmaydi — to'lov kassada
