@@ -802,6 +802,49 @@ body.admin-open { overflow: hidden; }
   cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .link-btn:hover { color: var(--g); }
 .link-btn i { margin-right: 3px; }
+/* ===== «Yangi avtomobil» — sodda ko'rinish: raqamli qadamlar, bitta katta tugma =====
+   Yangi odam yuqoridan pastga o'qib boradi: 1 → 2 → 3 → «Kirdi». */
+.type-tab { min-height: 60px; font-size: 15px; gap: 10px; }
+.type-tab > i { font-size: 18px; }
+.type-tab .tt { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; text-align: left; }
+.type-tab .tt b { font-size: 15.5px; }
+.type-tab .tt small { font-size: 12px; font-weight: 500; color: var(--muted); }
+.type-tab.active .tt small { color: var(--g-dark); }
+.step { display: flex; align-items: center; margin: 22px 0 9px; }
+.step.first { margin-top: 2px; }
+.step-t { display: inline-flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 800; color: var(--text); margin: 0 0 9px; }
+.step .step-t { margin: 0; }
+label.step-t { display: flex; }
+.step-t small { font-size: 13px; font-weight: 500; color: var(--muted); }
+.step-n { width: 26px; height: 26px; border-radius: 50%; background: var(--g); color: #fff; font-size: 14px; font-weight: 800;
+  display: inline-grid; place-items: center; flex: none; line-height: 1; }
+.school-only { display: none; }
+#startForm.is-school .school-only { display: inline-grid; }
+#labelField #carLabel { width: 100%; }
+#labelField .qe-chips { gap: 8px; }
+#labelField .qe-chip { min-width: 84px; padding: 9px 14px; text-align: center; }
+#labelField .qe-chip b { font-size: 15.5px; }
+#labelField #qePay .qe-chip { min-width: 112px; }
+.qe-note { border-radius: 10px; background: #f8fafc; border: 1px dashed #cbd5e1; padding: 10px 14px; font-size: 14px; color: var(--text-secondary); }
+.qe-note i { color: var(--amber); margin-right: 6px; }
+.qe-more { color: var(--muted); font-weight: 600; }
+#labelField .qe-links { margin-top: 18px; padding-top: 12px; border-top: 1px dashed var(--line); }
+#kirdiField .qe-sum { margin-top: 4px; }
+#kirdiField .qe-go { width: 100%; margin-top: 12px; min-height: 62px; font-size: 19px; justify-content: center; letter-spacing: .01em; }
+#labelField, #kirdiField, #instructorField { min-width: 0; }
+#kirdiField .qe-go { white-space: normal; text-align: center; line-height: 1.25; padding-top: 10px; padding-bottom: 10px; }
+.go-kbd { margin-left: 12px; padding: 1px 8px; border: 1.5px solid rgba(255,255,255,.55); border-radius: 6px; font: 700 12px/18px Arial, sans-serif; opacity: .85; }
+@media (pointer: coarse) { .go-kbd { display: none; } }
+.help-more { margin-top: 8px; }
+.help-more > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--g-dark); list-style: none; display: inline-flex; gap: 6px; align-items: center; }
+.help-more > summary::-webkit-details-marker { display: none; }
+.help-more[open] > summary { margin-bottom: 4px; }
+@media (max-width: 640px) {
+  .type-tab .tt small { display: none; }
+  #labelField .qe-chip { min-width: 0; flex: 1 1 calc(33% - 8px); }
+  #labelField #qePay .qe-chip { min-width: 0; flex: 1 1 calc(50% - 8px); }
+  #kirdiField .qe-go { font-size: 17px; }
+}
 @media (max-width: 640px) {
   .qe-pick { flex-direction: column; align-items: flex-start; gap: 6px; }
   .qe-lbl { width: auto; }
@@ -1243,8 +1286,8 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 
         <div class="panel">
           <div class="seg full" id="typeSeg" role="tablist" aria-label="Mijoz turi">
-            <button class="seg-btn active" type="button" role="tab" aria-selected="true" data-act="setType" data-type="ordinary" title="Klaviaturada ← (chap strelka)"><i class="fa-solid fa-user" aria-hidden="true"></i> Oddiy mijoz <kbd class="tab-kbd" aria-hidden="true">←</kbd></button>
-            <button class="seg-btn" type="button" role="tab" aria-selected="false" data-act="setType" data-type="school" title="Klaviaturada → (o'ng strelka)"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> Avtoshkola o'quvchisi <kbd class="tab-kbd" aria-hidden="true">→</kbd></button>
+            <button class="seg-btn type-tab active" type="button" role="tab" aria-selected="true" data-act="setType" data-type="ordinary" title="Klaviaturada ← (chap strelka)"><i class="fa-solid fa-user" aria-hidden="true"></i><span class="tt"><b>Oddiy mijoz</b><small>pullik — vaqt ochiladi</small></span><kbd class="tab-kbd" aria-hidden="true">←</kbd></button>
+            <button class="seg-btn type-tab" type="button" role="tab" aria-selected="false" data-act="setType" data-type="school" title="Klaviaturada → (o'ng strelka)"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i><span class="tt"><b>Avtoshkola o'quvchisi</b><small>davomat yoziladi</small></span><kbd class="tab-kbd" aria-hidden="true">→</kbd></button>
           </div>
 
           <form id="startForm" data-act="startSubmit" novalidate style="margin-top:18px">
@@ -1252,20 +1295,24 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
             <!-- O'quvchi bloki -->
             <div id="studentBlock" class="hidden">
               <div class="student-pick-head">
-                <label class="field-label" for="comboStudentInput"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> O'quvchi</label>
+                <label class="step-t" for="comboStudentInput"><span class="step-n">1</span> O'quvchi</label>
                 <button class="btn btn-light btn-sm" type="button" data-act="openGroupPick"><i class="fa-solid fa-users" aria-hidden="true"></i> Guruh bo'yicha tanlash</button>
               </div>
               <!-- Bosqichma-bosqich: Avtoshkola → Guruh → O'quvchi -->
               <div class="cp-row" id="cpRow">
-                <button class="cp-btn" type="button" data-act="cpOpen" data-step="school" id="cpBtn_school"><span class="cp-ico"><i class="fa-solid fa-school" aria-hidden="true"></i></span><span class="cp-txt"><span class="cp-lbl">1. Avtoshkola</span><span class="cp-val empty" id="cpVal_school">Tanlang</span></span><i class="fa-solid fa-chevron-down cp-chev" aria-hidden="true"></i></button>
-                <button class="cp-btn" type="button" data-act="cpOpen" data-step="group" id="cpBtn_group" disabled><span class="cp-ico"><i class="fa-solid fa-users" aria-hidden="true"></i></span><span class="cp-txt"><span class="cp-lbl">2. Guruh</span><span class="cp-val empty" id="cpVal_group">Avval avtoshkola</span></span><i class="fa-solid fa-chevron-down cp-chev" aria-hidden="true"></i></button>
-                <button class="cp-btn" type="button" data-act="cpOpen" data-step="student" id="cpBtn_student" disabled><span class="cp-ico"><i class="fa-solid fa-user-graduate" aria-hidden="true"></i></span><span class="cp-txt"><span class="cp-lbl">3. O'quvchi</span><span class="cp-val empty" id="cpVal_student">Avval guruh</span></span><i class="fa-solid fa-chevron-down cp-chev" aria-hidden="true"></i></button>
+                <button class="cp-btn" type="button" data-act="cpOpen" data-step="school" id="cpBtn_school"><span class="cp-ico"><i class="fa-solid fa-school" aria-hidden="true"></i></span><span class="cp-txt"><span class="cp-lbl">Avtoshkola</span><span class="cp-val empty" id="cpVal_school">Tanlang</span></span><i class="fa-solid fa-chevron-down cp-chev" aria-hidden="true"></i></button>
+                <button class="cp-btn" type="button" data-act="cpOpen" data-step="group" id="cpBtn_group" disabled><span class="cp-ico"><i class="fa-solid fa-users" aria-hidden="true"></i></span><span class="cp-txt"><span class="cp-lbl">Guruh</span><span class="cp-val empty" id="cpVal_group">Avval avtoshkola</span></span><i class="fa-solid fa-chevron-down cp-chev" aria-hidden="true"></i></button>
+                <button class="cp-btn" type="button" data-act="cpOpen" data-step="student" id="cpBtn_student" disabled><span class="cp-ico"><i class="fa-solid fa-user-graduate" aria-hidden="true"></i></span><span class="cp-txt"><span class="cp-lbl">O'quvchi</span><span class="cp-val empty" id="cpVal_student">Avval guruh</span></span><i class="fa-solid fa-chevron-down cp-chev" aria-hidden="true"></i></button>
               </div>
               <div id="cpPanel" class="cp-panel hidden"></div>
               <div id="comboStudent"></div>
-              <div class="kb-hint" id="kbHint"><i class="fa-regular fa-keyboard" aria-hidden="true"></i> Sichqonchasiz: ismni yozing → <kbd>Enter</kbd> tanlaydi → yana <kbd>Enter</kbd> davomat + chek.
-                <kbd>+</kbd><kbd>−</kbd> darslar soni · <kbd>↓</kbd><kbd>↑</kbd> boshqa ism · topilmasa <kbd>Enter</kbd> yangi o'quvchi · <kbd>→</kbd><kbd>←</kbd> bo'lim</div>
-              <div class="field-help">Guruh raqamini yozing — masalan <b>12</b>: hamma avtoshkolalarning 12-guruhlari chiqadi. Ism xato yozilsa ham topadi: <b>abbosov</b> = <b>abbasov</b>, <b>ibrohimov</b> = <b>ibroximov</b>, qisqartirib <b>ibrxm mali</b>, telefon oxiri <b>4567</b>. Topilmasa — eng o'xshashlari chiqadi.</div>
+              <!-- Yordam matni yig'ilgan: kerak bo'lganda ochiladi, ekranni to'ldirmaydi -->
+              <details class="help-more">
+                <summary><i class="fa-regular fa-circle-question" aria-hidden="true"></i> Qanday qidiriladi?</summary>
+                <div class="kb-hint" id="kbHint"><i class="fa-regular fa-keyboard" aria-hidden="true"></i> Sichqonchasiz: ismni yozing → <kbd>Enter</kbd> tanlaydi → yana <kbd>Enter</kbd> davomat + chek.
+                  <kbd>+</kbd><kbd>−</kbd> darslar soni · <kbd>↓</kbd><kbd>↑</kbd> boshqa ism · topilmasa <kbd>Enter</kbd> yangi o'quvchi · <kbd>→</kbd><kbd>←</kbd> bo'lim</div>
+                <div class="field-help">Guruh raqamini yozing — masalan <b>12</b>: hamma avtoshkolalarning 12-guruhlari chiqadi. Ism xato yozilsa ham topadi: <b>abbosov</b> = <b>abbasov</b>, <b>ibrohimov</b> = <b>ibroximov</b>, qisqartirib <b>ibrxm mali</b>, telefon oxiri <b>4567</b>. Topilmasa — eng o'xshashlari chiqadi.</div>
+              </details>
               <div id="studentFallback" class="hidden">
                 <div class="form-grid" style="margin-top:12px">
                   <div><label class="field-label muted-label" for="school">Avtoshkola</label><select id="school"><option value="">Tanlang</option></select></div>
@@ -1278,55 +1325,61 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 
             <div class="form-grid" style="margin-top:14px">
               <!-- ===== ODDIY MIJOZ: KASSA =====
-                   Nom → (kerak bo'lsa) necha soat → (kerak bo'lsa) to'lov → «Kirdi».
+                   Uch qadam, yuqoridan pastga: 1) nom → 2) qancha vaqt → 3) pul → «Kirdi».
                    Hech narsa tanlanmasa: vaqt ochiq, pul chiqishda. Soat tanlansa —
-                   vaqti tugaganda o'zi yopiladi; to'lamagan bo'lsa «To'lanmagan»ga tushadi. -->
+                   vaqti tugaganda o'zi yopiladi; to'lamagan bo'lsa «To'lanmagan»ga tushadi.
+                   Kam ishlatiladiganlar (boshqa vaqtdan / bron, instruktor, navbat)
+                   «Kerak bo'lsa» qatorida — ko'zga tashlanmaydi, lekin bir bosishda ochiladi. -->
               <div class="span-2" id="labelField">
-                <label class="field-label" for="carLabel"><i class="fa-solid fa-car" aria-hidden="true"></i> Mashina raqami yoki ism</label>
-                <div class="qe-row">
-                  <input id="carLabel" class="input-lg" autocomplete="off" maxlength="60" list="labelList" placeholder="Masalan: 455 Dilnoza">
-                  <datalist id="labelList"></datalist>
-                  <button class="btn btn-green btn-lg qe-go" id="kirdiBtn" type="submit">
-                    <span class="spinner" aria-hidden="true"></span>
-                    <i class="fa-solid fa-right-to-bracket btn-icon" aria-hidden="true"></i>
-                    <span class="btn-text">Kirdi</span>
-                  </button>
-                </div>
+                <div class="step first"><label class="step-t" for="carLabel"><span class="step-n">1</span> Mashina raqami yoki ism</label></div>
+                <input id="carLabel" class="input-lg" autocomplete="off" maxlength="60" list="labelList" placeholder="Masalan: 455 Dilnoza">
+                <datalist id="labelList"></datalist>
                 <div id="labelErr" class="text-error" role="alert" aria-live="polite"></div>
-                <div class="qe-pick">
-                  <span class="qe-lbl">Vaqt</span>
-                  <div class="qe-chips" id="qeMin" role="radiogroup" aria-label="Necha soat"></div>
-                </div>
-                <div class="qe-pick">
-                  <span class="qe-lbl">To'lov</span>
-                  <div class="qe-chips" id="qePay" role="radiogroup" aria-label="To'lov"></div>
-                </div>
-                <div class="qe-sum" id="qeSum" aria-live="polite"></div>
+
+                <div class="step"><span class="step-t" id="qeMinLbl"><span class="step-n">2</span> Qancha vaqtga?</span></div>
+                <div class="qe-chips" id="qeMin" role="radiogroup" aria-labelledby="qeMinLbl"></div>
+
+                <div class="step"><span class="step-t" id="qePayLbl"><span class="step-n">3</span> Pul</span></div>
+                <div class="qe-chips" id="qePay" role="radiogroup" aria-labelledby="qePayLbl"></div>
+                <div class="qe-note hidden" id="qePayNote"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> Pul mashina <b>chiqqanda</b> olinadi — pastdagi «Ichkarida» ro'yxatidan «Chiqdi» ni bosasiz.</div>
+
                 <div class="qe-links">
+                  <span class="qe-more">Kerak bo'lsa:</span>
                   <button class="link-btn" type="button" data-act="paidStartToggle" id="paidStartToggle"></button>
                   <span id="paidStartRow" class="hidden">
                     <i class="fa-regular fa-clock" aria-hidden="true"></i> Kirish:
                     <input id="paidStart" type="time" step="60" aria-label="Kirish vaqti">
                     <button class="chip" type="button" data-act="paidNow">Hozir</button>
                   </span>
-                  <button class="link-btn" type="button" data-act="insToggle" id="insToggle"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktor</button>
-                  <button class="link-btn" type="button" data-act="addToQueue" id="queueLink"><i class="fa-regular fa-clock" aria-hidden="true"></i> Navbatga</button>
+                  <button class="link-btn" type="button" data-act="insToggle" id="insToggle"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktor qo'shish</button>
+                  <button class="link-btn" type="button" data-act="addToQueue" id="queueLink"><i class="fa-regular fa-clock" aria-hidden="true"></i> Navbatga qo'yish</button>
                 </div>
               </div>
 
-              <div class="span-2" id="instructorField">
-                <label class="field-label muted-label" for="comboInstructorInput"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktor <span class="text-muted" style="font-weight:500" id="instructorOpt"></span></label>
+              <div class="span-2 hidden" id="instructorField">
+                <label class="step-t" for="comboInstructorInput"><span class="step-n school-only">2</span> Instruktor <small id="instructorOpt">(ixtiyoriy)</small></label>
                 <div id="comboInstructor"></div>
                 <div id="instructorBox"></div>
-                <div class="field-help" id="instructorHelp">Ixtiyoriy. Kim bilan uchishi tanlansa, «Nazorat → Xatoliklar va aniqliklar» bo'limida ochilgan soat bilan davomat solishtiriladi.</div>
+                <div class="field-help hidden" id="instructorHelp" title="Kim bilan uchishi tanlansa, «Nazorat → Xatoliklar va aniqliklar» bo'limida ochilgan soat bilan davomat solishtiriladi.">Kim bilan uchgani — keyin nazoratda solishtiriladi.</div>
+              </div>
+
+              <!-- Oddiy mijoz: xulosa va bitta katta tugma — forma oxirida -->
+              <div class="span-2" id="kirdiField">
+                <div class="qe-sum" id="qeSum" aria-live="polite"></div>
+                <button class="btn btn-green btn-lg qe-go" id="kirdiBtn" type="submit">
+                  <span class="spinner" aria-hidden="true"></span>
+                  <i class="fa-solid fa-right-to-bracket btn-icon" aria-hidden="true"></i>
+                  <span class="btn-text">Kirdi</span>
+                  <kbd class="go-kbd" aria-hidden="true">Enter</kbd>
+                </button>
               </div>
 
               <!-- Avtoshkola mashinasi: faqat davomat rejimida -->
               <div class="span-2 hidden" id="schoolCarField">
-                <label class="field-label muted-label" for="schoolCar"><i class="fa-solid fa-car-side" aria-hidden="true"></i> Avtomobil raqami</label>
+                <label class="step-t" for="schoolCar"><span class="step-n">3</span> Mashina <small>(ixtiyoriy)</small></label>
                 <select id="schoolCar" data-act="schoolCarChange"><option value="">Tanlanmagan</option></select>
                 <input id="schoolCarManual" class="hidden" autocomplete="off" placeholder="01 777 AAA" style="margin-top:8px">
-                <div class="field-help" id="schoolCarHelp">O'quvchi tanlangach, shu avtoshkolaning mashinalari chiqadi. Ro'yxatda bo'lmasa «Boshqa raqam» ni tanlab qo'lda yozing.</div>
+                <div class="field-help" id="schoolCarHelp">O'quvchi tanlangach, avtoshkola mashinalari chiqadi.</div>
               </div>
 
               <div class="span-2 hidden" id="plateField">
@@ -1339,13 +1392,13 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
                 <div id="plateErr" class="text-error" role="alert"></div>
               </div>
 
-              <div id="modelField">
+              <div id="modelField" class="hidden">
                 <label class="field-label muted-label" for="model"><i class="fa-solid fa-car-side" aria-hidden="true"></i> Rusumi</label>
                 <input id="model" autocomplete="off" placeholder="Chevrolet Cobalt">
               </div>
 
-              <div class="span-2" id="hourBlock">
-                <label class="field-label muted-label" id="hourLabel"><i class="fa-regular fa-hourglass" aria-hidden="true"></i> Foydalanish soati <span class="text-muted" style="font-weight:500">(1 soat = 1 dars)</span></label>
+              <div class="span-2 hidden" id="hourBlock">
+                <label class="step-t" id="hourLabel"><span class="step-n">4</span> Necha dars? <small>(1 soat = 1 dars)</small></label>
                 <div class="seg" id="hourSeg" role="group" aria-label="Foydalanish soati">
                   <button class="seg-btn active" type="button" data-act="setHours" data-h="1">1 soat</button>
                   <button class="seg-btn" type="button" data-act="setHours" data-h="2">2 soat</button>
@@ -1387,7 +1440,7 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
               </div>
             </div>
 
-            <div class="actions-row" id="addActions">
+            <div class="actions-row hidden" id="addActions">
               <button class="btn btn-green btn-lg" id="startBtn" type="submit">
                 <span class="spinner" aria-hidden="true"></span>
                 <i class="fa-solid fa-play btn-icon" aria-hidden="true"></i>
@@ -1396,10 +1449,10 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
               <!-- Chek bilan bog'liq muammo bo'lsa (printer yo'q, pop-up
                    bloklangan) davomat baribir yozilishi kerak. Shuning
                    uchun cheksiz variant alohida tugma. -->
-              <button class="btn btn-light btn-lg hidden" id="attendOnlyBtn" type="button" data-act="attendNoChek">
+              <button class="btn btn-ghost hidden" id="attendOnlyBtn" type="button" data-act="attendNoChek" title="Printer ishlamasa — davomat baribir yoziladi">
                 <span class="spinner" aria-hidden="true"></span>
                 <i class="fa-solid fa-clipboard-check btn-icon" aria-hidden="true"></i>
-                <span class="btn-text">Davomat yozish (cheksiz)</span>
+                <span class="btn-text">Chek chiqarmasdan yozish</span>
               </button>
               <button class="btn btn-light" id="queueBtn" type="button" data-act="addToQueue">
                 <span class="spinner" aria-hidden="true"></span>
@@ -3398,7 +3451,7 @@ const Add = {
 
     this.comboInstructor = Combobox('comboInstructor', {
       inputId: 'comboInstructorInput',
-      placeholder: 'Instruktor F.I.Sh. (ixtiyoriy)',
+      placeholder: 'Ismi yoki mashina raqami',
       icon: 'fa-chalkboard-user',
       emptyText: 'Instruktor topilmadi',
       getText: it => insName(it),
@@ -3442,6 +3495,11 @@ const Add = {
     this.wireTypeToSearch();
     this.wireTypeArrows();
     this.wireSchoolKeys();
+    /* Sahifa birinchi ochilganda ham faqat tanlangan bo'limning maydonlari
+       ko'rinsin. Ilgari bu faqat birinchi yozuvdan keyin (reset) chaqirilardi —
+       shu sababli «Instruktor», «Rusumi», «Foydalanish soati», «Vaqt ochish»
+       oddiy mijozda ham chiqib turib, yangi odamni chalg'itardi. */
+    try { this.setType(STATE.form.customerType); } catch (e) { console.error('[setType]', e); }
   },
 
   onEnter() {
@@ -3829,13 +3887,15 @@ const Add = {
     $('plateField').classList.add('hidden');
     $('modelField').classList.add('hidden');
     if ($('labelField')) $('labelField').classList.toggle('hidden', isSchool);
+    if ($('kirdiField')) $('kirdiField').classList.toggle('hidden', isSchool);
+    if ($('startForm')) $('startForm').classList.toggle('is-school', isSchool);
     if ($('paidBlock')) $('paidBlock').classList.toggle('hidden', isSchool);
     if ($('hourBlock')) $('hourBlock').classList.toggle('hidden', !isSchool);
     if (!isSchool) this.renderPaid();
     /* Oddiy mijozda instruktor — ixtiyoriy va yashirin («Instruktor» bosilsa
        chiqadi); pastdagi tugmalar o'rniga nom yonidagi «Kirdi» ishlaydi */
     if ($('instructorHelp')) $('instructorHelp').classList.toggle('hidden', !isSchool);
-    if ($('instructorOpt')) $('instructorOpt').textContent = isSchool ? '' : '(ixtiyoriy)';
+    if ($('instructorOpt')) $('instructorOpt').textContent = '(ixtiyoriy)';
     if ($('addActions')) $('addActions').classList.toggle('hidden', !isSchool);
     const hasIns = !!(STATE.form.instructor || ($('comboInstructorInput') && $('comboInstructorInput').value.trim()));
     if ($('instructorField')) $('instructorField').classList.toggle('hidden', !isSchool && !hasIns);
@@ -3864,8 +3924,8 @@ const Add = {
     const hl = $('hourLabel');
     if (hl) {
       hl.innerHTML = isSchool
-        ? '<i class="fa-solid fa-list-check" aria-hidden="true"></i> Darslar soni <span class="text-muted" style="font-weight:500">(1 soat = 1 dars)</span>'
-        : '<i class="fa-regular fa-hourglass" aria-hidden="true"></i> Foydalanish soati <span class="text-muted" style="font-weight:500">(1 soat = 1 dars)</span>';
+        ? '<span class="step-n">4</span> Necha dars? <small>(1 soat = 1 dars)</small>'
+        : 'Foydalanish soati <small>(1 soat = 1 dars)</small>';
     }
     const sub = document.querySelector('#p-add .page-header p');
     if (sub) sub.textContent = isSchool
@@ -3935,7 +3995,7 @@ const Add = {
     if (!pre) STATE.form.payNow = '';
     const m = num(STATE.form.paidMin);
     const mh = $('qeMin');
-    if (mh) mh.innerHTML = '<button class="qe-chip' + (!m ? ' active' : '') + '" type="button" role="radio" aria-checked="' + (!m) + '" data-act="paidMin" data-m="0"><b>Ochiq</b><small>chiqqanda</small></button>'
+    if (mh) mh.innerHTML = '<button class="qe-chip' + (!m ? ' active' : '') + '" type="button" role="radio" aria-checked="' + (!m) + '" data-act="paidMin" data-m="0"><b>Ochiq</b><small>chiqqanda hisob</small></button>'
       + this.PAID_OPTIONS.map(o => '<button class="qe-chip' + (o === m ? ' active' : '') + '" type="button" role="radio" aria-checked="' + (o === m) + '" data-act="paidMin" data-m="' + o + '">'
         + '<b>' + esc(this.paidMinLabel(o)) + '</b><small>' + esc(money(this.paidPrice(o)).replace(/ so'm$/, '')) + '</small></button>').join('');
     const ph = $('qePay');
@@ -3943,8 +4003,14 @@ const Add = {
     const chip = (k, icon, label) => '<button class="qe-chip' + (k === '' ? ' later' : '') + (p === k ? ' active' : '') + '" type="button" role="radio" aria-checked="' + (p === k) + '"'
       + (k && !pre ? ' disabled title="Avval soatni tanlang — ochiq vaqtda pul chiqishda olinadi"' : '')
       + ' data-act="paidPay" data-p="' + k + '"><b><i class="fa-solid ' + icon + '" aria-hidden="true"></i> ' + label + '</b></button>';
-    if (ph) ph.innerHTML = chip('', 'fa-hourglass-half', pre ? 'Keyin to\'laydi' : 'Chiqishda')
-      + chip('cash', 'fa-money-bill-wave', 'Naqd') + chip('terminal', 'fa-credit-card', 'Terminal') + chip('click', 'fa-mobile-screen', 'Klik');
+    /* Ochiq vaqtda pul chiqishda olinadi — tanlanadigan narsa yo'q, faqat izoh.
+       Soat tanlansa: hozir qanday to'ladi (yoki keyin). */
+    if (ph) {
+      ph.innerHTML = pre ? chip('cash', 'fa-money-bill-wave', 'Naqd') + chip('terminal', 'fa-credit-card', 'Terminal') + chip('click', 'fa-mobile-screen', 'Klik')
+        + chip('', 'fa-hourglass-half', 'Keyin to\'laydi') : '';
+      ph.classList.toggle('hidden', !pre);
+    }
+    if ($('qePayNote')) $('qePayNote').classList.toggle('hidden', pre);
     this.renderPaidSum();
   },
   /* Xulosa qatori va «Kirdi» tugmasi */
@@ -3953,7 +4019,7 @@ const Add = {
     const st = this.paidStartDate();
     const tg = $('paidStartToggle');
     if (tg) tg.innerHTML = '<i class="fa-regular fa-clock" aria-hidden="true"></i> '
-      + (st ? (st.getTime() > Date.now() + 60000 ? 'Bron: ' : 'Kirish: ') + '<b>' + esc(hhmm(st)) + '</b>' : 'Kirish: hozir · bron');
+      + (st ? (st.getTime() > Date.now() + 60000 ? 'Bron: ' : 'Kirish: ') + '<b>' + esc(hhmm(st)) + '</b>' : 'Boshqa vaqtdan / bron');
     const row = $('paidStartRow');
     if (tg && row) tg.classList.toggle('hidden', !row.classList.contains('hidden'));
     const box = $('qeSum');
@@ -3962,7 +4028,7 @@ const Add = {
     if (box) {
       if (w.open) {
         box.classList.remove('unpaid');
-        box.innerHTML = '<span><b class="big">' + esc(hhmm(w.start)) + ' →</b> chiqqanda · pul chiqishda olinadi'
+        box.innerHTML = '<span><b class="big">' + esc(hhmm(w.start)) + ' →</b> vaqt ochiq, chiqqanda hisoblanadi'
           + (w.future ? ' · <b>bron — ' + esc(hhmm(w.start)) + ' da o\'zi ochiladi</b>' : '') + '</span>'
           + '<span class="text-muted">soatiga <b>' + esc(money(rate)) + '</b></span>';
       } else {
@@ -3976,7 +4042,16 @@ const Add = {
           + (pay ? '<span class="in-tag paid">' + esc(PAY_NAMES[pay]) + ' olindi</span>' : '<span class="in-tag unpaid">to\'lanmagan</span>') + '</span>';
       }
     }
-    if (t && STATE.form.customerType !== 'school') t.textContent = w.past ? 'Yozish' : w.future ? 'Bron qilish' : 'Kirdi';
+    /* Katta tugma nima bo'lishini aytadi: «Kirdi · 1 soat · 100 000 so'm naqd» */
+    if (t && STATE.form.customerType !== 'school') {
+      const head = w.past ? 'Yozib qo\'yish' : w.future ? 'Bron qilish — ' + hhmm(w.start) : 'Kirdi';
+      let tail = ' — vaqtni ochish';
+      if (!w.open) {
+        const pay = STATE.form.payNow || '';
+        tail = ' · ' + this.paidMinLabel(w.min) + ' · ' + money(this.paidPrice(w.min)) + (pay ? ' ' + PAY_NAMES[pay] : ' · keyin to\'laydi');
+      } else if (w.past || w.future) tail = '';
+      t.textContent = head + tail;
+    }
   },
   setPaidMin(m) { STATE.form.paidMin = Math.max(0, num(m) || 0); this.renderPaid(); this.focusLabel(); },
   setPayNow(p) {
