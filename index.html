@@ -823,6 +823,10 @@ body.admin-open { overflow: hidden; }
 .in-row.over .in-money b, .in-row.over .in-sub .ov { color: var(--red); }
 #carLabel::-webkit-calendar-picker-indicator { display: none !important; }
 /* «Oddiy mijoz ←» / «Avtoshkola o'quvchisi →» — strelka bilan almashadi */
+.combo-keys { padding: 7px 12px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); background: #f8fafc; }
+.combo-keys kbd, .kb-hint kbd { display: inline-block; min-width: 18px; padding: 0 5px; margin: 0 2px; border: 1px solid #cbd5e1; border-bottom-width: 2px;
+  border-radius: 5px; background: #fff; font: 700 11.5px/16px Arial, sans-serif; color: #334155; text-align: center; }
+.kb-hint { font-size: 12.5px; color: var(--muted); margin-top: 6px; line-height: 1.9; }
 .tab-kbd { display: inline-block; margin-left: 8px; padding: 0 7px; border: 1.5px solid currentColor; border-radius: 6px;
   font-family: Arial, sans-serif; font-size: 15px; font-weight: 700; line-height: 18px; opacity: .65; vertical-align: middle; }
 @media (pointer: coarse) { .tab-kbd { display: none; } }
@@ -1253,6 +1257,8 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
               </div>
               <div id="cpPanel" class="cp-panel hidden"></div>
               <div id="comboStudent"></div>
+              <div class="kb-hint" id="kbHint"><i class="fa-regular fa-keyboard" aria-hidden="true"></i> Sichqonchasiz: ismni yozing → <kbd>Enter</kbd> tanlaydi → yana <kbd>Enter</kbd> davomat + chek.
+                <kbd>+</kbd><kbd>−</kbd> darslar soni · <kbd>↓</kbd><kbd>↑</kbd> boshqa ism · topilmasa <kbd>Enter</kbd> yangi o'quvchi · <kbd>→</kbd><kbd>←</kbd> bo'lim</div>
               <div class="field-help">Guruh raqamini yozing — masalan <b>12</b>: hamma avtoshkolalarning 12-guruhlari chiqadi. Ism xato yozilsa ham topadi: <b>abbosov</b> = <b>abbasov</b>, <b>ibrohimov</b> = <b>ibroximov</b>, qisqartirib <b>ibrxm mali</b>, telefon oxiri <b>4567</b>. Topilmasa — eng o'xshashlari chiqadi.</div>
               <div id="studentFallback" class="hidden">
                 <div class="form-grid" style="margin-top:12px">
@@ -2338,7 +2344,9 @@ function openModal(html, opts) {
   modalPrevFocus = document.activeElement;
   $('modal').innerHTML = '<div class="modal-overlay" data-act="modalOverlay" role="dialog" aria-modal="true">'
     + '<div class="modal-box' + (opts.wide ? ' wide' : '') + '">' + html + '</div></div>';
-  const first = $('modal').querySelector('input:not([type=hidden]), select, textarea, button');
+  /* Klaviatura: avval birinchi to'ldiriladigan maydon («×» tugmasi emas) */
+  const first = $('modal').querySelector('input:not([type=hidden]), select, textarea')
+    || $('modal').querySelector('input:not([type=hidden]), select, textarea, button');
   if (first && !opts.noFocus) setTimeout(() => { try { first.focus(); } catch (e) { /* noop */ } }, 60);
 }
 function closeModal() {
@@ -2647,6 +2655,7 @@ function Combobox(hostId, options) {
   let picked = null;
   let open = false;
   let quietFocus = false;   /* dasturiy fokus: ro'yxat ochilmasin */
+  let lastFuzzy = false;    /* aniq topilmadi — faqat o'xshashlari ko'rsatilgan */
 
   function render(q) {
     const query = lower(q).trim();
@@ -2675,6 +2684,7 @@ function Combobox(hostId, options) {
       fuzzy = filtered.length > 0;
     }
     const nSpecial = special.length;
+    lastFuzzy = fuzzy && !nSpecial;
     filtered = special.concat(filtered);
     const row = (it, i) => {
       if (it && it.__extra) {
@@ -2701,7 +2711,15 @@ function Combobox(hostId, options) {
       }).join('');
     }
     if (cfg.createText && cfg.onCreate) {
-      html += '<div class="combo-create"><div class="combo-item" data-create="1" role="option"><b><i class="fa-solid fa-plus" aria-hidden="true"></i> ' + esc(cfg.createText) + '</b></div></div>';
+      const ca = cursor === filtered.length;
+      html += '<div class="combo-create"><div class="combo-item' + (ca ? ' active' : '') + '" data-create="1" role="option" aria-selected="' + ca + '"><b><i class="fa-solid fa-plus" aria-hidden="true"></i> ' + esc(cfg.createText) + '</b>'
+        + (query && (lastFuzzy || !filtered.length) ? '<span class="combo-tag">Enter</span>' : '') + '</div></div>';
+    }
+    /* Klaviatura bilan ishlash yo'riqnomasi */
+    if (cfg.keyHint && query) {
+      html += '<div class="combo-keys">' + (lastFuzzy || !filtered.length
+        ? 'Aniq topilmadi: <kbd>↓</kbd> bilan o\'xshashini tanlang yoki <kbd>Enter</kbd> — yangi o\'quvchi'
+        : '<kbd>Enter</kbd> — birinchisi · <kbd>↓</kbd><kbd>↑</kbd> — boshqasi · <kbd>Esc</kbd> — yopish') + '</div>';
     }
     list.innerHTML = html;
   }
@@ -2748,14 +2766,27 @@ function Combobox(hostId, options) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       if (!open) { render(input.value); show(); }
-      const max = filtered.length - 1;
+      /* «Yangi ... yaratish» qatori ham strelka bilan tanlanadi */
+      const max = filtered.length - 1 + (cfg.createText && cfg.onCreate ? 1 : 0);
       cursor = e.key === 'ArrowDown' ? Math.min(max, cursor + 1) : Math.max(0, cursor - 1);
       render(input.value);
       const act = list.querySelector('.combo-item.active');
       if (act && act.scrollIntoView) act.scrollIntoView({ block: 'nearest' });
     } else if (e.key === 'Enter') {
+      /* ENTER — sichqonchasiz ishlash:
+         • strelka bilan belgilangan bo'lsa — o'sha;
+         • hech narsa belgilanmagan — eng mos (birinchi) natija;
+         • aniq topilmagan (faqat o'xshashlari) yoki bo'sh — «yangi yaratish»;
+         • ro'yxat yopiq (tanlab bo'lingan) — forma yuboriladi. */
+      const canCreate = !!(cfg.createText && cfg.onCreate);
+      const text = input.value.trim();
       if (open && cursor >= 0 && filtered[cursor]) { e.preventDefault(); pick(filtered[cursor]); }
+      else if (open && canCreate && cursor === filtered.length) { e.preventDefault(); hide(); cfg.onCreate(text); }
+      else if (open && cursor < 0 && text && filtered.length && !lastFuzzy) { e.preventDefault(); pick(filtered[0]); }
+      else if (open && cursor < 0 && text && canCreate) { e.preventDefault(); hide(); cfg.onCreate(text); }
+      else if (open && !filtered.length && !canCreate) { hide(); /* erkin matn (masalan instruktor) — forma yuborilsin */ }
       else if (open) { e.preventDefault(); }
+      else if (!picked && text && !open && canCreate) { e.preventDefault(); render(input.value); show(); }
     } else if (e.key === 'Escape') { hide(); }
   });
   list.addEventListener('mousedown', e => {
@@ -3343,6 +3374,7 @@ const Add = {
       icon: 'fa-graduation-cap',
       emptyText: "O'quvchi topilmadi",
       createText: "Yangi o'quvchi yaratish",
+      keyHint: true,
       getText: it => stName(it),
       getSub: it => [it.school_name || Data.schoolName(it.school_id || it.schoolId), it.group_name || Data.groupName(it.group_id || it.groupId), it.phone].filter(Boolean).join(' • '),
       getTag: it => attCount(it) + ' dars',
@@ -3403,6 +3435,7 @@ const Add = {
     this.renderPaid();
     this.wireTypeToSearch();
     this.wireTypeArrows();
+    this.wireSchoolKeys();
   },
 
   onEnter() {
@@ -3564,6 +3597,37 @@ const Add = {
       if (this.comboStudent) this.comboStudent.focus(true);
       else if ($('comboStudentInput')) $('comboStudentInput').focus();
     } else if ($('carLabel')) $('carLabel').focus();
+  },
+  /* ===== AVTOSHKOLA: FAQAT KLAVIATURA =====
+     • O'quvchi tanlangan bo'lsa «+» / «−» — darslar soni (1…4);
+     • sabab maydonida Enter — saqlash (yangi qator: Shift+Enter);
+     • o'quvchini qaysi yo'l bilan tanlasa ham (ro'yxat, guruh, yangi
+       o'quvchi) kursor ism maydoniga qaytadi — keyingi Enter davomatni yozadi. */
+  focusStudentInput() {
+    if (STATE.page !== 'add' || STATE.form.customerType !== 'school') return;
+    if ($('modal') && $('modal').innerHTML) return;
+    if (this.comboStudent) this.comboStudent.focus(true);
+    else if ($('comboStudentInput')) $('comboStudentInput').focus();
+  },
+  wireSchoolKeys() {
+    document.addEventListener('keydown', e => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+      const t = e.target;
+      if (!t) return;
+      if (t.id === 'comboStudentInput' && STATE.form.customerType === 'school' && STATE.form.student
+          && ['+', '=', '-', '_'].indexOf(e.key) >= 0) {
+        e.preventDefault();
+        const cur = typeof STATE.form.hours === 'number' ? STATE.form.hours : num(STATE.form.hours) || 1;
+        const next = Math.max(1, Math.min(4, cur + ((e.key === '+' || e.key === '=') ? 1 : -1)));
+        this.setHours(next);
+        toast('Darslar soni: ' + next, 'info');
+        return;
+      }
+      if (t.id === 'attReason' && e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        this.submit(true);
+      }
+    }, true);
   },
   wireTypeArrows() {
     document.addEventListener('keydown', e => {
@@ -4541,6 +4605,14 @@ const Add = {
       $('qsGroup').innerHTML = '<option value="">Tanlang</option>' + gs.map(g => '<option value="' + esc(g.id) + '">' + esc(g.name) + '</option>').join('');
       $('qsGroup').disabled = !gs.length;
     });
+    /* Klaviatura: ism yozilgan bo'lsa — darhol avtoshkola tanlovida
+       (harf bosilsa o'sha harfdagi avtoshkola, ↓↑ — almashtirish);
+       Tab — keyingi maydon; Enter — istalgan maydonda saqlash */
+    const form = document.querySelector('#modal form[data-act="quickStudentSave"]');
+    if (form) form.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && e.target && e.target.tagName === 'SELECT') { e.preventDefault(); this.quickStudentSave(); }
+    });
+    setTimeout(() => { const f = name ? $('qsSchool') : $('qsName'); if (f) f.focus(); }, 120);
   },
   async quickStudentSave() {
     setError('qsErr', '');
@@ -4564,7 +4636,9 @@ const Add = {
         const created = STATE.students.find(s => lower(stName(s)) === lower(payload.full_name));
         closeModal();
         toast("O'quvchi qo'shildi.");
-        if (created && Add.comboStudent) { Add.comboStudent.setValue(created); STATE.form.student = created; Add.renderStudentPanel(); }
+        if (created && Add.comboStudent) { Add.comboStudent.setValue(created); STATE.form.student = created; Add.renderStudentPanel(); Add.onStudentPicked(); }
+        /* Klaviatura: keyingi Enter — davomat */
+        setTimeout(() => Add.focusStudentInput(), 40);
       } catch (e) { setError('qsErr', e.message); }
     });
   }
@@ -8280,6 +8354,8 @@ const CascadePick = {
       Add.renderStudentPanel();   /* ichida sync() chaqiriladi */
       Add.onStudentPicked();      /* instruktor va mashina ro'yxatini toraytiradi */
       this.renderPanel();
+      /* Klaviatura: kursor ism maydonida — Enter davomatni yozadi */
+      setTimeout(() => Add.focusStudentInput(), 30);
     }
   },
 
@@ -8303,7 +8379,25 @@ const CascadePick = {
         const first = $('cpList') && $('cpList').querySelector('.cp-item');
         if (first) first.click();
       }
-      if (e.key === 'Escape' && this.step) this.close();
+      /* Strelkalar: qidiruvdan ro'yxatga, ro'yxat ichida yuqori-past */
+      if (this.step && (e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.target
+          && (e.target.id === 'cpFilter' || (e.target.classList && e.target.classList.contains('cp-item')))) {
+        const items = $$('#cpList .cp-item');
+        if (!items.length) return;
+        e.preventDefault();
+        const i = items.indexOf ? items.indexOf(e.target) : Array.prototype.indexOf.call(items, e.target);
+        if (e.target.id === 'cpFilter') { if (e.key === 'ArrowDown') items[0].focus(); return; }
+        if (e.key === 'ArrowDown') (items[i + 1] || items[i]).focus();
+        else if (i <= 0) $('cpFilter').focus();
+        else items[i - 1].focus();
+        return;
+      }
+      /* Ro'yxatda turib harf yozilsa — qidiruvga */
+      if (this.step && e.target && e.target.classList && e.target.classList.contains('cp-item')
+          && e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const f = $('cpFilter'); if (f) { f.focus(); }
+      }
+      if (e.key === 'Escape' && this.step) { this.close(); setTimeout(() => Add.focusStudentInput(), 20); }
     });
     /* Tashqariga bosilsa — yopiladi */
     document.addEventListener('click', e => {
