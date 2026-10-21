@@ -4644,7 +4644,10 @@ const Queue = {
       const nm = d.student ? stName(d.student) : (d.payload.label || d.body || 'Oddiy mijoz');
       const k0 = this.groupKey(STATE.queue[STATE.queue.length - 1]);
       const pos = STATE.queue.filter(q => this.groupKey(q) === k0).length;
-      toast(nm + ' navbatga qo\'shildi' + (pos > 1 ? ' — ' + pos + '-o\'rinda' : '') + '.');
+      const lab = d.payload.label || '';
+      const inside = lab && STATE.active.some(a => !isSchoolSession(a) && labelKey(a.plate) === labelKey(lab));
+      toast(nm + ' navbatga qo\'shildi' + (pos > 1 ? ' — ' + pos + '-o\'rinda' : '') + '.'
+        + (lab && !inside ? ' Mashina hozir bo\'sh — darhol boshlash uchun navbatdagi «Boshlash» ni bosing.' : ' Oldingisi chiqishi bilan o\'zi boshlanadi.'));
       Add.reset();
       /* Shu sahifada qolamiz — keyingisini ham darhol navbatga qo'yish mumkin;
          navbat ro'yxati pastda ko'rinib turadi */
@@ -4659,7 +4662,8 @@ const Queue = {
     const grouped = {};
     STATE.queue.forEach(q => { const k = this.groupKey(q); (grouped[k] = grouped[k] || []).push(q); });
     let h = '<div class="panel"><div class="panel-head"><h3><i class="fa-regular fa-clock" style="color:var(--amber)" aria-hidden="true"></i> Kutish rejimi</h3>'
-      + '<span class="badge badge-amber">' + STATE.queue.length + ' ta kutmoqda</span></div>';
+      + '<span class="badge badge-amber">' + STATE.queue.length + ' ta kutmoqda</span></div>'
+      + '<div class="field-help" style="margin:-4px 0 6px"><i class="fa-solid fa-bolt" aria-hidden="true"></i> Ichkaridagi mashina chiqishi bilan navbatdagisi o\'zi boshlanadi.</div>';
     Object.keys(grouped).forEach(k => {
       const list = grouped[k], first = list[0];
       const plate = first.label || displayPlate(first.regionCode, first.plateBody || first.plate);
@@ -4698,9 +4702,29 @@ const Queue = {
     if (!q) return '';
     return q.label ? 'L:' + labelKey(q.label) : (queueKey(q) || 'Q:' + String(q.queueId));
   },
-  async start(id, btn) {
+  /* ===== AVTOMATIK NAVBAT =====
+     Mashina chiqishi bilan (Chiqdi, vaqti tugab o'zi yopilgani yoki
+     boshqa joydan yopilgani) o'sha mashinaning navbatdagi birinchisi
+     O'ZI boshlanadi. Muzlatilgan mashina uchun boshlanmaydi. Active.load
+     yopilganlarni aniqlab shu yerni chaqiradi. */
+  starting: {},
+  autoNext(gone) {
+    (gone || []).forEach(v => {
+      if (!v || isSchoolSession(v) || (Active.freezing && Active.freezing[v.id])) return;
+      const lk = 'L:' + labelKey(v.plate);
+      const ck = activeCarKey(v);
+      const next = STATE.queue.find(q => (q.customerType || 'ordinary') !== 'school' && !this.starting[q.queueId]
+        && (this.groupKey(q) === lk || (!q.label && queueKey(q) === ck)));
+      if (!next) return;
+      this.starting[next.queueId] = 1;
+      Promise.resolve(this.start(next.queueId, null, { auto: true }))
+        .finally(() => { delete this.starting[next.queueId]; });
+    });
+  },
+  async start(id, btn, opts) {
+    opts = opts || {};
     const q = STATE.queue.find(x => String(x.queueId) === String(id));
-    if (!q) { toast('Navbat elementi topilmadi.', 'error'); this.render(); return; }
+    if (!q) { if (!opts.auto) toast('Navbat elementi topilmadi.', 'error'); this.render(); return; }
     await withBusy('queue:start:' + id, btn, async () => {
       try {
         await Active.load(true);
@@ -4752,9 +4776,16 @@ const Queue = {
           type: q.customerType || 'ordinary'
         });
         this.render();
-        toast((q.studentName || 'Oddiy mijoz') + ' uchun vaqt ochildi.');
-        go('active');
-      } catch (e) { toast(e.message, 'error'); }
+        if (opts.auto) {
+          /* O'zi boshlandi — operator qaysi sahifada bo'lsa o'sha yerda qoladi */
+          const left = STATE.queue.filter(x => this.groupKey(x) === this.groupKey(q)).length;
+          toast('Navbatdagi o\'zi boshlandi: ' + (q.label || q.plate || 'Oddiy mijoz')
+            + (left ? ' · yana ' + left + ' ta kutmoqda' : ''));
+        } else {
+          toast((q.label || q.studentName || 'Oddiy mijoz') + ' uchun vaqt ochildi.');
+          go('active');
+        }
+      } catch (e) { toast((opts.auto ? 'Navbatdagini o\'zi boshlab bo\'lmadi: ' : '') + e.message, 'error'); }
     });
   },
   async remove(id) {
@@ -6421,9 +6452,17 @@ const Active = {
     /* Vaqti tugab o'zi yopilganlar — yuklangandan keyin xabar beriladi
        (operator «Chiqdi» bilan yopganlari bundan mustasno) */
     const prevAuto = (STATE.active || []).filter(v => v.auto_close);
+    const prevAll = (STATE.active || []).slice();
+    const hadList = !!this.loadedOnce;
     try {
       const r = await api('/sessions/active');
       STATE.active = Array.isArray(r) ? r : (r && r.rows) || [];
+      this.loadedOnce = true;
+      /* Chiqqan mashinalar — navbatdagisi o'zi boshlansin */
+      if (hadList) {
+        const goneAll = prevAll.filter(v => !STATE.active.some(x => String(x.id) === String(v.id)));
+        if (goneAll.length && STATE.queue.length) Queue.autoNext(goneAll);
+      }
       const gone = prevAuto.filter(v => !STATE.active.some(x => String(x.id) === String(v.id)));
       const closed = gone.filter(v => !Chiqish.closedIds[v.id] && (sessionTiming(v).remaining === null || sessionTiming(v).remaining <= 120));
       if (gone.length) { Debts.load(true); Reports.loadDaily(); }
@@ -6622,7 +6661,9 @@ const Active = {
     if (STATE.page !== 'active') go('active');
   },
 
+  freezing: {},
   async freeze(id, btn) {
+    this.freezing[id] = 1;
     await withBusy('freeze:' + id, btn, async () => {
       try {
         await api('/sessions/' + encodeURIComponent(id) + '/freeze', { method: 'POST', body: '{}' });
