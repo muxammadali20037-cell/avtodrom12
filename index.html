@@ -4462,9 +4462,12 @@ const Add = {
           : 'Kirdi: ' + d.body + ' — ' + hhmm(w.start) + '–' + hhmm(w.end) + ' · ' + money(price)
             + (field ? ' ' + PAY_NAMES[pay] + ' olindi' : ' to\'lanmagan') + '. Vaqti tugaganda o\'zi yopiladi.');
         /* Shu sahifada qolamiz: mashina pastdagi «Ichkarida» ro'yxatiga
-           tushadi, kursor keyingi mashina uchun tayyor */
+           tushadi, kursor keyingi mashina uchun tayyor. Kunlik hisobotga
+           ham DARHOL tushadi (vaqti tugashini kutmaydi). */
         this.reset();
         this.renderInside();
+        Reports.loadDaily();
+        Data.ensureToday(true).then(() => { Active.renderKpi(); this.fillLabelList(); });
         setTimeout(() => this.focusLabel(), 60);
       } catch (e) { setError(E, e.message); }
     });
@@ -4740,6 +4743,7 @@ const Queue = {
         const res = await api('/sessions/start', { method: 'POST', body: jsonBody(payload) });
         this.removeById(id);
         await Active.load(true);
+        Reports.loadDaily();
         Add.attachMeta(res, {
           payload: payload, body: body,
           targetSeconds: q.openEnded ? 0 : (q.targetSeconds || CONFIG.LESSON_SECONDS),
@@ -5654,8 +5658,10 @@ const DayExcel = {
           api('/sessions/active').catch(() => [])
         ]);
         const rows = (rep && rep.rows) || [];
+        /* Hisobot endi ichkaridagilarni ham beradi — takrorlanmasin */
+        const seen = new Set(rows.map(r => String(r.id)));
         const actRows = (Array.isArray(act) ? act : (act && act.rows) || [])
-          .filter(v => !isSchoolSession(v) && dayOf(v.started_at) >= from && dayOf(v.started_at) <= to);
+          .filter(v => !isSchoolSession(v) && !seen.has(String(v.id)) && dayOf(v.started_at) >= from && dayOf(v.started_at) <= to);
         const wb = this.build(ExcelJS, from, to, rows, actRows, (exp && exp.rows) || []);
         const buf = await wb.xlsx.writeBuffer();
         const name = (from === to ? this.fileDate(from) : this.fileDate(from) + '-' + this.fileDate(to)) + '.xlsx';
@@ -5716,7 +5722,7 @@ const DayExcel = {
     ['A', 'B', 'C', 'G', 'H', 'I', 'J'].concat(multi ? ['K'] : []).forEach(c => J.mergeCells(c + '3:' + c + '4'));
     head(J, 3, 1, jCols); head(J, 4, 1, jCols);
     J.getRow(3).height = 30;
-    const all = paidRows.map(r => ({ r: r, open: false })).concat(actRows.map(v => ({ r: v, open: true })))
+    const all = paidRows.map(r => ({ r: r, open: !!(r.status && r.status !== 'completed') })).concat(actRows.map(v => ({ r: v, open: true })))
       .sort((a, b) => new Date(a.r.started_at) - new Date(b.r.started_at));
     let rr = 5;
     all.forEach((x, i) => {
@@ -7145,7 +7151,10 @@ function reportRowCells(r) {
     '<b>' + esc(r.plate || (isSchool ? 'Davomat' : '—')) + '</b>'
       + (isSchool ? '<div><span class="badge badge-blue">Davomat</span></div>' : ''),
     esc(dt(r.started_at)),
-    esc(dt(r.finished_at)),
+    /* Hali ichkarida — hisobotga kirishi bilan tushadi */
+    (r.status && r.status !== 'completed'
+      ? '<span class="badge badge-amber">' + (r.status === 'active' ? 'Ichkarida' : 'Muzlatilgan') + '</span>'
+      : esc(dt(r.finished_at))),
     dur(r.duration_seconds),
     esc(r.school_name || '—'),
     esc(r.group_name || '—'),
@@ -7200,6 +7209,8 @@ const isSchoolRow = r => String((r && r.customer_type) || '') === 'school'
 function rowHours(r) {
   const sec = num(r && r.duration_seconds);
   if (sec > 0) return sec / 3600;
+  /* Hozirgina kirgan (ichkarida) — hali 0 soat */
+  if (r && r.status && r.status !== 'completed') return 0;
   return rowLessons(r);
 }
 /* 2.5 -> «2 soat 30 daq» */
