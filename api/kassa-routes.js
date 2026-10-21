@@ -141,6 +141,8 @@ export function ensureKassaSchema() {
 }
 
 /* ---------- RASXOD ---------- */
+/* Excel bo'limi (sheet-routes.js) ham shu tekshiruvdan foydalanadi */
+export function cleanExpense(b, todayFallback) { return clean(b, todayFallback); }
 function clean(b, todayFallback) {
   const out = {
     spent_on: text(b.spent_on || b.spentOn || b.date) || todayFallback,
