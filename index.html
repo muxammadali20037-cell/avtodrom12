@@ -1884,7 +1884,7 @@ const CONFIG = {
   HOURLY_RATE: 100000,
   MINIMUM_PAYMENT: 0,
   CALC_MODE: 'half',      /* 30 daqiqalik bo'laklar — soatiga HOURLY_RATE */
-  GRACE_MIN: 5,           /* buyurtmadan shuncha daqiqa oshsa ham qo'shimcha olinmaydi */
+  GRACE_MIN: 20,          /* vaqtdan shuncha daqiqa oshsa ham qo'shimcha olinmaydi (1:19 → 1 soat, 1:23 → 1,5 soat) */
   ROUND_TO: 1000,
 
   DEBOUNCE: 300,
@@ -3922,9 +3922,11 @@ const Add = {
     const st = this.paidStartDate() || new Date();
     const manual = !!this.paidStartDate();
     const min = num(STATE.form.paidMin) || 0;
-    if (!min) return { start: st, end: null, min: 0, manual: manual, past: false, open: true };
+    /* BRON: kirish vaqti keyinroq (soat 17:00 da «18:00» yozildi) — o'sha vaqtda o'zi ochiladi */
+    const future = manual && st.getTime() > Date.now() + 60000;
+    if (!min) return { start: st, end: null, min: 0, manual: manual, past: false, open: true, future: future };
     const end = addMin(st, min);
-    return { start: st, end: end, min: min, manual: manual, past: end.getTime() <= Date.now(), open: false };
+    return { start: st, end: end, min: min, manual: manual, past: !future && end.getTime() <= Date.now(), open: false, future: future };
   },
   renderPaid() {
     if (STATE.form.paidMin === undefined || STATE.form.paidMin === null) STATE.form.paidMin = 0;
@@ -3950,7 +3952,8 @@ const Add = {
     const rate = this.paidRate();
     const st = this.paidStartDate();
     const tg = $('paidStartToggle');
-    if (tg) tg.innerHTML = '<i class="fa-regular fa-clock" aria-hidden="true"></i> Kirish: ' + (st ? '<b>' + esc(hhmm(st)) + '</b>' : 'hozir');
+    if (tg) tg.innerHTML = '<i class="fa-regular fa-clock" aria-hidden="true"></i> '
+      + (st ? (st.getTime() > Date.now() + 60000 ? 'Bron: ' : 'Kirish: ') + '<b>' + esc(hhmm(st)) + '</b>' : 'Kirish: hozir · bron');
     const row = $('paidStartRow');
     if (tg && row) tg.classList.toggle('hidden', !row.classList.contains('hidden'));
     const box = $('qeSum');
@@ -3959,19 +3962,21 @@ const Add = {
     if (box) {
       if (w.open) {
         box.classList.remove('unpaid');
-        box.innerHTML = '<span><b class="big">' + esc(hhmm(w.start)) + ' →</b> chiqqanda · pul chiqishda olinadi</span>'
+        box.innerHTML = '<span><b class="big">' + esc(hhmm(w.start)) + ' →</b> chiqqanda · pul chiqishda olinadi'
+          + (w.future ? ' · <b>bron — ' + esc(hhmm(w.start)) + ' da o\'zi ochiladi</b>' : '') + '</span>'
           + '<span class="text-muted">soatiga <b>' + esc(money(rate)) + '</b></span>';
       } else {
         const price = this.paidPrice(w.min);
         const pay = STATE.form.payNow || '';
         box.classList.toggle('unpaid', !pay);
         box.innerHTML = '<span><b class="big">' + esc(hhmm(w.start)) + ' → ' + esc(hhmm(w.end)) + '</b> · ' + esc(this.paidMinLabel(w.min))
-          + (w.past ? ' · <b>vaqti o\'tgan — darhol yopiladi</b>' : ' · vaqti tugaganda o\'zi yopiladi') + '</span>'
+          + (w.past ? ' · <b>vaqti o\'tgan — darhol yopiladi</b>'
+             : w.future ? ' · <b>bron — ' + esc(hhmm(w.start)) + ' da o\'zi ochiladi</b>' : ' · vaqti tugaganda o\'zi yopiladi') + '</span>'
           + '<span><span class="qs-price">' + esc(money(price)) + '</span> '
           + (pay ? '<span class="in-tag paid">' + esc(PAY_NAMES[pay]) + ' olindi</span>' : '<span class="in-tag unpaid">to\'lanmagan</span>') + '</span>';
       }
     }
-    if (t && STATE.form.customerType !== 'school') t.textContent = w.past ? 'Yozish' : 'Kirdi';
+    if (t && STATE.form.customerType !== 'school') t.textContent = w.past ? 'Yozish' : w.future ? 'Bron qilish' : 'Kirdi';
   },
   setPaidMin(m) { STATE.form.paidMin = Math.max(0, num(m) || 0); this.renderPaid(); this.focusLabel(); },
   setPayNow(p) {
@@ -4310,7 +4315,7 @@ const Add = {
     if (STATE.form.customerType !== 'school') {
       if (!d.body || d.body.length < 2) { setError('labelErr', 'Avtomobil raqami yoki mijoz nomini yozing.'); if ($('carLabel')) $('carLabel').focus(); return "Avtomobil raqami yoki mijoz nomini yozing."; }
       const w = this.paidWindow();
-      if (w.manual && w.start.getTime() > Date.now() + 5 * 60000) return "Kirish vaqti hozirgidan keyin bo'lishi mumkin emas.";
+      if (w.manual && w.start.getTime() > Date.now() + 12 * 3600e3) return "Bron 12 soatdan uzoq bo'lmasin (faqat bugungi vaqtlar).";
       if (w.manual && Date.now() - w.start.getTime() > 12 * 3600e3) return "Kirish vaqti 12 soatdan oldin bo'lmasin (faqat bugungi yozuvlar).";
       return '';
     }
@@ -4474,15 +4479,17 @@ const Add = {
     setError(E, '');
     await withBusy('start:' + d.body, $('kirdiBtn') || $('startBtn'), async () => {
       try {
-        /* Ikki marta ochilishning oldini olish: avval aktivlarni tekshiramiz */
         await Active.load(true);
+        const w = this.paidWindow();
+        /* BRON (kirish vaqti keyinroq) — navbatga, vaqti kelganda o'zi ochiladi */
+        if (w.future) { await Queue.fromEntry(d, w, 'bron'); return; }
+        /* Mashina band (ichkarida) — o'zi kutish rejimiga tushadi, u chiqqach boshlanadi */
         const key = labelKey(d.body);
         if (key && STATE.active.some(a => !isSchoolSession(a) && labelKey(a.plate) === key)) {
-          setError(E, '«' + d.body + '» hozir ichkarida — pastdagi ro\'yxatdan «Chiqdi» ni bosing.');
-          this.renderInside();
+          if (w.past) { setError(E, '«' + d.body + '» hozir ichkarida — o\'tgan vaqtni yozib bo\'lmaydi. Avval «Chiqdi» ni bosing.'); this.renderInside(); return; }
+          await Queue.fromEntry(d, w, 'busy');
           return;
         }
-        const w = this.paidWindow();
         const price = w.open ? 0 : this.paidPrice(w.min);
         const pay = w.open ? '' : (STATE.form.payNow || '');
         const payload = Object.assign({}, d.payload);
@@ -4662,6 +4669,7 @@ const Queue = {
     return Object.assign({}, d, {
       queueId: String(r.id), queuedAt: r.created_at, status: 'WAITING',
       waitingFor: r.waiting_for || null,
+      waitingFinishedAt: r.waiting_finished_at || null,
       waitingStatus: r.waiting_status !== undefined ? (r.waiting_status || null) : (r.waiting_for ? 'active' : null)
     });
   },
@@ -4740,19 +4748,11 @@ const Queue = {
     this.save();
   },
 
-  async addFromForm() {
-    setError('startErr', '');
-    const d = Add.collect();
-    const err = Add.validate(d);
-    if (err) { setError('startErr', err); return; }
-    /* Oddiy mijoz: yo'li (oxirida / oldindan) va oldindan to'lov navbatga ham yoziladi */
-    const w = d.type === 'school' ? null : Add.paidWindow();
-    if (w && w.past) { setError('startErr', "Vaqti o'tgan yozuvni navbatga qo'yib bo'lmaydi — «Yozish va yopish» ni bosing."); return; }
+  /* Formadan navbat elementi (soat, to'lov, bron vaqti bilan) */
+  itemFromForm(d, w) {
     const prepay = w && !w.open && STATE.form.payNow ? { method: STATE.form.payNow, amount: Add.paidPrice(w.min) } : null;
     const planned = w && !w.open ? Add.paidPrice(w.min) : 0;
-    await withBusy('queue:add', $('queueBtn'), async () => {
-      let ok = false;
-      try { ok = await this.enqueue({
+    return {
         studentId: d.student ? d.student.id : null,
         studentName: d.student ? stName(d.student) : (d.payload.driverName || 'Oddiy mijoz'),
         schoolId: d.payload.schoolId,
@@ -4771,8 +4771,52 @@ const Queue = {
         targetSeconds: d.targetSeconds,
         openEnded: !!(w && w.open),
         planned: planned,
-        prepay: prepay
-      }); } catch (e) { toast('Navbatga qo\'shilmadi: ' + e.message, 'error'); return; }
+        prepay: prepay,
+        startAt: w && w.future ? w.start.toISOString() : null
+    };
+  },
+  /* «Kirdi» bosilganda: BRON (vaqti keyin) yoki mashina BAND — o'zi navbatga.
+     Chek darhol chiqadi (mijoz olib qo'yadi). */
+  async fromEntry(d, w, why) {
+    const item = this.itemFromForm(d, w);
+    let ok = false;
+    try { ok = await this.enqueue(item); }
+    catch (e) { setError('labelErr', 'Navbatga qo\'shilmadi: ' + e.message); return false; }
+    if (!ok) { setError('labelErr', 'Navbatga qo\'shilmadi — qayta urinib ko\'ring.'); return false; }
+    this.render();
+    const k0 = this.groupKey(item);
+    const pos = STATE.queue.filter(q => this.groupKey(q) === k0 && !q.startAt).length;
+    const price = w.open ? 0 : Add.paidPrice(w.min);
+    const pay = item.prepay ? item.prepay.method : '';
+    EntryTicket80.printHidden({
+      kind: 'paid', plate: d.body, model: '', person: '',
+      instructor: d.instructorName || (d.instructor ? insName(d.instructor) : ''),
+      hours: w.open ? 0 : Math.round(w.min / 60 * 100) / 100, open: w.open, paid: !!pay,
+      rate: Add.paidRate(), total: price,
+      issued: why === 'bron' ? w.start.toISOString() : '', until: why === 'bron' && w.end ? w.end.toISOString() : '',
+      booked: why === 'bron',
+      note: why === 'bron' ? 'Bron — ' + hhmm(w.start) + ' da o‘zi ochiladi' : 'Navbatda — oldingisi chiqqach ochiladi'
+    }, () => Add.focusLabel());
+    toast(why === 'bron'
+      ? 'Bron qilindi: ' + d.body + ' — ' + hhmm(w.start) + (w.end ? '–' + hhmm(w.end) : '') + (price ? ', ' + money(price) + (pay ? ' ' + PAY_NAMES[pay] + ' olindi' : ' to\'lanmagan') : '') + '. ' + hhmm(w.start) + ' da o\'zi ochiladi.'
+      : '«' + d.body + '» hozir ichkarida — kutish rejimiga qo\'yildi' + (pos > 1 ? ' (' + pos + '-o\'rinda)' : '') + '. U chiqishi bilan o\'zi boshlanadi.');
+    Add.reset();
+    Add.renderInside();
+    setTimeout(() => Add.focusLabel(), 60);
+    return true;
+  },
+  async addFromForm() {
+    setError('startErr', '');
+    const d = Add.collect();
+    const err = Add.validate(d);
+    if (err) { setError(d.type === 'school' ? 'startErr' : 'labelErr', err); return; }
+    /* Oddiy mijoz: yo'li (oxirida / oldindan) va oldindan to'lov navbatga ham yoziladi */
+    const w = d.type === 'school' ? null : Add.paidWindow();
+    if (w && w.past) { setError('startErr', "Vaqti o'tgan yozuvni navbatga qo'yib bo'lmaydi — «Yozish va yopish» ni bosing."); return; }
+    if (w && w.future) { await this.fromEntry(d, w, 'bron'); return; }
+    await withBusy('queue:add', $('queueBtn'), async () => {
+      let ok = false;
+      try { ok = await this.enqueue(this.itemFromForm(d, w)); } catch (e) { toast('Navbatga qo\'shilmadi: ' + e.message, 'error'); return; }
       if (!ok) { toast('Navbatga qo\'shilmadi — qayta urinib ko\'ring.', 'warn'); return; }
       this.render();
       const nm = d.student ? stName(d.student) : (d.payload.label || d.body || 'Oddiy mijoz');
@@ -4797,7 +4841,7 @@ const Queue = {
     STATE.queue.forEach(q => { const k = this.groupKey(q); (grouped[k] = grouped[k] || []).push(q); });
     let h = '<div class="panel"><div class="panel-head"><h3><i class="fa-regular fa-clock" style="color:var(--amber)" aria-hidden="true"></i> Kutish rejimi</h3>'
       + '<span class="badge badge-amber">' + STATE.queue.length + ' ta kutmoqda</span></div>'
-      + '<div class="field-help" style="margin:-4px 0 6px"><i class="fa-solid fa-bolt" aria-hidden="true"></i> Ichkaridagi mashina chiqishi bilan navbatdagisi o\'zi boshlanadi.</div>';
+      + '<div class="field-help" style="margin:-4px 0 6px"><i class="fa-solid fa-bolt" aria-hidden="true"></i> Ichkaridagi mashina chiqishi bilan navbatdagisi o\'zi boshlanadi; bron — o\'z vaqtida.</div>';
     Object.keys(grouped).forEach(k => {
       const list = grouped[k], first = list[0];
       const plate = first.label || displayPlate(first.regionCode, first.plateBody || first.plate);
@@ -4807,15 +4851,23 @@ const Queue = {
       h += list.map((q, i) => {
         const sub = [q.customerType === 'school' ? 'Avtoshkola o\'quvchisi' : '', q.schoolName, q.groupName, q.instructorName ? 'Instruktor: ' + q.instructorName : '']
           .filter(Boolean).join(' • ');
+        /* BRON: «18:00 – 19:00» */
+        const sa = q.startAt ? new Date(q.startAt) : null;
+        const due = sa && sa.getTime() <= Date.now();
+        const slot = sa ? hhmm(sa) + (q.openEnded ? ' dan' : ' – ' + hhmm(new Date(sa.getTime() + num(q.targetSeconds) * 1000))) : '';
+        const badge = sa
+          ? '<span class="badge ' + (due ? 'badge-amber' : 'badge-blue') + '"><i class="fa-regular fa-calendar-check" aria-hidden="true"></i> '
+            + (due ? 'BRON · mashina bo\'shashini kutmoqda' : 'BRON ' + esc(hhmm(sa))) + '</span>'
+          : '<span class="badge badge-amber">KUTISHDA</span>';
         return '<div class="queue-item"><div class="queue-left"><div class="queue-no">' + (i + 1) + '</div>'
-          + '<div><b style="font-size:13.5px">' + esc(q.studentName || 'Oddiy mijoz') + '</b>'
+          + '<div><b style="font-size:13.5px">' + (sa ? '<i class="fa-regular fa-calendar-check" aria-hidden="true"></i> Bron: ' + esc(slot) : esc(q.studentName || 'Oddiy mijoz')) + '</b>'
           + '<div class="text-muted" style="font-size:12px">' + esc(sub) + '</div>'
           + '<div class="text-muted" style="font-size:11.5px">' + (q.openEnded
               ? 'Ochiq vaqt · pul chiqishda'
-              : 'Rejalashtirilgan: ' + esc(durShort(q.targetSeconds || CONFIG.LESSON_SECONDS))
-                + (q.prepay ? ' · to\'langan ' + esc(money(q.prepay.amount)) + ' ' + esc({ cash: 'naqd', terminal: 'terminal', click: 'Klik' }[q.prepay.method] || '') : ''))
+              : 'Vaqt: ' + esc(durShort(q.targetSeconds || CONFIG.LESSON_SECONDS))
+                + (q.prepay ? ' · to\'langan ' + esc(money(q.prepay.amount)) + ' ' + esc({ cash: 'naqd', terminal: 'terminal', click: 'Klik' }[q.prepay.method] || '') : ' · to\'lanmagan'))
           + '</div></div></div>'
-          + '<div class="actions-row" style="margin:0"><span class="badge badge-amber">KUTISHDA</span>'
+          + '<div class="actions-row" style="margin:0">' + badge
           + '<button class="btn btn-green btn-sm" type="button" data-act="queueStart" data-id="' + esc(q.queueId) + '"><span class="spinner"></span><i class="fa-solid fa-play btn-icon" aria-hidden="true"></i><span class="btn-text">Boshlash</span></button>'
           + '<button class="btn btn-danger btn-sm" type="button" data-act="queueRemove" data-id="' + esc(q.queueId) + '" aria-label="Navbatdan chiqarish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div></div>';
       }).join('');
@@ -4844,16 +4896,37 @@ const Queue = {
      ikki kompyuter bir vaqtda boshlamasligi uchun server «band qiladi»
      (claim). Muzlatilgan mashina uchun boshlanmaydi (u qaytadi). */
   starting: {},
+  /* Vaqti kelgan, lekin mashina band bo'lgani uchun kutgan bronlar —
+     ular mashina bo'shagan paytdan boshlanadi (oldingisi bilan ustma-ust emas) */
+  blocked: {},
+  /* Navbatdagi o'zi boshlanishga tayyormi:
+     • BRON — vaqti keldi (mashina bo'shligi alohida tekshiriladi);
+     • band mashinaga qo'yilgan — o'sha mashinadagi yozuv yopildi;
+     • qo'lda qo'yilgan (mashina bo'sh paytda) — faqat «Boshlash» bilan. */
+  isReady(q, now) {
+    if ((q.customerType || 'ordinary') === 'school') return false;
+    if (q.startAt) return new Date(q.startAt).getTime() <= now;
+    if (!q.waitingFor) return false;
+    if (['active', 'frozen', 'paused'].indexOf(String(q.waitingStatus || '')) >= 0) return false;
+    if ((STATE.active || []).some(v => String(v.id) === String(q.waitingFor))) return false;
+    if (Active.freezing && Active.freezing[q.waitingFor]) return false;
+    return true;
+  },
   checkAuto() {
     if (!STATE.queue.length) return;
-    const first = {};
-    STATE.queue.forEach(q => { const k = this.groupKey(q); if (!first[k]) first[k] = q; });
-    Object.values(first).forEach(q => {
-      if (!q.waitingFor || (q.customerType || 'ordinary') === 'school' || this.starting[q.queueId]) return;
-      if (['active', 'frozen', 'paused'].indexOf(String(q.waitingStatus || '')) >= 0) return;
-      if ((STATE.active || []).some(v => String(v.id) === String(q.waitingFor))) return;
-      if (Active.freezing && Active.freezing[q.waitingFor]) return;
-      if (this.insideIdFor(q)) return;     /* mashinada boshqasi bor */
+    const now = Date.now();
+    const groups = {};
+    STATE.queue.forEach(q => { const k = this.groupKey(q); (groups[k] = groups[k] || []).push(q); });
+    Object.values(groups).forEach(list => {
+      /* Vaqti kelmagan bronlar navbatni to'smaydi. Vaqti kelgan bron —
+         birinchi (vaqti bo'yicha), qolganlari qo'yilgan tartibda. */
+      const live = list.filter(q => !(q.startAt && new Date(q.startAt).getTime() > now));
+      const order = live.filter(q => q.startAt).sort((a, b) => new Date(a.startAt) - new Date(b.startAt))
+        .concat(live.filter(q => !q.startAt));
+      const q = order.find(x => this.isReady(x, now));
+      if (!q || this.starting[q.queueId]) return;
+      if (list.some(x => this.starting[x.queueId])) return;
+      if (this.insideIdFor(q)) { this.blocked[q.queueId] = 1; return; }  /* mashinada boshqasi bor — bo'shashini kutadi */
       this.starting[q.queueId] = 1;
       Promise.resolve(this.start(q.queueId, null, { auto: true }))
         .finally(() => { delete this.starting[q.queueId]; });
@@ -4907,6 +4980,15 @@ const Queue = {
         }
         if (q.openEnded) { payload.openEnded = true; payload.open_ended = true; }
         else if (q.planned && (q.customerType || 'ordinary') !== 'school') { payload.autoClose = true; payload.plannedAmount = num(q.planned); }
+        /* BRON: vaqtida boshlansa — aynan bron vaqtidan (15 daqiqagacha kechiksa ham).
+           Mashina band bo'lib kutgan bo'lsa — bo'shagan paytdan (oldingisi bilan
+           ustma-ust sanalmasin); juda kechiksa — hozirdan. */
+        if (q.startAt && !this.blocked[id]) {
+          const from = Math.max(new Date(q.startAt).getTime(), q.waitingFinishedAt ? new Date(q.waitingFinishedAt).getTime() : 0);
+          if (from <= Date.now() && Date.now() - from <= 15 * 60000) {
+            payload.startAt = new Date(from).toISOString(); payload.start_at = payload.startAt;
+          }
+        }
         const pf = q.prepay && { cash: 'cash_amount', terminal: 'terminal_amount', click: 'click_amount' }[q.prepay.method];
         if (pf && num(q.prepay.amount) > 0) payload[pf] = num(q.prepay.amount);
         let res;
@@ -4916,6 +4998,7 @@ const Queue = {
           throw e;
         }
         const sidQ = res && (res.id || (res.session && res.session.id));
+        delete this.blocked[id];
         await api('/queue/' + encodeURIComponent(id) + '/done', { method: 'POST', body: jsonBody({ session_id: sidQ || null }) }).catch(() => {});
         this.removeById(id);
         await Active.load(true);
@@ -6345,9 +6428,10 @@ const EntryTicket80 = {
       + row('Mijoz', data.person)
       + row('Instruktor', data.instructor)
       + row('Foydalanish', hours > 0 ? hours + ' soat' : (data.open ? 'Ochiq vaqt' : ''))
-      + row('Boshlandi', this.tkTime(data.issued))
+      + row(data.booked ? 'Boshlanadi' : 'Boshlandi', data.issued ? this.tkTime(data.issued) : '')
       + row('Tugaydi', data.until ? this.tkTime(data.until) : '')
       + row('To‘lov', data.open ? 'Chiqishda' : (data.paid ? 'To‘langan' : ''))
+      + row('Holat', data.note || '')
       + '<div class="hr"></div>'
       + '<div class="ft">Chekni yakunlashda ko‘rsating.<br>Yaxshi yo‘l!</div>',
       bare);
@@ -6571,7 +6655,8 @@ function tariff(v) {
 /* YARIM SOATLIK HISOB: vaqt 30 daqiqalik bo'laklarda sotiladi.
    Mijoz buyurtma qilgan vaqtdan (1 soat, 1,5 soat, ...) kam to'lamaydi;
    ortiqcha vaqt keyingi 30 daqiqaga yaxlitlanadi, CONFIG.GRACE_MIN
-   (5 daqiqa) kechiriladi. Eng kami 30 daqiqa. */
+   (20 daqiqa) kechiriladi: 1 soat 19 daq → 1 soat (100 000), 1 soat 23 daq →
+   1,5 soat (150 000). Eng kami 30 daqiqa. */
 function billMinutes(elapsedSec, targetSec) {
   const grace = num(CONFIG.GRACE_MIN);
   const actual = Math.max(0, num(elapsedSec) / 60 - grace);
@@ -11636,7 +11721,7 @@ function startPolling() {
   if (queueTimer) clearInterval(queueTimer);
   queueTimer = setInterval(() => {
     if (document.hidden || !STATE.auth.token) return;
-    if (STATE.queue.some(q => q.waitingFor)) Active.load(true).then(() => Queue.sync());
+    if (STATE.queue.some(q => q.waitingFor || q.startAt)) Active.load(true).then(() => Queue.sync());
     else Queue.sync();
   }, 10000);
   if (pollTimer) clearInterval(pollTimer);

@@ -89,7 +89,8 @@ export async function handleQueueRequest(req, res) {
     if (!id && req.method === 'GET') {
       /* waiting_status — oldingi mashina holati (active/frozen/completed):
          sahifa shunga qarab navbatdagini o'zi boshlaydi */
-      const r = await pool.query(`SELECT q.id, q.data, q.waiting_for, q.created_at, q.claimed_at, s.status AS waiting_status
+      const r = await pool.query(`SELECT q.id, q.data, q.waiting_for, q.created_at, q.claimed_at, s.status AS waiting_status,
+                s.finished_at AS waiting_finished_at
           FROM waiting_queue q LEFT JOIN sessions s ON s.id::text = q.waiting_for
          WHERE q.user_id = $1 AND q.removed_at IS NULL
          ORDER BY q.created_at, q.id LIMIT 500`, [user]);
