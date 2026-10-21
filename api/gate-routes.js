@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
 import { pool } from '../backend/src/db.js';
+import { runOnce } from '../backend/src/schema-once.js';
 
 /* =========================================================================
    TURNIKET — kirish joyidagi QR nazorati
@@ -88,7 +89,7 @@ let schemaPromise = null;
 export function ensureGateSchema() {
   if (schemaPromise) return schemaPromise;
   const first = [];
-  schemaPromise = (async () => {
+  schemaPromise = runOnce('gate-schema-v1', async () => {
     const q = async sql => { try { await pool.query(sql); } catch (e) { first.push(e); console.error('GATE SCHEMA:', e.message); } };
     await q(`
       CREATE TABLE IF NOT EXISTS gate_passes(
@@ -160,7 +161,7 @@ export function ensureGateSchema() {
        chek avvalgidek chiqadi, kassa kod so'rab kutmaydi. */
     await q(`ALTER TABLE gate_settings ADD COLUMN IF NOT EXISTS qr_on_ticket BOOLEAN NOT NULL DEFAULT FALSE`);
     if (first.length) { schemaPromise = null; throw first[0]; }
-  })().catch(e => { schemaPromise = null; throw e; });
+  }).catch(e => { schemaPromise = null; throw e; });
   return schemaPromise;
 }
 

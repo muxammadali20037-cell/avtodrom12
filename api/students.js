@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
+import { runOnce, ddl } from '../backend/src/schema-once.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 const uid = req => String(req.user.sub);
@@ -16,39 +17,51 @@ function auth(req,res){
     req.user=jwt.verify(h.slice(7),JWT_SECRET);return true;
   }catch{json(res,401,{error:'Sessiya yaroqsiz yoki tugagan'});return false;}
 }
-async function ensureSchema(){
-  await pool.query(`ALTER TABLE public.students ADD COLUMN IF NOT EXISTS attendance_count integer NOT NULL DEFAULT 0`);
-  await pool.query(`ALTER TABLE public.students ADD COLUMN IF NOT EXISTS birth_date date`);
-  await pool.query(`ALTER TABLE public.students DROP CONSTRAINT IF EXISTS students_attendance_count_nonnegative`);
-  await pool.query(`ALTER TABLE public.students ADD CONSTRAINT students_attendance_count_nonnegative CHECK (attendance_count >= 0)`);
-  await pool.query(`
-    UPDATE public.students
-       SET attendance_count = GREATEST(
-         COALESCE(attendance_count,0),
-         COALESCE(NULLIF((substring(notes from 'ATTENDANCE_BASE=([0-9]+)')),'')::int,0)
-       ),
-           notes = NULLIF(regexp_replace(COALESCE(notes,''),'(^|;)ATTENDANCE_BASE=[0-9]+;?','','i'),'')
-     WHERE notes ~ 'ATTENDANCE_BASE=[0-9]+'
-  `);
-  await pool.query(`
-    CREATE OR REPLACE FUNCTION public.avtodrom_increment_student_attendance()
-    RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-    BEGIN
-      IF NEW.student_id IS NOT NULL AND UPPER(COALESCE(NEW.status,''))='COMPLETED' AND UPPER(COALESCE(OLD.status,''))<>'COMPLETED' THEN
-        UPDATE public.students SET attendance_count=COALESCE(attendance_count,0)+1 WHERE id=NEW.student_id;
-      END IF;
-      RETURN NEW;
-    END; $$;
-  `);
-  await pool.query(`DROP TRIGGER IF EXISTS trg_avtodrom_student_attendance ON public.sessions`);
-  await pool.query(`CREATE TRIGGER trg_avtodrom_student_attendance AFTER UPDATE OF status ON public.sessions FOR EACH ROW EXECUTE FUNCTION public.avtodrom_increment_student_attendance()`);
+/* SXEMA — faqat BIR MARTA (ilgari HAR SO'ROVDA bajarilardi: students va
+   sessions jadvallarini to'liq qulflab, CHECK ni butun jadval bo'ylab qayta
+   tekshirar, triggerni o'chirib-qayta yaratardi — baza qotishining asosiy
+   sababi). Endi: bazada «students-schema-v2» yozilgan bo'lsa hech narsa
+   qilinmaydi; birinchi marta ham har DDL qulfni 4 soniyadan ortiq kutmaydi. */
+let schemaP=null;
+function ensureSchema(){
+  if(schemaP) return schemaP;
+  schemaP=runOnce('students-schema-v2',async()=>{
+    await ddl(`ALTER TABLE public.students ADD COLUMN IF NOT EXISTS attendance_count integer NOT NULL DEFAULT 0`);
+    await ddl(`ALTER TABLE public.students ADD COLUMN IF NOT EXISTS birth_date date`);
+    /* CHECK faqat yo'q bo'lsa va NOT VALID — eski qatorlar qayta tekshirilmaydi */
+    const ck=await pool.query(`SELECT 1 FROM pg_constraint WHERE conrelid='public.students'::regclass AND conname='students_attendance_count_nonnegative'`);
+    if(!ck.rowCount) await ddl(`ALTER TABLE public.students ADD CONSTRAINT students_attendance_count_nonnegative CHECK (attendance_count >= 0) NOT VALID`);
+    await pool.query(`
+      UPDATE public.students
+         SET attendance_count = GREATEST(
+           COALESCE(attendance_count,0),
+           COALESCE(NULLIF((substring(notes from 'ATTENDANCE_BASE=([0-9]+)')),'')::int,0)
+         ),
+             notes = NULLIF(regexp_replace(COALESCE(notes,''),'(^|;)ATTENDANCE_BASE=[0-9]+;?','','i'),'')
+       WHERE notes ~ 'ATTENDANCE_BASE=[0-9]+'
+    `);
+    await pool.query(`
+      CREATE OR REPLACE FUNCTION public.avtodrom_increment_student_attendance()
+      RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+      BEGIN
+        IF NEW.student_id IS NOT NULL AND UPPER(COALESCE(NEW.status,''))='COMPLETED' AND UPPER(COALESCE(OLD.status,''))<>'COMPLETED' THEN
+          UPDATE public.students SET attendance_count=COALESCE(attendance_count,0)+1 WHERE id=NEW.student_id;
+        END IF;
+        RETURN NEW;
+      END; $$;
+    `);
+    /* Trigger faqat yo'q bo'lsa yaratiladi (o'chirib-qayta yaratilmaydi) */
+    const tg=await pool.query(`SELECT 1 FROM pg_trigger WHERE tgrelid='public.sessions'::regclass AND tgname='trg_avtodrom_student_attendance' AND NOT tgisinternal`);
+    if(!tg.rowCount) await ddl(`CREATE TRIGGER trg_avtodrom_student_attendance AFTER UPDATE OF status ON public.sessions FOR EACH ROW EXECUTE FUNCTION public.avtodrom_increment_student_attendance()`);
+  }).catch(e=>{schemaP=null;throw e;});
+  return schemaP;
 }
 
 export default async function handler(req,res){
   if(req.method==='OPTIONS'){res.statusCode=204;return res.end();}
   if(!auth(req,res))return;
   try{
-    await ensureSchema();
+    try{await ensureSchema();}catch(e){console.error('STUDENTS SCHEMA:',e.message);}
     const owner=uid(req);
 
     if(req.method==='GET'){

@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
+import { runOnce, ddl } from '../backend/src/schema-once.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 const uid = req => String(req.user.sub);
@@ -38,13 +39,15 @@ export default async function handler(req, res) {
   const errors = [];
 
   try {
-    await c.query('BEGIN');
-
-    await c.query(`
-      ALTER TABLE public.students
+    /* Ustunlar — tranzaksiyadan TASHQARIDA va bir marta. Ilgari ALTER import
+       tranzaksiyasi ichida edi: import tugaguncha students jadvali to'liq
+       qulflanib, hamma o'quvchi so'rovlari kutib qolardi. */
+    try {
+      await runOnce('students-bulk-cols-v1', () => ddl(`ALTER TABLE public.students
         ADD COLUMN IF NOT EXISTS birth_date DATE,
-        ADD COLUMN IF NOT EXISTS attendance_count INTEGER NOT NULL DEFAULT 0
-    `);
+        ADD COLUMN IF NOT EXISTS attendance_count INTEGER NOT NULL DEFAULT 0`));
+    } catch (e) { console.error('BULK SCHEMA:', e.message); }
+    await c.query('BEGIN');
 
     const school = await c.query(
       `SELECT id FROM driving_schools WHERE id=$1 AND owner_key=$2 AND active=true`,

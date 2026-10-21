@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
+import { runOnce } from '../backend/src/schema-once.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 const uid = req => String(req.user.sub);
@@ -25,7 +26,7 @@ function plateParts(region,raw){
 let schemaPromise;
 async function ensureSchema(){
   if(schemaPromise) return schemaPromise;
-  schemaPromise=(async()=>{
+  schemaPromise=runOnce('restore-waiting-schema-v1',async()=>{
     await pool.query(`
       CREATE TABLE IF NOT EXISTS waiting_sessions(
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -45,7 +46,7 @@ async function ensureSchema(){
       CREATE INDEX IF NOT EXISTS idx_waiting_user_created ON waiting_sessions(user_id,created_at);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_waiting_user_plate ON waiting_sessions(user_id,plate);
     `);
-  })().catch(e=>{schemaPromise=null;throw e});
+  }).catch(e=>{schemaPromise=null;throw e});
   return schemaPromise;
 }
 

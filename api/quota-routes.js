@@ -34,6 +34,7 @@
 
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
+import { runOnce } from '../backend/src/schema-once.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 
@@ -70,7 +71,7 @@ function auth(req) {
 let schemaPromise = null;
 export function ensureQuotaSchema() {
   if (schemaPromise) return schemaPromise;
-  schemaPromise = (async () => {
+  schemaPromise = runOnce('quota-schema-v1', async () => {
     const q = async sql => {
       try { await pool.query(sql); } catch (e) { console.error('QUOTA SCHEMA:', e.message); }
     };
@@ -82,7 +83,7 @@ export function ensureQuotaSchema() {
     await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS over_lessons INTEGER`);
     await q(`CREATE INDEX IF NOT EXISTS idx_sessions_student_quota
              ON sessions(user_id, student_id) WHERE student_id IS NOT NULL`);
-  })().catch(e => { schemaPromise = null; throw e; });
+  }).catch(e => { schemaPromise = null; throw e; });
   return schemaPromise;
 }
 

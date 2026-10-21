@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
+import { runOnce } from '../backend/src/schema-once.js';
 
 /* =========================================================
    AVTODROM V3 ROUTES
@@ -96,7 +97,7 @@ function buildPlate(regionCode, rawBody) {
 let schemaPromise = null;
 function ensureV3Schema() {
   if (schemaPromise) return schemaPromise;
-  schemaPromise = (async () => {
+  schemaPromise = runOnce('v3-schema-v1', async () => {
     const q = async sql => { try { await pool.query(sql); } catch (e) { console.error('V3 SCHEMA:', e.message); } };
     await q(`ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_date DATE`);
     await q(`ALTER TABLE students ADD COLUMN IF NOT EXISTS manual_attendance_count INTEGER NOT NULL DEFAULT 0`);
@@ -115,7 +116,7 @@ function ensureV3Schema() {
     await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS planned_minutes INTEGER NOT NULL DEFAULT 0`);
     await q(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS instructor_id UUID`);
     await q(`CREATE INDEX IF NOT EXISTS idx_sessions_instructor ON sessions(instructor_id,started_at DESC)`);
-  })().catch(e => { schemaPromise = null; throw e; });
+  }).catch(e => { schemaPromise = null; throw e; });
   return schemaPromise;
 }
 

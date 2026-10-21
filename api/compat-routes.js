@@ -1,6 +1,7 @@
 import { accessCheck } from './access-routes.js';
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
+import { runOnce } from '../backend/src/schema-once.js';
 import { ensureQuotaSchema, quotaForInsert } from './quota-routes.js';
 import { logChange, reasonError, LESSONS_NEED_REASON } from './audit-routes.js';
 
@@ -28,7 +29,7 @@ function userId(req) {
 let schemaPromise = null;
 function ensureCompatSchema() {
   if (!schemaPromise) {
-    schemaPromise = (async () => {
+    schemaPromise = runOnce('compat-schema-v1', async () => {
       await pool.query(`
         ALTER TABLE students
           ADD COLUMN IF NOT EXISTS birth_date DATE,
@@ -107,11 +108,15 @@ function ensureCompatSchema() {
           RETURN NEW;
         END; $fn$;
       `);
-      await q(`DROP TRIGGER IF EXISTS trg_avtodrom_student_attendance_ins ON public.sessions`);
-      await q(`CREATE TRIGGER trg_avtodrom_student_attendance_ins
-               AFTER INSERT ON public.sessions
-               FOR EACH ROW EXECUTE FUNCTION public.avtodrom_attendance_on_insert()`);
-    })().catch(error => {
+      /* Trigger faqat yo'q bo'lsa — o'chirib-qayta yaratish sessions'ni qulflardi */
+      const tg = await pool.query(`SELECT 1 FROM pg_trigger WHERE tgrelid='public.sessions'::regclass
+        AND tgname='trg_avtodrom_student_attendance_ins' AND NOT tgisinternal`);
+      if (!tg.rowCount) {
+        await q(`CREATE TRIGGER trg_avtodrom_student_attendance_ins
+                 AFTER INSERT ON public.sessions
+                 FOR EACH ROW EXECUTE FUNCTION public.avtodrom_attendance_on_insert()`);
+      }
+    }).catch(error => {
       schemaPromise = null;
       throw error;
     });

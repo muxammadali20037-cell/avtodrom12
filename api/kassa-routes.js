@@ -41,6 +41,7 @@
 
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
+import { runOnce } from '../backend/src/schema-once.js';
 import { logChange } from './audit-routes.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
@@ -79,7 +80,7 @@ async function readBody(req) {
 let schemaP = null;
 export function ensureKassaSchema() {
   if (schemaP) return schemaP;
-  schemaP = (async () => {
+  schemaP = runOnce('kassa-schema-v3', async () => {
     const cols = await pool.query(`
       SELECT table_name, column_name, is_nullable, character_maximum_length
         FROM information_schema.columns
@@ -135,7 +136,7 @@ export function ensureKassaSchema() {
       updated_at TIMESTAMPTZ,
       deleted_at TIMESTAMPTZ)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_expenses_user_day ON expenses(user_id, spent_on) WHERE deleted_at IS NULL`);
-  })().catch(e => { schemaP = null; throw e; });
+  }).catch(e => { schemaP = null; throw e; });
   return schemaP;
 }
 

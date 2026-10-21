@@ -18,6 +18,7 @@
 
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
+import { runOnce } from '../backend/src/schema-once.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 
@@ -58,7 +59,7 @@ export function reasonError(reason) {
 let schemaPromise = null;
 export function ensureAuditSchema() {
   if (schemaPromise) return schemaPromise;
-  schemaPromise = (async () => {
+  schemaPromise = runOnce('audit-schema-v1', async () => {
     const q = async sql => {
       try { await pool.query(sql); } catch (e) { console.error('AUDIT SCHEMA:', e.message); }
     };
@@ -79,7 +80,7 @@ export function ensureAuditSchema() {
              ON change_log(owner_key, entity, entity_id, created_at DESC)`);
     await q(`CREATE INDEX IF NOT EXISTS idx_change_log_date
              ON change_log(owner_key, created_at DESC)`);
-  })().catch(e => { schemaPromise = null; throw e; });
+  }).catch(e => { schemaPromise = null; throw e; });
   return schemaPromise;
 }
 

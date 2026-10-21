@@ -6,7 +6,8 @@ import jwt from 'jsonwebtoken';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
-import { pool } from './db.js';
+import { pool, poolStats } from './db.js';
+import { dbLimits, ensureDbSafety } from './schema-once.js';
 
 dotenv.config();
 const app = express();
@@ -125,7 +126,9 @@ const SCHEMA_VERSION = 'feature_schema_v5';
    yuboriladi (bitta yengil SELECT bilan tekshiriladi). */
 async function ensureFeatureSchema(){
   try {
-    await pool.query(`CREATE TABLE IF NOT EXISTS avtodrom_migrations(
+    /* jadval bor bo'lsa CREATE yuborilmaydi (DDL — qulf oladi) */
+    const ex = await pool.query(`SELECT to_regclass('public.avtodrom_migrations') AS t`);
+    if (!ex.rows[0] || !ex.rows[0].t) await pool.query(`CREATE TABLE IF NOT EXISTS avtodrom_migrations(
       name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
     const done = await pool.query(`SELECT 1 FROM avtodrom_migrations WHERE name=$1`, [SCHEMA_VERSION]);
     if (done.rows[0]) { schemaSkipped = true; return; }
@@ -294,7 +297,11 @@ function dbInfo() {
       user: u.username || null,
       provider: /supabase/i.test(u.hostname) ? 'supabase'
         : /railway|rlwy/i.test(u.hostname) ? 'railway'
-        : /neon/i.test(u.hostname) ? 'neon' : 'boshqa'
+        : /neon/i.test(u.hostname) ? 'neon' : 'boshqa',
+      /* Supabase: serverless (Vercel) uchun 6543-port — «transaction» pooler
+         eng barqaror; 5432 — to'g'ridan-to'g'ri yoki «session» rejimi. */
+      pooler: /pooler\.supabase\.com/i.test(u.hostname) ? ((u.port || '5432') === '6543' ? 'transaction' : 'session')
+        : /-pooler\./i.test(u.hostname) ? 'neon-pooler' : 'yo‘q'
     };
   } catch (e) {
     return { configured: true, parse_error: true };
@@ -380,6 +387,8 @@ app.get('/api/health', async (req, res) => {
       missing: need.filter(n => !have.includes(n)),
       types: types.rows.map(r => r.table_name + '.' + r.column_name + ' = ' + r.data_type),
       db: dbInfo(),
+      pool: poolStats(),
+      db_limits: await dbLimits(),
       timing: {
         ping_ms: pingMs,
         count_query_ms: countMs,

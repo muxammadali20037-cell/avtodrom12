@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { pool } from './db.js';
+import { runOnce } from './schema-once.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 const num = v => Number.isFinite(Number(v)) ? Number(v) : 0;
@@ -23,7 +24,7 @@ let schemaPromise;
    500 berardi. NOT VALID — eski qatorlar qayta tekshirilmaydi. */
 function ensureFreezeSchema() {
   if (schemaPromise) return schemaPromise;
-  schemaPromise = (async () => {
+  schemaPromise = runOnce('freeze-schema-v1', async () => {
     await pool.query(`
       ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_status;
       ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_status_check;
@@ -37,7 +38,7 @@ function ensureFreezeSchema() {
       ALTER TABLE sessions ADD COLUMN IF NOT EXISTS manual_price BOOLEAN NOT NULL DEFAULT TRUE;
       CREATE INDEX IF NOT EXISTS idx_sessions_user_frozen ON sessions(user_id,status,frozen_at DESC);
     `);
-  })().catch(error => { schemaPromise = null; throw error; });
+  }).catch(error => { schemaPromise = null; throw error; });
   return schemaPromise;
 }
 

@@ -22,6 +22,7 @@
 
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
+import { runOnce } from '../backend/src/schema-once.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 
@@ -54,7 +55,7 @@ async function readBody(req) {
 let schemaP = null;
 export function ensureQueueSchema() {
   if (schemaP) return schemaP;
-  schemaP = (async () => {
+  schemaP = runOnce('queue-schema-v1', async () => {
     await pool.query(`CREATE TABLE IF NOT EXISTS waiting_queue(
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id TEXT NOT NULL,
@@ -66,7 +67,7 @@ export function ensureQueueSchema() {
       remove_reason TEXT,
       session_id TEXT)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_waiting_queue_open ON waiting_queue(user_id, created_at) WHERE removed_at IS NULL`);
-  })().catch(e => { schemaP = null; throw e; });
+  }).catch(e => { schemaP = null; throw e; });
   return schemaP;
 }
 

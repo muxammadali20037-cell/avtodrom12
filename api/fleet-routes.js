@@ -23,6 +23,7 @@
 
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
+import { runOnce } from '../backend/src/schema-once.js';
 import { instructorExpr } from './instructor-schema.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
@@ -66,7 +67,7 @@ async function readBody(req) {
 let schemaPromise = null;
 function ensureFleetSchema() {
   if (schemaPromise) return schemaPromise;
-  schemaPromise = (async () => {
+  schemaPromise = runOnce('fleet-schema-v1', async () => {
     const q = async sql => {
       try { await pool.query(sql); } catch (e) { console.error('FLEET SCHEMA:', e.message); }
     };
@@ -87,7 +88,7 @@ function ensureFleetSchema() {
     /* Bitta avtoshkolada bitta raqam ikki marta yozilmasin */
     await q(`CREATE UNIQUE INDEX IF NOT EXISTS uq_school_vehicles_plate
              ON school_vehicles(owner_key, school_id, plate_key) WHERE active`);
-  })().catch(e => { schemaPromise = null; throw e; });
+  }).catch(e => { schemaPromise = null; throw e; });
   return schemaPromise;
 }
 

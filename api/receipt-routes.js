@@ -2,6 +2,7 @@ import { accessCheck } from './access-routes.js';
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
 import { pool } from '../backend/src/db.js';
+import { runOnce } from '../backend/src/schema-once.js';
 import { ensureQuotaSchema, quotaForInsert } from './quota-routes.js';
 import { logChange } from './audit-routes.js';
 
@@ -82,7 +83,7 @@ function ensureSchema() {
   /* Xato bo'lsa keshlamaymiz: sovuq startda baza uyqudan uyg'onayotgan
      bo'lsa hamma DDL yiqiladi va shu instansiya umrbod 500 berardi. */
   const first = [];
-  schemaPromise = (async () => {
+  schemaPromise = runOnce('receipt-schema-v1', async () => {
     const q = async sql => { try { await pool.query(sql); } catch (e) { first.push(e); console.error('RECEIPT SCHEMA:', e.message); } };
     await q(`
       CREATE TABLE IF NOT EXISTS receipts(
@@ -146,7 +147,7 @@ function ensureSchema() {
        to'xtatmaymiz (huquq yetmasa ham boshqa yo'llar ishlayversin). */
     try { await pool.query(`ALTER TABLE sessions ALTER COLUMN vehicle_id DROP NOT NULL`); }
     catch (e) { console.error('RECEIPT SCHEMA (vehicle_id):', e.message); }
-  })().catch(e => { schemaPromise = null; throw e; });
+  }).catch(e => { schemaPromise = null; throw e; });
   return schemaPromise;
 }
 

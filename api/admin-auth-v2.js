@@ -229,10 +229,13 @@ async function restoreGroup(res,id,owner){
          merged:!!twin,students:st.rowCount,lessons:les.rows[0].n,duplicates:dup.rows[0].n};
   }catch(e){
     try{await c.query('ROLLBACK');}catch(e2){}
-    c.release();
     return send(res,500,{error:e.message||'Tiklashda xatolik'});
+  }finally{
+    /* Ulanish HAR DOIM qaytariladi. Avval «Guruh topilmadi» / «o'chirilmagan»
+       javoblarida qaytarilmay qolardi — har safar bitta ulanish yo'qolib,
+       pool to'lgach ilova qotib qolardi. */
+    c.release();
   }
-  c.release();
   await logChange(null,owner,{entity:'group',entityId:out.groupId,entityName:`${out.schoolName} — ${out.name}`,
     action:'group_restore',newValue:`${out.students} o‘quvchi`,reason:out.merged?'O‘chirilgan guruh shu nomli guruhga qo‘shildi':'O‘chirilgan guruh tiklandi'});
   return send(res,200,out);

@@ -21,6 +21,7 @@
 
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
+import { runOnce } from '../backend/src/schema-once.js';
 import { logChange, reasonError } from './audit-routes.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
@@ -66,7 +67,7 @@ async function readBody(req) {
 let schemaP = null;
 export function ensureAccessSchema() {
   if (schemaP) return schemaP;
-  schemaP = (async () => {
+  schemaP = runOnce('access-schema-v1', async () => {
     const r = await pool.query(`SELECT table_name, column_name FROM information_schema.columns
       WHERE table_schema='public' AND (
         (table_name='school_groups' AND column_name IN ('access_from','access_until')) OR
@@ -80,7 +81,7 @@ export function ensureAccessSchema() {
       ['students.access_set_at', 'ALTER TABLE students ADD COLUMN IF NOT EXISTS access_set_at TIMESTAMPTZ'],
     ];
     for (const [k, sql] of need) if (!have.has(k)) await pool.query(sql);
-  })().catch(e => { schemaP = null; throw e; });
+  }).catch(e => { schemaP = null; throw e; });
   return schemaP;
 }
 

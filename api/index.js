@@ -7,6 +7,7 @@ import { handleReceiptRequest } from "./receipt-routes.js";
 import { handleControlRequest } from "./control-routes.js";
 import { handleFleetRequest } from "./fleet-routes.js";
 import { handleQuotaRequest, ensureQuotaSchema } from "./quota-routes.js";
+import { ensureDbSafety } from "../backend/src/schema-once.js";
 import { handleAuditRequest } from "./audit-routes.js";
 import { handleGateRequest } from "./gate-routes.js";
 import { handleAccessRequest, ensureAccessSchema } from "./access-routes.js";
@@ -33,6 +34,7 @@ export default async function handler(req, res) {
      keyingi so'rovlarga qo'shimcha yuk bo'lmaydi. Bu yerda turgani
      muhim: limitni saqlash boshqa fayldan (admin) chaqirilsa ham,
      ro'yxatni o'qish esa Express'dan kelsa ham ustun mavjud bo'ladi. */
+  if (path.startsWith("/api/")) { try { await ensureDbSafety(); } catch (e) { /* noop */ } }
   if (path.startsWith("/api/")) { try { await ensureQuotaSchema(); } catch (e) { /* noop */ } }
   /* Kirish muddati ustunlari — har qanday tranzaksiyadan OLDIN (ichida DDL qotib qoladi) */
   if (path.startsWith("/api/")) { try { await ensureAccessSchema(); } catch (e) { /* noop */ } }
