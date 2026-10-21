@@ -1114,6 +1114,44 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 .gate-dev{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
 .gate-dev:last-child{border-bottom:0}
 
+
+/* ===== Kassa: 1-2-3 qadam (yangi odam ham tushunsin) ===== */
+.kf-step { display: flex; gap: 14px; align-items: flex-start; padding: 14px 0; border-top: 1px dashed var(--line); }
+.kf-step:first-child { border-top: 0; padding-top: 2px; }
+.kf-n { flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--g); color: #fff; font-weight: 800; font-size: 16px;
+  display: grid; place-items: center; margin-top: 1px; box-shadow: 0 2px 6px rgba(5,150,105,.3); }
+.kf-b { flex: 1; min-width: 0; }
+.kf-t { display: block; font-size: 16px; font-weight: 800; color: var(--text); margin-bottom: 9px; }
+.kf-hint { font-weight: 500; color: var(--muted); font-size: 13px; margin-left: 8px; }
+.kf-input { width: 100%; font-size: 20px !important; font-weight: 700; letter-spacing: .02em; }
+.kf .qe-chip { padding: 9px 14px; min-width: 76px; }
+.kf .qe-chip b { font-size: 15.5px; }
+.kf-note { font-size: 14px; color: var(--text-secondary); background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 10px 14px; line-height: 1.45; }
+.kf-note i { color: #d97706; margin-right: 4px; }
+.kf-go { display: flex; gap: 12px; align-items: stretch; margin-top: 4px; flex-wrap: wrap; }
+.kf-go .qe-sum { flex: 1 1 420px; margin-top: 0; font-size: 15px; }
+.kf-go .qe-go { flex: 0 0 auto; min-width: 210px; min-height: 60px; font-size: 21px; font-weight: 800; justify-content: center; gap: 10px; }
+.go-kbd { font: 600 11px/1 ui-monospace, Consolas, monospace; padding: 3px 6px; border-radius: 5px; background: rgba(255,255,255,.22); color: #fff; }
+.qe-sum .qs-name { font-size: 17px; font-weight: 800; letter-spacing: .02em; }
+.qe-sum .qs-name.empty { color: var(--muted); font-weight: 600; font-size: 15px; }
+.kf-more { color: var(--muted); font-weight: 700; }
+.kf-help { margin-left: auto; }
+.seg-btn .tab-txt { display: inline-flex; flex-direction: column; align-items: flex-start; line-height: 1.15; text-align: left; }
+.seg-btn .tab-txt small { font-size: 11.5px; font-weight: 500; color: var(--muted); }
+.panel-head .ph-hint { font-size: 12.5px; font-weight: 500; color: var(--muted); margin-left: 8px; }
+.kh-list { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.kh-list li { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.kh-list li .kh-ico { flex: none; width: 34px; height: 34px; border-radius: 10px; background: var(--g-surface); color: var(--g-dark); display: grid; place-items: center; font-size: 16px; }
+.kh-list li .kh-t { display: block; margin-bottom: 3px; }
+.kh-list li span b { color: var(--g-dark); }
+.kh-list li span { color: var(--text-secondary); font-size: 14px; line-height: 1.45; }
+@media (max-width: 700px) { .kf-go .qe-go { flex: 1 1 100%; } .kf-help { margin-left: 0; } }
+.kf-tn { display: flex; align-items: center; gap: 10px; margin: 0; }
+.kf-tn .kf-n, .ins-lbl .kf-n, #hourLabel .kf-n { width: 26px; height: 26px; font-size: 14px; display: inline-grid; margin: 0 6px 0 0; vertical-align: middle; }
+#startForm .only-school { display: none; }
+#startForm.is-school .only-school { display: inline-grid; }
+#startForm.is-school .only-ord { display: none; }
+#startForm.is-school .ins-lbl, #startForm.is-school #hourLabel { font-size: 16px; font-weight: 800; color: var(--text); }
 /* ===================== EXCEL — butun ekran, haqiqiy Excel ko'rinishi ===================== */
 .sheet-page { position: fixed; inset: 0; z-index: 95; background: #fff; display: flex; flex-direction: column; margin: 0; padding: 0;
   font-family: 'Segoe UI', Calibri, Arial, sans-serif; color: #201f1e; }
@@ -1338,13 +1376,13 @@ body.sheet-open { overflow: hidden; }
       <!-- ===== YANGI AVTOMOBIL ===== -->
       <section id="p-add" class="page">
         <div class="page-header">
-          <div><h1>Yangi avtomobil</h1><p>Oddiy mijoz yoki avtoshkola o'quvchisi uchun vaqt oching</p></div>
+          <div><h1>Yangi avtomobil</h1><p>Mijoz keldi: 1) raqamini yozing  2) vaqtini tanlang  3) «Kirdi» ni bosing</p></div>
         </div>
 
         <div class="panel">
           <div class="seg full" id="typeSeg" role="tablist" aria-label="Mijoz turi">
-            <button class="seg-btn active" type="button" role="tab" aria-selected="true" data-act="setType" data-type="ordinary" title="Klaviaturada ← (chap strelka)"><i class="fa-solid fa-user" aria-hidden="true"></i> Oddiy mijoz <kbd class="tab-kbd" aria-hidden="true">←</kbd></button>
-            <button class="seg-btn" type="button" role="tab" aria-selected="false" data-act="setType" data-type="school" title="Klaviaturada → (o'ng strelka)"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> Avtoshkola o'quvchisi <kbd class="tab-kbd" aria-hidden="true">→</kbd></button>
+            <button class="seg-btn active" type="button" role="tab" aria-selected="true" data-act="setType" data-type="ordinary" title="Klaviaturada ← (chap strelka)"><i class="fa-solid fa-user" aria-hidden="true"></i> <span class="tab-txt"><b>Oddiy mijoz</b><small>pullik · vaqt ochiladi</small></span> <kbd class="tab-kbd" aria-hidden="true">←</kbd></button>
+            <button class="seg-btn" type="button" role="tab" aria-selected="false" data-act="setType" data-type="school" title="Klaviaturada → (o'ng strelka)"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> <span class="tab-txt"><b>Avtoshkola o'quvchisi</b><small>davomat · chek</small></span> <kbd class="tab-kbd" aria-hidden="true">→</kbd></button>
           </div>
 
           <form id="startForm" data-act="startSubmit" novalidate style="margin-top:18px">
@@ -1352,7 +1390,7 @@ body.sheet-open { overflow: hidden; }
             <!-- O'quvchi bloki -->
             <div id="studentBlock" class="hidden">
               <div class="student-pick-head">
-                <label class="field-label" for="comboStudentInput"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> O'quvchi</label>
+                <label class="kf-t kf-tn" for="comboStudentInput"><span class="kf-n" aria-hidden="true">1</span> O'quvchini toping <span class="kf-hint">ismi yoki guruh raqami</span></label>
                 <button class="btn btn-light btn-sm" type="button" data-act="openGroupPick"><i class="fa-solid fa-users" aria-hidden="true"></i> Guruh bo'yicha tanlash</button>
               </div>
               <!-- Bosqichma-bosqich: Avtoshkola → Guruh → O'quvchi -->
@@ -1365,7 +1403,7 @@ body.sheet-open { overflow: hidden; }
               <div id="comboStudent"></div>
               <div class="kb-hint" id="kbHint"><i class="fa-regular fa-keyboard" aria-hidden="true"></i> Sichqonchasiz: ismni yozing → <kbd>Enter</kbd> tanlaydi → yana <kbd>Enter</kbd> davomat + chek.
                 <kbd>+</kbd><kbd>−</kbd> darslar soni · <kbd>↓</kbd><kbd>↑</kbd> boshqa ism · topilmasa <kbd>Enter</kbd> yangi o'quvchi · <kbd>→</kbd><kbd>←</kbd> bo'lim</div>
-              <div class="field-help">Guruh raqamini yozing — masalan <b>12</b>: hamma avtoshkolalarning 12-guruhlari chiqadi. Ism xato yozilsa ham topadi: <b>abbosov</b> = <b>abbasov</b>, <b>ibrohimov</b> = <b>ibroximov</b>, qisqartirib <b>ibrxm mali</b>, telefon oxiri <b>4567</b>. Topilmasa — eng o'xshashlari chiqadi.</div>
+              <div class="field-help">Masalan <b>12</b> — 12-guruhlar chiqadi. Ism xato yozilsa ham topadi (<b>abbosov</b> = <b>abbasov</b>), telefon oxiri ham bo'ladi (<b>4567</b>).</div>
               <div id="studentFallback" class="hidden">
                 <div class="form-grid" style="margin-top:12px">
                   <div><label class="field-label muted-label" for="school">Avtoshkola</label><select id="school"><option value="">Tanlang</option></select></div>
@@ -1381,49 +1419,64 @@ body.sheet-open { overflow: hidden; }
                    Nom → (kerak bo'lsa) necha soat → (kerak bo'lsa) to'lov → «Kirdi».
                    Hech narsa tanlanmasa: vaqt ochiq, pul chiqishda. Soat tanlansa —
                    vaqti tugaganda o'zi yopiladi; to'lamagan bo'lsa «To'lanmagan»ga tushadi. -->
-              <div class="span-2" id="labelField">
-                <label class="field-label" for="carLabel"><i class="fa-solid fa-car" aria-hidden="true"></i> Mashina raqami yoki ism</label>
-                <div class="qe-row">
-                  <input id="carLabel" class="input-lg" autocomplete="off" maxlength="60" list="labelList" placeholder="Masalan: 455 Dilnoza">
-                  <datalist id="labelList"></datalist>
+              <div class="span-2 kf" id="labelField">
+                <div class="kf-step">
+                  <span class="kf-n" aria-hidden="true">1</span>
+                  <div class="kf-b">
+                    <label class="kf-t" for="carLabel">Mashina raqami yoki mijoz ismi</label>
+                    <input id="carLabel" class="input-lg kf-input" autocomplete="off" maxlength="60" list="labelList" placeholder="Masalan: 455 Dilnoza  yoki  01A777AA">
+                    <datalist id="labelList"></datalist>
+                    <div id="labelErr" class="text-error" role="alert" aria-live="polite"></div>
+                  </div>
+                </div>
+                <div class="kf-step">
+                  <span class="kf-n" aria-hidden="true">2</span>
+                  <div class="kf-b">
+                    <div class="kf-t">Necha vaqtga? <span class="kf-hint">mijoz bilmasa — «Ochiq» qoladi</span></div>
+                    <div class="qe-chips" id="qeMin" role="radiogroup" aria-label="Necha soat"></div>
+                  </div>
+                </div>
+                <div class="kf-step">
+                  <span class="kf-n" aria-hidden="true">3</span>
+                  <div class="kf-b">
+                    <div class="kf-t">Pul</div>
+                    <div class="qe-chips" id="qePay" role="radiogroup" aria-label="To'lov"></div>
+                    <div class="kf-note" id="kfOpenNote"><i class="fa-regular fa-hourglass-half" aria-hidden="true"></i> Vaqt ochiq — pul <b>chiqqanda</b> olinadi: mashina chiqsa pastdagi <b>«Chiqdi»</b> tugmasini bosasiz, narx o'zi hisoblanadi.</div>
+                  </div>
+                </div>
+                <div class="kf-go">
+                  <div class="qe-sum" id="qeSum" aria-live="polite"></div>
                   <button class="btn btn-green btn-lg qe-go" id="kirdiBtn" type="submit">
                     <span class="spinner" aria-hidden="true"></span>
                     <i class="fa-solid fa-right-to-bracket btn-icon" aria-hidden="true"></i>
                     <span class="btn-text">Kirdi</span>
+                    <kbd class="go-kbd" aria-hidden="true">Enter</kbd>
                   </button>
                 </div>
-                <div id="labelErr" class="text-error" role="alert" aria-live="polite"></div>
-                <div class="qe-pick">
-                  <span class="qe-lbl">Vaqt</span>
-                  <div class="qe-chips" id="qeMin" role="radiogroup" aria-label="Necha soat"></div>
-                </div>
-                <div class="qe-pick">
-                  <span class="qe-lbl">To'lov</span>
-                  <div class="qe-chips" id="qePay" role="radiogroup" aria-label="To'lov"></div>
-                </div>
-                <div class="qe-sum" id="qeSum" aria-live="polite"></div>
                 <div class="qe-links">
+                  <span class="kf-more">Kerak bo'lsa:</span>
                   <button class="link-btn" type="button" data-act="paidStartToggle" id="paidStartToggle"></button>
                   <span id="paidStartRow" class="hidden">
                     <i class="fa-regular fa-clock" aria-hidden="true"></i> Kirish:
                     <input id="paidStart" type="time" step="60" aria-label="Kirish vaqti">
                     <button class="chip" type="button" data-act="paidNow">Hozir</button>
                   </span>
-                  <button class="link-btn" type="button" data-act="insToggle" id="insToggle"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktor</button>
-                  <button class="link-btn" type="button" data-act="addToQueue" id="queueLink"><i class="fa-regular fa-clock" aria-hidden="true"></i> Navbatga</button>
+                  <button class="link-btn" type="button" data-act="insToggle" id="insToggle"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktor biriktirish</button>
+                  <button class="link-btn" type="button" data-act="addToQueue" id="queueLink"><i class="fa-regular fa-clock" aria-hidden="true"></i> Navbatga qo'yish</button>
+                  <button class="link-btn kf-help" type="button" data-act="kassaHelp"><i class="fa-regular fa-circle-question" aria-hidden="true"></i> Qanday ishlaydi?</button>
                 </div>
               </div>
 
               <div class="span-2" id="instructorField">
-                <label class="field-label muted-label" for="comboInstructorInput"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktor <span class="text-muted" style="font-weight:500" id="instructorOpt"></span></label>
+                <label class="field-label muted-label ins-lbl" for="comboInstructorInput"><span class="kf-n only-school" aria-hidden="true">2</span><i class="fa-solid fa-chalkboard-user only-ord" aria-hidden="true"></i> Instruktor <span class="text-muted" style="font-weight:500" id="instructorOpt"></span></label>
                 <div id="comboInstructor"></div>
                 <div id="instructorBox"></div>
-                <div class="field-help" id="instructorHelp">Ixtiyoriy. Kim bilan uchishi tanlansa, «Nazorat → Xatoliklar va aniqliklar» bo'limida ochilgan soat bilan davomat solishtiriladi.</div>
+                <div class="field-help" id="instructorHelp">Ixtiyoriy — kim bilan uchgani (nazorat uchun).</div>
               </div>
 
               <!-- Avtoshkola mashinasi: faqat davomat rejimida -->
               <div class="span-2 hidden" id="schoolCarField">
-                <label class="field-label muted-label" for="schoolCar"><i class="fa-solid fa-car-side" aria-hidden="true"></i> Avtomobil raqami</label>
+                <label class="field-label muted-label" for="schoolCar"><i class="fa-solid fa-car-side" aria-hidden="true"></i> Avtomobil raqami <span class="text-muted" style="font-weight:500">(ixtiyoriy)</span></label>
                 <select id="schoolCar" data-act="schoolCarChange"><option value="">Tanlanmagan</option></select>
                 <input id="schoolCarManual" class="hidden" autocomplete="off" placeholder="01 777 AAA" style="margin-top:8px">
                 <div class="field-help" id="schoolCarHelp">O'quvchi tanlangach, shu avtoshkolaning mashinalari chiqadi. Ro'yxatda bo'lmasa «Boshqa raqam» ni tanlab qo'lda yozing.</div>
@@ -3615,7 +3668,7 @@ const Add = {
     $('customMinutes').addEventListener('input', e => {
       STATE.form.customMinutes = Math.min(600, Math.max(15, num(e.target.value) || 15));
     });
-    if ($('carLabel')) $('carLabel').addEventListener('input', () => { setError('labelErr', ''); this.renderInside(); Debts.render(); });
+    if ($('carLabel')) $('carLabel').addEventListener('input', () => { setError('labelErr', ''); this.renderInside(); Debts.render(); this.renderPaidSum(); });
     if ($('paidStart')) $('paidStart').addEventListener('input', () => this.renderPaidSum());
     /* «Ichkarida» ro'yxatidagi vaqt va narx yangilanib tursin */
     setInterval(() => { if (STATE.page === 'add' && STATE.form.customerType !== 'school' && !document.hidden) { this.renderPaidSum(); this.renderInside(); } }, 20000);
@@ -3623,6 +3676,10 @@ const Add = {
     this.wireTypeToSearch();
     this.wireTypeArrows();
     this.wireSchoolKeys();
+    /* MUHIM: ilgari sahifa birinchi ochilganda bo'lim qo'llanmasdi va
+       oddiy mijozda eski maydonlar (Rusumi, Foydalanish soati, «Vaqt
+       ochish», Talon…) ham chiqib turardi — kassir chalkashardi */
+    this.setType(STATE.form.customerType === 'school' ? 'school' : 'ordinary');
   },
 
   onEnter() {
@@ -3995,6 +4052,7 @@ const Add = {
     });
     const isSchool = STATE.form.customerType === 'school';
     $('studentBlock').classList.toggle('hidden', !isSchool);
+    if ($('startForm')) $('startForm').classList.toggle('is-school', isSchool);
     if (!isSchool) {
       STATE.form.student = null;
       if (this.comboStudent) this.comboStudent.clear(true);
@@ -4016,7 +4074,7 @@ const Add = {
     /* Oddiy mijozda instruktor — ixtiyoriy va yashirin («Instruktor» bosilsa
        chiqadi); pastdagi tugmalar o'rniga nom yonidagi «Kirdi» ishlaydi */
     if ($('instructorHelp')) $('instructorHelp').classList.toggle('hidden', !isSchool);
-    if ($('instructorOpt')) $('instructorOpt').textContent = isSchool ? '' : '(ixtiyoriy)';
+    if ($('instructorOpt')) $('instructorOpt').textContent = isSchool ? 'va mashina — ixtiyoriy' : '(ixtiyoriy)';
     if ($('addActions')) $('addActions').classList.toggle('hidden', !isSchool);
     const hasIns = !!(STATE.form.instructor || ($('comboInstructorInput') && $('comboInstructorInput').value.trim()));
     if ($('instructorField')) $('instructorField').classList.toggle('hidden', !isSchool && !hasIns);
@@ -4045,13 +4103,13 @@ const Add = {
     const hl = $('hourLabel');
     if (hl) {
       hl.innerHTML = isSchool
-        ? '<i class="fa-solid fa-list-check" aria-hidden="true"></i> Darslar soni <span class="text-muted" style="font-weight:500">(1 soat = 1 dars)</span>'
+        ? '<span class="kf-n" aria-hidden="true">3</span> Necha dars? <span class="text-muted" style="font-weight:500">(1 soat = 1 dars · klaviaturada + / −)</span>'
         : '<i class="fa-regular fa-hourglass" aria-hidden="true"></i> Foydalanish soati <span class="text-muted" style="font-weight:500">(1 soat = 1 dars)</span>';
     }
     const sub = document.querySelector('#p-add .page-header p');
     if (sub) sub.textContent = isSchool
       ? "Avtoshkola o'quvchisining darsini davomatga yozing — vaqt ochilmaydi"
-      : 'Oddiy mijoz uchun vaqt oching';
+      : 'Mijoz keldi: 1) raqamini yozing  2) vaqtini tanlang  3) «Kirdi» ni bosing';
 
     /* Avtoshkolada «Boshqa» (daqiqa) ma'nosiz — dars soni butun bo'ladi */
     const other = document.querySelector('#hourSeg .seg-btn[data-h="custom"]');
@@ -4126,6 +4184,9 @@ const Add = {
       + ' data-act="paidPay" data-p="' + k + '"><b><i class="fa-solid ' + icon + '" aria-hidden="true"></i> ' + label + '</b></button>';
     if (ph) ph.innerHTML = chip('', 'fa-hourglass-half', pre ? 'Keyin to\'laydi' : 'Chiqishda')
       + chip('cash', 'fa-money-bill-wave', 'Naqd') + chip('terminal', 'fa-credit-card', 'Terminal') + chip('click', 'fa-mobile-screen', 'Klik');
+    /* Ochiq vaqtda pul chiqishda — tugmalar o'rniga oddiy tushuntirish */
+    if (ph) ph.classList.toggle('hidden', !pre);
+    const on = $('kfOpenNote'); if (on) on.classList.toggle('hidden', pre);
     this.renderPaidSum();
   },
   /* Xulosa qatori va «Kirdi» tugmasi */
@@ -4134,23 +4195,25 @@ const Add = {
     const st = this.paidStartDate();
     const tg = $('paidStartToggle');
     if (tg) tg.innerHTML = '<i class="fa-regular fa-clock" aria-hidden="true"></i> '
-      + (st ? (st.getTime() > Date.now() + 60000 ? 'Bron: ' : 'Kirish: ') + '<b>' + esc(hhmm(st)) + '</b>' : 'Kirish: hozir · bron');
+      + (st ? (st.getTime() > Date.now() + 60000 ? 'Bron: ' : 'Kirish: ') + '<b>' + esc(hhmm(st)) + '</b>' : 'Boshqa vaqtda kirgan / bron');
     const row = $('paidStartRow');
     if (tg && row) tg.classList.toggle('hidden', !row.classList.contains('hidden'));
     const box = $('qeSum');
     const w = this.paidWindow();
     const t = $('kirdiBtn') && $('kirdiBtn').querySelector('.btn-text');
+    const nm = String(($('carLabel') && $('carLabel').value) || '').replace(/\s+/g, ' ').trim().toUpperCase();
+    const who = nm ? '<span class="qs-name">' + esc(nm) + '</span> · ' : '<span class="qs-name empty">Mashina raqamini yozing</span> · ';
     if (box) {
       if (w.open) {
         box.classList.remove('unpaid');
-        box.innerHTML = '<span><b class="big">' + esc(hhmm(w.start)) + ' →</b> chiqqanda · pul chiqishda olinadi'
+        box.innerHTML = '<span>' + who + '<b class="big">' + esc(hhmm(w.start)) + ' →</b> chiqqanda · pul chiqishda olinadi'
           + (w.future ? ' · <b>bron — ' + esc(hhmm(w.start)) + ' da o\'zi ochiladi</b>' : '') + '</span>'
           + '<span class="text-muted">soatiga <b>' + esc(money(rate)) + '</b></span>';
       } else {
         const price = this.paidPrice(w.min);
         const pay = STATE.form.payNow || '';
         box.classList.toggle('unpaid', !pay);
-        box.innerHTML = '<span><b class="big">' + esc(hhmm(w.start)) + ' → ' + esc(hhmm(w.end)) + '</b> · ' + esc(this.paidMinLabel(w.min))
+        box.innerHTML = '<span>' + who + '<b class="big">' + esc(hhmm(w.start)) + ' → ' + esc(hhmm(w.end)) + '</b> · ' + esc(this.paidMinLabel(w.min))
           + (w.past ? ' · <b>vaqti o\'tgan — darhol yopiladi</b>'
              : w.future ? ' · <b>bron — ' + esc(hhmm(w.start)) + ' da o\'zi ochiladi</b>' : ' · vaqti tugaganda o\'zi yopiladi') + '</span>'
           + '<span><span class="qs-price">' + esc(money(price)) + '</span> '
@@ -4225,7 +4288,7 @@ const Add = {
       const key = labelKey(v.plate || '');
       return { v: v, t: t, match: q.length >= 2 && key.indexOf(q) >= 0 };
     }).sort((a, b) => (b.match - a.match) || (new Date(a.v.started_at) - new Date(b.v.started_at)));
-    let h = '<div class="panel inside-panel"><div class="panel-head"><h3><i class="fa-solid fa-car-side" style="color:var(--g)" aria-hidden="true"></i> Ichkarida</h3>'
+    let h = '<div class="panel inside-panel"><div class="panel-head"><h3><i class="fa-solid fa-car-side" style="color:var(--g)" aria-hidden="true"></i> Hozir ichkarida<span class="ph-hint">mashina chiqqanda «Chiqdi» ni bosing</span></h3>'
       + '<span class="badge badge-green">' + rows.length + ' ta</span></div>';
     if (!rows.length) {
       h += '<div class="text-muted" style="padding:14px 4px">Hozir ichkarida mashina yo\'q. Nom yozib «Kirdi» ni bosing.</div>';
@@ -8476,7 +8539,7 @@ const Debts = {
     const q = labelKey(($('carLabel') && $('carLabel').value) || '');
     const gs = this.groups().map(g => Object.assign(g, { match: q.length >= 2 && g.key.indexOf(q) >= 0 }))
       .sort((a, b) => (b.match - a.match));
-    host.innerHTML = '<div class="panel inside-panel debt-panel"><div class="panel-head"><h3><i class="fa-solid fa-hourglass-half" style="color:#d97706" aria-hidden="true"></i> To\'lanmagan</h3>'
+    host.innerHTML = '<div class="panel inside-panel debt-panel"><div class="panel-head"><h3><i class="fa-solid fa-hourglass-half" style="color:#d97706" aria-hidden="true"></i> To\'lanmagan<span class="ph-hint">pulini berganda «To\'lash» ni bosing</span></h3>'
       + '<span class="dp-total">jami ' + esc(money(this.total)) + '</span></div>'
       + gs.map(g => '<div class="in-row' + (g.match ? ' match' : '') + '">'
         + '<div class="in-main"><b class="in-name">' + esc(g.name) + '</b>'
@@ -12707,6 +12770,14 @@ const ACTIONS = {
   rxDel: d => Rasxod.del(d.id),
   rxDayOff: d => Rasxod.setDay(d.off),
   goRasxod: () => go('rasxod'),
+  kassaHelp: () => openModal('<div class="modal-head"><div><h2>Kassa — qanday ishlaydi?</h2><p class="text-muted">Oddiy mijoz (pullik) uchun 4 ta holat</p></div>'
+    + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+    + '<ul class="kh-list">'
+    + '<li><span class="kh-ico"><i class="fa-solid fa-car"></i></span><div><b class="kh-t">«Vaqt och» — qancha yurishini bilmaydi</b><span>Raqamini yozing → <b>Kirdi</b>. Chiqqanda pastdagi «Hozir ichkarida» ro\'yxatidan <b>Chiqdi</b> ni bosing — narx o\'zi hisoblanadi, to\'lov turini tanlaysiz.</span></div></li>'
+    + '<li><span class="kh-ico"><i class="fa-regular fa-clock"></i></span><div><b class="kh-t">«1 soatga och» — vaqtini aytdi</b><span>Raqam → <b>1 soat</b> → pulni berdimi: <b>Naqd / Terminal / Klik</b>; bermadimi: <b>Keyin to\'laydi</b> → <b>Kirdi</b>. Vaqt tugaganda o\'zi yopiladi.</span></div></li>'
+    + '<li><span class="kh-ico"><i class="fa-solid fa-hourglass-half"></i></span><div><b class="kh-t">Pulni keyin beradi</b><span>«To\'lanmagan» ro\'yxatida turadi. Pulini berganda <b>To\'lash</b> ni bosing — kun bo\'yi kelganlari birga yopiladi.</span></div></li>'
+    + '<li><span class="kh-ico"><i class="fa-regular fa-calendar"></i></span><div><b class="kh-t">Oldindan chek (bron) yoki mashina band</b><span>«Boshqa vaqtda kirgan / bron» ni bosib vaqtni yozing — o\'sha vaqtda o\'zi ochiladi. Mashina band bo\'lsa <b>Kirdi</b> o\'zi navbatga qo\'yadi.</span></div></li>'
+    + '</ul><div class="actions-row"><button class="btn btn-green" type="button" data-act="closeModal">Tushunarli</button></div>', { wide: true }),
   /* --- Excel --- */
   shDay: d => Sheet.setDay(String(d.d)),
   shTab: d => Sheet.setTab(d.t),
