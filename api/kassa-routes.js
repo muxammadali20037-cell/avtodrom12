@@ -26,6 +26,13 @@
       bo'ldi?» deb hammasini birdan to'laydiganlar uchun.
         GET  /api/debts                       to'lanmagan yozuvlar
         POST /api/debts/pay { ids, method }   hammasini to'lash (naqd/terminal/Klik)
+
+   5) BIR QISMINI YOPISH: vaqti ochiq mijoz «2 soatini yopaman» deb pul
+      to'laydi va yurishda davom etadi.
+        POST /api/sessions/:id/split { minutes, cash_amount, terminal_amount, click_amount, debt_amount }
+      Kirgan vaqtdan boshlab tanlangan vaqt alohida YOPILGAN yozuv bo'ladi
+      (pul yoki qarz bilan), ichkaridagi yozuv esa o'sha nuqtadan davom
+      etadi (id o'zgarmaydi — talon, navbat, belgilar joyida qoladi).
    ========================================================================== */
 
 import jwt from 'jsonwebtoken';
@@ -292,8 +299,70 @@ async function debtPay(req, res, user) {
   } finally { c.release(); }
 }
 
+/* ---------- BIR QISMINI YOPISH ---------- */
+const money0 = v => Math.max(0, Math.round(Number(v) || 0));
+async function sessionSplit(req, res, user, id) {
+  const b = await readBody(req);
+  const minutes = Math.round(Number(b.minutes) || 0);
+  if (minutes < 15 || minutes > 12 * 60) return json(res, 400, { error: 'Yopiladigan vaqtni tanlang' });
+  const cash = money0(b.cash_amount ?? b.cashAmount), terminal = money0(b.terminal_amount ?? b.terminalAmount);
+  const click = money0(b.click_amount ?? b.clickAmount), debt = money0(b.debt_amount ?? b.debtAmount);
+  if (cash + terminal + click + debt <= 0) return json(res, 400, { error: 'Summa ko‘rsatilmagan' });
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    const r = await c.query(`SELECT * FROM sessions WHERE id::text = $1 AND user_id = $2 FOR UPDATE`, [id, user]);
+    const s = r.rows[0];
+    if (!s) { await c.query('ROLLBACK'); return json(res, 404, { error: 'Yozuv topilmadi' }); }
+    if (s.status !== 'active') { await c.query('ROLLBACK'); return json(res, 409, { error: 'Faqat ichkaridagi vaqtni bo‘lib yopish mumkin' }); }
+    if (s.student_id) { await c.query('ROLLBACK'); return json(res, 400, { error: 'Avtoshkola o‘quvchisi uchun emas' }); }
+    if (s.resumed_at) { await c.query('ROLLBACK'); return json(res, 400, { error: 'Muzlatib davom ettirilgan vaqtni bo‘lib bo‘lmaydi — «Chiqdi» dan yoping' }); }
+    if (Number(s.target_duration) > 0) { await c.query('ROLLBACK'); return json(res, 400, { error: 'Soati belgilangan vaqt o‘zi yopiladi — bo‘lish shart emas' }); }
+    const start = new Date(s.started_at);
+    const cut = new Date(start.getTime() + minutes * 60000);
+    /* Yaxlitlangan yarim soat hozirdan sal keyin bo'lishi mumkin (1 soat 58 daq → 2 soat) */
+    if (cut.getTime() > Date.now() + 30 * 60000) { await c.query('ROLLBACK'); return json(res, 400, { error: 'Tanlangan vaqt hali o‘tmagan' }); }
+    const cols = new Set((await c.query(`SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'sessions'`)).rows.map(x => x.column_name));
+    const paid = cash + terminal + click;
+    const used = [cash > 0, terminal > 0, click > 0].filter(Boolean).length;
+    const method = used > 1 ? 'mixed' : terminal > 0 ? 'terminal' : click > 0 ? 'click' : 'cash';
+    const cand = [
+      ['user_id', s.user_id], ['vehicle_id', s.vehicle_id], ['started_at', s.started_at], ['finished_at', cut],
+      ['duration_seconds', minutes * 60], ['hourly_rate', s.hourly_rate], ['minimum_payment', s.minimum_payment],
+      ['calculation_mode', s.calculation_mode], ['amount', paid], ['cash_amount', cash], ['terminal_amount', terminal],
+      ['click_amount', click], ['payment_method', method], ['status', 'completed'], ['customer_type', s.customer_type],
+      ['instructor_id', s.instructor_id], ['instructor_name', s.instructor_name], ['driver_name', s.driver_name],
+      ['manual_price', true], ['debt_amount', debt], ['target_duration', minutes * 60], ['lessons_counted', 0],
+      ['school_id', s.school_id], ['group_id', s.group_id]
+    ].filter(([k]) => cols.has(k));
+    if (click > 0 && !cols.has('click_amount')) throw new Error('Klik to‘lovi uchun baza hali tayyor emas');
+    const ins = await c.query(`INSERT INTO sessions(${cand.map(([k]) => k).join(',')})
+      VALUES(${cand.map((_, i) => '$' + (i + 1)).join(',')}) RETURNING id`, cand.map(([, v]) => v));
+    await c.query(`UPDATE sessions SET started_at = $1 WHERE id = $2`, [cut, s.id]);
+    await c.query('COMMIT');
+    await logChange(null, user, { entity: 'session', entityId: s.id, entityName: text(b.name) || null, action: 'split',
+      field: 'started_at', oldValue: start.toISOString(), newValue: cut.toISOString(),
+      reason: minutes + ' daqiqa yopildi: ' + (paid ? paid + ' so‘m ' + method : '') + (debt ? ' qarz ' + debt + ' so‘m' : '') });
+    json(res, 200, { ok: true, closedId: ins.rows[0].id, id: s.id, continuesFrom: cut.toISOString(), minutes, paid, debt });
+  } catch (e) {
+    try { await c.query('ROLLBACK'); } catch { /* noop */ }
+    throw e;
+  } finally { c.release(); }
+}
+
 export async function handleKassaRequest(req, res) {
   const path = String(req.url || '').split('?', 1)[0];
+  const sm = path.match(/^\/api\/sessions\/([^/]+)\/split$/);
+  if (sm) {
+    if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return true; }
+    if (req.method !== 'POST') { json(res, 405, { error: 'Method ruxsat etilmagan' }); return true; }
+    const user = auth(req);
+    if (!user) { json(res, 401, { error: 'Kirish talab qilinadi' }); return true; }
+    try { await ensureKassaSchema(); await sessionSplit(req, res, user, decodeURIComponent(sm[1])); }
+    catch (e) { console.error('SPLIT ERROR:', e); json(res, 500, { error: e.message || 'Bo‘lib yopilmadi' }); }
+    return true;
+  }
   if (path === '/api/debts' || path === '/api/debts/pay') {
     if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return true; }
     const user = auth(req);

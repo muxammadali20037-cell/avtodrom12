@@ -6684,7 +6684,12 @@ const Chiqish = {
         + btn('cash', 'fa-money-bill-wave', 'Naqd') + btn('terminal', 'fa-credit-card', 'Terminal') + btn('click', 'fa-mobile-screen', 'Klik') + '</div>'
         /* Hozir to'lamaydi — kun oxirida «To'lanmagan»dan birdan to'laydi */
         + '<button class="btn btn-light" type="button" data-act="exitPay" data-p="later" style="width:100%;margin-top:10px;min-height:48px;justify-content:center;border-color:#fcd34d;background:#fffbeb;color:#92400e">'
-        + '<i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> Keyin to\'laydi — «To\'lanmagan»ga yozish</button>';
+        + '<i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> Keyin to\'laydi — «To\'lanmagan»ga yozish</button>'
+        /* Vaqti ochiq: «2 soatini yopaman», qolgani davom etadi */
+        + (!st.pre && !t.target && t.elapsed >= 15 * 60
+          ? '<button class="btn btn-light" type="button" data-act="splitOpen" data-id="' + esc(v.id) + '" style="width:100%;margin-top:8px;min-height:48px;justify-content:center">'
+            + '<i class="fa-solid fa-scissors" aria-hidden="true"></i> Bir qismini yopish — qolgani davom etadi</button>'
+          : '');
     }
     openModal('<div class="modal-head"><div><h2 style="letter-spacing:.02em">' + esc(v.plate || '—') + '</h2>'
       + '<p class="ex-time">' + esc(timeOnly(v.started_at)) + ' → ' + esc(hhmm(new Date())) + ' · <b>' + esc(ranText(t.elapsed)) + '</b>'
@@ -6735,6 +6740,90 @@ const Chiqish = {
     } catch (e) {
       setError('exitErr', e.message);
       $$('#modal [data-act="exitPay"]').forEach(b => { b.disabled = false; });
+    } finally { this.busy = false; }
+  }
+};
+
+/* ===================== BIR QISMINI YOPISH =====================
+   Vaqti ochiq mijoz: «2 soatini yopaman», pulini beradi va yurishda
+   davom etadi. Kirgan vaqtdan tanlangan vaqtgacha alohida yopilgan
+   yozuv bo'ladi (pul yoki «Keyin to'laydi»), qolgani o'sha nuqtadan
+   davom etadi. Server: POST /api/sessions/:id/split. */
+const Bolish = {
+  id: null, min: 0, opts: [], busy: false,
+  options(elapsedSec) {
+    const max = Math.min(12 * 60, billMinutes(elapsedSec, 0));
+    const out = [];
+    for (let m = 30; m <= max; m += 30) out.push(m);
+    return out;
+  },
+  open(id) {
+    const v = (STATE.active || []).find(x => String(x.id) === String(id));
+    if (!v) { toast('Topilmadi. Ro\'yxat yangilanmoqda.', 'warn'); Active.load(true); return; }
+    const t = sessionTiming(v);
+    this.id = v.id;
+    this.opts = this.options(t.elapsed);
+    if (!this.opts.length) { toast('Hali 30 daqiqa ham bo\'lmadi — «Chiqdi» dan yoping.', 'warn'); return; }
+    const floorMin = Math.floor(t.elapsed / 60 / 30) * 30;
+    this.min = this.opts.indexOf(floorMin) >= 0 ? floorMin : this.opts[0];
+    const btn = (p, icon, label) => '<button class="btn ' + (p === 'cash' ? 'btn-green' : 'btn-light') + '" type="button" data-act="splitPay" data-p="' + p + '">'
+      + '<span><i class="fa-solid ' + icon + '" aria-hidden="true"></i> ' + label + '</span><small class="js-split-price"></small></button>';
+    openModal('<div class="modal-head"><div><h2 style="letter-spacing:.02em">' + esc(v.plate || '—') + '</h2>'
+      + '<p class="ex-time">Kirgan <b>' + esc(timeOnly(v.started_at)) + '</b> · hozirgacha <b>' + esc(ranText(t.elapsed)) + '</b></p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div class="field-label">Necha soatini yopasiz?</div><div class="big-grid" id="splitGrid"></div>'
+      + '<div class="price-hero" id="splitSum"></div>'
+      + '<div class="field-label">Qanday to\'ladi?</div><div class="pay-big">'
+      + btn('cash', 'fa-money-bill-wave', 'Naqd') + btn('terminal', 'fa-credit-card', 'Terminal') + btn('click', 'fa-mobile-screen', 'Klik') + '</div>'
+      + '<button class="btn btn-light" type="button" data-act="splitPay" data-p="later" style="width:100%;margin-top:10px;min-height:46px;justify-content:center;border-color:#fcd34d;background:#fffbeb;color:#92400e">'
+      + '<i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> Keyin to\'laydi — «To\'lanmagan»ga yozish</button>'
+      + '<div id="splitErr" class="text-error" role="alert"></div>'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px">'
+      + '<button class="link-btn" type="button" data-act="exitOpen" data-id="' + esc(v.id) + '">← Orqaga (to\'liq chiqish)</button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>');
+    this.render();
+  },
+  render() {
+    const v = (STATE.active || []).find(x => String(x.id) === String(this.id));
+    const g = $('splitGrid'); if (!g || !v) return;
+    g.innerHTML = this.opts.map(m => '<button class="big-opt' + (m === this.min ? ' active' : '') + '" type="button" data-act="splitMin" data-m="' + m + '">'
+      + '<b>' + esc(Add.paidMinLabel(m)) + '</b><small>' + esc(money(Add.paidPrice(m))) + '</small></button>').join('');
+    const start = new Date(v.started_at);
+    const cut = new Date(start.getTime() + this.min * 60000);
+    const price = Add.paidPrice(this.min);
+    const left = Math.max(0, (Date.now() - cut.getTime()) / 1000);
+    const box = $('splitSum');
+    if (box) box.innerHTML = '<div class="ph-sum">' + esc(money(price)) + '</div>'
+      + '<div class="ph-sub"><b>' + esc(hhmm(start)) + ' – ' + esc(hhmm(cut)) + '</b> · ' + esc(Add.paidMinLabel(this.min)) + ' yopiladi<br>'
+      + 'Qolgani <b>' + esc(hhmm(cut)) + '</b> dan davom etadi' + (left >= 60 ? ' (hozircha ' + esc(ranText(left)) + ')' : '') + '</div>';
+    $$('#modal .js-split-price').forEach(el => { el.textContent = money(price); });
+  },
+  setMin(m) { this.min = num(m) || this.min; this.render(); },
+  async pay(method) {
+    if (this.busy) return;
+    const v = (STATE.active || []).find(x => String(x.id) === String(this.id));
+    if (!v) { closeModal(); Active.load(true); return; }
+    const price = Add.paidPrice(this.min);
+    const later = method === 'later';
+    const body = { minutes: this.min, name: v.plate || '',
+      cash_amount: method === 'cash' ? price : 0, terminal_amount: method === 'terminal' ? price : 0,
+      click_amount: method === 'click' ? price : 0, debt_amount: later ? price : 0 };
+    this.busy = true;
+    $$('#modal [data-act="splitPay"]').forEach(b => { b.disabled = true; });
+    setError('splitErr', '');
+    try {
+      const r = await api('/sessions/' + encodeURIComponent(v.id) + '/split', { method: 'POST', body: jsonBody(body) });
+      closeModal();
+      const from = r && r.continuesFrom ? hhmm(new Date(r.continuesFrom)) : '';
+      toast('Yopildi: ' + (v.plate || '') + ' — ' + Add.paidMinLabel(this.min) + ', ' + money(price)
+        + (later ? ' to\'lanmagan' : ' (' + PAY_NAMES[method] + ')') + '. Qolgani ' + from + ' dan davom etyapti.');
+      await Active.load(true);
+      Reports.loadDaily();
+      if (later) Debts.load(true);
+      setTimeout(() => Add.focusLabel(), 60);
+    } catch (e) {
+      setError('splitErr', e.message);
+      $$('#modal [data-act="splitPay"]').forEach(b => { b.disabled = false; });
     } finally { this.busy = false; }
   }
 };
@@ -11006,6 +11095,9 @@ const ACTIONS = {
   exitPay: d => Chiqish.pay(d.p),
   exitMore: d => { const id = Chiqish.id; closeModal(); Finish.open(id, 'active'); },
   debtOpen: d => Debts.open(d.k),
+  splitOpen: d => Bolish.open(d.id),
+  splitMin: d => Bolish.setMin(d.m),
+  splitPay: d => Bolish.pay(d.p),
   debtPay: d => Debts.pay(d.p),
   goDebts: () => { go('add'); Add.setType('ordinary'); Debts.load(true).then(() => { const el = $('debtsWrap'); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); },  insToggle: () => Add.insToggle(true),
   finishSubmit: (d, el) => Finish.submit(d.id, d.source, el),
