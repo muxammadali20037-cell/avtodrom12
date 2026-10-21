@@ -4587,13 +4587,10 @@ const Queue = {
     try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) { /* noop */ }
     return Date.now() + '-' + Math.random().toString(16).slice(2);
   },
+  /* Navbatga XOHLAGANCHA qo'shiladi: bir mashinaga (bir nomga) bir nechta
+     mijoz ketma-ket navbatda turishi mumkin — «allaqachon bor» deb
+     to'xtatilmaydi (foydalanuvchi talabi, 2026-10-21). */
   enqueue(item) {
-    const k = queueKey(item);
-    if (!k) return false;
-    const dup = STATE.queue.some(q => queueKey(q) === k
-      && String(q.studentId || '') === String(item.studentId || '')
-      && String(q.customerType || 'ordinary') === String(item.customerType || 'ordinary'));
-    if (dup) return false;
     STATE.queue.push(Object.assign({}, item, {
       queueId: item.queueId || this.newId(),
       queuedAt: new Date().toISOString(),
@@ -4639,11 +4636,16 @@ const Queue = {
         planned: planned,
         prepay: prepay
       });
-      if (!ok) { toast('Bu mijoz shu avtomobil navbatida allaqachon bor.', 'warn'); return; }
+      if (!ok) { toast('Navbatga qo\'shilmadi — qayta urinib ko\'ring.', 'warn'); return; }
       this.render();
-      toast((d.student ? stName(d.student) : 'Oddiy mijoz') + ' navbatga qo\'shildi.');
+      const nm = d.student ? stName(d.student) : (d.payload.label || d.body || 'Oddiy mijoz');
+      const k0 = this.groupKey(STATE.queue[STATE.queue.length - 1]);
+      const pos = STATE.queue.filter(q => this.groupKey(q) === k0).length;
+      toast(nm + ' navbatga qo\'shildi' + (pos > 1 ? ' — ' + pos + '-o\'rinda' : '') + '.');
       Add.reset();
-      go('queue');
+      /* Shu sahifada qolamiz — keyingisini ham darhol navbatga qo'yish mumkin;
+         navbat ro'yxati pastda ko'rinib turadi */
+      setTimeout(() => Add.focusLabel(), 60);
     });
   },
 
@@ -4652,7 +4654,7 @@ const Queue = {
       return '<div class="panel">' + emptyState('fa-regular fa-clock', 'Navbat bo\'sh', 'Yangi avtomobil sahifasidan navbatga qo\'shishingiz mumkin.') + '</div>';
     }
     const grouped = {};
-    STATE.queue.forEach(q => { const k = queueKey(q); (grouped[k] = grouped[k] || []).push(q); });
+    STATE.queue.forEach(q => { const k = this.groupKey(q); (grouped[k] = grouped[k] || []).push(q); });
     let h = '<div class="panel"><div class="panel-head"><h3><i class="fa-regular fa-clock" style="color:var(--amber)" aria-hidden="true"></i> Kutish rejimi</h3>'
       + '<span class="badge badge-amber">' + STATE.queue.length + ' ta kutmoqda</span></div>';
     Object.keys(grouped).forEach(k => {
@@ -4662,13 +4664,13 @@ const Queue = {
         + '<b><i class="fa-solid fa-car" style="color:var(--muted)" aria-hidden="true"></i> ' + esc(plate) + (first.model ? ' <span class="text-muted" style="font-weight:500">' + esc(first.model) + '</span>' : '') + '</b>'
         + '<span class="badge badge-green">' + list.length + ' ta navbat</span></div>';
       h += list.map((q, i) => {
-        const sub = [q.customerType === 'school' ? 'Avtoshkola o\'quvchisi' : 'Oddiy mijoz', q.schoolName, q.groupName, q.instructorName ? 'Instruktor: ' + q.instructorName : '']
+        const sub = [q.customerType === 'school' ? 'Avtoshkola o\'quvchisi' : '', q.schoolName, q.groupName, q.instructorName ? 'Instruktor: ' + q.instructorName : '']
           .filter(Boolean).join(' • ');
         return '<div class="queue-item"><div class="queue-left"><div class="queue-no">' + (i + 1) + '</div>'
           + '<div><b style="font-size:13.5px">' + esc(q.studentName || 'Oddiy mijoz') + '</b>'
           + '<div class="text-muted" style="font-size:12px">' + esc(sub) + '</div>'
           + '<div class="text-muted" style="font-size:11.5px">' + (q.openEnded
-              ? 'Ochiq vaqt · oxirida to\'laydi'
+              ? 'Ochiq vaqt · pul chiqishda'
               : 'Rejalashtirilgan: ' + esc(durShort(q.targetSeconds || CONFIG.LESSON_SECONDS))
                 + (q.prepay ? ' · to\'langan ' + esc(money(q.prepay.amount)) + ' ' + esc({ cash: 'naqd', terminal: 'terminal', click: 'Klik' }[q.prepay.method] || '') : ''))
           + '</div></div></div>'
@@ -4688,15 +4690,23 @@ const Queue = {
     this.badge();
   },
 
+  /* Navbat guruhi: bir mashina / bir nom (istalgan alifboda) */
+  groupKey(q) {
+    if (!q) return '';
+    return q.label ? 'L:' + labelKey(q.label) : (queueKey(q) || 'Q:' + String(q.queueId));
+  },
   async start(id, btn) {
     const q = STATE.queue.find(x => String(x.queueId) === String(id));
     if (!q) { toast('Navbat elementi topilmadi.', 'error'); this.render(); return; }
     await withBusy('queue:start:' + id, btn, async () => {
       try {
         await Active.load(true);
-        const key = queueKey(q);
-        if (STATE.active.some(a => activeCarKey(a) === key)) {
-          toast('Bu avtomobil hozir jarayonda. Avval uni yakunlang.', 'warn');
+        /* Shu mashina hali ichkarida bo'lsa — keyingisi u chiqqach boshlanadi */
+        const busy = q.label
+          ? STATE.active.some(a => !isSchoolSession(a) && labelKey(a.plate) === labelKey(q.label))
+          : STATE.active.some(a => activeCarKey(a) === queueKey(q));
+        if (busy) {
+          toast('«' + (q.label || q.plate || '') + '» hozir ichkarida. U chiqqach («Chiqdi») navbatdagini boshlang.', 'warn');
           return;
         }
         const body = normalizePlate(q.plateBody || q.plate);
