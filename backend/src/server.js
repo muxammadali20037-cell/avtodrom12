@@ -794,6 +794,7 @@ const REPORT_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,v.driv
     s.amount,s.cash_amount,s.terminal_amount,s.payment_method,s.lessons_counted,s.student_id,
     COALESCE((to_jsonb(s)->>'click_amount')::numeric,0) click_amount, s.target_duration,
     COALESCE((to_jsonb(s)->>'debt_amount')::numeric,0) debt_amount, COALESCE((to_jsonb(s)->>'auto_closed')::boolean,false) auto_closed,
+    to_jsonb(s)->>'correction_note' correction_note, to_jsonb(s)->>'corrected_at' corrected_at,
     s.customer_type,s.instructor_id,COALESCE(i.full_name,i.bio,s.instructor_name) instructor_label,
     ds.name school_name,g.name group_name,st.full_name student_name,i.full_name instructor_name,
     ${STUDENT_ATTENDANCE_SQL} attendance_count
@@ -814,6 +815,7 @@ const REPORT_RANGE_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,
     s.amount,s.cash_amount,s.terminal_amount,s.payment_method,s.lessons_counted,s.student_id,
     COALESCE((to_jsonb(s)->>'click_amount')::numeric,0) click_amount, s.target_duration,
     COALESCE((to_jsonb(s)->>'debt_amount')::numeric,0) debt_amount, COALESCE((to_jsonb(s)->>'auto_closed')::boolean,false) auto_closed,
+    to_jsonb(s)->>'correction_note' correction_note, to_jsonb(s)->>'corrected_at' corrected_at,
     s.customer_type,s.instructor_id,COALESCE(i.full_name,i.bio,s.instructor_name) instructor_label,
     ds.name school_name,g.name group_name,st.full_name student_name,i.full_name instructor_name,
     (st.id IS NOT NULL) _has_student

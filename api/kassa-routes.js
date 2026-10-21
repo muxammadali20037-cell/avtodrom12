@@ -33,6 +33,10 @@
       Kirgan vaqtdan boshlab tanlangan vaqt alohida YOPILGAN yozuv bo'ladi
       (pul yoki qarz bilan), ichkaridagi yozuv esa o'sha nuqtadan davom
       etadi (id o'zgarmaydi — talon, navbat, belgilar joyida qoladi).
+
+   6) TO'G'RILASH: to'lanmagan «to'langan» bo'lib qolgan yoki aksincha —
+      qo'lda to'g'rilanadi, SABAB majburiy, har bir o'zgarish jurnalga.
+        POST /api/sessions/:id/correct { cash_amount, terminal_amount, click_amount, debt_amount, reason }
    ========================================================================== */
 
 import jwt from 'jsonwebtoken';
@@ -80,7 +84,7 @@ export function ensureKassaSchema() {
       SELECT table_name, column_name, is_nullable, character_maximum_length
         FROM information_schema.columns
        WHERE table_schema='public' AND (
-         (table_name='sessions' AND column_name IN ('click_amount','debt_amount','auto_close','planned_amount','settled_at','auto_closed')) OR
+         (table_name='sessions' AND column_name IN ('click_amount','debt_amount','auto_close','planned_amount','settled_at','auto_closed','corrected_at','correction_note')) OR
          (table_name='vehicles' AND column_name IN ('region_code','first_letter','number','last_letters','plate')))`);
     const col = {};
     cols.rows.forEach(r => { col[r.table_name + '.' + r.column_name] = r; });
@@ -94,6 +98,8 @@ export function ensureKassaSchema() {
     if (!col['sessions.planned_amount']) await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS planned_amount NUMERIC(12,2)`);
     if (!col['sessions.settled_at']) await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS settled_at TIMESTAMPTZ`);
     if (!col['sessions.auto_closed']) await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS auto_closed BOOLEAN NOT NULL DEFAULT FALSE`);
+    if (!col['sessions.corrected_at']) await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS corrected_at TIMESTAMPTZ`);
+    if (!col['sessions.correction_note']) await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS correction_note TEXT`);
     if (!col['sessions.debt_amount'] || !col['sessions.auto_close']) {
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_sessions_debt ON sessions(user_id) WHERE debt_amount > 0`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_sessions_autoclose ON sessions(user_id) WHERE auto_close AND status = 'active'`);
@@ -351,8 +357,66 @@ async function sessionSplit(req, res, user, id) {
   } finally { c.release(); }
 }
 
+/* ---------- TO'G'RILASH ---------- */
+async function sessionCorrect(req, res, user, id) {
+  const b = await readBody(req);
+  const reason = text(b.reason).replace(/\s+/g, ' ').slice(0, 300);
+  if (reason.length < 5) return json(res, 400, { error: 'Sababini yozing (kamida 5 ta harf)' });
+  const vals = {};
+  for (const k of ['cash_amount', 'terminal_amount', 'click_amount', 'debt_amount']) {
+    const v = Number(b[k]);
+    if (!Number.isFinite(v) || v < 0 || v > 100000000) return json(res, 400, { error: 'Summa noto‘g‘ri' });
+    vals[k] = Math.round(v);
+  }
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    const r = await c.query(`SELECT s.*, v.plate FROM sessions s LEFT JOIN vehicles v ON v.id = s.vehicle_id
+      WHERE s.id::text = $1 AND s.user_id = $2 FOR UPDATE OF s`, [id, user]);
+    const s = r.rows[0];
+    if (!s) { await c.query('ROLLBACK'); return json(res, 404, { error: 'Yozuv topilmadi' }); }
+    if (s.student_id || String(s.customer_type || '') === 'school') { await c.query('ROLLBACK'); return json(res, 400, { error: 'Avtoshkola darsi tekin — to‘lovi yo‘q' }); }
+    if (s.status === 'cancelled') { await c.query('ROLLBACK'); return json(res, 400, { error: 'Bekor qilingan yozuv' }); }
+    /* Ichkaridagi yozuvda qarz bo'lmaydi — u yopilganda hisoblanadi */
+    if (s.status !== 'completed' && vals.debt_amount > 0) { await c.query('ROLLBACK'); return json(res, 400, { error: 'Ichkaridagi mashinaga «to‘lanmagan» yozib bo‘lmaydi — u chiqqanda yoziladi' }); }
+    const old = { cash_amount: Number(s.cash_amount || 0), terminal_amount: Number(s.terminal_amount || 0),
+      click_amount: Number(s.click_amount || 0), debt_amount: Number(s.debt_amount || 0) };
+    const changed = Object.keys(vals).filter(k => old[k] !== vals[k]);
+    if (!changed.length) { await c.query('ROLLBACK'); return json(res, 400, { error: 'Hech narsa o‘zgarmadi' }); }
+    const paid = vals.cash_amount + vals.terminal_amount + vals.click_amount;
+    const used = [vals.cash_amount > 0, vals.terminal_amount > 0, vals.click_amount > 0].filter(Boolean).length;
+    const method = used > 1 ? 'mixed' : vals.terminal_amount > 0 ? 'terminal' : vals.click_amount > 0 ? 'click' : 'cash';
+    const settle = old.debt_amount > 0 && vals.debt_amount === 0;
+    await c.query(`UPDATE sessions SET cash_amount = $1, terminal_amount = $2, click_amount = $3, debt_amount = $4,
+        amount = $5, payment_method = $6, corrected_at = now(),
+        correction_note = $7, settled_at = CASE WHEN $8 THEN now() ELSE settled_at END
+      WHERE id = $9`,
+      [vals.cash_amount, vals.terminal_amount, vals.click_amount, vals.debt_amount, paid, method, reason, settle, s.id]);
+    await c.query('COMMIT');
+    const names = { cash_amount: 'naqd', terminal_amount: 'terminal', click_amount: 'Klik', debt_amount: 'to‘lanmagan' };
+    for (const k of changed) {
+      await logChange(null, user, { entity: 'session', entityId: s.id, entityName: s.plate || null, action: 'correct',
+        field: names[k], oldValue: old[k], newValue: vals[k], reason: reason });
+    }
+    json(res, 200, { ok: true, id: s.id, amount: paid, debt_amount: vals.debt_amount, payment_method: method, changed });
+  } catch (e) {
+    try { await c.query('ROLLBACK'); } catch { /* noop */ }
+    throw e;
+  } finally { c.release(); }
+}
+
 export async function handleKassaRequest(req, res) {
   const path = String(req.url || '').split('?', 1)[0];
+  const cm = path.match(/^\/api\/sessions\/([^/]+)\/correct$/);
+  if (cm) {
+    if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return true; }
+    if (req.method !== 'POST') { json(res, 405, { error: 'Method ruxsat etilmagan' }); return true; }
+    const user = auth(req);
+    if (!user) { json(res, 401, { error: 'Kirish talab qilinadi' }); return true; }
+    try { await ensureKassaSchema(); await sessionCorrect(req, res, user, decodeURIComponent(cm[1])); }
+    catch (e) { console.error('CORRECT ERROR:', e); json(res, 500, { error: e.message || 'To‘g‘rilanmadi' }); }
+    return true;
+  }
   const sm = path.match(/^\/api\/sessions\/([^/]+)\/split$/);
   if (sm) {
     if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return true; }

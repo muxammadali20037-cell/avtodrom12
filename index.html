@@ -827,6 +827,12 @@ body.admin-open { overflow: hidden; }
 .combo-keys kbd, .kb-hint kbd { display: inline-block; min-width: 18px; padding: 0 5px; margin: 0 2px; border: 1px solid #cbd5e1; border-bottom-width: 2px;
   border-radius: 5px; background: #fff; font: 700 11.5px/16px Arial, sans-serif; color: #334155; text-align: center; }
 .kb-hint { font-size: 12.5px; color: var(--muted); margin-top: 6px; line-height: 1.9; }
+.row-fix { margin-top: 6px; min-height: 30px; padding: 4px 10px; font-size: 12px; }
+.fix-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.fix-grid label { font-size: 12.5px; font-weight: 700; color: var(--muted); display: block; margin-bottom: 4px; }
+.fix-grid input { width: 100%; font-size: 16px; font-weight: 700; }
+.fix-quick { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 12px; }
+@media (max-width: 640px) { .fix-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .tab-kbd { display: inline-block; margin-left: 8px; padding: 0 7px; border: 1.5px solid currentColor; border-radius: 6px;
   font-family: Arial, sans-serif; font-size: 15px; font-weight: 700; line-height: 18px; opacity: .65; vertical-align: middle; }
 @media (pointer: coarse) { .tab-kbd { display: none; } }
@@ -5924,6 +5930,8 @@ const DayExcel = {
       [7, 8, 9, 10].forEach(c => { row.getCell(c).numFmt = MONEY; });
       for (let c = 1; c <= jCols; c++) row.getCell(c).alignment = { horizontal: c === 2 || c === 3 ? 'left' : 'center', vertical: 'middle' };
       if (x.open) row.getCell(5).note = 'Hali yopilmagan';
+      /* Qo'lda to'g'rilangan — avtomobil katagida izoh (sababi) */
+      if (r.correction_note) row.getCell(3).note = 'To\'g\'rilangan: ' + r.correction_note;
       /* To'lanmagan (qarz) — JAMI to'lov katagi qizg'ish, izohda summa */
       if (!x.open && num(r.debt_amount) > 0) {
         row.getCell(7).note = 'To\'lanmagan: ' + money(num(r.debt_amount));
@@ -7017,6 +7025,97 @@ const Bolish = {
   }
 };
 
+/* ===================== TO'G'RILASH =====================
+   To'lanmagan «to'langan» bo'lib qolgan, to'langan esa «to'lanmagan» —
+   kunlik hisobotdagi qatorda «To'g'rilash»: naqd / terminal / Klik /
+   to'lanmagan summalari qo'lda o'zgartiriladi, SABAB majburiy. Baza,
+   hisobot va Excel shunga mos yangilanadi; har o'zgarish jurnalga
+   yoziladi (POST /api/sessions/:id/correct). */
+const Correct = {
+  id: null, base: 0, busy: false,
+  open(id) {
+    const r = ROW_CACHE[String(id)];
+    if (!r) { toast('Yozuv topilmadi — hisobotni yangilang.', 'warn'); return; }
+    this.id = String(id);
+    const paid = num(r.cash_amount) + num(r.terminal_amount) + num(r.click_amount);
+    const debt = num(r.debt_amount);
+    /* «Hammasi» uchun asos: hozirgi jami (to'langan + to'lanmagan) yoki vaqtdan hisob */
+    const calc = Add.paidPrice(billMinutes(num(r.duration_seconds), num(r.target_duration)));
+    this.base = paid + debt || calc;
+    this.inside = r.status && r.status !== 'completed';
+    const when = (r.started_at ? dt(r.started_at) : '') + (r.finished_at ? ' – ' + timeOnly(r.finished_at) : (this.inside ? ' · ichkarida' : ''));
+    const q = (k, icon, label) => '<button class="btn btn-light btn-sm" type="button" data-act="fixQuick" data-k="' + k + '"><i class="fa-solid ' + icon + '" aria-hidden="true"></i> ' + label + '</button>';
+    const field = (id2, label, val, dis) => '<div><label for="' + id2 + '">' + label + '</label><input id="' + id2 + '" type="number" min="0" step="1000" inputmode="numeric" value="' + num(val) + '"' + (dis ? ' disabled' : '') + '></div>';
+    openModal('<div class="modal-head"><div><h2 style="letter-spacing:.02em">' + esc(r.plate || '—') + ' — to\'g\'rilash</h2>'
+      + '<p class="ex-time">' + esc(when) + ' · <b>' + esc(ranText(num(r.duration_seconds))) + '</b> · hisob bo\'yicha ' + esc(money(calc)) + '</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div class="field-help" style="margin-bottom:8px">Hozir: ' + esc(this.fmt(r)) + '</div>'
+      + '<div class="field-label">Tez to\'g\'rilash (' + esc(money(this.base)) + ')</div>'
+      + '<div class="fix-quick">'
+      + (this.inside ? '' : q('debt', 'fa-hourglass-half', 'To\'lanmagan'))
+      + q('cash', 'fa-money-bill-wave', 'Naqd to\'langan') + q('terminal', 'fa-credit-card', 'Terminal') + q('click', 'fa-mobile-screen', 'Klik') + '</div>'
+      + '<div class="fix-grid">' + field('fixCash', 'Naqd', r.cash_amount) + field('fixTerm', 'Terminal', r.terminal_amount)
+      + field('fixClick', 'Klik', r.click_amount) + field('fixDebt', 'To\'lanmagan', debt, this.inside) + '</div>'
+      + '<div class="autofill" style="margin-top:12px"><div class="autofill-head mb-0"><b>To\'langan jami</b><b id="fixTotal" style="font-size:18px;color:var(--g-dark)"></b></div></div>'
+      + '<label class="field-label" for="fixReason" style="margin-top:12px">Sababi <span class="text-error">*</span></label>'
+      + '<input id="fixReason" maxlength="300" placeholder="Masalan: pul olinmagan, xato «naqd» bosilgan">'
+      + '<div id="fixErr" class="text-error" role="alert"></div>'
+      + '<div class="actions-row"><button class="btn btn-green btn-lg" type="button" id="fixBtn" data-act="fixSave"><span class="spinner"></span><i class="fa-solid fa-check btn-icon" aria-hidden="true"></i><span class="btn-text">Saqlash</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>');
+    ['fixCash', 'fixTerm', 'fixClick', 'fixDebt'].forEach(k => { const el = $(k); if (el) el.addEventListener('input', () => this.total()); });
+    const rs = $('fixReason'); if (rs) rs.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); this.save(); } });
+    this.total();
+  },
+  fmt(r) {
+    const parts = [];
+    if (num(r.cash_amount)) parts.push('naqd ' + money(r.cash_amount));
+    if (num(r.terminal_amount)) parts.push('terminal ' + money(r.terminal_amount));
+    if (num(r.click_amount)) parts.push('Klik ' + money(r.click_amount));
+    if (num(r.debt_amount)) parts.push('to\'lanmagan ' + money(r.debt_amount));
+    return parts.length ? parts.join(' · ') : 'pul yozilmagan';
+  },
+  vals() {
+    return { cash_amount: num($('fixCash') && $('fixCash').value), terminal_amount: num($('fixTerm') && $('fixTerm').value),
+      click_amount: num($('fixClick') && $('fixClick').value), debt_amount: num($('fixDebt') && $('fixDebt').value) };
+  },
+  total() {
+    const v = this.vals();
+    const el = $('fixTotal');
+    if (el) el.textContent = money(v.cash_amount + v.terminal_amount + v.click_amount) + (v.debt_amount ? ' · to\'lanmagan ' + money(v.debt_amount) : '');
+  },
+  quick(k) {
+    const set = (id2, v) => { const el = $(id2); if (el && !el.disabled) el.value = v; };
+    set('fixCash', k === 'cash' ? this.base : 0);
+    set('fixTerm', k === 'terminal' ? this.base : 0);
+    set('fixClick', k === 'click' ? this.base : 0);
+    set('fixDebt', k === 'debt' ? this.base : 0);
+    this.total();
+    const rs = $('fixReason'); if (rs) rs.focus();
+  },
+  async save() {
+    if (this.busy) return;
+    setError('fixErr', '');
+    const v = this.vals();
+    const reason = ($('fixReason') && $('fixReason').value.trim()) || '';
+    if (reason.length < 5) { setError('fixErr', 'Sababini yozing (kamida 5 ta harf).'); if ($('fixReason')) $('fixReason').focus(); return; }
+    if ([v.cash_amount, v.terminal_amount, v.click_amount, v.debt_amount].some(x => x < 0)) { setError('fixErr', 'Summa manfiy bo\'lmasin.'); return; }
+    this.busy = true;
+    try {
+      await withBusy('fix:' + this.id, $('fixBtn'), async () => {
+        await api('/sessions/' + encodeURIComponent(this.id) + '/correct', { method: 'POST', body: jsonBody(Object.assign({ reason: reason }, v)) });
+        const r = ROW_CACHE[this.id];
+        closeModal();
+        toast('To\'g\'rilandi' + (r && r.plate ? ': ' + r.plate : '') + '. Hisobot va Excel yangilandi.');
+        Reports.loadDaily();
+        Debts.load(true);
+        Data.ensureToday(true).then(() => Active.renderKpi());
+        if (STATE.page === 'history' && $('histQ') && $('histQ').value.trim()) History.search();
+      });
+    } catch (e) { setError('fixErr', e.message); }
+    finally { this.busy = false; }
+  }
+};
+
 /* ===================== TO'LANMAGAN (qarz) =====================
    «1 soatga och», pulni keyin beraman — vaqti tugab o'zi yopilgan yoki
    «Chiqdi → Keyin to'laydi» bosilgan yozuvlar shu yerda ism bo'yicha
@@ -7427,7 +7526,13 @@ function reportRowCells(r) {
     /* Davomat yozuvi mashina raqami bilan ham kelishi mumkin —
        shuning uchun turini alohida belgi bilan ko'rsatamiz. */
     '<b>' + esc(r.plate || (isSchool ? 'Davomat' : '—')) + '</b>'
-      + (isSchool ? '<div><span class="badge badge-blue">Davomat</span></div>' : ''),
+      + (isSchool ? '<div><span class="badge badge-blue">Davomat</span></div>' : '')
+      + (r.correction_note ? '<div><span class="badge badge-amber" title="' + esc('To\'g\'rilangan: ' + r.correction_note) + '">'
+        + '<i class="fa-solid fa-pen" aria-hidden="true"></i> to\'g\'rilangan</span></div>' : '')
+      /* To'lovi noto'g'ri yozilgan bo'lsa — qo'lda to'g'rilash (sabab bilan) */
+      + (!isSchool && r.id && r.status !== 'cancelled'
+        ? '<div><button class="btn btn-light btn-sm row-fix" type="button" data-act="correctOpen" data-id="' + esc(r.id) + '" data-stop="1" title="To\'lovni to\'g\'rilash">'
+          + '<i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> To\'g\'rilash</button></div>' : ''),
     esc(dt(r.started_at)),
     /* Hali ichkarida — hisobotga kirishi bilan tushadi */
     (r.status && r.status !== 'completed'
@@ -7444,12 +7549,17 @@ function reportRowCells(r) {
     money(r.cash_amount),
     money(r.terminal_amount),
     '<b style="color:var(--g-dark)">' + money(r.amount) + '</b>'
+      + (num(r.click_amount) > 0 ? '<div class="text-muted" style="font-size:11.5px">shundan Klik ' + esc(money(r.click_amount)) + '</div>' : '')
+      + (num(r.debt_amount) > 0 ? '<div style="font-size:11.5px;color:#b45309;font-weight:700">to\'lanmagan ' + esc(money(r.debt_amount)) + '</div>' : '')
   ];
 }
 /* `opts.deletable` berilsa har qatorga «bekor qilish» tugmasi qo'shiladi.
    Kunlik hisobotda bu tugma yo'q — u faqat o'quvchi tarixida kerak. */
+/* Jadvaldagi qatorlar — «To'g'rilash» oynasi shu yerdan oladi */
+const ROW_CACHE = {};
 function tableHTML(rows, opts) {
   rows = Array.isArray(rows) ? rows : [];
+  rows.forEach(r => { if (r && r.id) ROW_CACHE[String(r.id)] = r; });
   if (!rows.length) return emptyState('fa-table', "Ma'lumot yo'q", 'Tanlangan shartlar bo\'yicha yozuv topilmadi.');
   const del = !!(opts && opts.deletable);
   const cols = del ? REPORT_COLS.concat(['']) : REPORT_COLS;
@@ -11304,6 +11414,9 @@ const ACTIONS = {
   exitPay: d => Chiqish.pay(d.p),
   exitMore: d => { const id = Chiqish.id; closeModal(); Finish.open(id, 'active'); },
   debtOpen: d => Debts.open(d.k),
+  correctOpen: d => Correct.open(d.id),
+  fixQuick: d => Correct.quick(d.k),
+  fixSave: () => Correct.save(),
   splitOpen: d => Bolish.open(d.id),
   splitMin: d => Bolish.setMin(d.m),
   splitPay: d => Bolish.pay(d.p),
