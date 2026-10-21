@@ -1114,70 +1114,103 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 .gate-dev{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
 .gate-dev:last-child{border-bottom:0}
 
-/* ===================== EXCEL — butun ekran jadval ===================== */
-.sheet-page { position: fixed; inset: 0; z-index: 95; background: #fff; display: flex; flex-direction: column; margin: 0; padding: 0; }
+/* ===================== EXCEL — butun ekran, haqiqiy Excel ko'rinishi ===================== */
+.sheet-page { position: fixed; inset: 0; z-index: 95; background: #fff; display: flex; flex-direction: column; margin: 0; padding: 0;
+  font-family: 'Segoe UI', Calibri, Arial, sans-serif; color: #201f1e; }
 .sheet-page.hidden { display: none; }
 body.sheet-open { overflow: hidden; }
-.sh-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #107c41; color: #fff; flex-wrap: wrap; }
-.sh-brand { font-weight: 800; font-size: 17px; display: flex; align-items: center; gap: 8px; margin-right: 6px; }
-.sh-date { display: flex; align-items: center; gap: 4px; }
-.sh-date input { height: 32px; border-radius: 6px; border: 1px solid rgba(255,255,255,.4); padding: 0 8px; font: inherit; font-weight: 600; color: #0f172a; background: #fff; }
-.sh-btn { height: 32px; border-radius: 6px; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.12); color: #fff;
-  padding: 0 10px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.sh-btn:hover { background: rgba(255,255,255,.24); }
-.sh-btn:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
-.sh-btn kbd, .sh-foot kbd { font: 11px/1 ui-monospace, Consolas, monospace; padding: 2px 4px; border-radius: 4px; background: rgba(0,0,0,.18); }
-.sh-save { background: #fff; color: #107c41; border-color: #fff; }
-.sh-save:hover { background: #e8f5ec; }
-.sh-save.dirty { background: #fde047; color: #422006; border-color: #fde047; }
-.sh-save kbd { background: rgba(0,0,0,.08); }
-.sh-tabs { display: flex; gap: 2px; margin-left: 8px; }
-.sh-tab { height: 32px; padding: 0 12px; border: 0; border-radius: 6px 6px 0 0; background: rgba(255,255,255,.12); color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
-.sh-tab.on { background: #fff; color: #107c41; }
-.sh-tab small { font-weight: 600; opacity: .75; margin-left: 4px; }
-.sh-spacer { flex: 1; }
-.sh-status { font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.16); white-space: nowrap; }
-.sh-status.dirty { background: #fde047; color: #422006; }
-.sh-status.err { background: #fecaca; color: #7f1d1d; }
-.sh-fx { display: flex; align-items: center; gap: 0; border-bottom: 1px solid #d4d4d4; background: #fff; font-size: 13px; min-height: 30px; }
-.sh-ref { width: 70px; text-align: center; font-weight: 700; border-right: 1px solid #d4d4d4; padding: 6px 0; color: #334155; }
-.sh-fx-ico { padding: 0 10px; font-style: italic; color: #64748b; border-right: 1px solid #e5e5e5; }
-.sh-fx-val { padding: 6px 10px; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-.sh-fx-val.err { color: #b91c1c; font-weight: 600; }
+.sheet-page kbd { font: 11px/1 'Segoe UI', Arial, sans-serif; padding: 1px 4px; border: 1px solid #c8c6c4; border-bottom-width: 2px; border-radius: 3px; background: #fff; color: #323130; }
+/* sarlavha (yashil) */
+.xl-title { height: 40px; background: #217346; color: #fff; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 10px; flex: none; }
+.xl-logo { width: 26px; height: 26px; border-radius: 4px; background: #fff; display: grid; place-items: center; }
+.xl-logo span { width: 18px; height: 18px; background: #185c37; color: #fff; font: 700 12px/18px 'Segoe UI', Arial; text-align: center; border-radius: 2px; }
+.xl-qa { display: flex; gap: 2px; }
+.xl-qa button, .xl-tbtn { width: 32px; height: 30px; border: 0; background: transparent; color: #fff; border-radius: 4px; cursor: pointer; font-size: 14px; }
+.xl-qa button:hover, .xl-tbtn:hover { background: rgba(255,255,255,.18); }
+.xl-x:hover { background: #c42b1c !important; }
+.xl-name { flex: 1; text-align: center; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-status { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: rgba(255,255,255,.18); white-space: nowrap; }
+.sh-status.dirty { background: #ffe066; color: #3d2f00; }
+.sh-status.err { background: #fde7e9; color: #a4262c; }
+/* lenta (ribbon) */
+.xl-ribbon { display: flex; align-items: stretch; gap: 0; background: #f3f2f1; border-bottom: 1px solid #d2d0ce; padding: 4px 6px 0; flex: none; overflow-x: auto; }
+.xl-grp { display: flex; align-items: flex-start; gap: 4px; padding: 0 10px 18px; border-right: 1px solid #d2d0ce; position: relative; min-height: 76px; }
+.xl-gname { position: absolute; left: 0; right: 0; bottom: 2px; text-align: center; font-size: 11px; color: #605e5c; }
+.xl-col { display: flex; flex-direction: column; gap: 2px; justify-content: flex-start; }
+.xl-big { width: 78px; height: 62px; border: 1px solid transparent; background: transparent; border-radius: 4px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #201f1e; font: 12px 'Segoe UI', Arial; }
+.xl-big i { font-size: 22px; color: #217346; }
+.xl-big small { font-size: 10px; color: #605e5c; }
+.xl-big:hover, .xl-rb:hover, .xl-ico:hover { background: #e1dfdd; border-color: #c8c6c4; }
+.xl-save.dirty { background: #fff4ce; border-color: #f2c94c; }
+.xl-add i { color: #0f6cbd; }
+.xl-rb { height: 24px; border: 1px solid transparent; background: transparent; border-radius: 3px; cursor: pointer; display: flex; align-items: center; gap: 6px;
+  padding: 0 6px; font: 12px 'Segoe UI', Arial; color: #201f1e; white-space: nowrap; }
+.xl-rb i { width: 14px; text-align: center; color: #217346; }
+.xl-date { display: flex; align-items: center; gap: 2px; }
+.xl-date input { height: 26px; border: 1px solid #8a8886; border-radius: 3px; padding: 0 6px; font: 600 13px 'Segoe UI', Arial; color: #201f1e; background: #fff; }
+.xl-ico { width: 24px; height: 26px; border: 1px solid transparent; background: transparent; border-radius: 3px; cursor: pointer; color: #323130; }
+.xl-help { flex-direction: column; gap: 3px; padding-top: 2px; border-right: 0; }
+.xl-tip { font-size: 12px; color: #323130; white-space: nowrap; }
+/* formula qatori */
+.sh-fx { display: flex; align-items: center; border-bottom: 1px solid #d2d0ce; background: #fff; font-size: 13px; height: 28px; flex: none; }
+.sh-ref { width: 90px; text-align: left; padding: 0 8px; border-right: 1px solid #d2d0ce; height: 100%; display: flex; align-items: center; color: #201f1e; }
+.sh-fx-sep { display: flex; gap: 10px; padding: 0 10px; color: #a19f9d; font-size: 12px; border-right: 1px solid #edebe9; height: 100%; align-items: center; }
+.sh-fx-ico { padding: 0 10px; font-style: italic; font-family: Georgia, serif; color: #605e5c; }
+.sh-fx-val { padding: 0 8px; color: #201f1e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.sh-fx-val.err { color: #a4262c; font-weight: 600; }
+/* jadval */
 .sh-wrap { position: relative; flex: 1; overflow: auto; outline: none; background: #fff; }
-.sh-grid { border-collapse: separate; border-spacing: 0; font: 13px/1.2 Calibri, 'Segoe UI', Arial, sans-serif; table-layout: fixed; user-select: none; }
-.sh-grid th, .sh-grid td { border-right: 1px solid #e1e1e1; border-bottom: 1px solid #e1e1e1; height: 26px; padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sh-grid thead th { position: sticky; background: #f3f3f3; color: #444; font-weight: 600; z-index: 3; }
-.sh-grid thead tr.lt th { top: 0; height: 20px; font-size: 11px; font-weight: 500; color: #666; text-align: center; }
-.sh-grid thead tr.hd th { top: 21px; background: #e5f3ec; color: #14532d; font-weight: 700; text-align: center; border-bottom: 2px solid #9ca3af; }
-.sh-grid th.rn, .sh-grid td.rn { position: sticky; left: 0; z-index: 2; background: #f3f3f3; color: #555; text-align: center; font-size: 12px; cursor: pointer; }
+.sh-grid { border-collapse: separate; border-spacing: 0; font: 14px/1.2 Calibri, Carlito, 'Segoe UI', Arial, sans-serif; table-layout: fixed; user-select: none; width: 100%; }
+.sh-grid th, .sh-grid td { border-right: 1px solid #e1dfdd; border-bottom: 1px solid #e1dfdd; height: 22px; padding: 0 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-grid thead th { position: sticky; z-index: 3; }
+.sh-grid thead tr.lt th { top: 0; height: 21px; background: #f3f2f1; color: #605e5c; font: 12px 'Segoe UI', Arial; text-align: center; border-bottom: 1px solid #c8c6c4; }
+.sh-grid thead tr.lt th.hl { background: #d2d0ce; color: #217346; font-weight: 700; box-shadow: inset 0 -2px 0 #217346; }
+.sh-grid thead tr.hd th { top: 21px; box-shadow: 0 -2px 0 #e2efda; background: #e2efda; color: #1e4620; font-weight: 700; text-align: center; border-bottom: 1px solid #a9d08e; font-size: 13px; }
+.sh-grid th.rn, .sh-grid td.rn { position: sticky; left: 0; z-index: 2; background: #f3f2f1; color: #605e5c; text-align: center; font: 12px 'Segoe UI', Arial; cursor: pointer; border-right: 1px solid #c8c6c4; }
 .sh-grid thead th.rn { z-index: 4; }
+.sh-grid tr.cur td.rn { background: #d2d0ce; color: #217346; font-weight: 700; box-shadow: inset -2px 0 0 #217346; }
 .sh-grid td { background: #fff; cursor: cell; }
 .sh-grid td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .sh-grid td.ctr { text-align: center; font-variant-numeric: tabular-nums; }
-.sh-grid td.ro { background: #f8fafc; color: #475569; }
+.sh-grid td.ro { color: #484644; background: #fafafa; }
 .sh-grid td.plate { font-weight: 700; }
-.sh-grid td.mod { background: #fef9c3; }
-.sh-grid td.bad { background: #fee2e2; box-shadow: inset 0 0 0 1px #dc2626; color: #991b1b; }
-.sh-grid td.rng { background-image: linear-gradient(rgba(16,124,65,.12), rgba(16,124,65,.12)); }
-.sh-grid td.sel { box-shadow: inset 0 0 0 2px #107c41; }
-.sh-grid td.bad.sel { box-shadow: inset 0 0 0 2px #dc2626; }
-.sh-grid tr.new td:not(.rn) { background-color: #f0fdf4; }
-.sh-grid tr.new td.mod { background-color: #dcfce7; }
-.sh-grid tr.del td:not(.rn) { text-decoration: line-through; color: #b91c1c; background: #fff1f2; }
-.sh-grid tr.blank td:not(.rn) { background: #fff; }
-.sh-grid tr.cur td.rn { background: #d1e7dd; color: #107c41; font-weight: 700; }
-.sh-grid td .tag { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 700; }
-.tag.in { background: #dbeafe; color: #1d4ed8; } .tag.done { background: #dcfce7; color: #166534; } .tag.auto { background: #e0e7ff; color: #3730a3; }
-.tag.frz { background: #e0f2fe; color: #0369a1; } .tag.newt { background: #bbf7d0; color: #14532d; } .tag.delt { background: #fecaca; color: #7f1d1d; }
-.tag.debt { background: #fee2e2; color: #991b1b; }
-.sh-grid tfoot td { position: sticky; bottom: 0; background: #f1f5f9; font-weight: 700; border-top: 2px solid #9ca3af; z-index: 2; cursor: default; }
+.sh-grid td.ph { color: #a19f9d; font-style: italic; font-weight: 400; }
+.sh-grid td.mod { background: #fff4ce; }
+.sh-grid td.bad { background: #fde7e9; box-shadow: inset 0 0 0 1px #c50f1f; color: #a4262c; }
+.sh-grid td.rng { background-image: linear-gradient(rgba(33,115,70,.14), rgba(33,115,70,.14)); }
+.sh-grid td.sel { box-shadow: inset 0 0 0 2px #217346; position: relative; }
+.sh-grid td.sel::after { content: ''; position: absolute; right: 0; bottom: 0; width: 6px; height: 6px; background: #217346; border-left: 1px solid #fff; border-top: 1px solid #fff; }
+.sh-grid td.bad.sel { box-shadow: inset 0 0 0 2px #c50f1f; }
+.sh-grid tr.new td:not(.rn) { background-color: #f1faf3; }
+.sh-grid tr.new td.mod { background-color: #dff6dd; }
+.sh-grid tr.del td:not(.rn) { text-decoration: line-through; color: #a4262c; background: #fdf3f4; }
+.sh-grid td .tag { display: inline-block; padding: 0 6px; border-radius: 3px; font: 600 11px/17px 'Segoe UI', Arial; }
+.tag.in { background: #deecf9; color: #0f6cbd; } .tag.done { background: #dff6dd; color: #107c10; } .tag.auto { background: #ebe7f7; color: #5c2e91; }
+.tag.frz { background: #e5f4fb; color: #0078a8; } .tag.newt { background: #c7e7c3; color: #0b5a0b; } .tag.delt { background: #fde7e9; color: #a4262c; }
+.tag.debt { background: #fde7e9; color: #a4262c; }
+.sh-grid tfoot td { position: sticky; bottom: 0; background: #f3f2f1; font-weight: 700; border-top: 2px solid #8a8886; z-index: 2; cursor: default; }
 .sh-grid tfoot td.rn { z-index: 3; }
-.sh-editor { position: absolute; z-index: 5; border: 2px solid #107c41; padding: 0 5px; font: 13px Calibri, 'Segoe UI', Arial, sans-serif; outline: none; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+.sh-editor { position: absolute; z-index: 5; border: 2px solid #217346; padding: 0 4px; font: 14px Calibri, Carlito, 'Segoe UI', Arial, sans-serif; outline: none; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
 .sh-editor.hidden { display: none; }
-.sh-foot { display: flex; gap: 14px; flex-wrap: wrap; padding: 6px 12px; border-top: 1px solid #d4d4d4; background: #f8fafc; color: #475569; font-size: 12px; }
-.sh-foot kbd { background: #e2e8f0; color: #0f172a; }
-.sh-empty { padding: 40px; text-align: center; color: #64748b; }
+/* pastki qism: varaqlar va holat */
+.xl-bottom { display: flex; align-items: stretch; height: 30px; background: #f3f2f1; border-top: 1px solid #d2d0ce; flex: none; }
+.sh-tabs { display: flex; align-items: stretch; padding-left: 8px; }
+.sh-tab { border: 0; border-right: 1px solid #d2d0ce; background: transparent; padding: 0 16px; font: 13px 'Segoe UI', Arial; color: #323130; cursor: pointer; }
+.sh-tab:hover { background: #e1dfdd; }
+.sh-tab.on { background: #fff; color: #217346; font-weight: 700; box-shadow: inset 0 -3px 0 #217346; }
+.sh-tab small { color: #605e5c; font-weight: 400; margin-left: 6px; }
+.xl-stat { flex: 1; display: flex; justify-content: flex-end; align-items: center; gap: 18px; padding: 0 14px; font: 12px 'Segoe UI', Arial; color: #323130; white-space: nowrap; overflow: hidden; }
+.xl-stat b { font-weight: 600; }
+/* o'ng tugma menyusi */
+.xl-menu { position: fixed; z-index: 120; min-width: 230px; background: #fff; border: 1px solid #c8c6c4; box-shadow: 0 6px 18px rgba(0,0,0,.18); padding: 4px 0; font: 13px 'Segoe UI', Arial; }
+.xl-menu.hidden { display: none; }
+.xl-menu button { display: flex; width: 100%; align-items: center; gap: 10px; border: 0; background: transparent; padding: 6px 14px; text-align: left; cursor: pointer; font: inherit; color: #201f1e; }
+.xl-menu button:hover, .xl-menu button:focus { background: #f3f2f1; outline: none; }
+.xl-menu button i { width: 16px; color: #217346; text-align: center; }
+.xl-menu button small { margin-left: auto; color: #8a8886; font-size: 11px; }
+.xl-menu hr { border: 0; border-top: 1px solid #edebe9; margin: 4px 0; }
+.sh-empty { padding: 40px; text-align: center; color: #605e5c; }
 .sh-clip { position: fixed; left: -2000px; top: 0; width: 10px; height: 10px; opacity: 0; }
 </style>
 </head>
@@ -1665,36 +1698,77 @@ body.sheet-open { overflow: hidden; }
       </section>
 
       <!-- ===== RASXOD (xarajatlar) ===== -->
-      <!-- EXCEL: butun ekran jadval. Ctrl+S — bazaga saqlash -->
+      <!-- EXCEL: butun ekran, haqiqiy Excel ko'rinishida. Ctrl+S — bazaga saqlash -->
       <section id="p-sheet" class="page hidden sheet-page" aria-label="Excel jadvali">
-        <div class="sh-bar">
-          <div class="sh-brand"><i class="fa-solid fa-table-cells" aria-hidden="true"></i> Excel</div>
-          <div class="sh-date">
-            <button type="button" class="sh-btn" data-act="shDay" data-d="-1" title="Oldingi kun" aria-label="Oldingi kun"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
-            <input type="date" id="shDate" aria-label="Sana">
-            <button type="button" class="sh-btn" data-act="shDay" data-d="1" title="Keyingi kun" aria-label="Keyingi kun"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
-            <button type="button" class="sh-btn" data-act="shDay" data-d="0">Bugun</button>
+        <div class="xl-title">
+          <div class="xl-logo" aria-hidden="true"><span>X</span></div>
+          <div class="xl-qa">
+            <button type="button" data-act="shSave" title="Saqlash (Ctrl+S)" aria-label="Saqlash"><i class="fa-solid fa-floppy-disk"></i></button>
+            <button type="button" data-act="shUndo" title="Orqaga (Ctrl+Z)" aria-label="Orqaga"><i class="fa-solid fa-rotate-left"></i></button>
+            <button type="button" data-act="shRedo" title="Qaytarish (Ctrl+Y)" aria-label="Qaytarish"><i class="fa-solid fa-rotate-right"></i></button>
           </div>
-          <div class="sh-tabs" role="tablist" id="shTabs"></div>
-          <div class="sh-spacer"></div>
+          <div class="xl-name" id="shTitle">Avtodrom — Excel</div>
           <div class="sh-status" id="shStatus" aria-live="polite"></div>
-          <button type="button" class="sh-btn sh-save" data-act="shSave" id="shSaveBtn"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Saqlash <kbd>Ctrl+S</kbd></button>
-          <button type="button" class="sh-btn" data-act="shDelRow" title="Tanlangan qatorni o'chirish (Ctrl+Delete)"><i class="fa-regular fa-trash-can" aria-hidden="true"></i> Qator</button>
-          <button type="button" class="sh-btn" data-act="shReload" title="Bazadan qayta o'qish"><i class="fa-solid fa-rotate" aria-hidden="true"></i></button>
-          <button type="button" class="sh-btn" data-act="shExport" id="shExportBtn" title="Excel faylini yuklab olish"><i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i> .xlsx</button>
-          <button type="button" class="sh-btn sh-close" data-act="shClose" title="Yopish (Esc)"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Yopish <kbd>Esc</kbd></button>
+          <button type="button" class="xl-tbtn" data-act="shFull" title="Butun ekran (F11)" aria-label="Butun ekran"><i class="fa-solid fa-expand"></i></button>
+          <button type="button" class="xl-tbtn xl-x" data-act="shClose" title="Yopish (Esc)" aria-label="Yopish"><i class="fa-solid fa-xmark"></i></button>
         </div>
-        <div class="sh-fx"><span class="sh-ref" id="shRef">B1</span><span class="sh-fx-ico">fx</span><span class="sh-fx-val" id="shFx"></span></div>
+        <div class="xl-ribbon" role="toolbar" aria-label="Excel buyruqlari">
+          <div class="xl-grp">
+            <button type="button" class="xl-big xl-save" data-act="shSave" id="shSaveBtn" title="Bazaga saqlash (Ctrl+S)"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i><span>Saqlash</span><small>Ctrl+S</small></button>
+            <div class="xl-col">
+              <button type="button" class="xl-rb" data-act="shExport"><i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i><span>Yuklab olish (.xlsx)</span></button>
+              <button type="button" class="xl-rb" data-act="shReload"><i class="fa-solid fa-rotate" aria-hidden="true"></i><span>Yangilash</span></button>
+            </div>
+            <div class="xl-gname">Fayl</div>
+          </div>
+          <div class="xl-grp">
+            <div class="xl-col">
+              <div class="xl-date">
+                <button type="button" class="xl-ico" data-act="shDay" data-d="-1" title="Oldingi kun" aria-label="Oldingi kun"><i class="fa-solid fa-chevron-left"></i></button>
+                <input type="date" id="shDate" aria-label="Sana">
+                <button type="button" class="xl-ico" data-act="shDay" data-d="1" title="Keyingi kun" aria-label="Keyingi kun"><i class="fa-solid fa-chevron-right"></i></button>
+              </div>
+              <button type="button" class="xl-rb" data-act="shDay" data-d="0"><i class="fa-regular fa-calendar-check" aria-hidden="true"></i><span>Bugun</span></button>
+            </div>
+            <div class="xl-gname">Sana</div>
+          </div>
+          <div class="xl-grp">
+            <button type="button" class="xl-big xl-add" data-act="shNewRow" title="Pastdagi bo'sh qatorga o'tib yozishni boshlash (Ctrl+Enter)"><i class="fa-solid fa-square-plus" aria-hidden="true"></i><span>Yangi qator</span><small>Ctrl+Enter</small></button>
+            <div class="xl-col">
+              <button type="button" class="xl-rb" data-act="shInsRow" title="Tanlangan qator ustiga bo'sh qator (Ctrl++)"><i class="fa-solid fa-arrows-up-to-line" aria-hidden="true"></i><span>Qator qo'shish (yuqoriga)</span></button>
+              <button type="button" class="xl-rb" data-act="shDelRow" title="Ctrl+Delete — qayta bosilsa qaytadi"><i class="fa-regular fa-trash-can" aria-hidden="true"></i><span>Qatorni o'chirish</span></button>
+            </div>
+            <div class="xl-gname">Qatorlar</div>
+          </div>
+          <div class="xl-grp">
+            <div class="xl-col">
+              <button type="button" class="xl-rb" data-act="shCopy" title="Ctrl+C"><i class="fa-regular fa-copy" aria-hidden="true"></i><span>Nusxa olish</span></button>
+              <button type="button" class="xl-rb" data-act="shPaste" title="Ctrl+V"><i class="fa-regular fa-paste" aria-hidden="true"></i><span>Qo'yish</span></button>
+            </div>
+            <div class="xl-col">
+              <button type="button" class="xl-rb" data-act="shUndo" title="Ctrl+Z"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span>Orqaga</span></button>
+              <button type="button" class="xl-rb" data-act="shClear" title="Delete"><i class="fa-solid fa-eraser" aria-hidden="true"></i><span>Tozalash</span></button>
+            </div>
+            <div class="xl-gname">Tahrirlash</div>
+          </div>
+          <div class="xl-grp xl-help">
+            <div class="xl-tip"><b>Yozish:</b> katakni tanlang va yozing → <kbd>Enter</kbd></div>
+            <div class="xl-tip"><b>Yangi mashina:</b> pastdagi bo'sh qatorga yozing</div>
+            <div class="xl-tip"><b>Saqlash:</b> <kbd>Ctrl</kbd>+<kbd>S</kbd> — bazaga tushadi</div>
+            <div class="xl-gname">Yordam</div>
+          </div>
+        </div>
+        <div class="sh-fx"><span class="sh-ref" id="shRef">B1</span><span class="sh-fx-sep"><i class="fa-solid fa-xmark"></i><i class="fa-solid fa-check"></i></span><span class="sh-fx-ico">fx</span><span class="sh-fx-val" id="shFx"></span></div>
         <div class="sh-wrap" id="shWrap" tabindex="0" aria-label="Jadval: strelkalar bilan yuring, yozing, Enter">
           <table class="sh-grid" id="shGrid"></table>
           <input type="text" id="shEditor" class="sh-editor hidden" autocomplete="off" spellcheck="false" aria-label="Katak qiymati">
         </div>
         <textarea id="shClip" class="sh-clip" tabindex="-1" aria-hidden="true"></textarea>
-        <div class="sh-foot" id="shFoot">
-          <span><kbd>↑↓←→</kbd> yurish</span><span><kbd>Enter</kbd> / <kbd>F2</kbd> yozish</span><span><kbd>Delete</kbd> tozalash</span>
-          <span><kbd>Ctrl+Delete</kbd> qatorni o'chirish</span><span><kbd>Ctrl+Z</kbd> orqaga</span><span><kbd>Ctrl+C</kbd>/<kbd>Ctrl+V</kbd> nusxa</span>
-          <span><kbd>Ctrl+S</kbd> bazaga saqlash</span>
+        <div class="xl-bottom">
+          <div class="sh-tabs" role="tablist" id="shTabs"></div>
+          <div class="xl-stat" id="shStat"></div>
         </div>
+        <div class="xl-menu hidden" id="shMenu" role="menu"></div>
       </section>
 
       <section id="p-rasxod" class="page hidden">
@@ -7240,7 +7314,7 @@ const Sheet = {
   date: '', tab: 'J', data: null, rows: { J: [], X: [], K: [] },
   sel: { r: 0, c: 1 }, anc: null, edit: null, undo: [], redo: [], seq: 0,
   back: 'add', leaving: false, saving: false, loadedAt: 0, timer: null, drag: false, wired: false,
-  BLANKS: 3,
+  BLANKS: 3,   /* eng kamida; aslida ekran to'lguncha bo'sh qator (blanksWanted) */
   PAY: { cash: 'Naqd', card: 'Karta', click: 'Klik' },
 
   COLS: {
@@ -7267,8 +7341,8 @@ const Sheet = {
       { k: 'pay_method', t: 'TO\'LOV', w: 84, type: 'pay', cls: 'ctr', hint: 'n — Naqd · t — Karta (terminal) · k — Klik' },
       { k: 'liters', t: 'LITR / M³', w: 80, type: 'dec', cls: 'num' },
       { k: 'odometer', t: 'K/M', w: 90, type: 'int', cls: 'num' },
-      { k: 'note', t: 'IZOH', w: 260 },
-      { k: 'state', t: 'HOLAT', w: 100, ro: true, cls: 'ctr' }
+      { k: 'state', t: 'HOLAT', w: 100, ro: true, cls: 'ctr' },
+      { k: 'note', t: 'IZOH', w: 260 }
     ],
     K: [
       { k: '#', t: '№', w: 44, ro: true },
@@ -7353,12 +7427,19 @@ const Sheet = {
     const v = row.v;
     return Object.keys(v).every(k => (k === 'pay_method' ? true : !v[k]));
   },
+  blanksWanted() {
+    const w = $('shWrap');
+    const visible = Math.ceil((((w && w.clientHeight) || 800)) / 23);
+    return Math.max(30, visible + 10);
+  },
   padBlanks(tab) {
     if (tab === 'K') return;
     const L = this.rows[tab];
     let n = 0; for (let i = L.length - 1; i >= 0 && L[i].blank; i--) n++;
-    while (n < this.BLANKS) { L.push(this.blank(tab)); n++; }
+    const want = this.blanksWanted();
+    while (n < want) { L.push(this.blank(tab)); n++; }
   },
+  firstBlank() { const L = this.list(); const i = L.findIndex((r, k) => r.blank && L.slice(k).every(x => x.blank)); return i; },
   build(d) {
     this.data = d;
     this.rows.J = (d.sessions || []).map(s => this.jRow(s));
@@ -7444,8 +7525,13 @@ const Sheet = {
       return '<button type="button" class="sh-tab' + (t === this.tab ? ' on' : '') + '" role="tab" aria-selected="' + (t === this.tab) + '" data-act="shTab" data-t="' + t + '">'
         + this.TAB_NAMES[t] + '<small>' + n + '</small></button>';
     }).join('');
-    let h = '<colgroup>' + cols.map(c => '<col style="width:' + c.w + 'px">').join('') + '</colgroup>';
-    h += '<thead><tr class="lt">' + cols.map((c, i) => '<th' + (i === 0 ? ' class="rn"' : '') + '>' + (i === 0 ? '' : this.letter(i)) + '</th>').join('') + '</tr>';
+    /* oxirgi ustun ekranning qolgan kengligini egallaydi — jadval butun ekranni to'ldiradi */
+    const minW = cols.reduce((a, c) => a + c.w, 0);
+    $('shGrid').style.minWidth = minW + 'px';
+    let h = '<colgroup>' + cols.map((c, i) => i === cols.length - 1 ? '<col>' : '<col style="width:' + c.w + 'px">').join('') + '</colgroup>';
+    const t = $('shTitle');
+    if (t) t.textContent = 'Avtodrom — ' + this.TAB_NAMES[this.tab] + ' — ' + (this.date ? this.date.slice(8, 10) + '.' + this.date.slice(5, 7) + '.' + this.date.slice(0, 4) : '') + '.xlsx';
+    h += '<thead><tr class="lt">' + cols.map((c, i) => '<th' + (i === 0 ? ' class="rn"' : ' data-c="' + i + '"') + '>' + (i === 0 ? '' : this.letter(i)) + '</th>').join('') + '</tr>';
     h += '<tr class="hd">' + cols.map((c, i) => '<th' + (i === 0 ? ' class="rn"' : '') + ' title="' + esc(c.fx || c.t) + '">' + esc(c.t) + '</th>').join('') + '</tr></thead>';
     h += '<tbody>' + L.map((row, r) => this.rowHTML(row, r)).join('') + '</tbody>';
     h += '<tfoot>' + this.totalsHTML() + '</tfoot>';
@@ -7459,9 +7545,11 @@ const Sheet = {
   rowHTML(row, r) {
     const cols = this.cols();
     const cls = [row.blank ? 'blank' : '', row.isNew ? 'new' : '', row.del ? 'del' : ''].filter(Boolean).join(' ');
-    let n = 0; for (let i = 0; i <= r; i++) if (!this.list()[i].blank) n++;
+    const L = this.list();
+    const hint = row.blank && (r === 0 || !L[r - 1].blank) && this.tab !== 'K';
     return '<tr data-r="' + r + '"' + (cls ? ' class="' + cls + '"' : '') + '>' + cols.map((c, ci) => {
-      if (ci === 0) return '<td class="rn" data-r="' + r + '" data-c="0">' + (row.blank ? '' : n) + '</td>';
+      if (ci === 0) return '<td class="rn" data-r="' + r + '" data-c="0">' + (r + 1) + '</td>';
+      if (hint && ci === 1) return '<td data-r="' + r + '" data-c="1" class="ph">' + (this.tab === 'J' ? '＋ yangi mashina yozing' : '＋ yangi xarajat yozing') + '</td>';
       const k = c.k;
       const mod = !row.blank && !row.isNew && !row.del && k in row.o && String(row.v[k]) !== String(row.o[k]);
       const bad = row.del ? '' : this.errOf(row, k);
@@ -7512,13 +7600,17 @@ const Sheet = {
     const g = $('shGrid'); if (!g) return;
     g.querySelectorAll('td.sel, td.rng').forEach(x => x.classList.remove('sel', 'rng'));
     g.querySelectorAll('tr.cur').forEach(x => x.classList.remove('cur'));
+    g.querySelectorAll('th.hl').forEach(x => x.classList.remove('hl'));
+    this.stats();
     if (!this.list().length) { $('shRef').textContent = ''; $('shFx').textContent = this.tab === 'K' ? 'Bu kunda avtoshkola darsi yo\'q' : ''; return; }
     const R = this.range();
     if (R.r1 !== R.r2 || R.c1 !== R.c2) {
       for (let r = R.r1; r <= R.r2; r++) for (let c = R.c1; c <= R.c2; c++) { const td = this.cell(r, c); if (td) td.classList.add('rng'); }
     }
+    for (let c = R.c1; c <= R.c2; c++) { const th = g.querySelector('thead tr.lt th[data-c="' + c + '"]'); if (th) th.classList.add('hl'); }
+    for (let r = R.r1; r <= R.r2; r++) { const tr = g.querySelector('tbody tr[data-r="' + r + '"]'); if (tr) tr.classList.add('cur'); }
     const td = this.cell(this.sel.r, this.sel.c);
-    if (td) { td.classList.add('sel'); const tr = td.parentNode; if (tr) tr.classList.add('cur'); this.scrollTo(td); }
+    if (td) { td.classList.add('sel'); this.scrollTo(td); }
     /* formula qatori */
     const row = this.list()[this.sel.r], col = this.cols()[this.sel.c];
     $('shRef').textContent = this.letter(this.sel.c) + (this.sel.r + 1);
@@ -7530,19 +7622,43 @@ const Sheet = {
       else if (col.fx) fx.textContent = col.fx + '   →   ' + this.display(row, col);
       else if (col.hint) fx.textContent = this.display(row, col) + '      (' + col.hint + ')';
       else if (col.k === 'state') fx.textContent = (td && td.textContent) || '';
+      else if (row.blank && this.sel.c === 1) fx.textContent = this.tab === 'J' ? 'Yangi mashina: raqami yoki ismini yozing, Enter. Kirish vaqti o\'zi qo\'yiladi.' : 'Yangi xarajat: kim oldi, keyin turi, summa…';
       else if (this.isRO(row, col) && !col.ro && this.tab === 'J' && !row.del) fx.textContent = this.display(row, col) + '   (muzlatilgan yozuv vaqti o\'zgarmaydi)';
       else fx.textContent = this.display(row, col);
     }
   },
   scrollTo(td) {
     const w = $('shWrap'); if (!w || !td) return;
-    const head = 48, foot = 28, left = this.cols()[0].w;
+    const head = 46, foot = 26, left = this.cols()[0].w;
     const top = td.offsetTop, bottom = top + td.offsetHeight;
     if (top - head < w.scrollTop) w.scrollTop = Math.max(0, top - head);
     else if (bottom + foot > w.scrollTop + w.clientHeight) w.scrollTop = bottom + foot - w.clientHeight;
     const l = td.offsetLeft, rgt = l + td.offsetWidth;
     if (l - left < w.scrollLeft) w.scrollLeft = Math.max(0, l - left);
     else if (rgt > w.scrollLeft + w.clientWidth) w.scrollLeft = rgt - w.clientWidth;
+  },
+  /* Excel kabi: pastda belgilangan kataklar soni va yig'indisi */
+  stats() {
+    const el = $('shStat'); if (!el) return;
+    const L = this.list(), C = this.cols(), R = this.range();
+    const parts = [];
+    if (this.list().length) {
+      const filled = L.filter(r => !r.blank && !r.del).length;
+      parts.push('<span>' + this.TAB_NAMES[this.tab] + ': <b>' + filled + '</b> ta yozuv</span>');
+    }
+    if (R.r1 !== R.r2 || R.c1 !== R.c2) {
+      let cnt = 0, sum = 0, nums = 0;
+      for (let r = R.r1; r <= R.r2; r++) for (let c = R.c1; c <= R.c2; c++) {
+        const row = L[r], col = C[c]; if (!row || !col || row.blank || row.del) continue;
+        const txt = col.k === 'state' ? '' : this.display(row, col);
+        if (txt) cnt++;
+        if (col.type === 'money' || col.k === 'paid') { const v = col.k === 'paid' ? num(row.v.cash) + num(row.v.terminal) + num(row.v.click) : num(row.v[col.k]); sum += v; nums++; }
+      }
+      if (nums) parts.push('<span>O\'rtacha: <b>' + this.fmtMoney(sum / nums) + '</b></span>');
+      parts.push('<span>Soni: <b>' + cnt + '</b></span>');
+      if (nums) parts.push('<span>Yig\'indi: <b>' + (this.fmtMoney(sum) || '0') + '</b></span>');
+    }
+    el.innerHTML = parts.join('');
   },
   status() {
     const el = $('shStatus'), btn = $('shSaveBtn'); if (!el) return;
@@ -7557,6 +7673,9 @@ const Sheet = {
   onEnter() {
     this.leaving = false;
     this.wire();
+    /* «butun ekran» — menyudan bosilgan zahoti (brauzer faqat bosishda ruxsat beradi) */
+    this.enterFull();
+    this.jumpBlank = true;
     if (!this.date) this.date = this.todayISO();
     $('shDate').value = this.date;
     if (this.data && this.data.date === this.date) this.render();
@@ -7587,7 +7706,9 @@ const Sheet = {
       this.undo = []; this.redo = [];
       this.loadedAt = Date.now();
       this.render();
-      this.restoreSel(keep);
+      /* ochilganda kursor birinchi bo'sh qatorda — darhol yozish mumkin */
+      if (this.jumpBlank && !silent) { this.jumpBlank = false; this.newRow(); }
+      else this.restoreSel(keep);
     } catch (e) {
       if (!silent) {
         toast('Excel: ' + e.message, 'error');
@@ -7628,9 +7749,89 @@ const Sheet = {
     this.cancelEdit();
     clearInterval(this.timer);
     this.data = null;
+    this.closeMenu();
+    this.exitFull();
     this.leaving = true;
     go(this.back && this.back !== 'sheet' ? this.back : 'add');
     this.leaving = false;
+  },
+  /* ---------- butun ekran (brauzer oynasi ham yashiriladi) ---------- */
+  enterFull() {
+    const el = document.documentElement;
+    if (document.fullscreenElement || !el.requestFullscreen) return;
+    try {
+      el.requestFullscreen({ navigationUI: 'hide' }).then(() => {
+        /* Esc — Excel kabi (tahrirni bekor qilish / yopish) ishlasin; chiqish uchun Esc ni bosib turish */
+        if (navigator.keyboard && navigator.keyboard.lock) navigator.keyboard.lock(['Escape']).then(() => { this.kbLock = true; }).catch(() => {});
+      }).catch(() => {});
+    } catch (e) { /* noop */ }
+  },
+  exitFull() {
+    this.kbLock = false;
+    try { if (navigator.keyboard && navigator.keyboard.unlock) navigator.keyboard.unlock(); } catch (e) { /* noop */ }
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  },
+  toggleFull() { if (document.fullscreenElement) this.exitFull(); else this.enterFull(); this.focusGrid(); },
+
+  /* ---------- qator qo'shish ---------- */
+  newRow() {
+    if (this.tab === 'K') { toast('KURS varag\'iga qo\'lda yozilmaydi — davomat «QR chek» bo\'limida', 'warn'); return; }
+    if (this.edit) this.commitEdit();
+    let i = this.firstBlank();
+    if (i < 0) { this.padBlanks(this.tab); this.render(); i = this.firstBlank(); }
+    this.sel = { r: Math.max(0, i), c: 1 }; this.anc = null;
+    this.paintSel();
+    const w = $('shWrap'), td = this.cell(this.sel.r, 1);
+    if (w && td) w.scrollTop = Math.max(0, td.offsetTop - Math.round(w.clientHeight * 0.55));
+    this.focusGrid();
+  },
+  insertRow() {
+    if (this.tab === 'K') { toast('KURS varag\'iga qo\'lda yozilmaydi', 'warn'); return; }
+    if (this.edit) this.commitEdit();
+    const r = this.sel.r;
+    this.list().splice(r, 0, this.blank(this.tab));
+    this.render();
+    this.sel = { r: r, c: 1 }; this.anc = null;
+    this.paintSel();
+    this.focusGrid();
+  },
+  moreRows() {
+    if (this.tab === 'K') return false;
+    const L = this.list();
+    for (let i = 0; i < 20; i++) L.push(this.blank(this.tab));
+    const w = $('shWrap'), top = w ? w.scrollTop : 0, left = w ? w.scrollLeft : 0;
+    this.render();
+    if (w) { w.scrollTop = top; w.scrollLeft = left; }
+    return true;
+  },
+
+  /* ---------- o'ng tugma menyusi ---------- */
+  openMenu(x, y) {
+    const m = $('shMenu'); if (!m) return;
+    const row = this.list()[this.sel.r];
+    const ro = this.tab === 'K';
+    const it = (act, ico, txt, key) => '<button type="button" role="menuitem" data-act="' + act + '"><i class="' + ico + '" aria-hidden="true"></i>' + txt + (key ? '<small>' + key + '</small>' : '') + '</button>';
+    m.innerHTML = it('shCopy', 'fa-regular fa-copy', 'Nusxa olish', 'Ctrl+C')
+      + (ro ? '' : it('shPaste', 'fa-regular fa-paste', 'Qo\'yish', 'Ctrl+V'))
+      + (ro ? '' : '<hr>' + it('shNewRow', 'fa-solid fa-square-plus', 'Yangi qator (pastda)', 'Ctrl+Enter')
+        + it('shInsRow', 'fa-solid fa-arrows-up-to-line', 'Ustiga bo\'sh qator qo\'shish', 'Ctrl++')
+        + (row && !row.blank ? it('shDelRow', 'fa-regular fa-trash-can', row.del ? 'Qatorni qaytarish' : 'Qatorni o\'chirish', 'Ctrl+Delete') : '')
+        + '<hr>' + it('shClear', 'fa-solid fa-eraser', 'Tozalash', 'Delete'));
+    m.classList.remove('hidden');
+    const W = window.innerWidth, H = window.innerHeight, mw = m.offsetWidth, mh = m.offsetHeight;
+    m.style.left = Math.min(x, W - mw - 4) + 'px';
+    m.style.top = Math.min(y, H - mh - 4) + 'px';
+  },
+  closeMenu() { const m = $('shMenu'); if (m && !m.classList.contains('hidden')) { m.classList.add('hidden'); m.innerHTML = ''; } },
+  async copyBtn() {
+    try { await navigator.clipboard.writeText(this.copyText()); toast('Nusxa olindi', 'info'); }
+    catch (e) { toast('Nusxa olish uchun Ctrl+C bosing', 'warn'); }
+    this.focusGrid();
+  },
+  async pasteBtn() {
+    if (this.tab === 'K') return toast('KURS varag\'i faqat ko\'rish uchun', 'warn');
+    try { const t = await navigator.clipboard.readText(); this.focusGrid(); this.pasteText(t); }
+    catch (e) { toast('Qo\'yish uchun Ctrl+V bosing', 'warn'); this.focusGrid(); }
   },
   async setDay(d) {
     let next = d;
@@ -7641,6 +7842,7 @@ const Sheet = {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(next) || next === this.date) { $('shDate').value = this.date; return; }
     if (!(await this.confirmLeave())) { $('shDate').value = this.date; return; }
     this.date = next; $('shDate').value = next;
+    this.jumpBlank = true;
     this.data = null; this.rows = { J: [], X: [], K: [] };
     $('shGrid').innerHTML = '<tbody><tr><td class="sh-empty">Yuklanmoqda…</td></tr></tbody>';
     this.sel = { r: 0, c: 1 }; this.anc = null;
@@ -7652,6 +7854,7 @@ const Sheet = {
     if (this.edit) this.commitEdit();
     this.tab = t; this.sel = { r: 0, c: 1 }; this.anc = null;
     this.render();
+    if (t !== 'K') this.newRow();
     this.focusGrid();
   },
 
@@ -7666,6 +7869,8 @@ const Sheet = {
     const row = this.list()[this.sel.r], col = this.cols()[this.sel.c];
     if (!row || !col) return;
     if (this.isRO(row, col)) {
+      if (Date.now() - (this.roToastAt || 0) < 3000) return;
+      this.roToastAt = Date.now();
       toast(this.tab === 'K' ? 'KURS varag\'i faqat ko\'rish uchun — davomat «QR chek» bo\'limida' : row.del ? 'Bu qator o\'chiriladi — qaytarish uchun Ctrl+Delete' : col.ro ? 'Bu katak o\'zi hisoblanadi' : 'Muzlatilgan yozuvning vaqtini o\'zgartirib bo\'lmaydi', 'warn');
       return;
     }
@@ -7844,11 +8049,26 @@ const Sheet = {
   move(dr, dc, extend) {
     const L = this.list(), C = this.cols();
     if (!L.length) return;
+    /* Excel kabi «cheksiz» qatorlar: oxiriga yetganda yana bo'sh qatorlar */
+    if (dr > 0 && this.sel.r + dr > L.length - 1) this.moreRows();
     if (extend) { if (!this.anc) this.anc = { r: this.sel.r, c: this.sel.c }; }
     else this.anc = null;
     this.sel.r = Math.max(0, Math.min(L.length - 1, this.sel.r + dr));
     this.sel.c = Math.max(1, Math.min(C.length - 1, this.sel.c + dc));
     this.paintSel();
+  },
+  /* Tab: keyingi YOZILADIGAN katakka (Davomiylik, Jami, Holat o'tkazib yuboriladi) */
+  tabMove(dir) {
+    const C = this.cols(), L = this.list();
+    let r = this.sel.r, c = this.sel.c;
+    for (let i = 0; i < C.length * 2; i++) {
+      c += dir;
+      if (c >= C.length) { c = 1; r = Math.min(L.length - 1, r + 1); }
+      if (c < 1) { c = C.length - 1; r = Math.max(0, r - 1); }
+      const row = L[r];
+      if (!row || !this.isRO(row, C[c])) break;
+    }
+    this.anc = null; this.sel = { r: r, c: c }; this.paintSel();
   },
   pageRows() { const w = $('shWrap'); return Math.max(5, Math.floor(((w && w.clientHeight) || 500) / 27) - 3); },
 
@@ -7866,7 +8086,7 @@ const Sheet = {
     if (inEditor) {
       if (key === 'Escape') { stop(); this.cancelEdit(); return; }
       if (key === 'Enter') { stop(); this.commitEdit(); this.move(e.shiftKey ? -1 : 1, 0); return; }
-      if (key === 'Tab') { stop(); this.commitEdit(); this.move(0, e.shiftKey ? -1 : 1); return; }
+      if (key === 'Tab') { stop(); this.commitEdit(); this.tabMove(e.shiftKey ? -1 : 1); return; }
       if (this.edit && this.edit.mode === 'enter' && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
         stop(); this.commitEdit();
         this.move(key === 'ArrowUp' ? -1 : key === 'ArrowDown' ? 1 : 0, key === 'ArrowLeft' ? -1 : key === 'ArrowRight' ? 1 : 0);
@@ -7875,11 +8095,18 @@ const Sheet = {
       e.stopPropagation();
       return;
     }
-    if (key === 'Escape') { stop(); if (this.anc) { this.anc = null; this.paintSel(); return; } this.close(); return; }
+    if (key === 'Escape') {
+      const m = $('shMenu'); if (m && !m.classList.contains('hidden')) { stop(); this.closeMenu(); return; }
+      /* butun ekranda (Esc qulflanmagan bo'lsa) birinchi Esc — brauzer butun ekrandan chiqadi */
+      if (document.fullscreenElement && !this.kbLock) return;
+      stop(); if (this.anc) { this.anc = null; this.paintSel(); return; } this.close(); return;
+    }
     if (!inGrid) return;
     if (ctrl && (key === 'z' || key === 'Z' || e.code === 'KeyZ')) { stop(); if (e.shiftKey) this.doRedo(); else this.doUndo(); return; }
     if (ctrl && (key === 'y' || key === 'Y' || e.code === 'KeyY')) { stop(); this.doRedo(); return; }
     if (ctrl && (key === 'Delete' || key === '-' || key === 'Backspace')) { stop(); this.toggleDelete(); return; }
+    if (ctrl && key === 'Enter') { stop(); this.newRow(); return; }
+    if (key === 'Insert' || (ctrl && (key === '+' || key === '=' || e.code === 'NumpadAdd'))) { stop(); this.insertRow(); return; }
     if (ctrl && (key === 'a' || key === 'A' || e.code === 'KeyA')) { stop(); this.anc = { r: 0, c: 1 }; this.sel = { r: this.list().length - 1, c: this.cols().length - 1 }; this.paintSel(); return; }
     if (ctrl && key === 'Home') { stop(); this.anc = null; this.sel = { r: 0, c: 1 }; this.paintSel(); return; }
     if (ctrl && key === 'End') { stop(); this.anc = null; const L = this.list(); let r = L.length - 1; while (r > 0 && L[r].blank) r--; this.sel = { r: Math.min(L.length - 1, r + 1), c: 1 }; this.paintSel(); return; }
@@ -7901,7 +8128,7 @@ const Sheet = {
       case 'ArrowDown': stop(); return this.move(1, 0, e.shiftKey);
       case 'ArrowLeft': stop(); return this.move(0, -1, e.shiftKey);
       case 'ArrowRight': stop(); return this.move(0, 1, e.shiftKey);
-      case 'Tab': stop(); return this.move(0, e.shiftKey ? -1 : 1);
+      case 'Tab': stop(); return this.tabMove(e.shiftKey ? -1 : 1);
       case 'Enter': stop(); return this.move(e.shiftKey ? -1 : 1, 0);
       case 'PageDown': stop(); return this.move(this.pageRows(), 0, e.shiftKey);
       case 'PageUp': stop(); return this.move(-this.pageRows(), 0, e.shiftKey);
@@ -7948,6 +8175,36 @@ const Sheet = {
       const td = e.target.closest('td[data-r]'); if (!td || Number(td.dataset.c) === 0) return;
       this.sel = { r: Number(td.dataset.r), c: Number(td.dataset.c) }; this.anc = null;
       this.startEdit(undefined, 'edit');
+    });
+    w.addEventListener('contextmenu', e => {
+      const td = e.target.closest('td[data-r]'); if (!td) return;
+      e.preventDefault();
+      if (this.edit) this.commitEdit();
+      const r = Number(td.dataset.r), c = Math.max(1, Number(td.dataset.c));
+      const R = this.range();
+      if (!(r >= R.r1 && r <= R.r2 && c >= R.c1 && c <= R.c2)) { this.sel = { r: r, c: c }; this.anc = null; this.paintSel(); }
+      this.focusGrid();
+      this.openMenu(e.clientX, e.clientY);
+    });
+    document.addEventListener('mousedown', e => {
+      const m = $('shMenu');
+      if (m && !m.classList.contains('hidden') && !m.contains(e.target)) this.closeMenu();
+    }, true);
+    $('shMenu').addEventListener('click', () => setTimeout(() => this.closeMenu(), 0));
+    /* lenta tugmalari jadvaldan fokusni olib ketmasin (strelkalar ishlayversin) */
+    $('p-sheet').addEventListener('mousedown', e => {
+      const b = e.target.closest('button');
+      if (b && !e.target.closest('input')) e.preventDefault();
+    });
+    let moreT = 0;
+    w.addEventListener('scroll', () => {
+      if (this.tab === 'K' || Date.now() - moreT < 300) return;
+      if (w.scrollTop + w.clientHeight > w.scrollHeight - 80) { moreT = Date.now(); this.moreRows(); }
+    });
+    document.addEventListener('fullscreenchange', () => {
+      const b = document.querySelector('#p-sheet [data-act="shFull"] i');
+      if (b) b.className = document.fullscreenElement ? 'fa-solid fa-compress' : 'fa-solid fa-expand';
+      if (!document.fullscreenElement) this.kbLock = false;
     });
     const ed = $('shEditor');
     ed.addEventListener('input', () => { $('shFx').textContent = ed.value; });
@@ -12458,6 +12715,14 @@ const ACTIONS = {
   shReload: async () => { if (await Sheet.confirmLeave()) { Sheet.data = null; await Sheet.load(); Sheet.focusGrid(); } },
   shExport: (d, el) => Sheet.exportXlsx(el),
   shClose: () => Sheet.close(),
+  shNewRow: () => Sheet.newRow(),
+  shInsRow: () => Sheet.insertRow(),
+  shCopy: () => Sheet.copyBtn(),
+  shPaste: () => Sheet.pasteBtn(),
+  shUndo: () => { Sheet.doUndo(); Sheet.focusGrid(); },
+  shRedo: () => { Sheet.doRedo(); Sheet.focusGrid(); },
+  shClear: () => { Sheet.clearRange(); Sheet.focusGrid(); },
+  shFull: () => Sheet.toggleFull(),
   dayExcel: (d, el) => { const r = Reports.range(); DayExcel.export(el, r.from, r.to); },
   dayExcelRx: (d, el) => DayExcel.export(el, Rasxod.day(), Rasxod.day()),
   paidPay: d => Add.setPayNow(d.p),
