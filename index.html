@@ -4571,16 +4571,69 @@ const Add = {
 };
 
 /* ===================== 11. QUEUE — Kutish rejimi ===================== */
+/* ===== KUTISH REJIMI — SERVERDA (api/queue-routes.js) =====
+   Navbat bazada saqlanadi: hamma kompyuterda bir xil ko'rinadi. Ilgari
+   brauzerda (localStorage) edi — eski yozuvlar birinchi ochilishda
+   serverga ko'chiriladi. Brauzerda faqat oxirgi ko'rinish (kesh) qoladi. */
 const Queue = {
+  syncing: null, synced: false,
+  fromRow(r) {
+    const d = (r && r.data) || {};
+    return Object.assign({}, d, {
+      queueId: String(r.id), queuedAt: r.created_at, status: 'WAITING',
+      waitingFor: r.waiting_for || null,
+      waitingStatus: r.waiting_status !== undefined ? (r.waiting_status || null) : (r.waiting_for ? 'active' : null)
+    });
+  },
+  /* Sahifa ochilganda: avval keshdan (darhol ko'rinsin), keyin serverdan */
   load() {
     try {
-      const raw = JSON.parse(localStorage.getItem(CONFIG.QUEUE_KEY) || '[]');
+      const raw = JSON.parse(localStorage.getItem(CONFIG.QUEUE_KEY + ':cache') || '[]');
       STATE.queue = Array.isArray(raw) ? raw : [];
     } catch (e) { STATE.queue = []; }
+    if (STATE.auth.token) this.sync();
   },
+  async sync() {
+    if (!STATE.auth.token) return;
+    if (this.syncing) return this.syncing;
+    this.syncing = (async () => {
+      try {
+        await this.migrateLocal();
+        const r = await api('/queue');
+        STATE.queue = ((r && r.rows) || []).map(x => this.fromRow(x));
+        this.synced = true;
+        this.save();
+        this.render();
+        this.checkAuto();
+      } catch (e) { /* server javob bermadi — oxirgi ko'rinish qoladi */ }
+      finally { this.syncing = null; }
+    })();
+    return this.syncing;
+  },
+  /* Eski (brauzerdagi) navbatni serverga ko'chirish — bir marta */
+  async migrateLocal() {
+    let raw = [];
+    try { raw = JSON.parse(localStorage.getItem(CONFIG.QUEUE_KEY) || '[]'); } catch (e) { raw = []; }
+    if (!Array.isArray(raw) || !raw.length) { try { localStorage.removeItem(CONFIG.QUEUE_KEY); } catch (e) { /* noop */ } return; }
+    for (const it of raw) {
+      const d = Object.assign({}, it);
+      ['queueId', 'queuedAt', 'status', 'waitingFor', 'waitingStatus'].forEach(k => delete d[k]);
+      await api('/queue', { method: 'POST', body: jsonBody({ data: d, waiting_for: this.insideIdFor(d) }) });
+    }
+    try { localStorage.removeItem(CONFIG.QUEUE_KEY); } catch (e) { /* noop */ }
+  },
+  /* Keshga yozish (faqat tez ko'rinish uchun) */
   save() {
-    try { localStorage.setItem(CONFIG.QUEUE_KEY, JSON.stringify(STATE.queue)); } catch (e) { /* noop */ }
+    try { localStorage.setItem(CONFIG.QUEUE_KEY + ':cache', JSON.stringify(STATE.queue)); } catch (e) { /* noop */ }
     this.badge();
+  },
+  /* Shu mashina hozir ichkarida bo'lsa — o'sha yozuv id si */
+  insideIdFor(item) {
+    if (!item) return null;
+    const lk = item.label ? labelKey(item.label) : '';
+    const v = (STATE.active || []).find(a => !isSchoolSession(a)
+      && (lk ? labelKey(a.plate) === lk : (queueKey(item) && activeCarKey(a) === queueKey(item))));
+    return v ? String(v.id) : null;
   },
   badge() {
     const b = $('queueCount');
@@ -4593,15 +4646,15 @@ const Queue = {
   /* Navbatga XOHLAGANCHA qo'shiladi: bir mashinaga (bir nomga) bir nechta
      mijoz ketma-ket navbatda turishi mumkin — «allaqachon bor» deb
      to'xtatilmaydi (foydalanuvchi talabi, 2026-10-21). */
-  enqueue(item) {
-    STATE.queue.push(Object.assign({}, item, {
-      queueId: item.queueId || this.newId(),
-      queuedAt: new Date().toISOString(),
-      status: 'WAITING'
-    }));
+  async enqueue(item) {
+    const data = Object.assign({}, item);
+    const r = await api('/queue', { method: 'POST', body: jsonBody({ data: data, waiting_for: this.insideIdFor(item) }) });
+    if (!r || !r.row) return false;
+    STATE.queue.push(this.fromRow(r.row));
     this.save();
     return true;
   },
+  /* Faqat shu sahifadagi ro'yxatdan (server alohida xabardor qilinadi) */
   removeById(id) {
     STATE.queue = STATE.queue.filter(q => String(q.queueId) !== String(id));
     this.save();
@@ -4618,7 +4671,8 @@ const Queue = {
     const prepay = w && !w.open && STATE.form.payNow ? { method: STATE.form.payNow, amount: Add.paidPrice(w.min) } : null;
     const planned = w && !w.open ? Add.paidPrice(w.min) : 0;
     await withBusy('queue:add', $('queueBtn'), async () => {
-      const ok = this.enqueue({
+      let ok = false;
+      try { ok = await this.enqueue({
         studentId: d.student ? d.student.id : null,
         studentName: d.student ? stName(d.student) : (d.payload.driverName || 'Oddiy mijoz'),
         schoolId: d.payload.schoolId,
@@ -4638,7 +4692,7 @@ const Queue = {
         openEnded: !!(w && w.open),
         planned: planned,
         prepay: prepay
-      });
+      }); } catch (e) { toast('Navbatga qo\'shilmadi: ' + e.message, 'error'); return; }
       if (!ok) { toast('Navbatga qo\'shilmadi — qayta urinib ko\'ring.', 'warn'); return; }
       this.render();
       const nm = d.student ? stName(d.student) : (d.payload.label || d.body || 'Oddiy mijoz');
@@ -4703,22 +4757,26 @@ const Queue = {
     return q.label ? 'L:' + labelKey(q.label) : (queueKey(q) || 'Q:' + String(q.queueId));
   },
   /* ===== AVTOMATIK NAVBAT =====
-     Mashina chiqishi bilan (Chiqdi, vaqti tugab o'zi yopilgani yoki
-     boshqa joydan yopilgani) o'sha mashinaning navbatdagi birinchisi
-     O'ZI boshlanadi. Muzlatilgan mashina uchun boshlanmaydi. Active.load
-     yopilganlarni aniqlab shu yerni chaqiradi. */
+     Navbatga qo'yilgan paytda mashina ichkarida bo'lsa (waitingFor), o'sha
+     yozuv yopilgach — mashina bo'shashi bilan — guruhdagi BIRINCHI
+     navbatdagi o'zi boshlanadi. Holat serverdan (waitingStatus) olinadi,
+     shuning uchun qaysi kompyuterda «Chiqdi» bosilgani farq qilmaydi;
+     ikki kompyuter bir vaqtda boshlamasligi uchun server «band qiladi»
+     (claim). Muzlatilgan mashina uchun boshlanmaydi (u qaytadi). */
   starting: {},
-  autoNext(gone) {
-    (gone || []).forEach(v => {
-      if (!v || isSchoolSession(v) || (Active.freezing && Active.freezing[v.id])) return;
-      const lk = 'L:' + labelKey(v.plate);
-      const ck = activeCarKey(v);
-      const next = STATE.queue.find(q => (q.customerType || 'ordinary') !== 'school' && !this.starting[q.queueId]
-        && (this.groupKey(q) === lk || (!q.label && queueKey(q) === ck)));
-      if (!next) return;
-      this.starting[next.queueId] = 1;
-      Promise.resolve(this.start(next.queueId, null, { auto: true }))
-        .finally(() => { delete this.starting[next.queueId]; });
+  checkAuto() {
+    if (!STATE.queue.length) return;
+    const first = {};
+    STATE.queue.forEach(q => { const k = this.groupKey(q); if (!first[k]) first[k] = q; });
+    Object.values(first).forEach(q => {
+      if (!q.waitingFor || (q.customerType || 'ordinary') === 'school' || this.starting[q.queueId]) return;
+      if (['active', 'frozen', 'paused'].indexOf(String(q.waitingStatus || '')) >= 0) return;
+      if ((STATE.active || []).some(v => String(v.id) === String(q.waitingFor))) return;
+      if (Active.freezing && Active.freezing[q.waitingFor]) return;
+      if (this.insideIdFor(q)) return;     /* mashinada boshqasi bor */
+      this.starting[q.queueId] = 1;
+      Promise.resolve(this.start(q.queueId, null, { auto: true }))
+        .finally(() => { delete this.starting[q.queueId]; });
     });
   },
   async start(id, btn, opts) {
@@ -4733,7 +4791,14 @@ const Queue = {
           ? STATE.active.some(a => !isSchoolSession(a) && labelKey(a.plate) === labelKey(q.label))
           : STATE.active.some(a => activeCarKey(a) === queueKey(q));
         if (busy) {
-          toast('«' + (q.label || q.plate || '') + '» hozir ichkarida. U chiqqach («Chiqdi») navbatdagini boshlang.', 'warn');
+          if (!opts.auto) toast('«' + (q.label || q.plate || '') + '» hozir ichkarida. U chiqqach («Chiqdi») navbatdagini o\'zi boshlanadi.', 'warn');
+          return;
+        }
+        /* Boshqa kompyuter ham shu paytda boshlamasin — server band qiladi */
+        try { await api('/queue/' + encodeURIComponent(id) + '/claim', { method: 'POST', body: '{}' }); }
+        catch (e) {
+          if (!opts.auto) toast(e.message, 'warn');
+          this.sync();
           return;
         }
         const body = normalizePlate(q.plateBody || q.plate);
@@ -4764,7 +4829,14 @@ const Queue = {
         else if (q.planned && (q.customerType || 'ordinary') !== 'school') { payload.autoClose = true; payload.plannedAmount = num(q.planned); }
         const pf = q.prepay && { cash: 'cash_amount', terminal: 'terminal_amount', click: 'click_amount' }[q.prepay.method];
         if (pf && num(q.prepay.amount) > 0) payload[pf] = num(q.prepay.amount);
-        const res = await api('/sessions/start', { method: 'POST', body: jsonBody(payload) });
+        let res;
+        try { res = await api('/sessions/start', { method: 'POST', body: jsonBody(payload) }); }
+        catch (e) {
+          api('/queue/' + encodeURIComponent(id) + '/release', { method: 'POST', body: '{}' }).catch(() => {});
+          throw e;
+        }
+        const sidQ = res && (res.id || (res.session && res.session.id));
+        await api('/queue/' + encodeURIComponent(id) + '/done', { method: 'POST', body: jsonBody({ session_id: sidQ || null }) }).catch(() => {});
         this.removeById(id);
         await Active.load(true);
         Reports.loadDaily();
@@ -4797,6 +4869,8 @@ const Queue = {
       okText: 'Chiqarish', danger: true
     });
     if (!ok) return;
+    try { await api('/queue/' + encodeURIComponent(id), { method: 'DELETE' }); }
+    catch (e) { toast('Chiqarilmadi: ' + e.message, 'error'); return; }
     this.removeById(id);
     this.render();
     toast('Navbatdan chiqarildi.');
@@ -6458,10 +6532,10 @@ const Active = {
       const r = await api('/sessions/active');
       STATE.active = Array.isArray(r) ? r : (r && r.rows) || [];
       this.loadedOnce = true;
-      /* Chiqqan mashinalar — navbatdagisi o'zi boshlansin */
-      if (hadList) {
+      /* Chiqqan mashinalar — navbatdagisi o'zi boshlansin (holat serverdan) */
+      if (hadList && STATE.queue.some(q => q.waitingFor)) {
         const goneAll = prevAll.filter(v => !STATE.active.some(x => String(x.id) === String(v.id)));
-        if (goneAll.length && STATE.queue.length) Queue.autoNext(goneAll);
+        if (goneAll.length) Queue.sync(); else Queue.checkAuto();
       }
       const gone = prevAuto.filter(v => !STATE.active.some(x => String(x.id) === String(v.id)));
       const closed = gone.filter(v => !Chiqish.closedIds[v.id] && (sessionTiming(v).remaining === null || sessionTiming(v).remaining <= 120));
@@ -11348,7 +11422,16 @@ function updateClock() {
   el.textContent = d + ' • ' + t;
 }
 let pollTimer = null;
+let queueTimer = null;
 function startPolling() {
+  /* Navbat boshqa kompyuterlardan ham yangilanib tursin; kutayotgani bo'lsa
+     faol ro'yxat ham yangilanadi — oldingisi chiqqani sezilsin */
+  if (queueTimer) clearInterval(queueTimer);
+  queueTimer = setInterval(() => {
+    if (document.hidden || !STATE.auth.token) return;
+    if (STATE.queue.some(q => q.waitingFor)) Active.load(true).then(() => Queue.sync());
+    else Queue.sync();
+  }, 10000);
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(() => {
     if (document.hidden) return;
@@ -11362,6 +11445,7 @@ function startPolling() {
   }, CONFIG.POLL_ACTIVE_MS);
 }
 document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && STATE.auth.token) Queue.sync();
   if (!document.hidden && STATE.auth.token) {
     if (STATE.page === 'active' || STATE.page === 'finish') Active.load(true);
   }

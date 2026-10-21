@@ -11,6 +11,7 @@ import { handleAuditRequest } from "./audit-routes.js";
 import { handleGateRequest } from "./gate-routes.js";
 import { handleAccessRequest, ensureAccessSchema } from "./access-routes.js";
 import { handleKassaRequest, ensureKassaSchema, sweepForRequest } from "./kassa-routes.js";
+import { handleQueueRequest } from "./queue-routes.js";
 import { handleBridgeRequest } from "./bridge-analytics.js";
 import { handleOwnerBridgeRequest } from "./bridge-owner.js";
 import instructorHandler from "./instructor.js";
@@ -81,6 +82,7 @@ export default async function handler(req, res) {
 
   /* RASXOD — xarajatlar */
   const kassaHandled = await handleKassaRequest(req, res); if (kassaHandled) return kassaHandled;
+  const queueHandled = await handleQueueRequest(req, res); if (queueHandled) return queueHandled;
 
   /* KIRISH MUDDATI — guruh muddati va shaxsiy muhlat */
   const accessHandled = await handleAccessRequest(req, res); if (accessHandled) return accessHandled;
