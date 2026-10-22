@@ -23,6 +23,7 @@ import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
 import { ensureKassaSchema, cleanExpense, autoCloseDue } from './kassa-routes.js';
 import { logChange } from './audit-routes.js';
+import { maxsusOk, lockedResponse } from './lock-routes.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 const TZ = 'Asia/Tashkent';
@@ -479,6 +480,8 @@ export async function handleSheetRequest(req, res) {
   if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return true; }
   const user = auth(req);
   if (!user) { json(res, 401, { error: 'Kirish talab qilinadi' }); return true; }
+  /* Excel — Maxsus bo'limda: parol bilan ochilgan kalit kerak */
+  if (!maxsusOk(req, user)) { lockedResponse(res); return true; }
   try {
     await ensureKassaSchema();
     if (req.method === 'GET') {

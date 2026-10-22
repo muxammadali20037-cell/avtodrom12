@@ -9,6 +9,7 @@ import { handleFleetRequest } from "./fleet-routes.js";
 import { handleQuotaRequest, ensureQuotaSchema } from "./quota-routes.js";
 import { ensureDbSafety } from "../backend/src/schema-once.js";
 import { handleSheetRequest } from "./sheet-routes.js";
+import { handleLockRequest } from "./lock-routes.js";
 import { handleAuditRequest } from "./audit-routes.js";
 import { handleGateRequest } from "./gate-routes.js";
 import { handleAccessRequest, ensureAccessSchema } from "./access-routes.js";
@@ -82,6 +83,9 @@ export default async function handler(req, res) {
   /* QR chek (avtoshkola). Avtodrom instruktor paneli ham shu yerga
      murojaat qiladi — /api/receipts/verify|redeem|complete. */
   const receiptHandled = await handleReceiptRequest(req, res); if (receiptHandled) return receiptHandled;
+
+  /* MAXSUS BO'LIM — parol bilan qulf */
+  const lockHandled = await handleLockRequest(req, res); if (lockHandled) return lockHandled;
 
   /* EXCEL bo'limi — butun ekran jadval, Ctrl+S bilan saqlash */
   const sheetHandled = await handleSheetRequest(req, res); if (sheetHandled) return sheetHandled;

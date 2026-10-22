@@ -35,6 +35,7 @@
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
 import { instructorExpr } from './instructor-schema.js';
+import { maxsusOk, lockedResponse } from './lock-routes.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 const LESSON_SECONDS = 3600;
@@ -384,6 +385,8 @@ export async function handleControlRequest(req, res) {
   const token = tokenOf(req);
   if (!token) { send(res, 401, { error: 'Kirish talab qilinadi' }); return true; }
   const userId = String(token.sub);
+  /* Nazorat — Maxsus bo'limda: parol bilan ochilgan kalit kerak */
+  if (!maxsusOk(req, userId)) { lockedResponse(res); return true; }
   req.__ownerKey = String(process.env.WORKSPACE_OWNER_ID || token.owner || token.sub);
 
   const search = new URLSearchParams(raw.split('?')[1] || '');

@@ -1158,6 +1158,22 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 .sh-grid tr:not(.blank):not(.new):not(.del) td.plate:not(.mod):not(.bad):not(.ph) { background-color: #fffbd6; }
 .sh-grid tr.g1:not(.blank):not(.new):not(.del) td.plate:not(.mod):not(.bad):not(.ph) { background-color: #fff3b0; }
 .sh-grid tr.ge td { border-bottom: 2px solid #8a8886; }
+
+/* ===== Maxsus bo'lim (parol bilan) ===== */
+.nav-maxsus { position: relative; }
+.nav-maxsus .mx-txt { white-space: nowrap; }
+.nav-maxsus .mx-state { margin-left: auto; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: rgba(251,191,36,.22); color: #fde68a; }
+.nav-maxsus.open .mx-state { background: rgba(16,185,129,.25); color: #a7f3d0; }
+.maxsus-nav { border-left: 2px solid rgba(167,243,208,.35); margin: 2px 0 6px 10px; padding-left: 4px; }
+.maxsus-nav.hidden { display: none; }
+.mx-foot { display: flex; flex-direction: column; gap: 0; margin-top: 6px; border-top: 1px dashed rgba(255,255,255,.15); padding-top: 4px; }
+.nav-btn.mx-small { font-size: 12.5px; opacity: .8; min-height: 36px; }
+.mx-modal .mx-lock { width: 64px; height: 64px; border-radius: 18px; background: var(--g-surface); color: var(--g-dark); display: grid; place-items: center; font-size: 28px; margin: 0 auto 10px; }
+.mx-modal h2 { text-align: center; }
+.mx-modal .mx-sub { text-align: center; color: var(--muted); font-size: 14px; margin: 4px 0 16px; }
+.mx-modal input[type=password] { font-size: 20px; letter-spacing: .15em; text-align: center; }
+.mx-modal .mx-links { display: flex; justify-content: space-between; gap: 10px; margin-top: 10px; font-size: 13px; }
+.mx-modal .mx-list { margin: 0 0 14px; padding: 10px 14px; background: #f8fafc; border-radius: 10px; font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
 /* ===================== EXCEL — butun ekran, haqiqiy Excel ko'rinishi ===================== */
 .sheet-page { position: fixed; inset: 0; z-index: 95; background: #fff; display: flex; flex-direction: column; margin: 0; padding: 0;
   font-family: 'Segoe UI', Calibri, Arial, sans-serif; color: #201f1e; }
@@ -1346,18 +1362,28 @@ body.sheet-open { overflow: hidden; }
     <button class="nav-btn" type="button" data-p="finish"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Tugatish</button>
     <button class="nav-btn" type="button" data-p="frozen"><i class="fa-regular fa-snowflake" aria-hidden="true"></i> Muzlatilgan <span id="frozenCount" class="nav-badge"></span></button>
 
-    <div class="nav-section">Hisobot</div>
-    <button class="nav-btn" type="button" data-p="daily"><i class="fa-solid fa-chart-bar" aria-hidden="true"></i> Kunlik hisobot</button>
-    <button class="nav-btn" type="button" data-p="rasxod"><i class="fa-solid fa-receipt" aria-hidden="true"></i> Rasxod</button>
-    <button class="nav-btn" type="button" data-p="sheet"><i class="fa-solid fa-table-cells" aria-hidden="true"></i> Excel</button>
-    <button class="nav-btn" type="button" data-p="history"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Tarix</button>
+    <div class="nav-section">Maxsus</div>
+    <button class="nav-btn nav-maxsus" type="button" data-act="maxsusToggle" id="maxsusBtn" title="Hisobot, Excel, Nazorat va Boshqaruv — parol bilan">
+      <i class="fa-solid fa-lock" aria-hidden="true" id="maxsusIco"></i> <span class="mx-txt">Maxsus bo'lim</span> <span class="mx-state" id="maxsusState">parol</span>
+    </button>
+    <div id="maxsusNav" class="maxsus-nav hidden">
+      <div class="nav-section">Hisobot</div>
+      <button class="nav-btn" type="button" data-p="daily"><i class="fa-solid fa-chart-bar" aria-hidden="true"></i> Kunlik hisobot</button>
+      <button class="nav-btn" type="button" data-p="rasxod"><i class="fa-solid fa-receipt" aria-hidden="true"></i> Rasxod</button>
+      <button class="nav-btn" type="button" data-p="sheet"><i class="fa-solid fa-table-cells" aria-hidden="true"></i> Excel</button>
+      <button class="nav-btn" type="button" data-p="history"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Tarix</button>
 
-    <div class="nav-section">Nazorat</div>
-    <button class="nav-btn" type="button" data-p="control"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> Xatoliklar va aniqliklar <span id="ctrlCount" class="nav-badge amber"></span></button>
+      <div class="nav-section">Nazorat</div>
+      <button class="nav-btn" type="button" data-p="control"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> Xatoliklar va aniqliklar <span id="ctrlCount" class="nav-badge amber"></span></button>
 
-    <div class="nav-section">Boshqaruv</div>
-    <button class="nav-btn" type="button" data-p="instructors"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktorlar</button>
-    <button class="nav-btn" type="button" data-act="openAdminGate"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Admin panel</button>
+      <div class="nav-section">Boshqaruv</div>
+      <button class="nav-btn" type="button" data-p="instructors"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktorlar</button>
+      <button class="nav-btn" type="button" data-act="openAdminGate"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Admin panel</button>
+      <div class="mx-foot">
+        <button class="nav-btn mx-small" type="button" data-act="maxsusChange"><i class="fa-solid fa-key" aria-hidden="true"></i> Parolni o'zgartirish</button>
+        <button class="nav-btn mx-small" type="button" data-act="maxsusLock"><i class="fa-solid fa-lock" aria-hidden="true"></i> Qulflash</button>
+      </div>
+    </div>
   </aside>
 
   <main class="main">
@@ -2678,6 +2704,8 @@ async function request(path, opt, kind) {
     const headers = Object.assign(
       { 'Content-Type': 'application/json' },
       authToken ? { Authorization: 'Bearer ' + authToken } : {},
+      /* Maxsus bo'lim ochiq bo'lsa — kalit (Excel, Nazorat API'lari shuni so'raydi) */
+      (typeof Maxsus !== 'undefined' && Maxsus.isOpen()) ? { 'X-Maxsus': Maxsus.token } : {},
       opt.headers || {}
     );
     const res = await fetch(CONFIG.API + path, Object.assign({}, opt, { headers: headers, signal: ctrl.signal }));
@@ -2715,6 +2743,8 @@ async function request(path, opt, kind) {
         throw ApiError('Sessiya tugagan. Qaytadan kiring.', 401, serverMsg);
       }
       console.error('[API]', path, res.status, serverMsg || txt);
+      /* Maxsus kalit eskirgan — bo'lim qulflanadi, parol qayta so'raladi */
+      if (res.status === 403 && data && data.locked && typeof Maxsus !== 'undefined') Maxsus.expired();
       const apiErr = ApiError(friendly(res.status, serverMsg), res.status, serverMsg || txt);
       apiErr.data = data;   /* masalan Excel: qaysi katakda xato */
       throw apiErr;
@@ -2804,7 +2834,8 @@ function bootInner() {
   /* Kunlik hisobotni bir marta oldindan yuklaymiz — "Bugungi tushum" KPI va
      o'quvchining bugungi darslari shu ma'lumotdan olinadi. */
   Reports.loadDaily();
-  if (localStorage.getItem(CONFIG.ADMIN_FLAG_KEY) === '1' && STATE.admin.token) {
+  Maxsus.init();
+  if (localStorage.getItem(CONFIG.ADMIN_FLAG_KEY) === '1' && STATE.admin.token && Maxsus.isOpen()) {
     $('adminPanel').classList.remove('hidden');
     document.body.classList.add('admin-open');
     Admin.setTab('dashboard');
@@ -2815,6 +2846,182 @@ function showLoginScreen() {
   $('app').classList.add('hidden');
 }
 
+/* ===================== MAXSUS BO'LIM — parol bilan =====================
+   Hisobot (Kunlik hisobot, Rasxod, Excel, Tarix), Nazorat va Boshqaruv
+   (Instruktorlar, Admin panel) — bitta «Maxsus bo'lim» ichida. Kassir faqat
+   kassa bo'limlarini ko'radi. Rahbar parolni yozsa qolganlari ochiladi.
+     • parol serverda (bcrypt) — hamma kompyuterda bir xil
+     • birinchi marta / «unutdim» — tizimga kirish (hisob) paroli bilan
+     • 15 daqiqa ishlatilmasa yoki «Qulflash» bosilsa — yana yopiladi
+     • sahifa yangilansa shu oynada ochiq qoladi (sessionStorage), brauzer
+       yopilsa — qulflanadi
+   ====================================================================== */
+const Maxsus = {
+  PAGES: ['daily', 'rasxod', 'sheet', 'history', 'control', 'instructors'],
+  KEY: 'avtodrom_maxsus',
+  IDLE_MS: 15 * 60 * 1000,
+  token: '', exp: 0, last: Date.now(), wired: false, pending: null,
+
+  isOpen() { return !!this.token && this.exp > Date.now(); },
+  init() {
+    try {
+      const j = JSON.parse(sessionStorage.getItem(this.KEY) || 'null');
+      if (j && j.t && j.e > Date.now()) { this.token = j.t; this.exp = j.e; }
+    } catch (e) { /* noop */ }
+    if (!this.isOpen()) this.clearAdmin();
+    if (!this.wired) {
+      this.wired = true;
+      ['mousedown', 'keydown', 'touchstart', 'wheel'].forEach(ev => document.addEventListener(ev, () => { this.last = Date.now(); }, { capture: true, passive: true }));
+      setInterval(() => this.tick(), 30000);
+    }
+    this.render();
+  },
+  tick() {
+    if (!this.token) return;
+    const idle = Date.now() - this.last > this.IDLE_MS;
+    if (this.exp > Date.now() && !idle) return;
+    /* Excel'da saqlanmagan o'zgarish bo'lsa — qulflanmaydi (ish yo'qolmasin) */
+    if (STATE.page === 'sheet' && typeof Sheet !== 'undefined' && Sheet.dirtyCount()) return;
+    this.lock(false, idle ? 'Maxsus bo\'lim 15 daqiqa ishlatilmadi — qulflandi' : 'Maxsus bo\'lim muddati tugadi — qulflandi');
+  },
+  save() { try { sessionStorage.setItem(this.KEY, JSON.stringify({ t: this.token, e: this.exp })); } catch (e) { /* noop */ } },
+  clearAdmin() {
+    try { if (typeof Admin !== 'undefined' && $('adminPanel') && !$('adminPanel').classList.contains('hidden')) Admin.closePanel(); } catch (e) { /* noop */ }
+    try { localStorage.removeItem(CONFIG.ADMIN_FLAG_KEY); } catch (e) { /* noop */ }
+  },
+  render() {
+    const open = this.isOpen();
+    const nav = $('maxsusNav'); if (nav) nav.classList.toggle('hidden', !open);
+    const b = $('maxsusBtn'); if (b) { b.classList.toggle('open', open); b.title = open ? 'Bosilsa — qulflanadi' : 'Hisobot, Excel, Nazorat va Boshqaruv — parol bilan'; }
+    const ic = $('maxsusIco'); if (ic) ic.className = 'fa-solid ' + (open ? 'fa-lock-open' : 'fa-lock');
+    const st = $('maxsusState'); if (st) st.textContent = open ? 'ochiq' : 'parol';
+  },
+  toggle() { if (this.isOpen()) this.lock(true); else this.ask(null); },
+  setToken(d) { this.token = d.token; this.exp = d.exp; this.last = Date.now(); this.save(); this.render(); },
+
+  /* Qulflash. Excel ochiq bo'lsa — avval Excel yopiladi (saqlanmagan bo'lsa so'raydi) */
+  lock(manual, msg) {
+    if (STATE.page === 'sheet' && typeof Sheet !== 'undefined') {
+      Sheet.close().then(() => { if (STATE.page !== 'sheet') this.doLock(manual, msg); });
+      return;
+    }
+    this.doLock(manual, msg);
+  },
+  doLock(manual, msg) {
+    const was = !!this.token;
+    this.token = ''; this.exp = 0;
+    try { sessionStorage.removeItem(this.KEY); } catch (e) { /* noop */ }
+    this.clearAdmin();
+    this.render();
+    if (this.PAGES.indexOf(STATE.page) >= 0) go('add');
+    if (was) toast(msg || 'Maxsus bo\'lim qulflandi', manual ? 'info' : 'warn');
+  },
+  /* Server «qulflangan» dedi (kalit eskirgan) */
+  expired() {
+    if (!this.token) return;
+    this.token = ''; this.exp = 0;
+    try { sessionStorage.removeItem(this.KEY); } catch (e) { /* noop */ }
+    this.render();
+    /* Excel'da ish yo'qolmasin: sahifa o'z joyida, parol so'raladi */
+    if (STATE.page === 'sheet') { this.ask(null); return; }
+    this.clearAdmin();
+    if (this.PAGES.indexOf(STATE.page) >= 0) go('add');
+    toast('Maxsus bo\'lim qulflangan — parolni qayta kiriting', 'warn');
+  },
+
+  /* ---------- oynalar ---------- */
+  async ask(then) {
+    this.pending = then || null;
+    let st;
+    try { st = await api('/lock/status'); }
+    catch (e) { toast('Maxsus bo\'lim: ' + e.message, 'error'); return; }
+    if (!st || !st.set) return this.setupDialog(false);
+    this.unlockDialog();
+  },
+  head(icon, title, sub) {
+    return '<div class="mx-modal"><div class="mx-lock"><i class="fa-solid ' + icon + '" aria-hidden="true"></i></div>'
+      + '<h2>' + esc(title) + '</h2><p class="mx-sub">' + sub + '</p>';
+  },
+  btn(id, icon, text) {
+    return '<div class="actions-row"><button class="btn btn-green btn-block" type="submit" id="' + id + '"><span class="spinner" aria-hidden="true"></span>'
+      + '<i class="fa-solid ' + icon + ' btn-icon" aria-hidden="true"></i><span class="btn-text">' + esc(text) + '</span></button></div>';
+  },
+  unlockDialog() {
+    openModal(this.head('fa-lock', 'Maxsus bo\'lim', 'Hisobot, Excel, Nazorat va Boshqaruv — faqat parol bilan')
+      + '<form data-act="mxUnlock" novalidate>'
+      + '<input type="password" id="mxPass" autocomplete="current-password" placeholder="Parol" aria-label="Maxsus bo\'lim paroli">'
+      + '<div id="mxErr" class="text-error" role="alert" aria-live="polite"></div>'
+      + this.btn('mxBtn', 'fa-lock-open', 'Ochish')
+      + '<div class="mx-links"><button type="button" class="link-btn" data-act="closeModal">Bekor qilish</button>'
+      + '<button type="button" class="link-btn" data-act="maxsusForgot">Parolni unutdim</button></div></form></div>');
+  },
+  setupDialog(reset) {
+    openModal(this.head('fa-key', reset ? 'Parolni tiklash' : 'Maxsus bo\'lim uchun parol',
+        reset ? 'Yangi parol qo\'ying. Tasdiqlash uchun tizimga kirish (hisob) parolini yozing.'
+              : 'Hisobot, Excel, Nazorat va Boshqaruv shu parol bilan ochiladi. Parolni faqat rahbar bilsin.')
+      + (reset ? '' : '<div class="mx-list"><b>Kassir</b> parolsiz ham ishlaydi: Yangi avtomobil, QR chek, Jarayonda, Kutish rejimi, Tugatish, Muzlatilgan.<br>'
+        + '<b>Parol bilan</b>: Kunlik hisobot, Rasxod, Excel, Tarix, Xatoliklar va aniqliklar, Instruktorlar, Admin panel.</div>')
+      + '<form data-act="mxSetup" data-reset="' + (reset ? '1' : '') + '" novalidate>'
+      + '<div class="fg"><label for="mxNew">Yangi parol (kamida 4 belgi)</label><input type="password" id="mxNew" autocomplete="new-password"></div>'
+      + '<div class="fg"><label for="mxNew2">Yangi parol — yana bir marta</label><input type="password" id="mxNew2" autocomplete="new-password"></div>'
+      + '<div class="fg"><label for="mxAcc">Tizimga kirish (hisob) paroli — tasdiqlash uchun</label><input type="password" id="mxAcc" autocomplete="current-password"></div>'
+      + '<div id="mxErr" class="text-error" role="alert" aria-live="polite"></div>'
+      + this.btn('mxBtn', 'fa-check', 'Saqlash va ochish')
+      + '<div class="mx-links"><button type="button" class="link-btn" data-act="closeModal">Bekor qilish</button></div></form></div>');
+  },
+  changeDialog() {
+    if (!this.isOpen()) return this.ask(() => this.changeDialog());
+    openModal(this.head('fa-key', 'Parolni o\'zgartirish', 'Maxsus bo\'lim paroli')
+      + '<form data-act="mxChange" novalidate>'
+      + '<div class="fg"><label for="mxOld">Hozirgi parol</label><input type="password" id="mxOld" autocomplete="current-password"></div>'
+      + '<div class="fg"><label for="mxNew">Yangi parol (kamida 4 belgi)</label><input type="password" id="mxNew" autocomplete="new-password"></div>'
+      + '<div class="fg"><label for="mxNew2">Yangi parol — yana bir marta</label><input type="password" id="mxNew2" autocomplete="new-password"></div>'
+      + '<div id="mxErr" class="text-error" role="alert" aria-live="polite"></div>'
+      + this.btn('mxBtn', 'fa-check', 'Saqlash')
+      + '<div class="mx-links"><button type="button" class="link-btn" data-act="closeModal">Bekor qilish</button></div></form></div>');
+  },
+  done(d, msg) {
+    this.setToken(d);
+    closeModal();
+    toast(msg);
+    const then = this.pending; this.pending = null;
+    if (then) setTimeout(then, 30);
+  },
+  async unlock() {
+    setError('mxErr', '');
+    const pw = $('mxPass').value;
+    if (!pw) { setError('mxErr', 'Parolni yozing'); $('mxPass').focus(); return; }
+    await withBusy('mx', $('mxBtn'), async () => {
+      try { this.done(await api('/lock/unlock', { method: 'POST', body: jsonBody({ password: pw }) }), 'Maxsus bo\'lim ochildi'); }
+      catch (e) {
+        if (e.data && e.data.notSet) { this.setupDialog(false); return; }
+        setError('mxErr', e.message); const i = $('mxPass'); if (i) { i.value = ''; i.focus(); }
+      }
+    });
+  },
+  async setup(reset) {
+    setError('mxErr', '');
+    const a = $('mxNew').value, b = $('mxNew2').value, acc = $('mxAcc').value;
+    if (a.length < 4) { setError('mxErr', 'Parol kamida 4 ta belgi bo\'lsin'); $('mxNew').focus(); return; }
+    if (a !== b) { setError('mxErr', 'Ikki marta yozilgan parol bir xil emas'); $('mxNew2').value = ''; $('mxNew2').focus(); return; }
+    if (!acc) { setError('mxErr', 'Tizimga kirish (hisob) parolini yozing'); $('mxAcc').focus(); return; }
+    await withBusy('mx', $('mxBtn'), async () => {
+      try { this.done(await api('/lock/setup', { method: 'POST', body: jsonBody({ password: a, account_password: acc }) }), reset ? 'Parol tiklandi — Maxsus bo\'lim ochildi' : 'Parol qo\'yildi — Maxsus bo\'lim ochildi'); }
+      catch (e) { setError('mxErr', e.message); if (e.data && e.data.field === 'account') { $('mxAcc').value = ''; $('mxAcc').focus(); } }
+    });
+  },
+  async change() {
+    setError('mxErr', '');
+    const o = $('mxOld').value, a = $('mxNew').value, b = $('mxNew2').value;
+    if (a.length < 4) { setError('mxErr', 'Yangi parol kamida 4 ta belgi bo\'lsin'); $('mxNew').focus(); return; }
+    if (a !== b) { setError('mxErr', 'Ikki marta yozilgan parol bir xil emas'); $('mxNew2').value = ''; $('mxNew2').focus(); return; }
+    await withBusy('mx', $('mxBtn'), async () => {
+      try { this.done(await api('/lock/change', { method: 'POST', body: jsonBody({ old_password: o, password: a }) }), 'Parol o\'zgartirildi'); }
+      catch (e) { setError('mxErr', e.message); }
+    });
+  }
+};
+
 /* ===================== 7. NAVIGATSIYA ===================== */
 const PAGE_TITLES = {
   add: 'Yangi avtomobil', active: 'Jarayonda', queue: 'Kutish rejimi', finish: 'Tugatish',
@@ -2824,6 +3031,11 @@ const PAGE_TITLES = {
 function go(page) {
   const el = $('p-' + page);
   if (!el) return;
+  /* Hisobot / Nazorat / Boshqaruv — Maxsus bo'lim: parolsiz ochilmaydi */
+  if (typeof Maxsus !== 'undefined' && Maxsus.PAGES.indexOf(page) >= 0 && !Maxsus.isOpen()) {
+    Maxsus.ask(() => go(page));
+    return;
+  }
   /* Excel ochiq turganda sahifani faqat Excel o'zi yopadi (Yopish / Esc) —
      fon jarayonlari (navbat va h.k.) jadvalni yopib yubormasin */
   if (STATE.page === 'sheet' && page !== 'sheet' && typeof Sheet !== 'undefined' && !Sheet.leaving) return;
@@ -12984,7 +13196,14 @@ const ACTIONS = {
   reloadInstructors: () => Instructors.load(),
 
   /* --- admin --- */
-  openAdminGate: () => Admin.openGate(),
+  openAdminGate: () => { if (!Maxsus.isOpen()) return Maxsus.ask(() => Admin.openGate()); return Admin.openGate(); },
+  maxsusToggle: () => Maxsus.toggle(),
+  maxsusLock: () => Maxsus.lock(true),
+  maxsusChange: () => Maxsus.changeDialog(),
+  maxsusForgot: () => Maxsus.setupDialog(true),
+  mxUnlock: () => Maxsus.unlock(),
+  mxSetup: d => Maxsus.setup(d.reset === '1'),
+  mxChange: () => Maxsus.change(),
   closeAdminGate: () => Admin.closeGate(),
   adminLogin: () => Admin.login(),
   closeAdminPanel: () => Admin.closePanel(),
