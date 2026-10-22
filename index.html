@@ -1152,6 +1152,12 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 #startForm.is-school .only-school { display: inline-grid; }
 #startForm.is-school .only-ord { display: none; }
 #startForm.is-school .ins-lbl, #startForm.is-school #hourLabel { font-size: 16px; font-weight: 800; color: var(--text); }
+.xl-rb.xl-ord.on { background: #d2e6da; border-color: #8fc1a4; font-weight: 700; }
+.xl-rb:disabled { opacity: .45; cursor: default; }
+.sh-grid tr.g1 td:not(.rn):not(.mod):not(.bad):not(.ph) { background-color: #eef2f7; }
+.sh-grid tr:not(.blank):not(.new):not(.del) td.plate:not(.mod):not(.bad):not(.ph) { background-color: #fffbd6; }
+.sh-grid tr.g1:not(.blank):not(.new):not(.del) td.plate:not(.mod):not(.bad):not(.ph) { background-color: #fff3b0; }
+.sh-grid tr.ge td { border-bottom: 2px solid #8a8886; }
 /* ===================== EXCEL — butun ekran, haqiqiy Excel ko'rinishi ===================== */
 .sheet-page { position: fixed; inset: 0; z-index: 95; background: #fff; display: flex; flex-direction: column; margin: 0; padding: 0;
   font-family: 'Segoe UI', Calibri, Arial, sans-serif; color: #201f1e; }
@@ -1792,6 +1798,13 @@ body.sheet-open { overflow: hidden; }
               <button type="button" class="xl-rb" data-act="shDelRow" title="Ctrl+Delete — qayta bosilsa qaytadi"><i class="fa-regular fa-trash-can" aria-hidden="true"></i><span>Qatorni o'chirish</span></button>
             </div>
             <div class="xl-gname">Qatorlar</div>
+          </div>
+          <div class="xl-grp">
+            <div class="xl-col">
+              <button type="button" class="xl-rb xl-ord" data-act="shOrder" data-o="plate" title="Bir xil mashinalar ketma-ket: 148, 148, 148 …"><i class="fa-solid fa-arrow-down-1-9" aria-hidden="true"></i><span>Raqam bo'yicha</span></button>
+              <button type="button" class="xl-rb xl-ord" data-act="shOrder" data-o="time" title="Kirish vaqti bo'yicha"><i class="fa-regular fa-clock" aria-hidden="true"></i><span>Vaqt bo'yicha</span></button>
+            </div>
+            <div class="xl-gname">Tartib</div>
           </div>
           <div class="xl-grp">
             <div class="xl-col">
@@ -6129,6 +6142,23 @@ const Rasxod = {
    KURS (avtoshkola davomati), XARAJATLAR, BENZIN, KLIK, HISOBOT (kirim,
    xarajatlar, kassada naqd qoldiq — formulalar bilan). Hammasi bazadan
    avtomatik to'ldiriladi. Fayl nomi: 19.10.26.xlsx */
+/* Mashina raqami bo'yicha guruhlash: «148», «148 », «1 48» — bitta mashina */
+const plateKeyOf = r => labelKey((r && (r.plate || r.driver_name)) || '');
+const PLATE_COLL = (typeof Intl !== 'undefined' && Intl.Collator) ? new Intl.Collator('en', { numeric: true, sensitivity: 'base' }) : null;
+function plateCmp(a, b) {
+  if (!a && b) return 1; if (a && !b) return -1;
+  /* raqam bilan boshlanganlar oldin (083, 148, 852A), keyin ismlar (FERUZA, GULNORA) */
+  const da = /^\d/.test(a), db = /^\d/.test(b);
+  if (da !== db) return da ? -1 : 1;
+  return PLATE_COLL ? PLATE_COLL.compare(a, b) : (a < b ? -1 : a > b ? 1 : 0);
+}
+function sortByPlate(list, get) {
+  return list.slice().sort((x, y) => {
+    const a = get ? get(x) : x, b = get ? get(y) : y;
+    return plateCmp(plateKeyOf(a), plateKeyOf(b)) || (new Date(a.started_at) - new Date(b.started_at));
+  });
+}
+
 const DayExcel = {
   SRC: ['https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js',
         'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js'],
@@ -6234,11 +6264,16 @@ const DayExcel = {
     ['A', 'B', 'C', 'G', 'H', 'I', 'J'].concat(multi ? ['K'] : []).forEach(c => J.mergeCells(c + '3:' + c + '4'));
     head(J, 3, 1, jCols); head(J, 4, 1, jCols);
     J.getRow(3).height = 30;
-    const all = paidRows.map(r => ({ r: r, open: !!(r.status && r.status !== 'completed') })).concat(actRows.map(v => ({ r: v, open: true })))
-      .sort((a, b) => new Date(a.r.started_at) - new Date(b.r.started_at));
+    /* BIR XIL MASHINA — BIR JOYDA: avval raqam (son tartibida: 083, 136, 148 …,
+       keyin ismlar), shu mashinaning kirishlari vaqt bo'yicha ketma-ket */
+    const all = sortByPlate(paidRows.map(r => ({ r: r, open: !!(r.status && r.status !== 'completed') })).concat(actRows.map(v => ({ r: v, open: true }))), x => x.r);
     let rr = 5;
+    let gKey = null, gNo = 0;
+    const gStarts = [];
     all.forEach((x, i) => {
       const r = x.r, row = J.getRow(rr);
+      const k = plateKeyOf(r);
+      if (k !== gKey) { gKey = k; gNo++; if (i) gStarts.push(rr); }
       row.getCell(1).value = i + 1;
       row.getCell(2).value = r.school_name || '';
       row.getCell(3).value = r.plate || r.driver_name || '';
@@ -6264,6 +6299,10 @@ const DayExcel = {
         row.getCell(7).note = 'To\'lanmagan: ' + money(num(r.debt_amount));
         row.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDE2E2' } };
       }
+      /* guruhlar navbatma-navbat ochiq kulrang — qayerda boshlanib tugashi ko'rinsin */
+      if (gNo % 2 === 0) [1, 2, 4, 5, 6, 8, 9, 10].concat(multi ? [11] : []).forEach(c => {
+        if (!row.getCell(c).fill) row.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEF2F7' } };
+      });
       row.height = 21;
       rr++;
     });
@@ -6274,7 +6313,50 @@ const DayExcel = {
     ['G', 'H', 'I', 'J'].forEach((L, k) => { const c = jt.getCell(7 + k); c.value = { formula: 'SUM(' + L + '5:' + L + jEnd + ')' }; c.numFmt = MONEY; });
     for (let c = 1; c <= jCols; c++) { const cell = jt.getCell(c); cell.font = { bold: true, size: 12 }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; }
     box(J, 3, rr, 1, jCols);
+    /* yangi mashina boshlanadigan joyda qalinroq chiziq */
+    const thick = { style: 'medium', color: { argb: 'FF475569' } };
+    gStarts.forEach(r0 => { for (let c = 1; c <= jCols; c++) { const cell = J.getRow(r0).getCell(c); cell.border = Object.assign({}, cell.border, { top: thick }); } });
+    /* Excel'da filtr (raqam bo'yicha tanlash) */
+    if (all.length) J.autoFilter = { from: { row: 4, column: 1 }, to: { row: jEnd, column: jCols } };
     const jTotalRow = rr;
+
+    /* ---------- MASHINALAR: bir mashina — bir qator (necha marta, jami) ---------- */
+    const M = wb.addWorksheet('MASHINALAR', { views: [{ state: 'frozen', ySplit: 3 }], pageSetup: PAGE });
+    title(M, 'AVTOMOBILLAR BO\'YICHA — BIR MASHINA BIR QATORDA', 9);
+    M.columns = [{ width: 6 }, { width: 26 }, { width: 12 }, { width: 13 }, { width: 15 }, { width: 15 }, { width: 15 }, { width: 16 }, { width: 16 }];
+    M.getRow(3).values = ['№', 'AVTOMOBIL RAQAMI', 'NECHA MARTA', 'JAMI VAQT', 'NAQT', 'TERMINAL', 'KLIK', 'JAMI TO\'LOV', 'TO\'LANMAGAN'];
+    head(M, 3, 1, 9);
+    const groups = [];
+    all.forEach(x => {
+      const k = plateKeyOf(x.r);
+      let g = groups[groups.length - 1];
+      if (!g || g.k !== k) { g = { k: k, name: x.r.plate || x.r.driver_name || '', n: 0, sec: 0, cash: 0, term: 0, click: 0, debt: 0, open: 0 }; groups.push(g); }
+      g.n++;
+      g.sec += x.open ? Math.max(0, (Date.now() - new Date(x.r.started_at).getTime()) / 1000) : num(x.r.duration_seconds);
+      g.cash += num(x.r.cash_amount); g.term += num(x.r.terminal_amount); g.click += num(x.r.click_amount);
+      if (!x.open) g.debt += num(x.r.debt_amount); else g.open++;
+    });
+    groups.forEach((g, i) => {
+      const r0 = 4 + i, row = M.getRow(r0);
+      row.values = [i + 1, g.name, g.n, g.sec / 86400, g.cash || null, g.term || null, g.click || null, null, g.debt || null];
+      row.getCell(8).value = { formula: 'E' + r0 + '+F' + r0 + '+G' + r0 };
+      row.getCell(2).font = { name: 'Calibri', size: 13, bold: true };
+      row.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+      row.getCell(4).numFmt = DUR;
+      [5, 6, 7, 8, 9].forEach(c => { row.getCell(c).numFmt = MONEY; });
+      [1, 3, 4].forEach(c => { row.getCell(c).alignment = { horizontal: 'center', vertical: 'middle' }; });
+      if (g.debt > 0) { row.getCell(9).font = { bold: true, color: { argb: 'FFB91C1C' } }; row.getCell(9).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDE2E2' } }; }
+      if (g.open) row.getCell(3).note = g.open + ' tasi hali ichkarida';
+    });
+    const mEnd = Math.max(3 + groups.length, 4);
+    const mt = M.getRow(mEnd + 1);
+    mt.getCell(2).value = 'JAMI: ' + groups.length + ' ta mashina';
+    mt.getCell(3).value = { formula: 'SUM(C4:C' + mEnd + ')' };
+    mt.getCell(4).value = { formula: 'SUM(D4:D' + mEnd + ')' }; mt.getCell(4).numFmt = DUR;
+    ['E', 'F', 'G', 'H', 'I'].forEach((L, k) => { const c = mt.getCell(5 + k); c.value = { formula: 'SUM(' + L + '4:' + L + mEnd + ')' }; c.numFmt = MONEY; });
+    for (let c = 1; c <= 9; c++) { const cell = mt.getCell(c); cell.font = { bold: true, size: 12 }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }; }
+    box(M, 3, mEnd + 1, 1, 9);
+    if (groups.length) M.autoFilter = { from: { row: 3, column: 1 }, to: { row: mEnd, column: 9 } };
 
     /* ---------- KURS (avtoshkola davomati) ---------- */
     const K = wb.addWorksheet('KURS', { views: [{ state: 'frozen', ySplit: 3 }], pageSetup: PAGE });
@@ -7378,6 +7460,8 @@ const Sheet = {
   sel: { r: 0, c: 1 }, anc: null, edit: null, undo: [], redo: [], seq: 0,
   back: 'add', leaving: false, saving: false, loadedAt: 0, timer: null, drag: false, wired: false,
   BLANKS: 3,   /* eng kamida; aslida ekran to'lguncha bo'sh qator (blanksWanted) */
+  /* JISMONIY tartibi: 'plate' — bir xil mashina bir joyda (148, 148, 148 …), 'time' — kirish vaqti */
+  order: (() => { try { return localStorage.getItem('avtodrom_sheet_order') === 'time' ? 'time' : 'plate'; } catch (e) { return 'plate'; } })(),
   PAY: { cash: 'Naqd', card: 'Karta', click: 'Klik' },
 
   COLS: {
@@ -7506,9 +7590,44 @@ const Sheet = {
   build(d) {
     this.data = d;
     this.rows.J = (d.sessions || []).map(s => this.jRow(s));
+    this.sortJ(false);
     this.rows.X = (d.expenses || []).map(e => this.xRow(e));
     this.rows.K = (d.school || []).map(s => ({ _k: String(s.id), id: s.id, src: s, v: s, o: s, err: {}, serr: {}, del: false }));
     this.padBlanks('J'); this.padBlanks('X');
+  },
+  /* JISMONIY ni tartiblash va mashina guruhlarini belgilash */
+  sortJ(keepNew) {
+    const L = this.rows.J;
+    const saved = L.filter(r => !r.blank && !r.isNew), fresh = L.filter(r => !r.blank && r.isNew), blanks = L.filter(r => r.blank);
+    const key = r => plateKeyOf({ plate: r.v.plate });
+    const t = r => new Date((r.src && r.src.started_at) || 0).getTime();
+    if (this.order === 'plate') saved.sort((a, b) => plateCmp(key(a), key(b)) || (t(a) - t(b)));
+    else saved.sort((a, b) => t(a) - t(b));
+    const all = saved.concat(fresh);
+    let g = 0, prev = null;
+    all.forEach((r, i) => {
+      const k = key(r);
+      if (i && k !== prev) g++;
+      prev = k;
+      r.grp = this.order === 'plate' ? g % 2 : 0;
+      const nx = all[i + 1];
+      r.gEnd = this.order === 'plate' && !!nx && key(nx) !== k;
+    });
+    this.rows.J = all.concat(blanks);
+  },
+  setOrder(o) {
+    o = o === 'time' ? 'time' : 'plate';
+    if (this.edit) this.commitEdit();
+    this.order = o;
+    try { localStorage.setItem('avtodrom_sheet_order', o); } catch (e) { /* noop */ }
+    if (this.tab === 'J') {
+      const keep = this.keepSel();
+      this.sortJ(true);
+      this.render();
+      this.restoreSel(keep);
+    } else this.render();
+    toast(o === 'plate' ? 'Tartib: mashina raqami bo\'yicha — bir xil mashinalar ketma-ket' : 'Tartib: kirish vaqti bo\'yicha', 'info');
+    this.focusGrid();
   },
   changedKeys(row) {
     return Object.keys(row.v).filter(k => String(row.v[k]) !== String(row.o[k]));
@@ -7592,6 +7711,10 @@ const Sheet = {
     const minW = cols.reduce((a, c) => a + c.w, 0);
     $('shGrid').style.minWidth = minW + 'px';
     let h = '<colgroup>' + cols.map((c, i) => i === cols.length - 1 ? '<col>' : '<col style="width:' + c.w + 'px">').join('') + '</colgroup>';
+    document.querySelectorAll('#p-sheet [data-act="shOrder"]').forEach(b => {
+      b.classList.toggle('on', b.dataset.o === this.order);
+      b.disabled = this.tab !== 'J';
+    });
     const t = $('shTitle');
     if (t) t.textContent = 'Avtodrom — ' + this.TAB_NAMES[this.tab] + ' — ' + (this.date ? this.date.slice(8, 10) + '.' + this.date.slice(5, 7) + '.' + this.date.slice(0, 4) : '') + '.xlsx';
     h += '<thead><tr class="lt">' + cols.map((c, i) => '<th' + (i === 0 ? ' class="rn"' : ' data-c="' + i + '"') + '>' + (i === 0 ? '' : this.letter(i)) + '</th>').join('') + '</tr>';
@@ -7607,7 +7730,8 @@ const Sheet = {
   },
   rowHTML(row, r) {
     const cols = this.cols();
-    const cls = [row.blank ? 'blank' : '', row.isNew ? 'new' : '', row.del ? 'del' : ''].filter(Boolean).join(' ');
+    const cls = [row.blank ? 'blank' : '', row.isNew ? 'new' : '', row.del ? 'del' : '',
+      this.tab === 'J' && row.grp ? 'g1' : '', this.tab === 'J' && row.gEnd ? 'ge' : ''].filter(Boolean).join(' ');
     const L = this.list();
     const hint = row.blank && (r === 0 || !L[r - 1].blank) && this.tab !== 'K';
     return '<tr data-r="' + r + '"' + (cls ? ' class="' + cls + '"' : '') + '>' + cols.map((c, ci) => {
@@ -12794,6 +12918,7 @@ const ACTIONS = {
   shRedo: () => { Sheet.doRedo(); Sheet.focusGrid(); },
   shClear: () => { Sheet.clearRange(); Sheet.focusGrid(); },
   shFull: () => Sheet.toggleFull(),
+  shOrder: d => Sheet.setOrder(d.o),
   dayExcel: (d, el) => { const r = Reports.range(); DayExcel.export(el, r.from, r.to); },
   dayExcelRx: (d, el) => DayExcel.export(el, Rasxod.day(), Rasxod.day()),
   paidPay: d => Add.setPayNow(d.p),
