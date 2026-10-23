@@ -137,6 +137,37 @@ async function dayData(user, day) {
          AND NOT (${S_WHERE_REGULAR})
        ORDER BY s.started_at, s.id LIMIT 3000`, [user, day]).catch(e => { console.error('SHEET KURS:', e.message); return { rows: [] }; })
   ]);
+  /* CHEK QACHON CHIQQAN: «Kirdi» — yozuv yaratilgan payt (chek shu zahoti
+     chiqadi); navbat/bron — navbatga qo'yilgan payt (chek o'shanda
+     chiqqan, vaqt keyin ochilgan). Qayta chiqarilganlar — jurnaldan. */
+  const ids = ss.rows.map(r => String(r.id));
+  const tk = new Map();
+  if (ids.length) {
+    const c = await pool.query(`SELECT id::text AS id, created_at FROM sessions WHERE id::text = ANY($1::text[])`, [ids]);
+    c.rows.forEach(r => tk.set(r.id, { created_at: r.created_at }));
+    try {
+      const q = await pool.query(`SELECT session_id, MIN(created_at) AS queued_at, MIN(data->>'startAt') AS booked_for
+          FROM waiting_queue WHERE session_id = ANY($1::text[]) GROUP BY session_id`, [ids]);
+      q.rows.forEach(r => Object.assign(tk.get(r.session_id) || {}, { queued_at: r.queued_at, booked_for: r.booked_for }));
+    } catch (e) { /* navbat jadvali yo'q — eski baza */ }
+    try {
+      const l = await pool.query(`SELECT entity_id, COUNT(*)::int AS n, MIN(created_at) AS first_at, MAX(created_at) AS last_at
+          FROM change_log WHERE owner_key = $1 AND entity = 'session' AND action = 'ticket_print' AND entity_id = ANY($2::text[])
+          GROUP BY entity_id`, [user, ids]);
+      l.rows.forEach(r => Object.assign(tk.get(r.entity_id) || {}, { prints: r.n, print_first: r.first_at, print_last: r.last_at }));
+    } catch (e) { /* jurnal yo'q */ }
+  }
+  ss.rows.forEach(r => {
+    const t = tk.get(String(r.id)) || {};
+    r.created_at = t.created_at || null;
+    r.queued_at = t.queued_at || null;
+    r.booked_for = t.booked_for || null;
+    r.prints = t.prints || 0;
+    r.print_last = t.print_last || null;
+    /* chek vaqti: navbat bo'lsa — navbatga qo'yilgan, bo'lmasa — yozuv yaratilgan (yoki jurnaldagi birinchi chop) */
+    r.ticket_at = t.queued_at || t.print_first || t.created_at || null;
+    r.ticket_kind = t.queued_at ? (t.booked_for ? 'bron' : 'navbat') : 'kirdi';
+  });
   const now = await pool.query(`SELECT to_char((now() AT TIME ZONE '${TZ}')::date,'YYYY-MM-DD') d, now() t`);
   return {
     date: day, today: now.rows[0].d, server_time: now.rows[0].t,
@@ -474,9 +505,60 @@ async function save(req, res, user) {
   return json(res, 200, Object.assign({ ok: true, counts }, await dayData(user, day)));
 }
 
+/* Bitta yozuvning to'liq tarixi: chek, kirish, muzlatish, chiqish, to'lov, tuzatishlar */
+async function timeline(res, user, id) {
+  const r = await pool.query(`SELECT s.id, COALESCE(v.plate, s.driver_name, '') AS plate, s.status, s.created_at, s.started_at, s.finished_at,
+      s.frozen_at, s.resumed_at, s.auto_close, s.auto_closed, s.settled_at, s.corrected_at, s.correction_note, s.target_duration,
+      COALESCE(s.duration_seconds,0)::int AS duration_seconds,
+      COALESCE(s.cash_amount,0)::float8 AS cash_amount, COALESCE(s.terminal_amount,0)::float8 AS terminal_amount,
+      COALESCE(s.click_amount,0)::float8 AS click_amount, COALESCE(s.debt_amount,0)::float8 AS debt_amount
+    FROM sessions s LEFT JOIN vehicles v ON v.id = s.vehicle_id
+    WHERE s.id::text = $1 AND s.user_id = $2`, [id, user]);
+  const s = r.rows[0];
+  if (!s) return json(res, 404, { error: 'Yozuv topilmadi' });
+  const ev = [];
+  const add = (at, title, detail, kind) => { if (at) ev.push({ at, title, detail: detail || '', kind: kind || '' }); };
+  let queue = null;
+  try {
+    const q = await pool.query(`SELECT created_at, claimed_at, removed_at, remove_reason, data FROM waiting_queue WHERE session_id = $1 ORDER BY created_at LIMIT 1`, [String(s.id)]);
+    queue = q.rows[0] || null;
+  } catch (e) { /* noop */ }
+  if (queue) {
+    const bron = queue.data && queue.data.startAt;
+    add(queue.created_at, bron ? 'Bron qilindi — chek chiqarildi' : 'Navbatga qo\u2018yildi — chek chiqarildi',
+      bron ? 'Bron vaqti: ' + hhmmss(bron).slice(0, 5) : 'Mashina band edi — oldingisi chiqqach o\u2018zi ochildi', 'ticket');
+    add(queue.removed_at, 'Navbatdan chiqdi — vaqt ochildi', '', 'queue');
+  } else {
+    add(s.created_at, '«Kirdi» bosildi — yozuv yaratildi, chek chiqarildi', '', 'ticket');
+  }
+  add(s.started_at, 'Vaqt ochildi (kirish vaqti)', s.target_duration ? Math.round(s.target_duration / 60) + ' daqiqaga' : 'ochiq vaqt', 'start');
+  add(s.frozen_at, 'Muzlatildi', '', 'freeze');
+  add(s.resumed_at, 'Davom ettirildi', '', 'freeze');
+  if (s.status === 'completed' || s.status === 'cancelled') {
+    add(s.finished_at, s.status === 'cancelled' ? 'Bekor qilindi' : (s.auto_closed ? 'Vaqti tugab o\u2018zi yopildi' : 'Chiqdi — yopildi'),
+      'Davomiylik: ' + Math.floor(s.duration_seconds / 3600) + ':' + String(Math.floor((s.duration_seconds % 3600) / 60)).padStart(2, '0'), 'end');
+  }
+  add(s.settled_at, 'Qarz to\u2018landi', '', 'pay');
+  try {
+    const l = await pool.query(`SELECT action, field, old_value, new_value, reason, created_at FROM change_log
+       WHERE owner_key = $1 AND entity = 'session' AND entity_id = $2 ORDER BY created_at LIMIT 300`, [user, String(s.id)]);
+    const NAMES = { ticket_print: 'Kirish taloni chop etildi', correct: 'To\u2018lov to\u2018g\u2018rilandi', split: 'Bir qismi yopildi',
+      sheet_edit: 'Excel\u2019da o\u2018zgartirildi', sheet_create: 'Excel\u2019da qo\u2018shildi', sheet_delete: 'Excel\u2019da o\u2018chirildi', debt_paid: 'Qarz to\u2018landi' };
+    l.rows.forEach(x => add(x.created_at, NAMES[x.action] || x.action,
+      [x.field, x.old_value !== null && x.old_value !== undefined ? x.old_value + ' \u2192 ' + (x.new_value === null ? '' : x.new_value) : x.new_value, x.reason].filter(Boolean).join(' · '),
+      x.action === 'ticket_print' ? 'ticket' : 'log'));
+  } catch (e) { /* noop */ }
+  ev.sort((a, b) => new Date(a.at) - new Date(b.at));
+  json(res, 200, { session: s, queue: queue ? { created_at: queue.created_at, booked_for: queue.data && queue.data.startAt || null } : null, events: ev });
+}
+function hhmmss(ts) {
+  const d = new Date(new Date(ts).getTime() + 5 * 3600 * 1000);
+  return [d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()].map(n => String(n).padStart(2, '0')).join(':');
+}
+
 export async function handleSheetRequest(req, res) {
   const path = String(req.url || '').split('?', 1)[0];
-  if (path !== '/api/sheet/day') return false;
+  if (path !== '/api/sheet/day' && path !== '/api/sheet/timeline') return false;
   if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return true; }
   const user = auth(req);
   if (!user) { json(res, 401, { error: 'Kirish talab qilinadi' }); return true; }
@@ -484,6 +566,13 @@ export async function handleSheetRequest(req, res) {
   if (!maxsusOk(req, user)) { lockedResponse(res); return true; }
   try {
     await ensureKassaSchema();
+    if (req.method === 'GET' && path === '/api/sheet/timeline') {
+      const u = new URL(req.url, 'http://localhost');
+      const id = text(u.searchParams.get('id'));
+      if (!/^[0-9a-f-]{36}$/i.test(id)) { json(res, 400, { error: 'Yozuv raqami noto\u2018g\u2018ri' }); return true; }
+      await timeline(res, user, id);
+      return true;
+    }
     if (req.method === 'GET') {
       const u = new URL(req.url, 'http://localhost');
       let day = text(u.searchParams.get('date'));

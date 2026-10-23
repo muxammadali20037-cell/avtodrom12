@@ -1174,6 +1174,16 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 .mx-modal input[type=password] { font-size: 20px; letter-spacing: .15em; text-align: center; }
 .mx-modal .mx-links { display: flex; justify-content: space-between; gap: 10px; margin-top: 10px; font-size: 13px; }
 .mx-modal .mx-list { margin: 0 0 14px; padding: 10px 14px; background: #f8fafc; border-radius: 10px; font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.tl { display: grid; gap: 0; margin: 4px 0 6px; }
+.tl-row { display: grid; grid-template-columns: 92px 34px 1fr; align-items: start; gap: 8px; padding: 8px 4px; border-bottom: 1px dashed var(--line); }
+.tl-t { font: 700 15px/1.3 ui-monospace, Consolas, monospace; color: var(--text); text-align: right; }
+.tl-t small { font-weight: 500; color: var(--muted); font-size: 11px; }
+.tl-i { width: 30px; height: 30px; border-radius: 50%; background: #f1f5f9; display: grid; place-items: center; color: #475569; }
+.tl-ticket .tl-i { background: #fef3c7; color: #b45309; }
+.tl-start .tl-i { background: #dcfce7; color: #15803d; }
+.tl-end .tl-i { background: #dbeafe; color: #1d4ed8; }
+.tl-b b { display: block; font-size: 14px; }
+.tl-b small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; overflow-wrap: anywhere; }
 /* ===================== EXCEL — butun ekran, haqiqiy Excel ko'rinishi ===================== */
 .sheet-page { position: fixed; inset: 0; z-index: 95; background: #fff; display: flex; flex-direction: column; margin: 0; padding: 0;
   font-family: 'Segoe UI', Calibri, Arial, sans-serif; color: #201f1e; }
@@ -1831,6 +1841,12 @@ body.sheet-open { overflow: hidden; }
               <button type="button" class="xl-rb xl-ord" data-act="shOrder" data-o="time" title="Kirish vaqti bo'yicha"><i class="fa-regular fa-clock" aria-hidden="true"></i><span>Vaqt bo'yicha</span></button>
             </div>
             <div class="xl-gname">Tartib</div>
+          </div>
+          <div class="xl-grp">
+            <div class="xl-col">
+              <button type="button" class="xl-rb" data-act="shHistory" title="Tanlangan mashina: chek qachon chiqqan, qachon kirgan, chiqqan, kim o'zgartirgan (Ctrl+H)"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i><span>Yozuv tarixi</span></button>
+            </div>
+            <div class="xl-gname">Tekshirish</div>
           </div>
           <div class="xl-grp">
             <div class="xl-col">
@@ -4883,6 +4899,7 @@ const Add = {
             /* Turniket kodi — chekdagi QR. Olinmasa chek QR'siz chiqadi. */
             const gateCode = await Gate.codeFor(sid);
             chekSent = true;
+            logTicketPrint(sid, 'print');
             EntryTicket80.printHidden({
               gateCode: gateCode,
               person: stName(d.student),
@@ -4987,6 +5004,7 @@ const Add = {
 
         /* ===== KIRISH CHEKI (oddiy mijoz) ===== */
         const gateCode = await Gate.codeFor(sid);
+        logTicketPrint(sid, 'print');
         EntryTicket80.printHidden({
           kind: 'paid',
           gateCode: gateCode,
@@ -6702,6 +6720,13 @@ const DayExcel = {
 };
 
 /* ENTRY TICKET 80mm: print-only; no API writes, timer or payment changes. */
+/* Chek chop etilgan vaqtni jurnalga yozish — keyin «qachon chek chiqqan?»
+   deganda aniq javob bo'lsin (Excel → Yozuv tarixi). Xato bo'lsa jim. */
+function logTicketPrint(sessionId, kind) {
+  if (!sessionId) return;
+  api('/sessions/' + encodeURIComponent(sessionId) + '/ticket', { method: 'POST', body: jsonBody({ kind: kind || 'print' }), timeout: 8000 }).catch(() => {});
+}
+
 const EntryTicket80 = {
   draftKey: '', draft: null,
   fromForm() {
@@ -6744,6 +6769,7 @@ const EntryTicket80 = {
     const w = window.open('', '_blank', 'width=440,height=760');
     if (!w) { toast('Talon uchun brauzerda yangi oynalarga ruxsat bering.', 'error'); return; }
     try { w.document.write('<p style="font-family:Arial;padding:24px">Talon tayyorlanmoqda...</p>'); } catch (e) { /* noop */ }
+    logTicketPrint(v.id, 'reprint');
     Gate.codeFor(v.id).then(code => this.open({
       gateCode: code,
       id: 'S-' + String(v.id), issued: v.started_at,
@@ -7682,14 +7708,15 @@ const Sheet = {
       { k: 'plate', t: 'AVTOMOBIL', w: 190, cls: 'plate' },
       { k: 'start', t: 'KIRISH', w: 74, type: 'time', cls: 'ctr' },
       { k: 'end', t: 'CHIQISH', w: 74, type: 'time', cls: 'ctr' },
-      { k: 'dur', t: 'DAVOMIYLIGI', w: 96, ro: true, cls: 'ctr', fx: '= CHIQISH − KIRISH' },
+      { k: 'dur', t: 'DAVOMIYLIGI', w: 90, ro: true, cls: 'ctr', fx: '= CHIQISH − KIRISH' },
       { k: 'cash', t: 'NAQD', w: 100, type: 'money', cls: 'num' },
       { k: 'terminal', t: 'TERMINAL', w: 100, type: 'money', cls: 'num' },
       { k: 'click', t: 'KLIK', w: 100, type: 'money', cls: 'num' },
       { k: 'debt', t: 'TO\'LANMAGAN', w: 112, type: 'money', cls: 'num' },
       { k: 'paid', t: 'JAMI TO\'LOV', w: 110, ro: true, cls: 'num', fx: '= NAQD + TERMINAL + KLIK' },
+      { k: 'ticket', t: 'CHEK CHIQQAN', w: 104, ro: true, cls: 'ctr' },
       { k: 'state', t: 'HOLAT', w: 112, ro: true, cls: 'ctr' },
-      { k: 'note', t: 'IZOH (sabab)', w: 260 }
+      { k: 'note', t: 'IZOH (sabab)', w: 200 }
     ],
     X: [
       { k: '#', t: '№', w: 44, ro: true },
@@ -7752,6 +7779,19 @@ const Sheet = {
     if (s === 'k' || /^(kl|cl|click)/.test(s)) return 'click';
     if (/^(t|ter|ka|ke|card|pla|uzc|hum)/.test(s)) return 'card';
     return null;
+  },
+  hms(ts) {
+    const d = new Date(new Date(ts).getTime() + 5 * 3600e3);
+    return [d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()].map(n => String(n).padStart(2, '0')).join(':');
+  },
+  ticketInfo(row) {
+    const s = row.src || {};
+    if (!s.ticket_at) return '';
+    const kind = s.ticket_kind === 'bron' ? 'bron qilinganda' : s.ticket_kind === 'navbat' ? 'navbatga qo\'yilganda (mashina band edi)' : '«Kirdi» bosilganda';
+    return 'Chek chiqqan: ' + this.hms(s.ticket_at) + ' — ' + kind
+      + (s.started_at ? '  ·  Vaqt ochilgan: ' + this.hms(s.started_at) : '')
+      + (num(s.prints) > 1 ? '  ·  ' + num(s.prints) + ' marta chop etilgan, oxirgisi ' + this.hms(s.print_last) : '')
+      + '   (batafsil: Yozuv tarixi)';
   },
   fmtMoney(n) { const v = Math.round(num(n)); return v ? String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : ''; },
   fmtDur(sec) { sec = Math.max(0, Math.round(num(sec))); const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60); return h + ':' + String(m).padStart(2, '0'); },
@@ -7882,6 +7922,10 @@ const Sheet = {
     }
     if (k === 'paid') { const p = num(v.cash) + num(v.terminal) + num(v.click); return row.blank ? '' : this.fmtMoney(p) || (v.end || !row.isNew ? '0' : ''); }
     if (k === 'state') return '';
+    if (k === 'ticket') {
+      if (row.blank || row.isNew || !s.ticket_at) return '';
+      return this.hms(s.ticket_at) + (s.ticket_kind === 'bron' ? ' · bron' : s.ticket_kind === 'navbat' ? ' · navbat' : '') + (num(s.prints) > 1 ? ' ×' + num(s.prints) : '');
+    }
     return v[k] === null || v[k] === undefined ? '' : String(v[k]);
   },
   stateHTML(row) {
@@ -8021,6 +8065,7 @@ const Sheet = {
       else if (col.fx) fx.textContent = col.fx + '   →   ' + this.display(row, col);
       else if (col.hint) fx.textContent = this.display(row, col) + '      (' + col.hint + ')';
       else if (col.k === 'state') fx.textContent = (td && td.textContent) || '';
+      else if ((col.k === 'ticket' || col.k === 'start') && !row.blank && !row.isNew && row.src && row.src.ticket_at) fx.textContent = this.ticketInfo(row);
       else if (row.blank && this.sel.c === 1) fx.textContent = this.tab === 'J' ? 'Yangi mashina: raqami yoki ismini yozing, Enter. Kirish vaqti o\'zi qo\'yiladi.' : 'Yangi xarajat: kim oldi, keyin turi, summa…';
       else if (this.isRO(row, col) && !col.ro && this.tab === 'J' && !row.del) fx.textContent = this.display(row, col) + '   (muzlatilgan yozuv vaqti o\'zgarmaydi)';
       else fx.textContent = this.display(row, col);
@@ -8172,6 +8217,28 @@ const Sheet = {
   },
   toggleFull() { if (document.fullscreenElement) this.exitFull(); else this.enterFull(); this.focusGrid(); },
 
+  /* ---------- YOZUV TARIXI: chek qachon chiqqan, qachon kirgan/chiqqan, kim nimani o'zgartirgan ---------- */
+  async history() {
+    if (this.tab !== 'J') { toast('Yozuv tarixi JISMONIY varag\'ida', 'warn'); return; }
+    if (this.edit) this.commitEdit();
+    const row = this.list()[this.sel.r];
+    if (!row || row.blank || row.isNew || !row.id) { toast('Avval saqlangan qatorni tanlang', 'warn'); return; }
+    let d;
+    try { d = await api('/sheet/timeline?id=' + encodeURIComponent(row.id)); }
+    catch (e) { toast(e.message, 'error'); return; }
+    const ICO = { ticket: 'fa-receipt', start: 'fa-right-to-bracket', end: 'fa-right-from-bracket', freeze: 'fa-snowflake', queue: 'fa-clock', pay: 'fa-money-bill-wave', log: 'fa-pen' };
+    const day = ts => { const x = new Date(new Date(ts).getTime() + 5 * 3600e3); return String(x.getUTCDate()).padStart(2, '0') + '.' + String(x.getUTCMonth() + 1).padStart(2, '0'); };
+    const today = day(Date.now());
+    const s = d.session || {};
+    openModal('<div class="modal-head"><div><h2><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> ' + esc(s.plate || '—') + ' — yozuv tarixi</h2>'
+      + '<p class="text-muted">Vaqtlar soniyasigacha (Toshkent vaqti)</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div class="tl">' + (d.events || []).map(ev => '<div class="tl-row tl-' + esc(ev.kind) + '"><span class="tl-t">' + (day(ev.at) !== today ? '<small>' + day(ev.at) + '</small> ' : '') + esc(this.hms(ev.at)) + '</span>'
+        + '<span class="tl-i"><i class="fa-solid ' + (ICO[ev.kind] || 'fa-circle') + '" aria-hidden="true"></i></span>'
+        + '<span class="tl-b"><b>' + esc(ev.title) + '</b>' + (ev.detail ? '<small>' + esc(ev.detail) + '</small>' : '') + '</span></div>').join('') + '</div>'
+      + '<div class="actions-row"><button class="btn btn-green" type="button" data-act="closeModal">Yopish</button></div>', { wide: true });
+  },
+
   /* ---------- qator qo'shish ---------- */
   newRow() {
     if (this.tab === 'K') { toast('KURS varag\'iga qo\'lda yozilmaydi — davomat «QR chek» bo\'limida', 'warn'); return; }
@@ -8210,7 +8277,9 @@ const Sheet = {
     const row = this.list()[this.sel.r];
     const ro = this.tab === 'K';
     const it = (act, ico, txt, key) => '<button type="button" role="menuitem" data-act="' + act + '"><i class="' + ico + '" aria-hidden="true"></i>' + txt + (key ? '<small>' + key + '</small>' : '') + '</button>';
-    m.innerHTML = it('shCopy', 'fa-regular fa-copy', 'Nusxa olish', 'Ctrl+C')
+    const histOk = this.tab === 'J' && row && !row.blank && !row.isNew && row.id;
+    m.innerHTML = (histOk ? it('shHistory', 'fa-solid fa-clock-rotate-left', 'Yozuv tarixi (chek, kirish, chiqish…)', 'Ctrl+H') + '<hr>' : '')
+      + it('shCopy', 'fa-regular fa-copy', 'Nusxa olish', 'Ctrl+C')
       + (ro ? '' : it('shPaste', 'fa-regular fa-paste', 'Qo\'yish', 'Ctrl+V'))
       + (ro ? '' : '<hr>' + it('shNewRow', 'fa-solid fa-square-plus', 'Yangi qator (pastda)', 'Ctrl+Enter')
         + it('shInsRow', 'fa-solid fa-arrows-up-to-line', 'Ustiga bo\'sh qator qo\'shish', 'Ctrl++')
@@ -8505,6 +8574,7 @@ const Sheet = {
     if (ctrl && (key === 'y' || key === 'Y' || e.code === 'KeyY')) { stop(); this.doRedo(); return; }
     if (ctrl && (key === 'Delete' || key === '-' || key === 'Backspace')) { stop(); this.toggleDelete(); return; }
     if (ctrl && key === 'Enter') { stop(); this.newRow(); return; }
+    if (ctrl && (key === 'h' || key === 'H' || e.code === 'KeyH')) { stop(); this.history(); return; }
     if (key === 'Insert' || (ctrl && (key === '+' || key === '=' || e.code === 'NumpadAdd'))) { stop(); this.insertRow(); return; }
     if (ctrl && (key === 'a' || key === 'A' || e.code === 'KeyA')) { stop(); this.anc = { r: 0, c: 1 }; this.sel = { r: this.list().length - 1, c: this.cols().length - 1 }; this.paintSel(); return; }
     if (ctrl && key === 'Home') { stop(); this.anc = null; this.sel = { r: 0, c: 1 }; this.paintSel(); return; }
@@ -8573,6 +8643,8 @@ const Sheet = {
     w.addEventListener('dblclick', e => {
       const td = e.target.closest('td[data-r]'); if (!td || Number(td.dataset.c) === 0) return;
       this.sel = { r: Number(td.dataset.r), c: Number(td.dataset.c) }; this.anc = null;
+      const cc = this.cols()[this.sel.c];
+      if (cc && (cc.k === 'ticket' || cc.k === 'state') && this.tab === 'J') { this.history(); return; }
       this.startEdit(undefined, 'edit');
     });
     w.addEventListener('contextmenu', e => {
@@ -13182,6 +13254,7 @@ const ACTIONS = {
   shClear: () => { Sheet.clearRange(); Sheet.focusGrid(); },
   shFull: () => Sheet.toggleFull(),
   shOrder: d => Sheet.setOrder(d.o),
+  shHistory: () => Sheet.history(),
   dayExcel: (d, el) => { const r = Reports.range(); DayExcel.export(el, r.from, r.to); },
   dayExcelRx: (d, el) => DayExcel.export(el, Rasxod.day(), Rasxod.day()),
   paidPay: d => Add.setPayNow(d.p),

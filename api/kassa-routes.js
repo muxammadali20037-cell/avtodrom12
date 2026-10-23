@@ -408,8 +408,33 @@ async function sessionCorrect(req, res, user, id) {
   } finally { c.release(); }
 }
 
+/* ---------- CHEK CHOP ETILDI (jurnal) ----------
+   «Qachon chek chiqarilgan?» degan savolga aniq javob bo'lsin: har
+   chiqarilgan / qayta chiqarilgan kirish taloni vaqti bilan yoziladi. */
+async function ticketLog(req, res, user, id) {
+  const b = await readBody(req);
+  const kind = text(b.kind) === 'reprint' ? 'reprint' : 'print';
+  const r = await pool.query(`SELECT s.id, COALESCE(v.plate, s.driver_name, '') AS plate FROM sessions s
+    LEFT JOIN vehicles v ON v.id = s.vehicle_id WHERE s.id::text = $1 AND s.user_id = $2`, [id, user]);
+  if (!r.rows[0]) return json(res, 404, { error: 'Yozuv topilmadi' });
+  await logChange(null, user, { entity: 'session', entityId: r.rows[0].id, entityName: r.rows[0].plate, action: 'ticket_print',
+    field: kind === 'reprint' ? 'qayta' : 'birinchi', newValue: text(b.note).slice(0, 120) || null,
+    reason: kind === 'reprint' ? 'Kirish taloni qayta chiqarildi' : 'Kirish taloni chiqarildi' });
+  json(res, 200, { ok: true });
+}
+
 export async function handleKassaRequest(req, res) {
   const path = String(req.url || '').split('?', 1)[0];
+  const tm = path.match(/^\/api\/sessions\/([^/]+)\/ticket$/);
+  if (tm) {
+    if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return true; }
+    if (req.method !== 'POST') { json(res, 405, { error: 'Method ruxsat etilmagan' }); return true; }
+    const user = auth(req);
+    if (!user) { json(res, 401, { error: 'Kirish talab qilinadi' }); return true; }
+    try { await ticketLog(req, res, user, decodeURIComponent(tm[1])); }
+    catch (e) { console.error('TICKET LOG ERROR:', e); json(res, 500, { error: e.message || 'Yozilmadi' }); }
+    return true;
+  }
   const cm = path.match(/^\/api\/sessions\/([^/]+)\/correct$/);
   if (cm) {
     if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return true; }
