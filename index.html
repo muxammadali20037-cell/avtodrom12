@@ -11136,13 +11136,13 @@ const Roster = {
     if (/^\d{1,2}[./-]\d{1,2}[./-]\d{4}$/.test(t)) return null;
 
     /* «11-2026гр.», «11-2026 гр», «11-2026 guruh» */
-    let m = t.match(/(?:^|[^\d.])(\d{1,3})\s*[-–—]\s*\d{2,4}\s*(?:гр|гp|группа|guruh|guruhi|g)\.?/i);
+    let m = t.match(/(?:^|[^\d.])(\d{1,3})\s*[-–—]\s*\d{2,4}\s*(?:группа|гурухи|гурух|гуруҳ|guruhi|guruh|gurux|гр|гp|g)\.?/i);
     if (m) return m[1];
     /* «12-guruh», «7 гр.», «7-гр» */
-    m = t.match(/(?:^|[^\d.])(\d{1,3})\s*[-–—\s]\s*(?:гр|гp|группа|группы|guruh|guruhi)\.?/i);
+    m = t.match(/(?:^|[^\d.])(\d{1,3})\s*[-–—\s]\s*(?:группа|группы|гурухи|гуруҳи|гурух|гуруҳ|guruhi|guruh|gurux|гр|гp)\.?/i);
     if (m) return m[1];
     /* «Guruh № 5», «группа 5» */
-    m = t.match(/(?:гр|гp|группа|guruh|guruhi)\.?\s*[№#]?\s*(\d{1,3})(?!\d)/i);
+    m = t.match(/(?:группа|группы|гурухи|гуруҳи|гурух|гуруҳ|guruhi|guruh|gurux|гр|гp)\.?\s*[№#]?\s*(\d{1,3})(?!\d)/i);
     if (m) return m[1];
     /* Yolg'iz «11-2026» — butun matn shundan iborat bo'lsagina */
     m = t.match(/^(\d{1,3})\s*[-–—]\s*(?:19|20)\d{2}\s*\.?$/);
@@ -11238,6 +11238,56 @@ const Roster = {
     this.groups = groups.filter(g => g.rows.length);
     this.skipped = skipped;
     return this.groups;
+  },
+
+  /* ---------- MATNDAN (Telegram / Word'dan nusxa) ----------
+     «1  PARDABOYEV BAXTIYOR RUSTAM O‘G‘LI  1999-11-01» kabi qatorlar:
+     raqam, ism, (sana), (darslar) — bo'sh joy yoki tab bilan ajratilgan */
+  textToRows(text) {
+    const DATE = '(\\d{4}-\\d{2}-\\d{2}|\\d{1,2}[./-]\\d{1,2}[./-]\\d{4})';
+    const re = new RegExp('^(\\d{1,3})[.)]?\\s+(.+?)(?:\\s+' + DATE + ')?(?:\\s+(\\d{1,3}))?$');
+    return String(text || '').replace(/\r/g, '').split('\n').map(line => {
+      const t = line.replace(/\u00a0/g, ' ').trim().replace(/^[,;]+|[,;]+$/g, '').trim();
+      if (!t) return [];
+      if (t.indexOf('\t') >= 0 || / {2,}/.test(t)) {
+        const cells = t.split(/\t| {2,}/).map(x => x.trim()).filter(Boolean);
+        if (cells.length > 1) return cells;
+      }
+      const m = t.replace(/\s+/g, ' ').match(re);
+      if (m && /[A-Za-zЀ-ӿ]/.test(m[2])) return [m[1], m[2], m[3] || '', m[4] || ''];
+      return [t];
+    });
+  },
+  pasteOpen() {
+    openModal('<div class="modal-head"><div><h2>Ro\'yxatni matndan qo\'shish</h2>'
+      + '<p class="text-muted">Telegram, Word yoki boshqa joydan nusxa olib shu yerga qo\'ying (Ctrl+V)</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<form data-act="rosterPasteGo" novalidate>'
+      + '<textarea id="rosterText" rows="14" style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:13px" '
+      + 'placeholder="30-гурух&#10;1  PARDABOYEV BAXTIYOR RUSTAM O‘G‘LI  1999-11-01&#10;2  MAXMUDOV SARDOR TURABOY O‘G‘LI  1997-12-26&#10;...&#10;31-гурух&#10;1  ..."></textarea>'
+      + '<div class="field-help">Guruh sarlavhasi: «30-гурух», «30-guruh», «11-2026гр.». Har qatorda: raqam, F.I.Sh., tug\'ilgan sana (ixtiyoriy).</div>'
+      + '<div class="actions-row"><button class="btn btn-green" type="submit"><i class="fa-solid fa-eye btn-icon" aria-hidden="true"></i> Ko\'rib chiqish</button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div></form>', { wide: true });
+  },
+  pasteGo() {
+    const text = ($('rosterText') && $('rosterText').value) || '';
+    const groups = this.parse(this.textToRows(text));
+    if (!groups.length) { toast('Matnda guruh va o\'quvchi topilmadi. Guruh sarlavhasi «30-гурух» ko\'rinishida bo\'lsin.', 'error'); return; }
+    this.guessSchool(text);
+    this.preview();
+  },
+  /* Matnda avtoshkola nomi bo'lsa («ЧилонзорАвтомактаб») — o'zi tanlanadi */
+  guessSchool(text) {
+    const schools = Data.activeSchools();
+    const head = searchFold(String(text || '').slice(0, 400)).replace(/[^a-z0-9]/g, '');
+    if (!head) return;
+    const STOP = ['avtomaktab', 'avtomaktabi', 'avtoshkola', 'avtoshkolasi', 'avto', 'maktab', 'mchj', 'xk', 'oooo'];
+    let best = null, bestLen = 0;
+    schools.forEach(sc => {
+      const words = searchFold(sc.name).split(/[^a-z0-9]+/).filter(w => w.length >= 4 && STOP.indexOf(w) < 0);
+      words.forEach(w => { if (head.indexOf(w) >= 0 && w.length > bestLen) { best = sc; bestLen = w.length; } });
+    });
+    if (best) this.schoolId = String(best.id);
   },
 
   /* ---------- fayl tanlash ---------- */
@@ -12859,7 +12909,8 @@ const Admin = {
       + '<button class="btn btn-ghost btn-sm" type="button" data-act="templateInstructors"><i class="fa-solid fa-download" aria-hidden="true"></i> Shablon</button></div></div>'
       + '<div class="card"><h3><i class="fa-solid fa-users-rectangle" style="color:var(--g)" aria-hidden="true"></i> Guruhli ro\'yxat</h3>'
       + '<p class="text-muted" style="font-size:12.5px">Word yoki Excel fayl — bir nechta guruh birdaniga, guruhlar avtomat ochiladi</p>'
-      + '<div class="actions-row"><button class="btn btn-green btn-sm" type="button" data-act="rosterPick"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Fayldan import</button></div></div>'
+      + '<div class="actions-row"><button class="btn btn-green btn-sm" type="button" data-act="rosterPick"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Fayldan import</button>'
+      + '<button class="btn btn-light btn-sm" type="button" data-act="rosterPaste"><i class="fa-regular fa-paste" aria-hidden="true"></i> Matndan qo\'shish</button></div></div>'
       + '<div class="card"><h3><i class="fa-solid fa-chart-bar" style="color:var(--g)" aria-hidden="true"></i> Kunlik hisobot</h3>'
       + '<p class="text-muted" style="font-size:12.5px">Operator panelidagi tanlangan sana bo\'yicha</p>'
       + '<div class="actions-row"><button class="btn btn-light btn-sm" type="button" data-act="exportDaily"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export</button></div></div>'
@@ -13226,6 +13277,8 @@ const ACTIONS = {
 
   /* --- guruhli ro'yxat importi (Word / Excel) --- */
   rosterPick: () => Roster.pick(),
+  rosterPaste: () => Roster.pasteOpen(),
+  rosterPasteGo: () => Roster.pasteGo(),
   rosterSchool: (d, el) => Roster.setSchool(el.value),
   rosterRun: () => Roster.run(),
   adminRefresh: () => Admin.realtime(),
