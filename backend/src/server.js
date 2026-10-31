@@ -9,6 +9,7 @@ import zlib from 'node:zlib';
 import { pool, poolStats } from './db.js';
 import { postOf } from './post.js';
 import { dbLimits, ensureDbSafety } from './schema-once.js';
+import { logChange } from '../../api/audit-routes.js';
 
 dotenv.config();
 const app = express();
@@ -799,7 +800,51 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
 
     const withClick = await hasClickColumn();
     /* «Keyin to'laydi»: to'lanmagan qismi qarzga (oxirida birdan to'laydi) */
-    const debt = s.student_id ? 0 : Math.max(0, Math.round(num(req.body.debt_amount ?? req.body.debtAmount)));
+    let debt = s.student_id ? 0 : Math.max(0, Math.round(num(req.body.debt_amount ?? req.body.debtAmount)));
+
+    /* ===== PUL QAYSI POSTDA OLINGAN =====
+       Oldindan to'lov (bron / «1 soatga» + naqd) bir postda, ortiqcha vaqt
+       puli boshqa postda olinsa — bitta yozuvga ikkala pulni bitta postga
+       yozib bo'lmaydi. Shunda ortiqcha vaqt ALOHIDA yozuv bo'ladi (xuddi
+       «bir qismini yopish» kabi): rejadagi vaqt — oldindan to'lagan postda,
+       ortiqchasi — shu postda. Hech bir so'm boshqa kassaga o'tib ketmaydi. */
+    const post = postOf(req);
+    const prevCash = num(s.cash_amount), prevTerm = num(s.terminal_amount), prevClick = num(s.click_amount);
+    const prevPaid = prevCash + prevTerm + prevClick;
+    const prePost = Number(s.pay_post || s.post || 0) || null;
+    const added = amount - prevPaid;
+    const dC = cash - prevCash, dT = terminal - prevTerm, dK = click - prevClick;
+    const startMs = new Date(s.started_at).getTime();
+    const planEnd = new Date(startMs + num(s.target_duration) * 1000);
+    let extraId = null;
+    if (post && prePost && prePost !== post && prevPaid > 0 && added > 0 && dC >= 0 && dT >= 0 && dK >= 0
+        && num(s.target_duration) > 0 && !s.student_id && !s.receipt_id && !s.resumed_at && s.status === 'active'
+        && planEnd.getTime() > startMs && planEnd.getTime() < end.getTime()) {
+      const cols = new Set((await c.query(`SELECT column_name FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='sessions'`)).rows.map(x => x.column_name));
+      const xUsed = [dC > 0, dT > 0, dK > 0].filter(Boolean).length;
+      const xMethod = xUsed > 1 ? 'mixed' : dT > 0 ? 'terminal' : dK > 0 ? 'click' : 'cash';
+      const xSec = Math.max(0, Math.round((end.getTime() - planEnd.getTime()) / 1000));
+      const cand = [
+        ['user_id', s.user_id], ['vehicle_id', s.vehicle_id], ['started_at', planEnd], ['finished_at', end],
+        ['duration_seconds', xSec], ['hourly_rate', s.hourly_rate], ['minimum_payment', s.minimum_payment],
+        ['calculation_mode', s.calculation_mode], ['amount', added], ['cash_amount', dC], ['terminal_amount', dT],
+        ['click_amount', dK], ['payment_method', xMethod], ['status', 'completed'], ['customer_type', s.customer_type],
+        ['instructor_id', s.instructor_id], ['instructor_name', s.instructor_name], ['driver_name', s.driver_name],
+        ['manual_price', true], ['debt_amount', debt], ['target_duration', 0], ['lessons_counted', 0],
+        ['post', post], ['pay_post', post]
+      ].filter(([k]) => cols.has(k));
+      const xi = await c.query(`INSERT INTO sessions(${cand.map(([k]) => k).join(',')})
+        VALUES(${cand.map((_, i) => '$' + (i + 1)).join(',')}) RETURNING id`, cand.map(([, v]) => v));
+      extraId = xi.rows[0].id;
+      /* asosiy yozuv — rejadagi vaqtda, faqat oldindan to'langan puli bilan */
+      end = planEnd; seconds = num(s.target_duration);
+      cash = prevCash; terminal = prevTerm; click = prevClick; amount = prevPaid;
+      const used0 = [cash > 0, terminal > 0, click > 0].filter(Boolean).length;
+      method = used0 > 1 ? 'mixed' : terminal > 0 ? 'terminal' : click > 0 ? 'click' : 'cash';
+      debt = 0;
+    }
+
     const u = await c.query(
       `UPDATE sessions SET finished_at=$1, duration_seconds=$2, amount=$3, cash_amount=$4, terminal_amount=$5,
               payment_method=$6, lessons_counted=$7, status='completed', resumed_at=NULL, frozen_at=NULL
@@ -809,14 +854,23 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
                 : [end, seconds, amount, cash, terminal, method, lessons, s.id, uid(req)]
     );
     if (debt > 0) await c.query(`UPDATE sessions SET debt_amount=$1 WHERE id=$2`, [debt, s.id]);
-    await c.query('COMMIT');
-    /* Pul qaysi postda olingan (1-POST / 2-POST) — hisobot shunga qarab ajratiladi */
-    const post = postOf(req);
+    /* Pul qaysi postda olingan (1-POST / 2-POST): faqat SHU YERDA yangi pul
+       olingan bo'lsa o'zgaradi. Oldindan to'langanini boshqa post «Chiqdi»
+       qilsa — pul o'zi olingan postda qoladi. */
     if (post) {
       try {
-        await pool.query(`UPDATE sessions SET pay_post = CASE WHEN $3::numeric > 0 THEN $1::smallint ELSE pay_post END,
-            post = COALESCE(post, $1::smallint) WHERE id = $2`, [post, s.id, amount]);
-      } catch (e) { /* ustun hali yo'q */ }
+        await c.query('SAVEPOINT sp_post');
+        await c.query(`UPDATE sessions SET pay_post = CASE WHEN $3 THEN $1::smallint ELSE COALESCE(pay_post, post, $1::smallint) END,
+            post = COALESCE(post, $1::smallint) WHERE id = $2`, [post, s.id, !extraId && added > 0]);
+        await c.query('RELEASE SAVEPOINT sp_post');
+      } catch (e) { try { await c.query('ROLLBACK TO SAVEPOINT sp_post'); } catch { /* noop */ } }
+    }
+    await c.query('COMMIT');
+    if (extraId) {
+      logChange(null, uid(req), { entity: 'session', entityId: s.id, entityName: s.plate || null, action: 'split',
+        field: 'post', oldValue: prePost + '-POST: ' + prevPaid + ' so‘m (oldindan)',
+        newValue: post + '-POST: ' + added + ' so‘m (ortiqcha vaqt, alohida yozuv)',
+        reason: 'Oldindan to‘lov va ortiqcha vaqt puli turli postlarda olindi' }).catch(() => {});
     }
     res.json({
       ...u.rows[0], plate: s.plate, debt_amount: debt,
@@ -905,7 +959,7 @@ async function debtPaymentsBetween(userId,from,to){
     const r=await pool.query(`SELECT d.id,d.session_id,d.amount::float8 amount,d.method,d.post,
         to_char(d.session_day,'YYYY-MM-DD') session_day,d.paid_at,
         to_char((d.paid_at AT TIME ZONE 'Asia/Tashkent')::date,'YYYY-MM-DD') paid_day,
-        COALESCE(v.plate,s.driver_name) plate,s.started_at
+        COALESCE(v.plate,s.driver_name) plate,s.started_at,d.note,to_jsonb(d)->>'reversal_of' reversal_of
       FROM debt_payments d LEFT JOIN sessions s ON s.id=d.session_id LEFT JOIN vehicles v ON v.id=s.vehicle_id
       WHERE d.user_id=$1 AND (d.paid_at AT TIME ZONE 'Asia/Tashkent')::date BETWEEN $2::date AND $3::date
       ORDER BY d.paid_at`,[String(userId),from,to]);

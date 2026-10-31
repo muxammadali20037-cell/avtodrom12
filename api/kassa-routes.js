@@ -158,6 +158,9 @@ export function ensureKassaSchema() {
       note TEXT)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_debt_payments_user_paid ON debt_payments(user_id, paid_at)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_debt_payments_session ON debt_payments(session_id)`);
+  })).then(() => runOnce('kassa-schema-v5-debt-reversal', async () => {
+    /* o'tgan kundagi xato to'lov o'chirilmaydi — bugungi sana bilan teskari (manfiy) yozuv */
+    await ddl(`ALTER TABLE debt_payments ADD COLUMN IF NOT EXISTS reversal_of UUID`);
   })).catch(e => { schemaP = null; throw e; });
   return schemaP;
 }
@@ -369,20 +372,39 @@ async function debtUnpay(req, res, user) {
       WHERE s.id::text = $1 AND s.user_id = $2 FOR UPDATE OF s`, [id, user]);
     const s = r.rows[0];
     if (!s) { await c.query('ROLLBACK'); return json(res, 404, { error: 'Yozuv topilmadi' }); }
-    const pays = await c.query(`DELETE FROM debt_payments WHERE session_id = $1 AND user_id = $2
-      RETURNING amount::float8 AS amount, method, post, paid_at`, [s.id, user]);
-    const back = pays.rows.reduce((a, x) => a + Number(x.amount || 0), 0);
-    if (!pays.rows.length || back <= 0) { await c.query('ROLLBACK'); return json(res, 409, { error: 'Bu yozuvda to‘langan qarz yo‘q' }); }
-    await c.query(`UPDATE sessions SET debt_amount = COALESCE(debt_amount, 0) + $2,
+    /* Yopilgan kunlar o'zgarmasin: BUGUN qilingan to'lov — o'chiriladi;
+       o'tgan kundagi to'lov — o'sha kunning hisobotida qoladi, bugungi
+       sana bilan teskari (manfiy) yozuv qo'shiladi (o'sha post, o'sha usul). */
+    const pr = await c.query(`SELECT id, amount::float8 AS amount, method, post, session_day, paid_at, reversal_of,
+        (paid_at AT TIME ZONE 'Asia/Tashkent')::date = (now() AT TIME ZONE 'Asia/Tashkent')::date AS today
+      FROM debt_payments WHERE session_id = $1 AND user_id = $2 ORDER BY paid_at FOR UPDATE`, [s.id, user]);
+    const reversed = new Set(pr.rows.filter(x => x.reversal_of).map(x => String(x.reversal_of)));
+    const open = pr.rows.filter(x => Number(x.amount) > 0 && !x.reversal_of && !reversed.has(String(x.id)));
+    const back = open.reduce((a, x) => a + Number(x.amount || 0), 0);
+    if (!open.length || back <= 0) { await c.query('ROLLBACK'); return json(res, 409, { error: 'Bu yozuvda to‘langan qarz yo‘q' }); }
+    let deleted = 0, reversedN = 0;
+    for (const x of open) {
+      if (x.today) { await c.query(`DELETE FROM debt_payments WHERE id = $1`, [x.id]); deleted++; }
+      else {
+        await c.query(`INSERT INTO debt_payments(user_id, session_id, amount, method, post, session_day, paid_at, note, reversal_of)
+          VALUES($1, $2, $3, $4, $5, $6, now(), $7, $8)`,
+          [user, s.id, -Number(x.amount), x.method, x.post, x.session_day, 'Bekor qilindi: ' + reason, x.id]);
+        reversedN++;
+      }
+    }
+    /* qarz qaytadi (eski xato tufayli qarz ham yozilgan bo'lsa — ikki barobar bo'lmasin) */
+    await c.query(`UPDATE sessions SET debt_amount = GREATEST(COALESCE(debt_amount, 0), $2),
         debt_paid = GREATEST(COALESCE(debt_paid, 0) - $2, 0), settled_at = NULL,
         corrected_at = now(), correction_note = $3 WHERE id = $1`, [s.id, back, reason]);
     await c.query('COMMIT');
+    const pays = { rows: open };
     const tk = d => new Date(new Date(d).getTime() + 5 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
     await logChange(null, user, { entity: 'session', entityId: s.id, entityName: s.plate || null, action: 'debt_unpaid',
       field: pays.rows.map(x => x.method).join(','),
       oldValue: pays.rows.map(x => Number(x.amount) + ' so‘m ' + x.method + ' ' + tk(x.paid_at) + (x.post ? ' ' + x.post + '-POST' : '')).join('; '),
-      newValue: 'bekor qilindi — ' + back + ' so‘m yana «To‘lanmagan»da', reason });
-    json(res, 200, { ok: true, id: s.id, debt_amount: Number(s.debt_amount) + back, returned: back });
+      newValue: 'bekor qilindi — ' + back + ' so‘m yana «To‘lanmagan»da'
+        + (reversedN ? ' (o‘tgan kun to‘lovi o‘z kunida qoldi, bugun teskari yozuv)' : ''), reason });
+    json(res, 200, { ok: true, id: s.id, debt_amount: Math.max(Number(s.debt_amount), back), returned: back, deleted, reversed: reversedN });
   } catch (e) {
     try { await c.query('ROLLBACK'); } catch { /* noop */ }
     throw e;

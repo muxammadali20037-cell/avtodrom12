@@ -1218,6 +1218,8 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 .post-tbl tr.tot td, .post-tbl tr.tot th { background: #f0fdf4; }
 .post-tbl .red { color: var(--red); font-weight: 700; }
 .kech-list { margin-top: 12px; font-size: 13.5px; }
+.kech-row.rev b { color: #b91c1c; }
+.kech-note { display: block; width: 100%; color: #b91c1c; font-size: 12px; }
 .kech-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; padding: 7px 4px; border-top: 1px dashed var(--line); }
 .kech-row .kp { font-weight: 800; min-width: 90px; }
 .kech-row b { margin-left: auto; color: var(--g-dark); }
@@ -7183,6 +7185,8 @@ const DayExcel = {
       row.values = [i + 1, d.plate || '', d.session_day ? this.fullDate(d.session_day) : '',
         this.fullDate(d.paid_day) + ' ' + timeOnly(d.paid_at), num(d.amount), PAYQ(d.method), num(d.post) || 1, kech ? 'KECHAGI' : 'BUGUNGI'];
       row.getCell(5).numFmt = MONEY;
+      /* o'tgan kundagi xato to'lov bekor qilingan — teskari (manfiy) yozuv */
+      if (num(d.amount) < 0) { row.getCell(5).font = { color: { argb: 'FFB91C1C' }, bold: true }; row.getCell(2).note = d.note || 'Bekor qilingan to\'lov'; }
       [1, 3, 6, 7, 8].forEach(c => { row.getCell(c).alignment = { horizontal: 'center' }; });
       if (kech) row.getCell(8).font = { bold: true, color: { argb: 'FF1D4ED8' } };
     });
@@ -9429,7 +9433,7 @@ const Correct = {
     this.id = String(id);
     /* Qarzi keyin to'langan: pul to'langan kunning hisobotida. Bu yerda summani
        o'zgartirish pulni ikki marta sanardi — faqat to'lovni bekor qilish mumkin. */
-    if (num(r.debt_paid) > 0 && !num(r.debt_amount)) return this.openPaidDebt(r);
+    if (num(r.debt_paid) > 0) return this.openPaidDebt(r);
     const paid = num(r.cash_amount) + num(r.terminal_amount) + num(r.click_amount);
     const debt = num(r.debt_amount);
     /* «Hammasi» uchun asos: hozirgi jami (to'langan + to'lanmagan) yoki vaqtdan hisob */
@@ -9471,7 +9475,9 @@ const Correct = {
       + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
       + '<div class="price-hero paid"><div class="ph-sum">' + esc(money(r.debt_paid)) + '</div>'
       + '<div class="ph-sub">qarz <b>' + esc(paidDay) + '</b> da to\'langan — pul o\'sha kunning hisobotida (shu kuni bo\'lsa naqd/terminal/Klik ichida, keyingi kunlarda «Kechagi»)</div></div>'
-      + '<div class="field-help" style="margin:10px 0">To\'lov xato bosilgan bo\'lsa (boshqa mijoz, noto\'g\'ri usul) — bekor qiling: summa yana «To\'lanmagan»ga qaytadi, keyin kassada to\'g\'risi bilan «To\'lash» qilinadi.</div>'
+      + (num(r.debt_amount) > 0 ? '<div class="field-help" style="margin:10px 0;color:#b91c1c">Bu yozuvda yana ' + esc(money(r.debt_amount)) + ' to\'lanmagan turibdi (eski to\'g\'rilash). To\'lov bekor qilinsa — to\'lanmagan summa ' + esc(money(Math.max(num(r.debt_amount), num(r.debt_paid)))) + ' bo\'ladi, keyin odatdagidek to\'g\'rilash mumkin.</div>' : '')
+      + '<div class="field-help" style="margin:10px 0">To\'lov xato bosilgan bo\'lsa (boshqa mijoz, noto\'g\'ri usul) — bekor qiling: summa yana «To\'lanmagan»ga qaytadi, keyin kassada to\'g\'risi bilan «To\'lash» qilinadi. '
+      + 'Bugungi to\'lov o\'chiriladi; o\'tgan kundagi to\'lov o\'sha kunning hisobotida qoladi, bugun teskari (minus) yozuv tushadi — yopilgan kunlar o\'zgarmaydi.</div>'
       + '<label class="field-label" for="unpayReason">Sababi <span class="text-error">*</span></label>'
       + '<input id="unpayReason" maxlength="300" placeholder="Masalan: Klik emas, naqd to\'lagan edi">'
       + '<div id="unpayErr" class="text-error" role="alert"></div>'
@@ -9487,7 +9493,8 @@ const Correct = {
         const x = await api('/debts/unpay', { method: 'POST', body: jsonBody({ session_id: this.id, reason: reason }) });
         const r = ROW_CACHE[this.id];
         closeModal();
-        toast('Qarz to\'lovi bekor qilindi' + (r && r.plate ? ': ' + r.plate : '') + ' — ' + money(x && x.returned) + ' yana «To\'lanmagan»da.');
+        toast('Qarz to\'lovi bekor qilindi' + (r && r.plate ? ': ' + r.plate : '') + ' — ' + money(x && x.returned) + ' yana «To\'lanmagan»da.'
+          + (x && x.reversed ? ' O\'tgan kundagi to\'lov o\'z kunida qoldi, bugun minus yozuv tushdi.' : ''));
         Reports.loadDaily();
         Debts.load(true);
         Data.ensureToday(true).then(() => Active.renderKpi());
@@ -10353,8 +10360,9 @@ const Reports = {
       + line('Kassada naqd qoldi', x => '<b>' + m(x.cash + x.kechCash - x.expCash) + '</b>', 'tot')
       + '</tbody></table></div>'
       + (kechRows.length ? '<div class="kech-list"><b>Kechagi qarzlardan to\'langanlar (' + kechRows.length + ')</b>'
-        + kechRows.map(p => '<div class="kech-row"><span class="kp">' + esc(p.plate || '—') + '</span><span>' + esc(fmtDate(p.session_day)) + ' dagi qarz</span>'
-          + '<span>' + esc(timeOnly(p.paid_at)) + ' da to\'landi · ' + (num(p.post) || 1) + '-POST</span><b>' + m(num(p.amount)) + ' · ' + esc(PAY_NAMES[p.method] || p.method) + '</b></div>').join('') + '</div>' : '')
+        + kechRows.map(p => '<div class="kech-row' + (num(p.amount) < 0 ? ' rev' : '') + '"><span class="kp">' + esc(p.plate || '—') + '</span><span>' + esc(fmtDate(p.session_day)) + ' dagi qarz</span>'
+          + '<span>' + esc(timeOnly(p.paid_at)) + (num(p.amount) < 0 ? ' da bekor qilindi' : ' da to\'landi') + ' · ' + (num(p.post) || 1) + '-POST</span><b>' + m(num(p.amount)) + ' · ' + esc(PAY_NAMES[p.method] || p.method) + '</b>'
+          + (num(p.amount) < 0 && p.note ? '<small class="kech-note">' + esc(p.note) + '</small>' : '') + '</div>').join('') + '</div>' : '')
       + '</div>';
   },
 

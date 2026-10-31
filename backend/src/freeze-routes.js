@@ -147,7 +147,9 @@ export async function handleFreezeRequest(req,res){
       if(check.rows[0]){
         /* pul qaysi postda olinadi (javob yuborilishidan OLDIN yoziladi) */
         const post=postOf(req);
-        if(post){try{await pool.query(`UPDATE sessions SET pay_post=$1, post=COALESCE(post,$1) WHERE id=$2`,[post,id]);}catch(e){/* ustun yo'q */}}
+        /* pul postini faqat shu yerda YANGI pul olinsa o'zgartiramiz — oldindan to'lov o'z postida qoladi */
+        if(post){try{const b=bodyOf(req);const want=num(b.amount)||(num(b.cashAmount??b.cash_amount)+num(b.terminalAmount??b.terminal_amount)+num(b.clickAmount??b.click_amount));
+          await pool.query(`UPDATE sessions SET pay_post=CASE WHEN $3::numeric > COALESCE(cash_amount,0)+COALESCE(terminal_amount,0)+COALESCE((to_jsonb(sessions)->>'click_amount')::numeric,0) THEN $1 ELSE COALESCE(pay_post,post,$1) END, post=COALESCE(post,$1) WHERE id=$2`,[post,id,want]);}catch(e){/* ustun yo'q */}}
         return finishFrozen(req,res,id);
       }
     }catch(e){return res.status(500).json({error:e.message||'Server xatosi'});}

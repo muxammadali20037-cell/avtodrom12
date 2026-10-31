@@ -23,7 +23,8 @@ export const MONEY_EVENTS = `(
          COALESCE(s.amount, 0)::numeric AS total,
          COALESCE(${j('s', 'pay_post')}::int, ${j('s', 'post')}::int, 1) AS post,
          (s.school_id IS NOT NULL OR s.student_id IS NOT NULL OR COALESCE(s.customer_type, '') = 'school') AS is_school,
-         COALESCE(NULLIF(v.plate, ''), ${j('s', 'driver_name')}, '—') AS plate
+         COALESCE(NULLIF(v.plate, ''), ${j('s', 'driver_name')}, '—') AS plate,
+         s.started_at AS session_at
     FROM sessions s LEFT JOIN vehicles v ON v.id = s.vehicle_id
    WHERE s.status IN ('completed', 'active', 'frozen', 'paused')
   UNION ALL
@@ -34,11 +35,15 @@ export const MONEY_EVENTS = `(
          d.amount::numeric,
          COALESCE(d.post, 1)::int,
          FALSE,
-         COALESCE(NULLIF(v.plate, ''), ${j('s', 'driver_name')}, '—')
+         COALESCE(NULLIF(v.plate, ''), ${j('s', 'driver_name')}, '—'),
+         s.started_at
     FROM debt_payments d
     LEFT JOIN sessions s ON s.id = d.session_id
     LEFT JOIN vehicles v ON v.id = s.vehicle_id
 )`;
+
+/* Oldingi kunlardagi qarzdan shu davrda tushgan pul («KECHAGI») — Toshkent kuni */
+export const IS_KECHAGI = (m = 'm') => `(${m}.kind = 'debt' AND (${m}.session_at AT TIME ZONE 'Asia/Tashkent')::date < (${m}.at AT TIME ZONE 'Asia/Tashkent')::date)`;
 
 /* Seans bo'yicha (mashina, instruktor, operator reytinglari): o'sha seans
    olib kelgan JAMI pul = o'z to'lovi + keyin to'langan qarzi */

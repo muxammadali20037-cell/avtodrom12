@@ -151,7 +151,8 @@ export async function handleAuditRequest(req, res) {
     if (to < from) { const t = from; from = to; to = t; }
 
     const p = [String(owner), from, to];
-    let where = `owner_key=$1 AND created_at >= $2::date AND created_at < ($3::date + INTERVAL '1 day')`;
+    /* kun — Toshkent kuni (baza UTC bo'lsa ham) */
+    let where = `owner_key=$1 AND created_at >= ($2::date::timestamp AT TIME ZONE 'Asia/Tashkent') AND created_at < (($3::date + 1)::timestamp AT TIME ZONE 'Asia/Tashkent')`;
     if (entity) { p.push(entity); where += ` AND entity=$${p.length}`; }
 
     const r = await pool.query(

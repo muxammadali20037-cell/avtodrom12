@@ -22,7 +22,7 @@
  */
 import { pool } from '../backend/src/db.js';
 import { checkBridgeKey, bridgeRange } from './bridge-analytics.js';
-import { MONEY_EVENTS, SESSION_MONEY } from './money-sql.js';
+import { MONEY_EVENTS, SESSION_MONEY, IS_KECHAGI } from './money-sql.js';
 
 const TZ = 'Asia/Tashkent';
 const TZ_OFFSET_MS = 5 * 3600e3;
@@ -314,6 +314,7 @@ export async function buildOwnerBridge(range, db = pool, cut = null) {
     SELECT COALESCE(SUM(m.total), 0)::float8 AS total, COALESCE(SUM(m.cash), 0)::float8 AS cash,
            COALESCE(SUM(m.terminal), 0)::float8 AS terminal, COALESCE(SUM(m.click), 0)::float8 AS click,
            COALESCE(SUM(m.total) FILTER (WHERE m.kind = 'debt'), 0)::float8 AS debt_collected,
+           COALESCE(SUM(m.total) FILTER (WHERE ${IS_KECHAGI('m')}), 0)::float8 AS kechagi,
            COALESCE(SUM(m.total) FILTER (WHERE m.post = 1), 0)::float8 AS post1,
            COALESCE(SUM(m.total) FILTER (WHERE m.post = 2), 0)::float8 AS post2
       FROM ${MONEY_EVENTS} m WHERE ${mWhere}`;
@@ -328,7 +329,7 @@ export async function buildOwnerBridge(range, db = pool, cut = null) {
   const withMoney = (row, M) => {
     if (!M) return row || {};
     return Object.assign({}, row || {}, { p_revenue: M.total, p_cash: M.cash, p_terminal: M.terminal, p_click: M.click,
-      p_debt_collected: M.debt_collected, p_post1: M.post1, p_post2: M.post2 });
+      p_debt_collected: M.debt_collected, p_kechagi: M.kechagi, p_post1: M.post1, p_post2: M.post2 });
   };
   /* vaqt bo'yicha qatorlarga pul — yo'q kalit bo'lsa qo'shiladi */
   const mergeMoney = (rows, money, key, zero) => {
@@ -354,6 +355,9 @@ export async function buildOwnerBridge(range, db = pool, cut = null) {
       cash: n(x.p_cash), terminal: n(x.p_terminal), click: n(x.p_click),
       /* shu davrda undirilgan (oldingi kunlardagi ham) qarzlar — revenue ichida */
       debt_collected: n(x.p_debt_collected), by_post: { post1: n(x.p_post1), post2: n(x.p_post2) },
+      /* cash/terminal/click — davrda olingan HAMMA pul (oldingi kun qarzlari ham);
+         kassa hisobotidagi «Kechagi» shu ichida: */
+      kechagi: n(x.p_kechagi),
       debt: n(x.p_debt), debt_sessions: n(x.p_debt_n), auto_closed: n(x.p_auto_closed),
       vehicles: n(x.p_vehicles),
       avg_check: sessions ? Math.round(n(x.p_revenue) / sessions) : 0,

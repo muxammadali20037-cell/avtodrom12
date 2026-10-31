@@ -21,7 +21,7 @@
  * ma'lumoti. Berilmasa — butun avtodrom (hamma operatorlar) hisoblanadi.
  */
 import crypto from 'node:crypto';
-import { MONEY_EVENTS, SESSION_MONEY } from './money-sql.js';
+import { MONEY_EVENTS, SESSION_MONEY, IS_KECHAGI } from './money-sql.js';
 import { pool } from '../backend/src/db.js';
 
 const TZ = 'Asia/Tashkent';
@@ -251,7 +251,8 @@ export async function buildBridgeAnalytics(range) {
   const mWhere = `m.at >= $1 AND m.at < $2${own('m.user_id', 3)}`;
   const moneySql = `SELECT COALESCE(SUM(m.total), 0)::float8 AS total, COALESCE(SUM(m.cash), 0)::float8 AS cash,
       COALESCE(SUM(m.terminal), 0)::float8 AS terminal, COALESCE(SUM(m.click), 0)::float8 AS click,
-      COALESCE(SUM(m.total) FILTER (WHERE m.kind = 'debt'), 0)::float8 AS debt_collected
+      COALESCE(SUM(m.total) FILTER (WHERE m.kind = 'debt'), 0)::float8 AS debt_collected,
+      COALESCE(SUM(m.total) FILTER (WHERE ${IS_KECHAGI('m')}), 0)::float8 AS kechagi
     FROM ${MONEY_EVENTS} m WHERE ${mWhere}`;
   const [mCur, mPrev, mSeries] = await Promise.all([
     safe('money', moneySql, cur),
@@ -270,12 +271,12 @@ export async function buildBridgeAnalytics(range) {
 
   /* --- jami --- */
   const tot = (r, M) => {
-    const x = Object.assign({}, r[0] || {}, M && M[0] ? { revenue: M[0].total, cash: M[0].cash, terminal: M[0].terminal, click: M[0].click, debt_collected: M[0].debt_collected } : {});
+    const x = Object.assign({}, r[0] || {}, M && M[0] ? { revenue: M[0].total, cash: M[0].cash, terminal: M[0].terminal, click: M[0].click, debt_collected: M[0].debt_collected, kechagi: M[0].kechagi } : {});
     const sessions = n(x.sessions), school = n(x.school);
     return {
       sessions, school_sessions: school, paid_sessions: Math.max(0, sessions - school),
       minutes: mins(x.seconds), revenue: n(x.revenue), cash: n(x.cash), terminal: n(x.terminal),
-      click: n(x.click), debt_collected: n(x.debt_collected),
+      click: n(x.click), debt_collected: n(x.debt_collected), kechagi: n(x.kechagi),
       vehicles: n(x.vehicles), students: n(x.students), schools: n(x.schools),
       avg_minutes: sessions ? Math.round(mins(x.seconds) / sessions) : 0,
     };
