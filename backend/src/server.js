@@ -720,6 +720,11 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
         const done = await c.query(`SELECT s.*, v.plate FROM sessions s LEFT JOIN vehicles v ON v.id=s.vehicle_id
           WHERE s.id=$1 AND s.user_id=$2 AND s.status='completed' FOR UPDATE OF s`, [req.params.id, uid(req)]);
         const d0 = done.rows[0];
+        /* Orada qarzi to'lab qo'yilgan bo'lsa — ustidan yozilmaydi (pul ikki marta sanalardi) */
+        if (d0 && Number(d0.debt_paid || 0) > 0) {
+          await c.query('ROLLBACK');
+          return res.status(409).json({ error: 'Bu yozuvning qarzi allaqachon to‘langan — internetsiz «Chiqdi» yozilmadi', debtPaid: true });
+        }
         if (d0) {
           const oc = num(req.body.cash_amount), ot = num(req.body.terminal_amount), ok = num(req.body.click_amount);
           const od = Math.max(0, Math.round(num(req.body.debt_amount)));
@@ -831,6 +836,14 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
    vaqti hozirgacha hisoblanadi, oldindan olingan pul summaga qo'shiladi.
    Bekor qilinganlar ('cancelled') hech qachon chiqmaydi. */
 const REPORT_STATUSES = `('completed','active','frozen','paused')`;
+/* KUN = TOSHKENT KUNI. Baza vaqti UTC bo'lishi mumkin: `started_at::date`
+   00:00–05:00 dagi yozuvlarni oldingi kunga tushirib yuborardi (Excel va
+   boshliq ilovasi esa Toshkent kuni bilan hisoblaydi). Hamma hisobot bitta
+   qoida bilan: [kun 00:00, keyingi kun 00:00) Toshkent vaqti. Oraliq
+   ko'rinishida — indeks ishlaydi. */
+const TZ='Asia/Tashkent';
+const tkDayRange=(col,a,b)=>`${col} >= (${a}::date::timestamp AT TIME ZONE '${TZ}') AND ${col} < ((${b}::date + 1)::timestamp AT TIME ZONE '${TZ}')`;
+const tkToday=()=>new Date(Date.now()+5*3600e3).toISOString().slice(0,10);
 const REPORT_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,v.driver_name) driver_name,s.started_at,s.finished_at,CASE WHEN s.status='active' THEN COALESCE(s.duration_seconds,0)+GREATEST(EXTRACT(EPOCH FROM now()-COALESCE(s.resumed_at,s.started_at)),0)::bigint ELSE s.duration_seconds END duration_seconds,s.status,
     s.amount,s.cash_amount,s.terminal_amount,s.payment_method,s.lessons_counted,s.student_id,
     COALESCE((to_jsonb(s)->>'click_amount')::numeric,0) click_amount, s.target_duration,
@@ -869,7 +882,7 @@ const REPORT_RANGE_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,
   LEFT JOIN school_groups g ON g.id::text=s.group_id::text
   LEFT JOIN students st ON st.id::text=s.student_id::text
   LEFT JOIN instructors i ON i.id::text=s.instructor_id::text
-  WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND s.started_at::date BETWEEN $2::date AND $3::date
+  WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND ${tkDayRange('s.started_at','$2','$3')}
   ORDER BY s.started_at DESC`;
 /* Davrdagi o'quvchilarning jami darslari — BITTA guruhlangan so'rov
    (har qator uchun alohida hisoblansa 30 kunda soniyalab ketardi). */
@@ -927,14 +940,28 @@ app.get('/api/reports/daily',auth,async(req,res)=>{try{
     const days=Math.round((Date.parse(b)-Date.parse(a))/86400000)+1;
     if(days>REPORT_MAX_DAYS)return res.status(400).json({error:`Davr juda uzun — ko‘pi bilan ${REPORT_MAX_DAYS} kun tanlang`});
     const r=a===b
-      ? await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND s.started_at::date=$2 ORDER BY s.started_at DESC`,[uid(req),a])
+      ? await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND ${tkDayRange('s.started_at','$2','$2')} ORDER BY s.started_at DESC`,[uid(req),a])
       : {rows:await rangeReportRows(uid(req),a,b)};
     const dps=await debtPaymentsBetween(uid(req),a,b);
     return sendReport(req,res,{date:a,from:a,to:b,days,summary:Object.assign(reportSummary(r.rows),debtSummary(dps)),rows:r.rows,debtPayments:dps});
   }
-  const date=/^\d{4}-\d{2}-\d{2}$/.test(req.query.date||'')?req.query.date:new Date().toISOString().slice(0,10);const r=await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND s.started_at::date=$2 ORDER BY s.started_at DESC`,[uid(req),date]);const dps=await debtPaymentsBetween(uid(req),date,date);res.json({date,summary:Object.assign(reportSummary(r.rows),debtSummary(dps)),rows:r.rows,debtPayments:dps})}catch(e){console.error('DAILY:',e.message);res.status(500).json({error:'Hisobotni olishda xatolik'})}});
+  const date=/^\d{4}-\d{2}-\d{2}$/.test(req.query.date||'')?req.query.date:tkToday();const r=await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND ${tkDayRange('s.started_at','$2','$2')} ORDER BY s.started_at DESC`,[uid(req),date]);const dps=await debtPaymentsBetween(uid(req),date,date);res.json({date,summary:Object.assign(reportSummary(r.rows),debtSummary(dps)),rows:r.rows,debtPayments:dps})}catch(e){console.error('DAILY:',e.message);res.status(500).json({error:'Hisobotni olishda xatolik'})}});
 app.get('/api/history',auth,async(req,res)=>{const plate=String(req.query.plate||'').trim().toUpperCase();if(!plate)return res.status(400).json({error:'Avtomobil raqami kerak'});const like='%'+plate.replace(/\s+/g,'%')+'%';const r=await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND v.plate ILIKE $2 AND s.status IN ${REPORT_STATUSES} ORDER BY s.started_at DESC`,[uid(req),like]);res.json({plate,rows:r.rows})});
-app.get('/api/dashboard',auth,async(req,res)=>{const r=await pool.query(`SELECT COUNT(*) FILTER(WHERE status='active')::int active,COUNT(*) FILTER(WHERE status='frozen')::int frozen,COUNT(*) FILTER(WHERE status IN ('completed','active','frozen','paused') AND started_at::date=CURRENT_DATE)::int today_count,COALESCE(SUM(duration_seconds) FILTER(WHERE status='completed' AND started_at::date=CURRENT_DATE),0)::bigint today_seconds,COALESCE(SUM(amount) FILTER(WHERE status IN ('completed','active','frozen','paused') AND started_at::date=CURRENT_DATE),0)::numeric today_amount,COALESCE(SUM(cash_amount) FILTER(WHERE status IN ('completed','active','frozen','paused') AND started_at::date=CURRENT_DATE),0)::numeric today_cash,COALESCE(SUM(terminal_amount) FILTER(WHERE status IN ('completed','active','frozen','paused') AND started_at::date=CURRENT_DATE),0)::numeric today_terminal,COALESCE(SUM(lessons_counted) FILTER(WHERE status='completed' AND started_at::date=CURRENT_DATE),0)::int today_lessons FROM sessions WHERE user_id=$1`,[uid(req)]);const x=r.rows[0];res.json({active:Number(x.active),frozen:Number(x.frozen),todayCount:Number(x.today_count),todaySeconds:Number(x.today_seconds),todayAmount:Number(x.today_amount),todayCash:Number(x.today_cash),todayTerminal:Number(x.today_terminal),todayLessons:Number(x.today_lessons),cash:Number(x.today_cash),terminal:Number(x.today_terminal)})});
+app.get('/api/dashboard',auth,async(req,res)=>{
+  /* «Bugun» — Toshkent kuni; pul: kunlik hisobot bilan bir xil (seanslar + shu kuni to'langan qarzlar) */
+  const day=tkToday();
+  const r=await pool.query(`SELECT COUNT(*) FILTER(WHERE status='active')::int active,COUNT(*) FILTER(WHERE status='frozen')::int frozen,
+    COUNT(*) FILTER(WHERE status IN ${REPORT_STATUSES} AND ${tkDayRange('started_at','$2','$2')})::int today_count,
+    COALESCE(SUM(duration_seconds) FILTER(WHERE status='completed' AND ${tkDayRange('started_at','$2','$2')}),0)::bigint today_seconds,
+    COALESCE(SUM(amount) FILTER(WHERE status IN ${REPORT_STATUSES} AND ${tkDayRange('started_at','$2','$2')}),0)::numeric today_amount,
+    COALESCE(SUM(cash_amount) FILTER(WHERE status IN ${REPORT_STATUSES} AND ${tkDayRange('started_at','$2','$2')}),0)::numeric today_cash,
+    COALESCE(SUM(terminal_amount) FILTER(WHERE status IN ${REPORT_STATUSES} AND ${tkDayRange('started_at','$2','$2')}),0)::numeric today_terminal,
+    COALESCE(SUM(COALESCE((to_jsonb(sessions)->>'click_amount')::numeric,0)) FILTER(WHERE status IN ${REPORT_STATUSES} AND ${tkDayRange('started_at','$2','$2')}),0)::numeric today_click,
+    COALESCE(SUM(lessons_counted) FILTER(WHERE status='completed' AND ${tkDayRange('started_at','$2','$2')}),0)::int today_lessons FROM sessions WHERE user_id=$1`,[uid(req),day]);
+  const x=r.rows[0];const dp=debtSummary(await debtPaymentsBetween(uid(req),day,day));
+  const cash=Number(x.today_cash)+dp.debtPaid.cash+dp.kechagi.cash,terminal=Number(x.today_terminal)+dp.debtPaid.terminal+dp.kechagi.terminal,click=Number(x.today_click)+dp.debtPaid.click+dp.kechagi.click;
+  const amount=Number(x.today_amount)+dp.debtPaid.total+dp.kechagi.total;
+  res.json({date:day,active:Number(x.active),frozen:Number(x.frozen),todayCount:Number(x.today_count),todaySeconds:Number(x.today_seconds),todayAmount:amount,todayCash:cash,todayTerminal:terminal,todayClick:click,todayLessons:Number(x.today_lessons),cash,terminal,click,kechagi:dp.kechagi,debtPaid:dp.debtPaid})});
 
 /* ==========================================================================
    YANGI: ADMIN CRUD (avtoshkola / guruh / o'quvchi)

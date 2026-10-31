@@ -250,6 +250,8 @@ async function save(req, res, user) {
       const row = cur.get(id);
       try {
         if (!row || row.status === 'cancelled') throw new RowError('s', id, null, 'Yozuv topilmadi (o‘chirilgan bo‘lishi mumkin)');
+        /* qarzi keyin to'langan yozuv o'chirilsa — to'lov hisobotda «egasiz» qolardi */
+        if (Number(row.debt_paid || 0) > 0) throw new RowError('s', id, null, 'Bu yozuvning qarzi keyin to‘langan (' + Math.round(Number(row.debt_paid)) + ' so‘m) — o‘chirishdan oldin Kunlik hisobotda «To‘g‘rilash» → «Qarz to‘lovini bekor qilish»');
         await c.query(`UPDATE sessions SET status = 'cancelled', finished_at = COALESCE(finished_at, now()),
             auto_close = FALSE, corrected_at = now(), correction_note = $2 WHERE id = $1`,
           [row.id, text(it.reason) || 'Excel jadvalida o‘chirildi']);
@@ -324,6 +326,11 @@ async function save(req, res, user) {
         }
         const paid = m.cash + m.terminal + m.click;
         const moneyChanged = changed.some(k => ['cash', 'terminal', 'click', 'debt'].includes(k));
+        /* qarzi keyin to'langan — pul katagini o'zgartirish pulni ikki marta sanardi */
+        if (moneyChanged && Number(row.debt_paid || 0) > 0) {
+          throw new RowError('s', id, changed.find(k => ['cash', 'terminal', 'click', 'debt'].includes(k)),
+            'Qarzi keyin to‘langan (' + Math.round(Number(row.debt_paid)) + ' so‘m) — pulni o‘zgartirish uchun avval Kunlik hisobotda «Qarz to‘lovini bekor qilish»');
+        }
         const params = [row.id];
         const sets = [];
         const add = (sql, v) => { params.push(v); sets.push(sql.replace('?', '$' + params.length)); };
@@ -547,7 +554,7 @@ async function timeline(res, user, id) {
     const l = await pool.query(`SELECT action, field, old_value, new_value, reason, created_at FROM change_log
        WHERE owner_key = $1 AND entity = 'session' AND entity_id = $2 ORDER BY created_at LIMIT 300`, [user, String(s.id)]);
     const NAMES = { ticket_print: 'Kirish taloni chop etildi', correct: 'To\u2018lov to\u2018g\u2018rilandi', split: 'Bir qismi yopildi',
-      sheet_edit: 'Excel\u2019da o\u2018zgartirildi', sheet_create: 'Excel\u2019da qo\u2018shildi', sheet_delete: 'Excel\u2019da o\u2018chirildi', debt_paid: 'Qarz to\u2018landi' };
+      sheet_edit: 'Excel\u2019da o\u2018zgartirildi', sheet_create: 'Excel\u2019da qo\u2018shildi', sheet_delete: 'Excel\u2019da o\u2018chirildi', debt_paid: 'Qarz to\u2018landi', debt_unpaid: 'Qarz to\u2018lovi bekor qilindi' };
     l.rows.forEach(x => add(x.created_at, NAMES[x.action] || x.action,
       [x.field, x.old_value !== null && x.old_value !== undefined ? x.old_value + ' \u2192 ' + (x.new_value === null ? '' : x.new_value) : x.new_value, x.reason].filter(Boolean).join(' · '),
       x.action === 'ticket_print' ? 'ticket' : 'log'));

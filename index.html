@@ -2561,6 +2561,16 @@ const dateInput = v => {
 /* --- Yagona kanonik plate normalizatsiyasi (butun loyihada shu ishlatiladi) --- */
 const normalizePlate = p => String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
 const PAY_NAMES = { cash: 'naqd', terminal: 'terminal', click: 'Klik' };
+/* KUNNING PULI — hamma joyda bitta qoida (Kunlik hisobot, «Bugungi tushum»,
+   Admin paneli, Excel HISOBOT): seanslarning o'z to'lovi + shu kuni to'langan
+   qarzlar (bugungi qarz — naqd/terminal/Klik ichida, oldingi kunlarniki —
+   «Kechagi»). Bitta pul ikki marta sanalmaydi. */
+function moneyOf(summary) {
+  const s = summary || {}, dp = s.debtPaid || {}, kc = s.kechagi || {};
+  const cash = num(s.cash) + num(dp.cash), terminal = num(s.terminal) + num(dp.terminal), click = num(s.click) + num(dp.click);
+  return { cash: cash, terminal: terminal, click: click, kechagi: num(kc.total), kechagiCash: num(kc.cash),
+    total: num(s.amount) + num(dp.total) + num(kc.total), debt: num(s.debt) };
+}
 /* Erkin yozuv (oddiy mijoz) kaliti: harf va raqamlar, istalgan alifboda */
 const labelKey = s => String(s || '').toUpperCase().replace(/[^\p{L}\p{N}]/gu, '');
 const carKey = (r, b) => { const rv = normalizePlate(r), bv = normalizePlate(b); return !bv ? rv : (rv && !bv.startsWith(rv) ? rv + bv : bv); };
@@ -5725,6 +5735,9 @@ const Queue = {
         openEnded: !!(w && w.open),
         planned: planned,
         prepay: prepay,
+        /* oldindan pul qaysi kassada olingan — vaqt boshqa kompyuterda
+           o'zi ochilsa ham pul SHU postga yoziladi */
+        post: Post.get(),
         startAt: w && w.future ? w.start.toISOString() : null
     };
   },
@@ -5950,7 +5963,9 @@ const Queue = {
         const pf = q.prepay && { cash: 'cash_amount', terminal: 'terminal_amount', click: 'click_amount' }[q.prepay.method];
         if (pf && num(q.prepay.amount) > 0) payload[pf] = num(q.prepay.amount);
         let res;
-        try { res = await api('/sessions/start', { method: 'POST', body: jsonBody(payload) }); }
+        /* Oldindan to'langan bron/navbat — pul olingan post nomidan ochiladi */
+        const qHeaders = pf && num(q.prepay && q.prepay.amount) > 0 && (q.post === 1 || q.post === 2) ? { 'X-Post': String(q.post) } : {};
+        try { res = await api('/sessions/start', { method: 'POST', body: jsonBody(payload), headers: qHeaders }); }
         catch (e) {
           api('/queue/' + encodeURIComponent(id) + '/release', { method: 'POST', body: '{}' }).catch(() => {});
           throw e;
@@ -7895,7 +7910,7 @@ const Active = {
     return {
       total: STATE.active.length, w10: w10, w20: w20, school: school, ordinary: ordinary,
       queue: STATE.queue.length, frozen: STATE.frozen.length,
-      amount: num(daily.amount), lessons: lessons
+      amount: moneyOf(daily).total, lessons: lessons
     };
   },
   renderKpi() {
@@ -9412,6 +9427,9 @@ const Correct = {
     const r = ROW_CACHE[String(id)];
     if (!r) { toast('Yozuv topilmadi — hisobotni yangilang.', 'warn'); return; }
     this.id = String(id);
+    /* Qarzi keyin to'langan: pul to'langan kunning hisobotida. Bu yerda summani
+       o'zgartirish pulni ikki marta sanardi — faqat to'lovni bekor qilish mumkin. */
+    if (num(r.debt_paid) > 0 && !num(r.debt_amount)) return this.openPaidDebt(r);
     const paid = num(r.cash_amount) + num(r.terminal_amount) + num(r.click_amount);
     const debt = num(r.debt_amount);
     /* «Hammasi» uchun asos: hozirgi jami (to'langan + to'lanmagan) yoki vaqtdan hisob */
@@ -9425,6 +9443,10 @@ const Correct = {
       + '<p class="ex-time">' + esc(when) + ' · <b>' + esc(ranText(num(r.duration_seconds))) + '</b> · hisob bo\'yicha ' + esc(money(calc)) + '</p></div>'
       + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
       + '<div class="field-help" style="margin-bottom:8px">Hozir: ' + esc(this.fmt(r)) + '</div>'
+      /* Qarzni KEYINROQ to'lash — bu oyna emas: pul to'langan kunga tushishi kerak */
+      + (debt > 0 ? '<div class="field-help" style="margin-bottom:10px;padding:8px 10px;border-radius:10px;background:#fffbeb;color:#92400e">'
+        + '<b>Qarzni hozir to\'layaptimi?</b> Unda bu yerda emas — kassadagi <b>«To\'lanmagan» → «To\'lash»</b> orqali: pul bugungi hisobotga'
+        + (dayOf(r.started_at) !== localDateISO(0) ? ' («Kechagi»)' : '') + ' va shu postga yoziladi. Bu oyna — xato yozilganini tuzatish uchun.</div>' : '')
       + '<div class="field-label">Tez to\'g\'rilash (' + esc(money(this.base)) + ')</div>'
       + '<div class="fix-quick">'
       + (this.inside ? '' : q('debt', 'fa-hourglass-half', 'To\'lanmagan'))
@@ -9440,6 +9462,37 @@ const Correct = {
     ['fixCash', 'fixTerm', 'fixClick', 'fixDebt'].forEach(k => { const el = $(k); if (el) el.addEventListener('input', () => this.total()); });
     const rs = $('fixReason'); if (rs) rs.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); this.save(); } });
     this.total();
+  },
+  openPaidDebt(r) {
+    const when = (r.started_at ? dt(r.started_at) : '') + (r.finished_at ? ' – ' + timeOnly(r.finished_at) : '');
+    const paidDay = r.settled_at ? fmtDate(dayOf(r.settled_at)) + ' ' + timeOnly(r.settled_at) : 'keyin';
+    openModal('<div class="modal-head"><div><h2 style="letter-spacing:.02em">' + esc(r.plate || '—') + ' — qarzi to\'langan</h2>'
+      + '<p class="ex-time">' + esc(when) + ' · <b>' + esc(ranText(num(r.duration_seconds))) + '</b></p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div class="price-hero paid"><div class="ph-sum">' + esc(money(r.debt_paid)) + '</div>'
+      + '<div class="ph-sub">qarz <b>' + esc(paidDay) + '</b> da to\'langan — pul o\'sha kunning hisobotida (shu kuni bo\'lsa naqd/terminal/Klik ichida, keyingi kunlarda «Kechagi»)</div></div>'
+      + '<div class="field-help" style="margin:10px 0">To\'lov xato bosilgan bo\'lsa (boshqa mijoz, noto\'g\'ri usul) — bekor qiling: summa yana «To\'lanmagan»ga qaytadi, keyin kassada to\'g\'risi bilan «To\'lash» qilinadi.</div>'
+      + '<label class="field-label" for="unpayReason">Sababi <span class="text-error">*</span></label>'
+      + '<input id="unpayReason" maxlength="300" placeholder="Masalan: Klik emas, naqd to\'lagan edi">'
+      + '<div id="unpayErr" class="text-error" role="alert"></div>'
+      + '<div class="actions-row"><button class="btn btn-danger" type="button" id="unpayBtn" data-act="debtUnpay"><span class="spinner"></span><i class="fa-solid fa-rotate-left btn-icon" aria-hidden="true"></i><span class="btn-text">Qarz to\'lovini bekor qilish</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Yopish</button></div>');
+    const rs = $('unpayReason'); if (rs) { rs.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); this.unpay(); } }); setTimeout(() => rs.focus(), 40); }
+  },
+  async unpay() {
+    const reason = ($('unpayReason') && $('unpayReason').value.trim()) || '';
+    if (reason.length < 5) { setError('unpayErr', 'Sababini yozing (kamida 5 ta harf).'); if ($('unpayReason')) $('unpayReason').focus(); return; }
+    await withBusy('unpay:' + this.id, $('unpayBtn'), async () => {
+      try {
+        const x = await api('/debts/unpay', { method: 'POST', body: jsonBody({ session_id: this.id, reason: reason }) });
+        const r = ROW_CACHE[this.id];
+        closeModal();
+        toast('Qarz to\'lovi bekor qilindi' + (r && r.plate ? ': ' + r.plate : '') + ' — ' + money(x && x.returned) + ' yana «To\'lanmagan»da.');
+        Reports.loadDaily();
+        Debts.load(true);
+        Data.ensureToday(true).then(() => Active.renderKpi());
+      } catch (e) { setError('unpayErr', e.message); }
+    });
   },
   fmt(r) {
     const parts = [];
@@ -10336,12 +10389,13 @@ const Reports = {
       /* Pul TO'LANGAN KUNI bo'yicha: seanslarning o'z to'lovlari + shu kuni
          to'langan qarzlar (bugungi qarz — naqd/terminal/Klik ichida,
          oldingi kunlarniki — «Kechagi» alohida) */
-      const dp = s.debtPaid || {}, kc = s.kechagi || {};
+      const kc = s.kechagi || {};
+      const mo = moneyOf(s);
       $('rdc').textContent = s.count !== undefined && s.count !== null ? s.count : rows.length;
-      $('rdm').textContent = money(num(s.amount) + num(dp.total) + num(kc.total));
-      $('rdcash').textContent = money(num(s.cash) + num(dp.cash));
-      $('rdterm').textContent = money(num(s.terminal) + num(dp.terminal));
-      if ($('rdclick')) $('rdclick').textContent = money(num(s.click) + num(dp.click));
+      $('rdm').textContent = money(mo.total);
+      $('rdcash').textContent = money(mo.cash);
+      $('rdterm').textContent = money(mo.terminal);
+      if ($('rdclick')) $('rdclick').textContent = money(mo.click);
       if ($('rdkech')) { $('rdkech').textContent = money(num(kc.total)); $('rdkech').title = 'naqd ' + money(num(kc.cash)) + ' · terminal ' + money(num(kc.terminal)) + ' · Klik ' + money(num(kc.click)); }
       if ($('rddebt')) { $('rddebt').textContent = money(s.debt || 0); $('rddebt').classList.toggle('red', num(s.debt) > 0); }
       this.exp = null;
@@ -10352,7 +10406,7 @@ const Reports = {
         const es = (x && x.summary) || {};
         this.exp = (x && x.rows) || [];
         if ($('rdexp')) $('rdexp').textContent = money(es.total || 0);
-        if ($('rdleft')) $('rdleft').textContent = money(num(s.cash) + num(dp.cash) + num(kc.cash) - num(es.cash));
+        if ($('rdleft')) $('rdleft').textContent = money(mo.cash + mo.kechagiCash - num(es.cash));
         this.renderPosts();
       }).catch(() => { if ($('rdexp')) $('rdexp').textContent = '—'; if ($('rdleft')) $('rdleft').textContent = '—'; });
       $('rdtime').textContent = dur(rows.reduce((a, x) => a + num(x.duration_seconds), 0));
@@ -12309,7 +12363,7 @@ const Admin = {
     try {
       const [d, r, a, f] = await Promise.all([
         api('/dashboard').catch(() => ({})),
-        api('/reports/daily').catch(() => ({})),
+        api('/reports/daily?date=' + encodeURIComponent(localDateISO(0))).catch(() => ({})),
         api('/sessions/active').catch(() => []),
         api('/sessions/frozen').catch(() => [])
       ]);
@@ -12321,15 +12375,16 @@ const Admin = {
       const today = (d && (d.todayCount !== undefined ? d.todayCount : d.today_count)) !== undefined
         ? (d.todayCount !== undefined ? d.todayCount : d.today_count)
         : (rs.count !== undefined ? rs.count : ((r && r.rows) || []).length);
-      const amount = (d && (d.todayAmount !== undefined ? d.todayAmount : d.amount)) !== undefined
-        ? (d.todayAmount !== undefined ? d.todayAmount : d.amount) : num(rs.amount);
+      /* Pul — Kunlik hisobot bilan bir xil (qarz to'lovlari bilan) */
+      const mo = moneyOf(rs);
+      const amount = r && r.summary ? mo.total : num(d && d.todayAmount);
       const setTxt = (id, val) => { const el = $(id); if (el) el.textContent = val; };
       setTxt('arToday', today);
       setTxt('arActive', act.length);
       setTxt('arFrozen', frz.length);
       setTxt('arAmount', money(amount));
-      setTxt('arCash', money(rs.cash !== undefined ? rs.cash : (d && d.cash)));
-      setTxt('arTerminal', money(rs.terminal !== undefined ? rs.terminal : (d && d.terminal)));
+      setTxt('arCash', money(r && r.summary ? mo.cash : num(d && d.cash)));
+      setTxt('arTerminal', money(r && r.summary ? mo.terminal : num(d && d.terminal)));
       setTxt('adToday', today);
       setTxt('adActive', act.length);
       this.refreshCounters();
@@ -13985,6 +14040,7 @@ const ACTIONS = {
   maxsusToggle: () => Maxsus.toggle(),
   postPick: () => Post.ask(false),
   netOpen: () => Outbox.open(),
+  debtUnpay: () => Correct.unpay(),
   obSync: () => { Outbox.kick(0); closeModal(); toast('Yuborilmoqda…'); },
   obRetry: d => Outbox.retry(d.op),
   obDrop: d => Outbox.remove(d.op),

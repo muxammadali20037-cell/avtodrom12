@@ -301,7 +301,7 @@ async function deleteInstructor(req, res, user, id) {
 }
 
 async function instructorDaily(req, res, user, id, search) {
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(search.get('date') || '') ? search.get('date') : new Date().toISOString().slice(0, 10);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(search.get('date') || '') ? search.get('date') : new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);
   const ir = await pool.query(`SELECT id, full_name, phone, vehicle_plate, active FROM instructors WHERE id=$1 AND owner_key=$2`, [id, user]);
   if (!ir.rows[0]) return send(res, 404, { error: 'Instruktor topilmadi' });
   const inst = ir.rows[0];
@@ -320,7 +320,7 @@ async function instructorDaily(req, res, user, id, search) {
     LEFT JOIN school_groups g ON g.id = s.group_id
     LEFT JOIN students st ON st.id = s.student_id
     WHERE s.user_id = $1
-      AND s.started_at::date = $2
+      AND (s.started_at AT TIME ZONE 'Asia/Tashkent')::date = $2::date
       AND (
         s.instructor_id = $3
         OR ($4 <> '' AND REGEXP_REPLACE(UPPER(v.plate), '[^A-Z0-9]', '', 'g') = $4)

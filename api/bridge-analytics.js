@@ -21,6 +21,7 @@
  * ma'lumoti. Berilmasa — butun avtodrom (hamma operatorlar) hisoblanadi.
  */
 import crypto from 'node:crypto';
+import { MONEY_EVENTS, SESSION_MONEY } from './money-sql.js';
 import { pool } from '../backend/src/db.js';
 
 const TZ = 'Asia/Tashkent';
@@ -165,13 +166,13 @@ export async function buildBridgeAnalytics(range) {
              COUNT(*)::int AS sessions,
              COUNT(*) FILTER (WHERE ${isSchool})::int AS school,
              COALESCE(SUM(s.duration_seconds), 0)::bigint AS seconds,
-             COALESCE(SUM(s.amount), 0)::float8 AS revenue
+             COALESCE(SUM(${SESSION_MONEY('s')}), 0)::float8 AS revenue
         FROM sessions s LEFT JOIN instructors i ON i.id::text = s.instructor_id::text
        WHERE ${done} GROUP BY 1 ORDER BY sessions DESC LIMIT 15`, cur),
     safe('operators', `
       SELECT COALESCE(NULLIF(u.full_name, ''), u.username, 'Operator') AS name,
              COUNT(*)::int AS sessions,
-             COALESCE(SUM(s.amount), 0)::float8 AS revenue
+             COALESCE(SUM(${SESSION_MONEY('s')}), 0)::float8 AS revenue
         FROM sessions s LEFT JOIN users u ON u.id::text = s.user_id::text
        WHERE ${done} GROUP BY 1 ORDER BY sessions DESC LIMIT 10`, cur),
     safe('live', `
@@ -244,19 +245,43 @@ export async function buildBridgeAnalytics(range) {
        ORDER BY e.at DESC LIMIT 20`, withKeys([])),
   ]);
 
+  /* --- PUL: kassa hisoboti bilan bir xil qoida (api/money-sql.js) ---
+     seanslarning o'z to'lovi (ichkaridagi oldindan to'laganlar ham) +
+     shu davrda to'langan qarzlar (to'langan paytiga) */
+  const mWhere = `m.at >= $1 AND m.at < $2${own('m.user_id', 3)}`;
+  const moneySql = `SELECT COALESCE(SUM(m.total), 0)::float8 AS total, COALESCE(SUM(m.cash), 0)::float8 AS cash,
+      COALESCE(SUM(m.terminal), 0)::float8 AS terminal, COALESCE(SUM(m.click), 0)::float8 AS click,
+      COALESCE(SUM(m.total) FILTER (WHERE m.kind = 'debt'), 0)::float8 AS debt_collected
+    FROM ${MONEY_EVENTS} m WHERE ${mWhere}`;
+  const [mCur, mPrev, mSeries] = await Promise.all([
+    safe('money', moneySql, cur),
+    safe('money_previous', moneySql, prev),
+    safe('money_series', `SELECT to_char((m.at AT TIME ZONE '${TZ}'), '${fmt}') AS k, COALESCE(SUM(m.total), 0)::float8 AS total
+      FROM ${MONEY_EVENTS} m WHERE ${mWhere} GROUP BY 1`, cur),
+  ]);
+  {
+    const by = new Map(seriesRows.map((r) => [String(r.k), Object.assign(r, { revenue: 0 })]));
+    for (const m of mSeries) {
+      if (!by.has(String(m.k))) { const z = { k: m.k, sessions: 0, school: 0, revenue: 0, seconds: 0 }; by.set(String(m.k), z); seriesRows.push(z); }
+      by.get(String(m.k)).revenue = n(m.total);
+    }
+    seriesRows.sort((a, b) => (String(a.k) < String(b.k) ? -1 : String(a.k) > String(b.k) ? 1 : 0));
+  }
+
   /* --- jami --- */
-  const tot = (r) => {
-    const x = r[0] || {};
+  const tot = (r, M) => {
+    const x = Object.assign({}, r[0] || {}, M && M[0] ? { revenue: M[0].total, cash: M[0].cash, terminal: M[0].terminal, click: M[0].click, debt_collected: M[0].debt_collected } : {});
     const sessions = n(x.sessions), school = n(x.school);
     return {
       sessions, school_sessions: school, paid_sessions: Math.max(0, sessions - school),
       minutes: mins(x.seconds), revenue: n(x.revenue), cash: n(x.cash), terminal: n(x.terminal),
+      click: n(x.click), debt_collected: n(x.debt_collected),
       vehicles: n(x.vehicles), students: n(x.students), schools: n(x.schools),
       avg_minutes: sessions ? Math.round(mins(x.seconds) / sessions) : 0,
     };
   };
-  const totals = tot(totalsRows);
-  const previous = tot(prevRows);
+  const totals = tot(totalsRows, mCur);
+  const previous = tot(prevRows, mPrev);
 
   /* --- cheklar --- */
   const rs = Object.fromEntries(receiptRows.map((r) => [String(r.status || 'unknown'), n(r.n)]));

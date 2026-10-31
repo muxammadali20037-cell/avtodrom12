@@ -71,9 +71,12 @@ async function sessionCols() {
 }
 const col = (cols, name, fallback) => (cols.has(name) ? `s.${name}` : fallback);
 
+/* Bugun — Toshkent kuni (O'zbekistonda yozgi vaqt yo'q: UTC+5) */
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);
 }
+/* Kun chegarasi — Toshkent vaqti bilan (kunlik hisobot va Excel bilan bir xil) */
+const TK_DAY = (c, p) => `${c} >= (${p}::date::timestamp AT TIME ZONE 'Asia/Tashkent') AND ${c} < ((${p}::date + 1)::timestamp AT TIME ZONE 'Asia/Tashkent')`;
 
 async function discrepancies(req, res, userId, search) {
   const date = /^\d{4}-\d{2}-\d{2}$/.test(search.get('date') || '')
@@ -106,7 +109,8 @@ async function discrepancies(req, res, userId, search) {
         COALESCE(${cTarget}, 0)::int                            AS target_duration,
         COALESCE(${cLessons}, 0)::int                           AS lessons_counted,
         NULLIF(${cStudent}::text, '')                           AS student_id,
-        COALESCE(${cAmount}, 0)::numeric                        AS amount,
+        /* keyin to'langan qarz ham shu seansning puli (debt_payments) */
+        (COALESCE(${cAmount}, 0) + COALESCE(NULLIF(to_jsonb(s)->>'debt_paid','')::numeric, 0))::numeric AS amount,
         COALESCE(${cCash}, 0)::numeric                          AS cash_amount,
         COALESCE(${cTerm}, 0)::numeric                          AS terminal_amount,
         COALESCE(
@@ -126,7 +130,7 @@ async function discrepancies(req, res, userId, search) {
         ) AS ins_id
       FROM sessions s
       WHERE s.user_id = $1
-        AND s.started_at::date = $2::date
+        AND ${TK_DAY('s.started_at', '$2')}
         AND COALESCE(s.status, 'completed') <> 'cancelled'
     ),
     keyed AS (
@@ -333,7 +337,9 @@ async function details(req, res, userId, search) {
              COALESCE(${cTarget},0)::int  AS target_duration,
              COALESCE(${cLessons},0)::int AS lessons_counted,
              COALESCE(${cCustomer},'regular') AS customer_type,
-             COALESCE(s.amount,0)::numeric AS amount,
+             (COALESCE(s.amount,0) + COALESCE(NULLIF(to_jsonb(s)->>'debt_paid','')::numeric, 0))::numeric AS amount,
+             COALESCE(NULLIF(to_jsonb(s)->>'debt_amount','')::numeric, 0) AS debt_amount,
+             COALESCE(NULLIF(to_jsonb(s)->>'debt_paid','')::numeric, 0) AS debt_paid,
              COALESCE(s.cash_amount,0)::numeric AS cash_amount,
              COALESCE(s.terminal_amount,0)::numeric AS terminal_amount,
              NULLIF(TRIM(COALESCE(${cInsName},'')),'') AS ins_name_raw,
@@ -356,7 +362,7 @@ async function details(req, res, userId, search) {
              ) AS ins_id
         FROM sessions s
         LEFT JOIN vehicles v ON v.id = s.vehicle_id
-       WHERE s.user_id=$1 AND s.started_at::date=$2::date
+       WHERE s.user_id=$1 AND ${TK_DAY('s.started_at', '$2')}
          AND COALESCE(s.status,'completed') <> 'cancelled'
     )
     SELECT n.*, st.full_name AS student_name

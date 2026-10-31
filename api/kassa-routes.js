@@ -350,6 +350,45 @@ async function debtPay(req, res, user) {
   } finally { c.release(); }
 }
 
+/* QARZ TO'LOVINI BEKOR QILISH — xato to'lov (boshqa mijozniki bosilgan,
+   noto'g'ri usul): to'lov yozuvlari o'chiriladi, qarz yana «To'lanmagan»ga
+   qaytadi, keyin to'g'risi bilan to'lanadi. Sabab majburiy, jurnalga
+   (qachon, qancha, qaysi usul, qaysi post) yoziladi. */
+async function debtUnpay(req, res, user) {
+  const b = await readBody(req);
+  const id = text(b.session_id || b.id);
+  const reason = text(b.reason).replace(/\s+/g, ' ').slice(0, 300);
+  if (!id) return json(res, 400, { error: 'Yozuv tanlanmagan' });
+  if (reason.length < 5) return json(res, 400, { error: 'Sababini yozing (kamida 5 ta harf)' });
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    const r = await c.query(`SELECT s.id, s.status, COALESCE(s.debt_amount, 0)::numeric AS debt_amount,
+        COALESCE(s.debt_paid, 0)::numeric AS debt_paid, COALESCE(v.plate, s.driver_name, '') AS plate
+      FROM sessions s LEFT JOIN vehicles v ON v.id = s.vehicle_id
+      WHERE s.id::text = $1 AND s.user_id = $2 FOR UPDATE OF s`, [id, user]);
+    const s = r.rows[0];
+    if (!s) { await c.query('ROLLBACK'); return json(res, 404, { error: 'Yozuv topilmadi' }); }
+    const pays = await c.query(`DELETE FROM debt_payments WHERE session_id = $1 AND user_id = $2
+      RETURNING amount::float8 AS amount, method, post, paid_at`, [s.id, user]);
+    const back = pays.rows.reduce((a, x) => a + Number(x.amount || 0), 0);
+    if (!pays.rows.length || back <= 0) { await c.query('ROLLBACK'); return json(res, 409, { error: 'Bu yozuvda to‘langan qarz yo‘q' }); }
+    await c.query(`UPDATE sessions SET debt_amount = COALESCE(debt_amount, 0) + $2,
+        debt_paid = GREATEST(COALESCE(debt_paid, 0) - $2, 0), settled_at = NULL,
+        corrected_at = now(), correction_note = $3 WHERE id = $1`, [s.id, back, reason]);
+    await c.query('COMMIT');
+    const tk = d => new Date(new Date(d).getTime() + 5 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
+    await logChange(null, user, { entity: 'session', entityId: s.id, entityName: s.plate || null, action: 'debt_unpaid',
+      field: pays.rows.map(x => x.method).join(','),
+      oldValue: pays.rows.map(x => Number(x.amount) + ' so‘m ' + x.method + ' ' + tk(x.paid_at) + (x.post ? ' ' + x.post + '-POST' : '')).join('; '),
+      newValue: 'bekor qilindi — ' + back + ' so‘m yana «To‘lanmagan»da', reason });
+    json(res, 200, { ok: true, id: s.id, debt_amount: Number(s.debt_amount) + back, returned: back });
+  } catch (e) {
+    try { await c.query('ROLLBACK'); } catch { /* noop */ }
+    throw e;
+  } finally { c.release(); }
+}
+
 /* ---------- BIR QISMINI YOPISH ---------- */
 const money0 = v => Math.max(0, Math.round(Number(v) || 0));
 async function sessionSplit(req, res, user, id) {
@@ -423,6 +462,12 @@ async function sessionCorrect(req, res, user, id) {
     if (!s) { await c.query('ROLLBACK'); return json(res, 404, { error: 'Yozuv topilmadi' }); }
     if (s.student_id || String(s.customer_type || '') === 'school') { await c.query('ROLLBACK'); return json(res, 400, { error: 'Avtoshkola darsi tekin — to‘lovi yo‘q' }); }
     if (s.status === 'cancelled') { await c.query('ROLLBACK'); return json(res, 400, { error: 'Bekor qilingan yozuv' }); }
+    /* Qarzi keyin to'langan (pul to'langan kunning hisobotida) — bu yerda
+       o'zgartirilsa pul ikki marta sanalardi. Avval to'lov bekor qilinadi. */
+    if (Number(s.debt_paid || 0) > 0) {
+      await c.query('ROLLBACK');
+      return json(res, 409, { error: 'Bu yozuvning qarzi keyin to‘langan (' + Math.round(Number(s.debt_paid)) + ' so‘m). To‘lov xato bo‘lsa — «Qarz to‘lovini bekor qilish» tugmasini bosing.', debtPaid: true });
+    }
     /* Ichkaridagi yozuvda qarz bo'lmaydi — u yopilganda hisoblanadi */
     if (s.status !== 'completed' && vals.debt_amount > 0) { await c.query('ROLLBACK'); return json(res, 400, { error: 'Ichkaridagi mashinaga «to‘lanmagan» yozib bo‘lmaydi — u chiqqanda yoziladi' }); }
     const old = { cash_amount: Number(s.cash_amount || 0), terminal_amount: Number(s.terminal_amount || 0),
@@ -504,7 +549,7 @@ export async function handleKassaRequest(req, res) {
     catch (e) { console.error('SPLIT ERROR:', e); json(res, 500, { error: e.message || 'Bo‘lib yopilmadi' }); }
     return true;
   }
-  if (path === '/api/debts' || path === '/api/debts/pay') {
+  if (path === '/api/debts' || path === '/api/debts/pay' || path === '/api/debts/unpay') {
     if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return true; }
     const user = auth(req);
     if (!user) { json(res, 401, { error: 'Kirish talab qilinadi' }); return true; }
@@ -512,6 +557,7 @@ export async function handleKassaRequest(req, res) {
       await ensureKassaSchema();
       if (path === '/api/debts' && req.method === 'GET') { await debtList(req, res, user); return true; }
       if (path === '/api/debts/pay' && req.method === 'POST') { await debtPay(req, res, user); return true; }
+      if (path === '/api/debts/unpay' && req.method === 'POST') { await debtUnpay(req, res, user); return true; }
       json(res, 405, { error: 'Method ruxsat etilmagan' }); return true;
     } catch (e) {
       console.error('DEBTS ERROR:', e);

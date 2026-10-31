@@ -22,6 +22,7 @@
  */
 import { pool } from '../backend/src/db.js';
 import { checkBridgeKey, bridgeRange } from './bridge-analytics.js';
+import { MONEY_EVENTS, SESSION_MONEY } from './money-sql.js';
 
 const TZ = 'Asia/Tashkent';
 const TZ_OFFSET_MS = 5 * 3600e3;
@@ -156,7 +157,7 @@ export async function buildOwnerBridge(range, db = pool, cut = null) {
              MAX(COALESCE(${col('s', 'driver_name')}, v.driver_name)) AS driver,
              COUNT(*)::int AS visits,
              COALESCE(SUM(${secs}), 0)::bigint AS seconds,
-             COALESCE(SUM(COALESCE(s.amount, 0)), 0)::float8 AS revenue,
+             COALESCE(SUM(${SESSION_MONEY('s')}), 0)::float8 AS revenue,
              COALESCE(SUM(${numCol('s', 'debt_amount')}), 0)::float8 AS debt,
              MAX(s.started_at) AS last_at
         FROM sessions s LEFT JOIN vehicles v ON v.id = s.vehicle_id
@@ -208,7 +209,7 @@ export async function buildOwnerBridge(range, db = pool, cut = null) {
       SELECT COALESCE(NULLIF(u.full_name, ''), u.username, 'Operator') AS name,
              COUNT(*) FILTER (WHERE ${IS_PAID})::int AS paid,
              COUNT(*) FILTER (WHERE ${IS_SCHOOL})::int AS school,
-             COALESCE(SUM(COALESCE(s.amount, 0)), 0)::float8 AS revenue
+             COALESCE(SUM(${SESSION_MONEY('s')}), 0)::float8 AS revenue
         FROM sessions s LEFT JOIN users u ON u.id::text = s.user_id::text
        WHERE ${done} GROUP BY 1 ORDER BY revenue DESC, paid DESC LIMIT 10`, cur),
 
@@ -304,14 +305,55 @@ export async function buildOwnerBridge(range, db = pool, cut = null) {
        GROUP BY 1, 2, 3 ORDER BY lessons DESC LIMIT 200`, cur),
   ]);
 
+  /* ---------------- PUL (kassa hisoboti bilan bir xil qoida) ----------------
+     Tushum = seanslarning o'z to'lovi (ichkaridagi oldindan to'laganlar ham) +
+     shu davrda to'langan qarzlar (to'langan paytiga). api/money-sql.js */
+  const mWhere = `m.at >= $1 AND m.at < $2 AND NOT m.is_school${own('m.user_id', 3)}`;
+  const mTk = `(m.at AT TIME ZONE '${TZ}')`;
+  const moneyTotSql = `
+    SELECT COALESCE(SUM(m.total), 0)::float8 AS total, COALESCE(SUM(m.cash), 0)::float8 AS cash,
+           COALESCE(SUM(m.terminal), 0)::float8 AS terminal, COALESCE(SUM(m.click), 0)::float8 AS click,
+           COALESCE(SUM(m.total) FILTER (WHERE m.kind = 'debt'), 0)::float8 AS debt_collected,
+           COALESCE(SUM(m.total) FILTER (WHERE m.post = 1), 0)::float8 AS post1,
+           COALESCE(SUM(m.total) FILTER (WHERE m.post = 2), 0)::float8 AS post2
+      FROM ${MONEY_EVENTS} m WHERE ${mWhere}`;
+  const [moneyCur, moneyPrev, moneySeries, moneyHours] = await Promise.all([
+    safe('money', moneyTotSql, cur),
+    safe('money_previous', moneyTotSql, prev),
+    safe('money_series', `SELECT to_char(${mTk}, '${fmt}') AS k, COALESCE(SUM(m.total), 0)::float8 AS total
+      FROM ${MONEY_EVENTS} m WHERE ${mWhere} GROUP BY 1 ORDER BY 1`, cur),
+    safe('money_hours', `SELECT EXTRACT(HOUR FROM ${mTk})::int AS hour, COALESCE(SUM(m.total), 0)::float8 AS total
+      FROM ${MONEY_EVENTS} m WHERE ${mWhere} GROUP BY 1 ORDER BY 1`, cur),
+  ]);
+  const withMoney = (row, M) => {
+    if (!M) return row || {};
+    return Object.assign({}, row || {}, { p_revenue: M.total, p_cash: M.cash, p_terminal: M.terminal, p_click: M.click,
+      p_debt_collected: M.debt_collected, p_post1: M.post1, p_post2: M.post2 });
+  };
+  /* vaqt bo'yicha qatorlarga pul — yo'q kalit bo'lsa qo'shiladi */
+  const mergeMoney = (rows, money, key, zero) => {
+    const by = new Map(rows.map((r) => [String(r[key]), Object.assign({}, r, { paid_revenue: 0 })]));
+    for (const m of money) {
+      const k = String(m[key]);
+      if (!by.has(k)) by.set(k, Object.assign({ [key]: m[key] }, zero));
+      by.get(k).paid_revenue = n(m.total);
+    }
+    return [...by.values()].sort((a, b) => (String(a[key]) < String(b[key]) ? -1 : String(a[key]) > String(b[key]) ? 1 : 0));
+  };
+  const seriesMoney = mergeMoney(seriesRows, moneySeries, 'k', { paid: 0, school: 0, school_lessons: 0, school_revenue: 0 });
+  const hoursMoney = mergeMoney(hourRows.map((r) => Object.assign({}, r, { hour: n(r.hour) })), moneyHours.map((r) => Object.assign({}, r, { hour: n(r.hour) })), 'hour', { paid: 0, school: 0 })
+    .sort((a, b) => n(a.hour) - n(b.hour));
+
   /* ---------------- jamlash ---------------- */
-  const T = totalsRows[0] || {}, P = prevRows[0] || {};
+  const T = withMoney(totalsRows[0], moneyCur[0]), P = withMoney(prevRows[0], moneyPrev[0]);
 
   const paidTotals = (x) => {
     const sessions = n(x.p_sessions);
     return {
       sessions, minutes: mins(x.p_seconds), revenue: n(x.p_revenue),
       cash: n(x.p_cash), terminal: n(x.p_terminal), click: n(x.p_click),
+      /* shu davrda undirilgan (oldingi kunlardagi ham) qarzlar — revenue ichida */
+      debt_collected: n(x.p_debt_collected), by_post: { post1: n(x.p_post1), post2: n(x.p_post2) },
       debt: n(x.p_debt), debt_sessions: n(x.p_debt_n), auto_closed: n(x.p_auto_closed),
       vehicles: n(x.p_vehicles),
       avg_check: sessions ? Math.round(n(x.p_revenue) / sessions) : 0,
@@ -421,9 +463,9 @@ export async function buildOwnerBridge(range, db = pool, cut = null) {
       live: { count: liveSchool.length, sessions: liveSchool },
     },
 
-    series: seriesRows.map((r) => ({ key: r.k, paid: n(r.paid), paid_revenue: n(r.paid_revenue), school: n(r.school),
+    series: seriesMoney.map((r) => ({ key: r.k, paid: n(r.paid), paid_revenue: n(r.paid_revenue), school: n(r.school),
       school_lessons: n(r.school_lessons), school_revenue: n(r.school_revenue) })),
-    hours: hourRows.map((r) => ({ hour: n(r.hour), paid: n(r.paid), paid_revenue: n(r.paid_revenue), school: n(r.school) })),
+    hours: hoursMoney.map((r) => ({ hour: n(r.hour), paid: n(r.paid), paid_revenue: n(r.paid_revenue), school: n(r.school) })),
 
     expenses: {
       total: n(E.total), count: n(E.n), previous_total: n(expPrevRows[0]?.total),

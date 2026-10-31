@@ -204,13 +204,15 @@ export async function handleCompatRequest(req, res) {
           const sr = await c.query(
             `SELECT id, student_id, status,
                     COALESCE(lessons_counted, 0)::int AS lessons,
-                    started_at
+                    started_at,
+                    COALESCE(NULLIF(to_jsonb(sessions)->>'debt_paid','')::numeric, 0) AS debt_paid
                FROM sessions
               WHERE id::text = $1 AND user_id::text = $2
               FOR UPDATE`, [sid, String(user)]);
           const row = sr.rows[0];
           if (!row) throw new Error('Yozuv topilmadi');
           if (String(row.status || '') === 'cancelled') throw new Error('Bu yozuv allaqachon bekor qilingan');
+          if (Number(row.debt_paid) > 0) throw new Error('Bu yozuvning qarzi keyin to‘langan — avval «To‘g‘rilash» → «Qarz to‘lovini bekor qilish»');
 
           await c.query(`UPDATE sessions SET status='cancelled' WHERE id=$1`, [row.id]);
 

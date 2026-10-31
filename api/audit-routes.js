@@ -146,7 +146,7 @@ export async function handleAuditRequest(req, res) {
 
     let from = text(url.searchParams.get('from') || url.searchParams.get('date'));
     let to = text(url.searchParams.get('to'));
-    if (!isDate(from)) from = new Date().toISOString().slice(0, 10);
+    if (!isDate(from)) from = new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);
     if (!isDate(to)) to = from;
     if (to < from) { const t = from; from = to; to = t; }
 

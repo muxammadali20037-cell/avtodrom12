@@ -58,7 +58,7 @@ export default async function handler(req, res) {
     const one = text(req.query?.date || url.searchParams.get('date'));
     let from = text(url.searchParams.get('from'));
     let to = text(url.searchParams.get('to'));
-    if (!isDate(from)) from = isDate(one) ? one : new Date().toISOString().slice(0, 10);
+    if (!isDate(from)) from = isDate(one) ? one : new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);
     if (!isDate(to)) to = from;
     if (to < from) { const t = from; from = to; to = t; }
 
@@ -101,8 +101,8 @@ export default async function handler(req, res) {
         LEFT JOIN public.school_groups g  ON g.id::text = s.group_id::text
        WHERE s.user_id = $1
          AND COALESCE(s.status,'completed') <> 'cancelled'
-         AND s.started_at >= $2::date
-         AND s.started_at <  ($3::date + INTERVAL '1 day')
+         AND s.started_at >= ($2::date::timestamp AT TIME ZONE 'Asia/Tashkent')
+         AND s.started_at <  (($3::date + 1)::timestamp AT TIME ZONE 'Asia/Tashkent')
          AND (
               s.instructor_id::text = $4
            OR ($5 <> '' AND LOWER(TRIM(COALESCE(s.instructor_name,''))) = $5)

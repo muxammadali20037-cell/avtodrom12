@@ -201,7 +201,7 @@ async function overList(req, res, owner) {
   const url = new URL(req.url, 'http://localhost');
   let from = text(url.searchParams.get('from') || url.searchParams.get('date'));
   let to = text(url.searchParams.get('to'));
-  if (!isDate(from)) from = new Date().toISOString().slice(0, 10);
+  if (!isDate(from)) from = new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);
   if (!isDate(to)) to = from;
   if (to < from) { const t = from; from = to; to = t; }
 
@@ -222,8 +222,8 @@ async function overList(req, res, owner) {
      WHERE s.user_id::text = $1
        AND COALESCE(s.over_lessons, 0) > 0
        AND COALESCE(s.status, 'completed') <> 'cancelled'
-       AND s.started_at >= $2::date
-       AND s.started_at <  ($3::date + INTERVAL '1 day')
+       AND s.started_at >= ($2::date::timestamp AT TIME ZONE 'Asia/Tashkent')
+       AND s.started_at <  (($3::date + 1)::timestamp AT TIME ZONE 'Asia/Tashkent')
      ORDER BY s.started_at DESC`,
     [String(owner), from, to, DEFAULT_FREE_VISITS]);
 
