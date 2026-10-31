@@ -1184,6 +1184,31 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 .tl-end .tl-i { background: #dbeafe; color: #1d4ed8; }
 .tl-b b { display: block; font-size: 14px; }
 .tl-b small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; overflow-wrap: anywhere; }
+
+/* ===== Post (kassa) belgisi va internet holati ===== */
+.post-chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1.5px solid #a7f3d0;
+  background: var(--g-surface); color: var(--g-dark); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.post-chip.p2 { border-color: #93c5fd; background: #eff6ff; color: #1d4ed8; }
+.post-chip:hover { filter: brightness(.97); }
+.post-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 6px 0 12px; }
+.post-opt { border: 2px solid var(--line); background: #fff; border-radius: 14px; padding: 18px 10px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; font: inherit; }
+.post-opt i { font-size: 26px; color: var(--g); }
+.post-opt b { font-size: 22px; }
+.post-opt small { color: var(--muted); }
+.post-opt:hover, .post-opt.on { border-color: var(--g); background: var(--g-surface); }
+.net-chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.net-chip.hidden { display: none; }
+.net-chip.off { background: #fef2f2; color: #b91c1c; border: 1.5px solid #fecaca; }
+.net-chip.sync { background: #fffbeb; color: #92400e; border: 1.5px solid #fde68a; }
+@media (max-width: 700px) { .post-chip b { font-size: 12px; } }
+.post-tbl th, .post-tbl td { text-align: right; white-space: nowrap; }
+.post-tbl th:first-child { text-align: left; }
+.post-tbl tr.tot td, .post-tbl tr.tot th { background: #f0fdf4; }
+.post-tbl .red { color: var(--red); font-weight: 700; }
+.kech-list { margin-top: 12px; font-size: 13.5px; }
+.kech-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; padding: 7px 4px; border-top: 1px dashed var(--line); }
+.kech-row .kp { font-weight: 800; min-width: 90px; }
+.kech-row b { margin-left: auto; color: var(--g-dark); }
 /* ===================== EXCEL — butun ekran, haqiqiy Excel ko'rinishi ===================== */
 .sheet-page { position: fixed; inset: 0; z-index: 95; background: #fff; display: flex; flex-direction: column; margin: 0; padding: 0;
   font-family: 'Segoe UI', Calibri, Arial, sans-serif; color: #201f1e; }
@@ -1406,6 +1431,8 @@ body.sheet-open { overflow: hidden; }
         </div>
       </div>
       <div class="top-right">
+        <span class="net-chip hidden" id="netChip" role="status" aria-live="polite"></span>
+        <button class="post-chip" type="button" data-act="postPick" id="postChip" title="Bu kompyuter qaysi kassa (post)?"><i class="fa-solid fa-cash-register" aria-hidden="true"></i> <b id="postChipTxt">1-POST</b></button>
         <div class="avatar" id="avatar" aria-hidden="true">A</div>
         <span class="text-muted nowrap" id="who" style="font-size:13px;font-weight:600"></span>
         <button class="btn btn-ghost" type="button" data-act="logout" aria-label="Tizimdan chiqish"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> <span>Chiqish</span></button>
@@ -1756,10 +1783,13 @@ body.sheet-open { overflow: hidden; }
           <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-credit-card" aria-hidden="true"></i></div><div class="stat-label">Terminal</div><div class="stat-value green" id="rdterm">0</div></div>
           <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-mobile-screen" aria-hidden="true"></i></div><div class="stat-label">Klik</div><div class="stat-value green" id="rdclick">0</div></div>
           <div class="stat-card is-clickable" data-act="goRasxod" role="button" tabindex="0"><div class="stat-icon red"><i class="fa-solid fa-receipt" aria-hidden="true"></i></div><div class="stat-label">Rasxod</div><div class="stat-value" id="rdexp">0</div></div>
+          <div class="stat-card" title="Oldingi kunlarda qarzga qolib, shu kuni to'langanlar"><div class="stat-icon blue"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></div><div class="stat-label">Kechagi (qarzdan)</div><div class="stat-value" id="rdkech">0</div></div>
           <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-cash-register" aria-hidden="true"></i></div><div class="stat-label">Kassada naqd qoldi</div><div class="stat-value" id="rdleft">0</div></div>
           <div class="stat-card is-clickable" data-act="goDebts" role="button" tabindex="0"><div class="stat-icon red"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i></div><div class="stat-label">To'lanmagan</div><div class="stat-value" id="rddebt">0</div></div>
           <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i></div><div class="stat-label">Jami vaqt</div><div class="stat-value" id="rdtime">0</div></div>
         </div>
+        <!-- 1-POST / 2-POST va KECHAGI -->
+        <div id="rdPosts"></div>
         <!-- Platniy va avtoshkola alohida -->
         <div class="dash-two" id="rdSplit"></div>
 
@@ -2720,6 +2750,8 @@ async function request(path, opt, kind) {
     const headers = Object.assign(
       { 'Content-Type': 'application/json' },
       authToken ? { Authorization: 'Bearer ' + authToken } : {},
+      /* Qaysi kassa (1-POST / 2-POST) — hisobot postlar bo'yicha ajratiladi */
+      { 'X-Post': String(Post.get()) },
       /* Maxsus bo'lim ochiq bo'lsa — kalit (Excel, Nazorat API'lari shuni so'raydi) */
       (typeof Maxsus !== 'undefined' && Maxsus.isOpen()) ? { 'X-Maxsus': Maxsus.token } : {},
       opt.headers || {}
@@ -2851,6 +2883,7 @@ function bootInner() {
      o'quvchining bugungi darslari shu ma'lumotdan olinadi. */
   Reports.loadDaily();
   Maxsus.init();
+  Post.init();
   if (localStorage.getItem(CONFIG.ADMIN_FLAG_KEY) === '1' && STATE.admin.token && Maxsus.isOpen()) {
     $('adminPanel').classList.remove('hidden');
     document.body.classList.add('admin-open');
@@ -2861,6 +2894,38 @@ function showLoginScreen() {
   $('login').classList.remove('hidden');
   $('app').classList.add('hidden');
 }
+
+/* ===================== POST (KASSA) — 1-POST / 2-POST =====================
+   Avtodromda ikki kassa: har kompyuter bir marta o'z postini tanlaydi
+   (shu kompyuterda eslab qolinadi). Ochilgan vaqt, olingan pul, qarz
+   to'lovi va xarajat o'sha postga yoziladi; Kunlik hisobot va Excel
+   HISOBOT varag'i 1-POST / 2-POST bo'lib chiqadi. */
+const Post = {
+  KEY: 'avtodrom_post',
+  get() { try { return localStorage.getItem(this.KEY) === '2' ? 2 : 1; } catch (e) { return 1; } },
+  isSet() { try { return !!localStorage.getItem(this.KEY); } catch (e) { return true; } },
+  set(n) {
+    try { localStorage.setItem(this.KEY, String(n === 2 ? 2 : 1)); } catch (e) { /* noop */ }
+    this.render();
+  },
+  label(n) { return (n === 2 ? 2 : 1) + '-POST'; },
+  render() {
+    const t = $('postChipTxt'); if (t) t.textContent = this.label(this.get());
+    const c = $('postChip'); if (c) c.classList.toggle('p2', this.get() === 2);
+  },
+  /* Birinchi marta: «Bu kompyuter qaysi post?» */
+  init() { this.render(); if (!this.isSet()) setTimeout(() => this.ask(true), 400); },
+  ask(first) {
+    const b = n => '<button type="button" class="post-opt' + (this.get() === n && !first ? ' on' : '') + '" data-act="postSet" data-n="' + n + '">'
+      + '<i class="fa-solid fa-cash-register" aria-hidden="true"></i><b>' + n + '-POST</b><small>' + (n === 1 ? 'birinchi kassa' : 'ikkinchi kassa') + '</small></button>';
+    openModal('<div class="modal-head"><div><h2>Bu kompyuter qaysi kassa?</h2>'
+      + '<p class="text-muted">Shu kompyuterda ochilgan vaqt, olingan pul va xarajatlar shu postga yoziladi. Hisobot 1-POST va 2-POST bo\'lib chiqadi.</p></div>'
+      + (first ? '' : '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>') + '</div>'
+      + '<div class="post-opts">' + b(1) + b(2) + '</div>'
+      + '<div class="field-help" style="text-align:center">Keyin yuqoridagi «' + this.label(this.get()) + '» belgisini bosib o\'zgartirsa bo\'ladi.</div>');
+  },
+  choose(n) { this.set(Number(n)); closeModal(); toast('Bu kompyuter: ' + this.label(Number(n))); }
+};
 
 /* ===================== MAXSUS BO'LIM — parol bilan =====================
    Hisobot (Kunlik hisobot, Rasxod, Excel, Tarix), Nazorat va Boshqaruv
@@ -6434,7 +6499,7 @@ const DayExcel = {
         const seen = new Set(rows.map(r => String(r.id)));
         const actRows = (Array.isArray(act) ? act : (act && act.rows) || [])
           .filter(v => !isSchoolSession(v) && !seen.has(String(v.id)) && dayOf(v.started_at) >= from && dayOf(v.started_at) <= to);
-        const wb = this.build(ExcelJS, from, to, rows, actRows, (exp && exp.rows) || []);
+        const wb = this.build(ExcelJS, from, to, rows, actRows, (exp && exp.rows) || [], (rep && rep.debtPayments) || []);
         const buf = await wb.xlsx.writeBuffer();
         const name = (from === to ? this.fileDate(from) : this.fileDate(from) + '-' + this.fileDate(to)) + '.xlsx';
         const a = document.createElement('a');
@@ -6447,7 +6512,8 @@ const DayExcel = {
     });
   },
 
-  build(ExcelJS, from, to, rows, actRows, exps) {
+  build(ExcelJS, from, to, rows, actRows, exps, debtPays) {
+    debtPays = debtPays || [];
     const multi = from !== to;
     const period = multi ? this.fullDate(from) + ' — ' + this.fullDate(to) : this.fullDate(from);
     const wb = new ExcelJS.Workbook();
@@ -6484,14 +6550,15 @@ const DayExcel = {
 
     /* ---------- JISMONIY ---------- */
     const J = wb.addWorksheet('JISMONIY', { views: [{ state: 'frozen', ySplit: 4 }], pageSetup: PAGE });
-    const jCols = multi ? 11 : 10;
+    const jCols = multi ? 12 : 11;
+    const POSTC = multi ? 12 : 11;   /* pul olingan kassa: 1 yoki 2 */
     title(J, 'AVTODROMGA KIRGAN AVTOMOBILLAR XISOBOTI', jCols);
-    J.columns = [{ width: 6 }, { width: 20 }, { width: 24 }, { width: 11 }, { width: 11 }, { width: 13 }, { width: 16 }, { width: 16 }, { width: 16 }, { width: 16 }].concat(multi ? [{ width: 12 }] : []);
-    const jh = ['№', 'MAKTAB NOMI', 'AVTOMOBIL RAQAMI', 'VAQT', '', '', 'JAMI TO\'LOV', 'TO\'LOV NAQT', 'TO\'LOV TER', 'TO\'LOV KLIK'].concat(multi ? ['SANA'] : []);
+    J.columns = [{ width: 6 }, { width: 20 }, { width: 24 }, { width: 11 }, { width: 11 }, { width: 13 }, { width: 16 }, { width: 16 }, { width: 16 }, { width: 16 }].concat(multi ? [{ width: 12 }] : []).concat([{ width: 9 }]);
+    const jh = ['№', 'MAKTAB NOMI', 'AVTOMOBIL RAQAMI', 'VAQT', '', '', 'JAMI TO\'LOV', 'TO\'LOV NAQT', 'TO\'LOV TER', 'TO\'LOV KLIK'].concat(multi ? ['SANA'] : []).concat(['POST']);
     J.getRow(3).values = jh;
-    J.getRow(4).values = ['', '', '', 'KIRISH', 'CHIQISH', 'DAVOMIYLIGI', '', '', '', ''].concat(multi ? [''] : []);
+    J.getRow(4).values = ['', '', '', 'KIRISH', 'CHIQISH', 'DAVOMIYLIGI', '', '', '', ''].concat(multi ? [''] : []).concat(['']);
     J.mergeCells('D3:F3');
-    ['A', 'B', 'C', 'G', 'H', 'I', 'J'].concat(multi ? ['K'] : []).forEach(c => J.mergeCells(c + '3:' + c + '4'));
+    ['A', 'B', 'C', 'G', 'H', 'I', 'J'].concat(multi ? ['K', 'L'] : ['K']).forEach(c => J.mergeCells(c + '3:' + c + '4'));
     head(J, 3, 1, jCols); head(J, 4, 1, jCols);
     J.getRow(3).height = 30;
     /* BIR XIL MASHINA — BIR JOYDA: avval raqam (son tartibida: 083, 136, 148 …,
@@ -6515,6 +6582,14 @@ const DayExcel = {
       row.getCell(9).value = num(r.terminal_amount) || null;
       row.getCell(10).value = num(r.click_amount) || null;
       if (multi) row.getCell(11).value = this.fullDate(dayOf(r.started_at));
+      row.getCell(POSTC).value = num(r.pay_post) || num(r.post) || 1;
+      /* Qarz keyinroq to'langan — pul o'sha kunning hisobotida («Kechagi») */
+      if (!x.open && num(r.debt_paid) > 0 && !num(r.debt_amount)) {
+        const pd = debtPays.find(d => String(d.session_id) === String(r.id));
+        row.getCell(7).note = 'Qarz edi: ' + money(num(r.debt_paid)) + (r.settled_at ? ' — ' + this.fullDate(dayOf(r.settled_at)) + ' da to\'landi' : ' — keyin to\'landi')
+          + (pd ? ' (' + (Rasxod.PAY[pd.method === 'terminal' ? 'card' : pd.method] || pd.method) + ', ' + (num(pd.post) || 1) + '-POST)' : '');
+        row.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+      }
       row.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
       row.getCell(3).font = { name: 'Calibri', size: 14, bold: true };
       [4, 5].forEach(c => { row.getCell(c).numFmt = TIME; });
@@ -6530,7 +6605,7 @@ const DayExcel = {
         row.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDE2E2' } };
       }
       /* guruhlar navbatma-navbat ochiq kulrang — qayerda boshlanib tugashi ko'rinsin */
-      if (gNo % 2 === 0) [1, 2, 4, 5, 6, 8, 9, 10].concat(multi ? [11] : []).forEach(c => {
+      if (gNo % 2 === 0) [1, 2, 4, 5, 6, 8, 9, 10, POSTC].concat(multi ? [11] : []).forEach(c => {
         if (!row.getCell(c).fill) row.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEF2F7' } };
       });
       row.height = 21;
@@ -6539,8 +6614,8 @@ const DayExcel = {
     const jEnd = Math.max(rr - 1, 5);
     const jt = J.getRow(rr);
     jt.getCell(1).value = 'JAMI'; J.mergeCells(rr, 1, rr, 3);
-    jt.getCell(6).value = { formula: 'SUM(F5:F' + jEnd + ')' }; jt.getCell(6).numFmt = DUR;
-    ['G', 'H', 'I', 'J'].forEach((L, k) => { const c = jt.getCell(7 + k); c.value = { formula: 'SUM(' + L + '5:' + L + jEnd + ')' }; c.numFmt = MONEY; });
+    jt.getCell(6).value = all.length ? { formula: 'SUM(F5:F' + jEnd + ')' } : 0; jt.getCell(6).numFmt = DUR;
+    ['G', 'H', 'I', 'J'].forEach((L, k) => { const c = jt.getCell(7 + k); c.value = all.length ? { formula: 'SUM(' + L + '5:' + L + jEnd + ')' } : 0; c.numFmt = MONEY; });
     for (let c = 1; c <= jCols; c++) { const cell = jt.getCell(c); cell.font = { bold: true, size: 12 }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; }
     box(J, 3, rr, 1, jCols);
     /* yangi mashina boshlanadigan joyda qalinroq chiziq */
@@ -6604,7 +6679,8 @@ const DayExcel = {
     const kEnd = 3 + schoolRows.length;
     const kt = K.getRow(kEnd + 1);
     kt.getCell(2).value = 'JAMI: ' + schoolRows.length + ' ta yozuv';
-    kt.getCell(8).value = { formula: 'SUM(H4:H' + Math.max(kEnd, 4) + ')' };
+    /* bo'sh varaqda SUM o'zini o'zi qo'shib yubormasin (aylanma havola) */
+    kt.getCell(8).value = schoolRows.length ? { formula: 'SUM(H4:H' + kEnd + ')' } : 0;
     kt.font = { bold: true };
     box(K, 3, kEnd + 1, 1, 9);
 
@@ -6624,7 +6700,7 @@ const DayExcel = {
     const xEnd = 3 + exSorted.length;
     const xt = X.getRow(xEnd + 1);
     xt.getCell(2).value = 'JAMI';
-    xt.getCell(5).value = { formula: 'SUM(E4:E' + Math.max(xEnd, 4) + ')' }; xt.getCell(5).numFmt = MONEY;
+    xt.getCell(5).value = exSorted.length ? { formula: 'SUM(E4:E' + xEnd + ')' } : 0; xt.getCell(5).numFmt = MONEY;
     xt.font = { bold: true };
     box(X, 3, xEnd + 1, 1, 8);
 
@@ -6646,9 +6722,9 @@ const DayExcel = {
     const bEnd = 3 + fuel.length;
     const bt = B.getRow(bEnd + 1);
     bt.getCell(2).value = 'JAMI';
-    bt.getCell(6).value = { formula: 'SUM(F4:F' + Math.max(bEnd, 4) + ')' }; bt.getCell(6).numFmt = MONEY;
-    bt.getCell(7).value = { formula: 'SUM(G4:G' + Math.max(bEnd, 4) + ')' };
-    bt.getCell(8).value = { formula: 'SUM(H4:H' + Math.max(bEnd, 4) + ')' };
+    bt.getCell(6).value = fuel.length ? { formula: 'SUM(F4:F' + bEnd + ')' } : 0; bt.getCell(6).numFmt = MONEY;
+    bt.getCell(7).value = fuel.length ? { formula: 'SUM(G4:G' + bEnd + ')' } : 0;
+    bt.getCell(8).value = fuel.length ? { formula: 'SUM(H4:H' + bEnd + ')' } : 0;
     bt.font = { bold: true };
     box(B, 3, bEnd + 1, 1, 10);
 
@@ -6667,51 +6743,102 @@ const DayExcel = {
     const lEnd = 3 + clk.length;
     const lt = L.getRow(lEnd + 1);
     lt.getCell(2).value = 'JAMI';
-    lt.getCell(5).value = { formula: 'SUM(E4:E' + Math.max(lEnd, 4) + ')' }; lt.getCell(5).numFmt = MONEY;
+    lt.getCell(5).value = clk.length ? { formula: 'SUM(E4:E' + lEnd + ')' } : 0; lt.getCell(5).numFmt = MONEY;
     lt.font = { bold: true };
     box(L, 3, lEnd + 1, 1, 6);
 
-    /* ---------- HISOBOT ---------- */
+    /* ---------- QARZ TO'LOVLARI ----------
+       Pul TO'LANGAN KUNI bo'yicha: «KECHAGI» — oldingi kunda qarzga qolib,
+       shu kuni to'langan; «BUGUNGI» — shu kunning o'zida to'langan qarz. */
+    const Q = wb.addWorksheet('QARZ TO\'LOVLARI', { pageSetup: PAGE });
+    title(Q, 'QARZDAN TUSHGAN TO\'LOVLAR', 8);
+    Q.columns = [{ width: 6 }, { width: 24 }, { width: 13 }, { width: 18 }, { width: 15 }, { width: 12 }, { width: 8 }, { width: 12 }];
+    Q.getRow(3).values = ['№', 'AVTOMOBIL RAQAMI', 'QARZ KUNI', 'TO\'LANGAN', 'SUMMA', 'TO\'LOV', 'POST', 'TUR'];
+    head(Q, 3, 1, 8);
+    const PAYQ = m => m === 'terminal' ? 'Terminal' : m === 'click' ? 'Klik' : 'Naqd';
+    debtPays.forEach((d, i) => {
+      const row = Q.getRow(4 + i);
+      const kech = d.session_day && d.session_day < d.paid_day;
+      row.values = [i + 1, d.plate || '', d.session_day ? this.fullDate(d.session_day) : '',
+        this.fullDate(d.paid_day) + ' ' + timeOnly(d.paid_at), num(d.amount), PAYQ(d.method), num(d.post) || 1, kech ? 'KECHAGI' : 'BUGUNGI'];
+      row.getCell(5).numFmt = MONEY;
+      [1, 3, 6, 7, 8].forEach(c => { row.getCell(c).alignment = { horizontal: 'center' }; });
+      if (kech) row.getCell(8).font = { bold: true, color: { argb: 'FF1D4ED8' } };
+    });
+    const qEnd = Math.max(3 + debtPays.length, 4);
+    const qt = Q.getRow(qEnd + 1);
+    qt.getCell(2).value = 'JAMI'; qt.getCell(5).value = { formula: 'SUM(E4:E' + qEnd + ')' }; qt.getCell(5).numFmt = MONEY; qt.font = { bold: true };
+    box(Q, 3, qEnd + 1, 1, 8);
+
+    /* ---------- HISOBOT — avtodrom faylidagidek: 1-POST, 2-POST, JAMI KIRIM ---------- */
     const H = wb.addWorksheet('HISOBOT', { pageSetup: { fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
     title(H, 'KUNLIK HISOBOT', 5);
-    H.columns = [{ width: 4 }, { width: 40 }, { width: 28 }, { width: 14 }, { width: 18 }];
+    H.columns = [{ width: 4 }, { width: 40 }, { width: 18 }, { width: 14 }, { width: 18 }];
     let h = 4;
+    const green = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5F3EC' } };
     const section = text => { H.mergeCells(h, 2, h, 5); const c = H.getCell(h, 2); c.value = text; c.font = { bold: true, size: 13, color: { argb: 'FF065F46' } };
-      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5F3EC' } }; h++; };
-    const line = (label, formula, bold) => {
-      const r = H.getRow(h); r.getCell(2).value = label; r.getCell(5).value = { formula: formula }; r.getCell(5).numFmt = MONEY;
-      if (bold) { r.getCell(2).font = { bold: true }; r.getCell(5).font = { bold: true }; }
-      box(H, h, h, 2, 5); h++; return h - 1;
+      c.fill = green; c.alignment = { horizontal: 'center' }; h++; };
+    const sub = text => { H.mergeCells(h, 2, h, 3); const c = H.getCell(h, 2); c.value = text; c.font = { bold: true }; h++; };
+    const line = (label, formula, bold, note) => {
+      const r = H.getRow(h); r.getCell(2).value = label;
+      r.getCell(3).value = formula === null ? null : (typeof formula === 'number' ? formula : { formula: formula });
+      r.getCell(3).numFmt = MONEY;
+      if (note) r.getCell(4).value = note;
+      if (bold) { r.getCell(2).font = { bold: true }; r.getCell(3).font = { bold: true }; }
+      box(H, h, h, 2, 3); h++; return h - 1;
     };
-    section('KIRIM (JISMONIY)');
-    const hT = line('TERMINAL', 'JISMONIY!I' + jTotalRow);
-    const hN = line('NAQT', 'JISMONIY!H' + jTotalRow);
-    const hK = line('KLIK', 'JISMONIY!J' + jTotalRow);
-    const hJ = line('JAMI KIRIM', 'E' + hT + '+E' + hN + '+E' + hK, true);
+    const jL = String.fromCharCode(64 + POSTC);           /* JISMONIY dagi POST ustuni harfi */
+    const jE = Math.max(jEnd, 5);
+    const jr = L => 'JISMONIY!$' + L + '$5:$' + L + '$' + jE;
+    const qr = L => '\'QARZ TO\'\'LOVLARI\'!$' + L + '$4:$' + L + '$' + qEnd;
+    const postRows = {};
+    [1, 2].forEach(n => {
+      section(n + '-POST');
+      sub('KIRIM');
+      const t = line('TERMINAL', 'SUMIF(' + jr(jL) + ',' + n + ',' + jr('I') + ')+SUMIFS(' + qr('E') + ',' + qr('G') + ',' + n + ',' + qr('F') + ',"Terminal",' + qr('H') + ',"BUGUNGI")');
+      const c = line('NAQT', 'SUMIF(' + jr(jL) + ',' + n + ',' + jr('H') + ')+SUMIFS(' + qr('E') + ',' + qr('G') + ',' + n + ',' + qr('F') + ',"Naqd",' + qr('H') + ',"BUGUNGI")');
+      const k = line('KLIK', 'SUMIF(' + jr(jL) + ',' + n + ',' + jr('J') + ')+SUMIFS(' + qr('E') + ',' + qr('G') + ',' + n + ',' + qr('F') + ',"Klik",' + qr('H') + ',"BUGUNGI")');
+      const ko = line('KASSADA KO\'P', null, false, 'qo\'lda yoziladi');
+      const ke = line('KECHAGI', 'SUMIFS(' + qr('E') + ',' + qr('G') + ',' + n + ',' + qr('H') + ',"KECHAGI")', false, 'oldingi kun qarzidan');
+      const j = line('JAMI', 'SUM(C' + t + ':C' + ke + ')', true);
+      postRows[n] = { t, c, k, ke, j };
+      h++;
+    });
+    section('JAMI KIRIM');
+    const P1 = postRows[1], P2 = postRows[2];
+    const hT = line('TERMINAL', 'C' + P1.t + '+C' + P2.t);
+    const hN = line('NAQT', 'C' + P1.c + '+C' + P2.c);
+    const hK = line('KLIK', 'C' + P1.k + '+C' + P2.k);
+    const hKe = line('KECHAGI', 'C' + P1.ke + '+C' + P2.ke);
+    const hJ = line('JAMI', 'C' + P1.j + '+C' + P2.j, true);
+    H.getCell(hJ, 3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
     const debtSum = paidRows.reduce((a, r) => a + num(r.debt_amount), 0);
-    if (debtSum > 0) { const dr = H.getRow(h); dr.getCell(2).value = 'To\'lanmagan (keyin to\'laydi)'; dr.getCell(5).value = debtSum; dr.getCell(5).numFmt = MONEY;
-      dr.getCell(5).font = { color: { argb: 'FFB91C1C' }, bold: true }; box(H, h, h, 2, 5); h++; }
-    const cnt = H.getRow(h); cnt.getCell(2).value = 'Avtomobillar soni'; cnt.getCell(5).value = all.length; box(H, h, h, 2, 5); h++;
-    const att = H.getRow(h); att.getCell(2).value = 'Avtoshkola davomati (dars)'; att.getCell(5).value = { formula: 'KURS!H' + (kEnd + 1) }; box(H, h, h, 2, 5); h++;
+    if (debtSum > 0) { const dr = H.getRow(h); dr.getCell(2).value = 'To\'lanmagan (keyin to\'laydi)'; dr.getCell(3).value = debtSum; dr.getCell(3).numFmt = MONEY;
+      dr.getCell(3).font = { color: { argb: 'FFB91C1C' }, bold: true }; box(H, h, h, 2, 3); h++; }
+    const cnt = H.getRow(h); cnt.getCell(2).value = 'Avtomobillar soni'; cnt.getCell(3).value = all.length; box(H, h, h, 2, 3); h++;
+    const att = H.getRow(h); att.getCell(2).value = 'Avtoshkola davomati (dars)'; att.getCell(3).value = { formula: 'KURS!H' + (kEnd + 1) }; box(H, h, h, 2, 3); h++;
     h++;
     section('XARAJATLAR');
     const xStart = h;
     exSorted.forEach(e => {
       const r = H.getRow(h);
-      r.getCell(2).value = [e.category, e.person, e.vehicle].filter(Boolean).join(' — ');
-      r.getCell(3).value = e.note || '';
+      r.getCell(2).value = [e.category, e.person, e.vehicle].filter(Boolean).join(' — ') + (e.note ? ' (' + e.note + ')' : '');
+      r.getCell(3).value = num(e.post) ? num(e.post) + '-POST' : '';
       r.getCell(4).value = Rasxod.PAY[e.pay_method] || e.pay_method;
       r.getCell(5).value = num(e.amount); r.getCell(5).numFmt = MONEY;
       box(H, h, h, 2, 5); h++;
     });
     if (!exSorted.length) { H.getRow(h).getCell(2).value = 'Xarajat yo\'q'; box(H, h, h, 2, 5); h++; }
     const xLast = h - 1;
-    const hX = line('JAMI XARAJAT', 'SUM(E' + xStart + ':E' + xLast + ')', true);
-    const hXN = line('shundan naqd', 'SUMIF(D' + xStart + ':D' + xLast + ',"Naqd",E' + xStart + ':E' + xLast + ')');
+    const xl = (label, formula, bold) => { const r = H.getRow(h); r.getCell(2).value = label; r.getCell(5).value = { formula: formula }; r.getCell(5).numFmt = MONEY;
+      if (bold) { r.getCell(2).font = { bold: true }; r.getCell(5).font = { bold: true }; } box(H, h, h, 2, 5); h++; return h - 1; };
+    const hX = xl('JAMI XARAJAT', 'SUM(E' + xStart + ':E' + xLast + ')', true);
+    const hXN = xl('shundan naqd', 'SUMIF(D' + xStart + ':D' + xLast + ',"Naqd",E' + xStart + ':E' + xLast + ')');
     h++;
     section('QOLDIQ');
-    const q1 = line('Kassada naqd qoldi (naqd kirim − naqd xarajat)', 'E' + hN + '-E' + hXN, true);
-    line('Jami kirim − jami xarajat', 'E' + hJ + '-E' + hX, true);
+    /* kassadagi naqd: bugungi naqd + kechagi qarzdan naqd − naqd xarajat */
+    const q1 = xl('QOLDI NAQT (naqt + kechagi naqt − naqd xarajat)', 'C' + hN + '+SUMIFS(' + qr('E') + ',' + qr('H') + ',"KECHAGI",' + qr('F') + ',"Naqd")-E' + hXN, true);
+    xl('Jami kirim − jami xarajat', 'C' + hJ + '-E' + hX, true);
     H.getCell(q1, 5).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
 
     /* Excel ochilganda HISOBOT birinchi ko'rinsin? — yo'q: JISMONIY birinchi (asl fayldagidek) */
@@ -6996,6 +7123,7 @@ const EntryTicket80 = {
       + row('Tugaydi', data.until ? this.tkTime(data.until) : '')
       + row('To‘lov', data.open ? 'Chiqishda' : (data.paid ? 'To‘langan' : ''))
       + row('Holat', data.note || '')
+      + row('Kassa', Post.label(Post.get()))
       + '<div class="hr"></div>'
       + '<div class="ft">Chekni yakunlashda ko‘rsating.<br>Yaxshi yo‘l!</div>',
       bare);
@@ -7941,6 +8069,7 @@ const Sheet = {
     if (s.status === 'frozen' || s.status === 'paused') return '<span class="tag frz">Muzlatilgan</span>';
     if (s.status === 'active') return row.v.end ? '<span class="tag done">Chiqadi</span>' : '<span class="tag in">Ichkarida</span>';
     if (num(row.v.debt) > 0) return '<span class="tag debt">Qarz</span>';
+    if (num(s.debt_paid) > 0) return '<span class="tag auto" title="Qarz keyin to\'langan — pul to\'langan kunning hisobotida">Qarz to\'landi</span>';
     if (s.auto_closed) return '<span class="tag auto">O\'zi yopildi</span>';
     return '<span class="tag done">Yopilgan</span>';
   },
@@ -9350,6 +9479,8 @@ function reportRowCells(r) {
     '<b style="color:var(--g-dark)">' + money(r.amount) + '</b>'
       + (num(r.click_amount) > 0 ? '<div class="text-muted" style="font-size:11.5px">shundan Klik ' + esc(money(r.click_amount)) + '</div>' : '')
       + (num(r.debt_amount) > 0 ? '<div style="font-size:11.5px;color:#b45309;font-weight:700">to\'lanmagan ' + esc(money(r.debt_amount)) + '</div>' : '')
+      + (num(r.debt_paid) > 0 && !num(r.debt_amount) ? '<div style="font-size:11.5px;color:#1d4ed8;font-weight:700" title="Pul to\'langan kunning hisobotida">qarz ' + esc(money(r.debt_paid)) + ' — ' + esc(r.settled_at ? fmtDate(dayOf(r.settled_at)) : 'keyin') + ' to\'landi</div>' : '')
+      + (num(r.pay_post || r.post) > 1 ? '<div style="font-size:11px;color:#64748b">' + num(r.pay_post || r.post) + '-POST</div>' : '')
   ];
 }
 /* `opts.deletable` berilsa har qatorga «bekor qilish» tugmasi qo'shiladi.
@@ -9655,6 +9786,59 @@ const Reports = {
     this.renderDays();
   },
 
+  /* 1-POST / 2-POST: kassalar bo'yicha kirim, kechagi qarzlar, xarajat, qoldiq */
+  postTotals() {
+    const d = this.data || {};
+    const P = {};
+    const get = n => (P[n] = P[n] || { cars: 0, cash: 0, terminal: 0, click: 0, kech: 0, kechCash: 0, debt: 0, exp: 0, expCash: 0 });
+    get(1); get(2);
+    this.allRows().filter(r => !isSchoolRow(r)).forEach(r => {
+      const open = num(r.post) || 1, pay = num(r.pay_post) || open;
+      get(open).cars++;
+      const x = get(pay);
+      x.cash += num(r.cash_amount); x.terminal += num(r.terminal_amount); x.click += num(r.click_amount);
+      get(open).debt += num(r.debt_amount);
+    });
+    (d.debtPayments || []).forEach(p => {
+      const x = get(num(p.post) || 1), a = num(p.amount);
+      if (p.session_day && p.session_day < p.paid_day) { x.kech += a; if (p.method === 'cash') x.kechCash += a; }
+      else if (p.method === 'terminal') x.terminal += a; else if (p.method === 'click') x.click += a; else x.cash += a;
+    });
+    (this.exp || []).forEach(e => { const x = get(num(e.post) || 1); x.exp += num(e.amount); if (e.pay_method === 'cash') x.expCash += num(e.amount); });
+    return P;
+  },
+  renderPosts() {
+    const host = $('rdPosts'); if (!host) return;
+    const d = this.data || {};
+    const P = this.postTotals();
+    const posts = Object.keys(P).map(Number).sort();
+    const used = posts.filter(n => n === 1 || P[n].cars || P[n].cash || P[n].terminal || P[n].click || P[n].kech || P[n].exp);
+    const T = used.reduce((a, n) => { Object.keys(P[n]).forEach(k => { a[k] = (a[k] || 0) + P[n][k]; }); return a; }, {});
+    const kirim = x => x.cash + x.terminal + x.click + x.kech;
+    const line = (label, f, cls) => '<tr' + (cls ? ' class="' + cls + '"' : '') + '><th>' + label + '</th>'
+      + used.map(n => '<td>' + f(P[n]) + '</td>').join('') + (used.length > 1 ? '<td><b>' + f(T) + '</b></td>' : '') + '</tr>';
+    const m = v => money(v || 0);
+    const kech = d.debtPayments || [];
+    const kechRows = kech.filter(p => p.session_day && p.session_day < p.paid_day);
+    host.innerHTML = '<div class="panel post-panel"><div class="panel-head"><h3><i class="fa-solid fa-cash-register" style="color:var(--g)" aria-hidden="true"></i> Kassalar bo\'yicha</h3>'
+      + '<span class="text-muted" style="font-size:12.5px">Pul olingan post bo\'yicha · Kechagi — oldingi kunlardagi qarzdan shu kuni to\'langani</span></div>'
+      + '<div class="table-wrap"><table class="tbl post-tbl"><thead><tr><th></th>' + used.map(n => '<th>' + n + '-POST</th>').join('') + (used.length > 1 ? '<th>JAMI</th>' : '') + '</tr></thead><tbody>'
+      + line('Avtomobillar', x => x.cars)
+      + line('Terminal', x => m(x.terminal))
+      + line('Naqd', x => m(x.cash))
+      + line('Klik', x => m(x.click))
+      + line('Kechagi (qarzdan)', x => m(x.kech))
+      + line('<b>JAMI KIRIM</b>', x => '<b>' + m(kirim(x)) + '</b>', 'tot')
+      + line('To\'lanmagan', x => x.debt ? '<span class="red">' + m(x.debt) + '</span>' : m(0))
+      + line('Xarajat', x => m(x.exp))
+      + line('Kassada naqd qoldi', x => '<b>' + m(x.cash + x.kechCash - x.expCash) + '</b>', 'tot')
+      + '</tbody></table></div>'
+      + (kechRows.length ? '<div class="kech-list"><b>Kechagi qarzlardan to\'langanlar (' + kechRows.length + ')</b>'
+        + kechRows.map(p => '<div class="kech-row"><span class="kp">' + esc(p.plate || '—') + '</span><span>' + esc(fmtDate(p.session_day)) + ' dagi qarz</span>'
+          + '<span>' + esc(timeOnly(p.paid_at)) + ' da to\'landi · ' + (num(p.post) || 1) + '-POST</span><b>' + m(num(p.amount)) + ' · ' + esc(PAY_NAMES[p.method] || p.method) + '</b></div>').join('') + '</div>' : '')
+      + '</div>';
+  },
+
   loadSeq: 0,
   async loadDaily() {
     const host = $('dailyTableWrap');
@@ -9683,18 +9867,27 @@ const Reports = {
       }
       const s = this.data.summary || {};
       const rows = this.allRows();
+      /* Pul TO'LANGAN KUNI bo'yicha: seanslarning o'z to'lovlari + shu kuni
+         to'langan qarzlar (bugungi qarz — naqd/terminal/Klik ichida,
+         oldingi kunlarniki — «Kechagi» alohida) */
+      const dp = s.debtPaid || {}, kc = s.kechagi || {};
       $('rdc').textContent = s.count !== undefined && s.count !== null ? s.count : rows.length;
-      $('rdm').textContent = money(s.amount);
-      $('rdcash').textContent = money(s.cash);
-      $('rdterm').textContent = money(s.terminal);
-      if ($('rdclick')) $('rdclick').textContent = money(s.click || 0);
+      $('rdm').textContent = money(num(s.amount) + num(dp.total) + num(kc.total));
+      $('rdcash').textContent = money(num(s.cash) + num(dp.cash));
+      $('rdterm').textContent = money(num(s.terminal) + num(dp.terminal));
+      if ($('rdclick')) $('rdclick').textContent = money(num(s.click) + num(dp.click));
+      if ($('rdkech')) { $('rdkech').textContent = money(num(kc.total)); $('rdkech').title = 'naqd ' + money(num(kc.cash)) + ' · terminal ' + money(num(kc.terminal)) + ' · Klik ' + money(num(kc.click)); }
       if ($('rddebt')) { $('rddebt').textContent = money(s.debt || 0); $('rddebt').classList.toggle('red', num(s.debt) > 0); }
+      this.exp = null;
+      this.renderPosts();
       /* Rasxod va kassadagi naqd qoldiq (naqd kirim − naqd rasxod) */
       api('/expenses?from=' + encodeURIComponent(r.from) + '&to=' + encodeURIComponent(r.to)).then(x => {
         if (seq !== this.loadSeq) return;
         const es = (x && x.summary) || {};
+        this.exp = (x && x.rows) || [];
         if ($('rdexp')) $('rdexp').textContent = money(es.total || 0);
-        if ($('rdleft')) $('rdleft').textContent = money(num(s.cash) - num(es.cash));
+        if ($('rdleft')) $('rdleft').textContent = money(num(s.cash) + num(dp.cash) + num(kc.cash) - num(es.cash));
+        this.renderPosts();
       }).catch(() => { if ($('rdexp')) $('rdexp').textContent = '—'; if ($('rdleft')) $('rdleft').textContent = '—'; });
       $('rdtime').textContent = dur(rows.reduce((a, x) => a + num(x.duration_seconds), 0));
       this.render();
@@ -13322,6 +13515,8 @@ const ACTIONS = {
   /* --- admin --- */
   openAdminGate: () => { if (!Maxsus.isOpen()) return Maxsus.ask(() => Admin.openGate()); return Admin.openGate(); },
   maxsusToggle: () => Maxsus.toggle(),
+  postPick: () => Post.ask(false),
+  postSet: d => Post.choose(d.n),
   maxsusLock: () => Maxsus.lock(true),
   maxsusChange: () => Maxsus.changeDialog(),
   maxsusForgot: () => Maxsus.setupDialog(true),

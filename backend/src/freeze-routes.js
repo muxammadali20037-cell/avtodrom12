@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { pool } from './db.js';
 import { runOnce } from './schema-once.js';
+import { postOf } from './post.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 const num = v => Number.isFinite(Number(v)) ? Number(v) : 0;
@@ -137,9 +138,19 @@ export async function handleFreezeRequest(req,res){
   if(req.method==='POST' && /^\/api\/sessions\/[^/]+\/finish(?:-frozen)?$/.test(path)){
     const user=authUser(req);
     if(!user)return res.status(401).json({error:'Kirish talab qilinadi'});
-    await ensureFreezeSchema();
-    const check=await pool.query(`SELECT 1 FROM sessions WHERE id=$1 AND user_id=$2 AND status='frozen'`,[id,String(user.sub)]);
-    if(check.rows[0])return finishFrozen(req,res,id);
+    /* Noto'g'ri raqam (masalan «undefined») — bazaga yubormaymiz: ilgari bu
+       yerda xato ushlanmay so'rov javobsiz «osilib» qolardi */
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id||''))) return res.status(404).json({error:'Sessiya topilmadi'});
+    try{
+      await ensureFreezeSchema();
+      const check=await pool.query(`SELECT 1 FROM sessions WHERE id=$1 AND user_id=$2 AND status='frozen'`,[id,String(user.sub)]);
+      if(check.rows[0]){
+        /* pul qaysi postda olinadi (javob yuborilishidan OLDIN yoziladi) */
+        const post=postOf(req);
+        if(post){try{await pool.query(`UPDATE sessions SET pay_post=$1, post=COALESCE(post,$1) WHERE id=$2`,[post,id]);}catch(e){/* ustun yo'q */}}
+        return finishFrozen(req,res,id);
+      }
+    }catch(e){return res.status(500).json({error:e.message||'Server xatosi'});}
     if(path.endsWith('-frozen'))return res.status(404).json({error:'Muzlatilgan sessiya topilmadi'});
   }
   return null;

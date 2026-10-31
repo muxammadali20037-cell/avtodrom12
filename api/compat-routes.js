@@ -4,6 +4,7 @@ import { pool } from '../backend/src/db.js';
 import { runOnce } from '../backend/src/schema-once.js';
 import { ensureQuotaSchema, quotaForInsert } from './quota-routes.js';
 import { logChange, reasonError, LESSONS_NEED_REASON } from './audit-routes.js';
+import { postOf } from '../backend/src/post.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 
@@ -275,9 +276,23 @@ export async function handleCompatRequest(req, res) {
       const preUsed = [pre.cash > 0, pre.terminal > 0, pre.click > 0].filter(Boolean).length;
       pre.method = preUsed > 1 ? 'mixed' : pre.terminal > 0 ? 'terminal' : pre.click > 0 ? 'click' : 'cash';
 
+      /* INTERNETSIZ ochilgan bo'lsa: sahifa o'zi yaratgan raqam (clientId) —
+         qayta yuborilsa ikkinchi yozuv ochilmaydi, «Chiqdi» ham o'sha raqamga */
+      const clientId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(body.clientId || body.client_id || ''))
+        ? String(body.clientId || body.client_id).toLowerCase() : null;
+      const post = postOf(req);
       const c = await pool.connect();
       try {
         await c.query('BEGIN');
+        if (clientId) {
+          const ex = await c.query(`SELECT id, started_at, user_id FROM sessions WHERE id = $1`, [clientId]);
+          if (ex.rows[0]) {
+            await c.query('ROLLBACK');
+            if (String(ex.rows[0].user_id) !== String(user)) { send(res, 409, { error: 'Bu raqam band' }); return true; }
+            send(res, 201, { id: ex.rows[0].id, startedAt: ex.rows[0].started_at, plate: p.plate, plateBody: p.body, replay: true });
+            return true;
+          }
+        }
 
         let vr = await c.query(`SELECT * FROM vehicles WHERE plate=$1 AND user_id=$2`, [p.plate, user]);
         let v = vr.rows[0];
@@ -372,8 +387,10 @@ export async function handleCompatRequest(req, res) {
           const d = new Date(rawStart);
           if (!Number.isNaN(d.getTime())) {
             const diff = Math.abs(d.getTime() - Date.now());
+            /* internetsiz ochilganlar keyin yuboriladi — 3 kungacha ruxsat */
+            const maxAge = (body.offline === true ? 72 : 12) * 3600 * 1000;
             /* kelajakdagi vaqt bilan ochilmasin (10 daqiqa farq — soat farqi uchun) */
-            if (diff <= 12 * 3600 * 1000 && d.getTime() <= Date.now() + 10 * 60000) startAt = d.toISOString();
+            if (diff <= maxAge && d.getTime() <= Date.now() + 10 * 60000) startAt = d.toISOString();
           }
         }
 
@@ -405,11 +422,14 @@ export async function handleCompatRequest(req, res) {
           ['manual_price', true],
           ['auto_close', autoClose],
           ['planned_amount', plannedAmount],
+          ['id', clientId],
+          ['post', post],
+          ['pay_post', pre.total > 0 ? post : null],
           /* oldindan to'lov — yakunlashda faqat ortiqcha vaqt so'raladi */
           ...(pre.total > 0 ? [
             ['amount', pre.total], ['cash_amount', pre.cash], ['terminal_amount', pre.terminal],
             ['click_amount', pre.click], ['payment_method', pre.method]] : [])
-        ].filter(([k, val]) => sessCols.has(k) && !(k === 'started_at' && val === null));
+        ].filter(([k, val]) => sessCols.has(k) && !(['started_at', 'id', 'post', 'pay_post'].includes(k) && val === null));
         if (pre.click > 0 && !sessCols.has('click_amount')) throw new Error('Klik to‘lovi uchun baza hali tayyor emas');
 
         const r = await c.query(
@@ -617,7 +637,8 @@ export async function handleCompatRequest(req, res) {
             /* Nechinchi kirish va limitdan qanchasi oshgani */
             ['visit_index', quota ? quota.visitIndex : null],
             ['over_lessons', quota ? quota.overLessons : null],
-          ].filter(([k]) => cols.has(k));
+            ['post', postOf(req)],
+          ].filter(([k, v]) => cols.has(k) && !(k === 'post' && v === null));
 
           const r = await c.query(
             `INSERT INTO sessions(${cand.map(([k]) => k).join(', ')})

@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
 import { pool, poolStats } from './db.js';
+import { postOf } from './post.js';
 import { dbLimits, ensureDbSafety } from './schema-once.js';
 
 dotenv.config();
@@ -712,7 +713,30 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
        WHERE s.id=$1 AND s.user_id=$2 AND s.status IN ('active','frozen') FOR UPDATE OF s`,
       [req.params.id, uid(req)]
     );
-    if (!r.rows[0]) { await c.query('ROLLBACK'); return res.status(404).json({ error: 'Faol sessiya topilmadi' }); }
+    if (!r.rows[0]) {
+      /* INTERNETSIZ yopilgan, lekin server orada o'zi yopib qo'ygan (vaqti
+         tugagan) bo'lsa — kassada olingan pul yo'qolmasin: to'lov yoziladi */
+      if (req.body && req.body.offline === true) {
+        const done = await c.query(`SELECT s.*, v.plate FROM sessions s LEFT JOIN vehicles v ON v.id=s.vehicle_id
+          WHERE s.id=$1 AND s.user_id=$2 AND s.status='completed' FOR UPDATE OF s`, [req.params.id, uid(req)]);
+        const d0 = done.rows[0];
+        if (d0) {
+          const oc = num(req.body.cash_amount), ot = num(req.body.terminal_amount), ok = num(req.body.click_amount);
+          const od = Math.max(0, Math.round(num(req.body.debt_amount)));
+          if (oc + ot + ok + od > 0 && !d0.student_id) {
+            const used0 = [oc > 0, ot > 0, ok > 0].filter(Boolean).length;
+            const m0 = used0 > 1 ? 'mixed' : ot > 0 ? 'terminal' : ok > 0 ? 'click' : 'cash';
+            await c.query(`UPDATE sessions SET cash_amount=$1, terminal_amount=$2, amount=$3, payment_method=$4 WHERE id=$5`,
+              [oc, ot, oc + ot + ok, m0, d0.id]);
+            if (await hasClickColumn()) await c.query(`UPDATE sessions SET click_amount=$1 WHERE id=$2`, [ok, d0.id]);
+            await c.query(`UPDATE sessions SET debt_amount=$1 WHERE id=$2`, [od, d0.id]).catch(() => null);
+          }
+          await c.query('COMMIT');
+          return res.json({ ...d0, already: true, cash_amount: oc, terminal_amount: ot, click_amount: ok, debt_amount: od });
+        }
+      }
+      await c.query('ROLLBACK'); return res.status(404).json({ error: 'Faol sessiya topilmadi' });
+    }
 
     const s = r.rows[0];
     let end = new Date();
@@ -781,6 +805,14 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
     );
     if (debt > 0) await c.query(`UPDATE sessions SET debt_amount=$1 WHERE id=$2`, [debt, s.id]);
     await c.query('COMMIT');
+    /* Pul qaysi postda olingan (1-POST / 2-POST) — hisobot shunga qarab ajratiladi */
+    const post = postOf(req);
+    if (post) {
+      try {
+        await pool.query(`UPDATE sessions SET pay_post = CASE WHEN $3::numeric > 0 THEN $1::smallint ELSE pay_post END,
+            post = COALESCE(post, $1::smallint) WHERE id = $2`, [post, s.id, amount]);
+      } catch (e) { /* ustun hali yo'q */ }
+    }
     res.json({
       ...u.rows[0], plate: s.plate, debt_amount: debt,
       amount: Number(amount), cash_amount: Number(cash), terminal_amount: Number(terminal), click_amount: Number(click),
@@ -804,6 +836,8 @@ const REPORT_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,v.driv
     COALESCE((to_jsonb(s)->>'click_amount')::numeric,0) click_amount, s.target_duration,
     COALESCE((to_jsonb(s)->>'debt_amount')::numeric,0) debt_amount, COALESCE((to_jsonb(s)->>'auto_closed')::boolean,false) auto_closed,
     to_jsonb(s)->>'correction_note' correction_note, to_jsonb(s)->>'corrected_at' corrected_at,
+    (to_jsonb(s)->>'post')::int post, (to_jsonb(s)->>'pay_post')::int pay_post,
+    COALESCE((to_jsonb(s)->>'debt_paid')::numeric,0) debt_paid, to_jsonb(s)->>'settled_at' settled_at,
     s.customer_type,s.instructor_id,COALESCE(i.full_name,i.bio,s.instructor_name) instructor_label,
     ds.name school_name,g.name group_name,st.full_name student_name,i.full_name instructor_name,
     ${STUDENT_ATTENDANCE_SQL} attendance_count
@@ -825,6 +859,8 @@ const REPORT_RANGE_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,
     COALESCE((to_jsonb(s)->>'click_amount')::numeric,0) click_amount, s.target_duration,
     COALESCE((to_jsonb(s)->>'debt_amount')::numeric,0) debt_amount, COALESCE((to_jsonb(s)->>'auto_closed')::boolean,false) auto_closed,
     to_jsonb(s)->>'correction_note' correction_note, to_jsonb(s)->>'corrected_at' corrected_at,
+    (to_jsonb(s)->>'post')::int post, (to_jsonb(s)->>'pay_post')::int pay_post,
+    COALESCE((to_jsonb(s)->>'debt_paid')::numeric,0) debt_paid, to_jsonb(s)->>'settled_at' settled_at,
     s.customer_type,s.instructor_id,COALESCE(i.full_name,i.bio,s.instructor_name) instructor_label,
     ds.name school_name,g.name group_name,st.full_name student_name,i.full_name instructor_name,
     (st.id IS NOT NULL) _has_student
@@ -849,6 +885,30 @@ async function rangeReportRows(userId,from,to){
   for(const x of r.rows){ x.attendance_count=x._has_student?(att.get(String(x.student_id))||0):0; delete x._has_student; }
   return r.rows;
 }
+/* QARZ TO'LOVLARI to'langan kuni bo'yicha (Toshkent vaqti). «KECHAGI» —
+   oldingi kunlarda qarzga qolib, shu kuni to'langanlari. */
+async function debtPaymentsBetween(userId,from,to){
+  try{
+    const r=await pool.query(`SELECT d.id,d.session_id,d.amount::float8 amount,d.method,d.post,
+        to_char(d.session_day,'YYYY-MM-DD') session_day,d.paid_at,
+        to_char((d.paid_at AT TIME ZONE 'Asia/Tashkent')::date,'YYYY-MM-DD') paid_day,
+        COALESCE(v.plate,s.driver_name) plate,s.started_at
+      FROM debt_payments d LEFT JOIN sessions s ON s.id=d.session_id LEFT JOIN vehicles v ON v.id=s.vehicle_id
+      WHERE d.user_id=$1 AND (d.paid_at AT TIME ZONE 'Asia/Tashkent')::date BETWEEN $2::date AND $3::date
+      ORDER BY d.paid_at`,[String(userId),from,to]);
+    return r.rows;
+  }catch(e){return [];}  /* jadval hali yo'q — eski baza */
+}
+function debtSummary(list){
+  const z=()=>({cash:0,terminal:0,click:0,total:0});
+  const out={kechagi:z(),debtPaid:z()};
+  for(const d of list){
+    const k=d.session_day&&d.session_day<d.paid_day?'kechagi':'debtPaid';
+    const m=d.method==='terminal'?'terminal':d.method==='click'?'click':'cash';
+    out[k][m]+=Number(d.amount||0);out[k].total+=Number(d.amount||0);
+  }
+  return out;
+}
 function reportSummary(rows){return rows.reduce((a,x)=>{a.count++;a.seconds+=Number(x.duration_seconds||0);a.amount+=Number(x.amount||0);a.cash+=Number(x.cash_amount||0);a.terminal+=Number(x.terminal_amount||0);a.click+=Number(x.click_amount||0);a.debt+=Number(x.debt_amount||0);a.lessons+=Number(x.lessons_counted||0);if(x.status&&x.status!=='completed')a.inside++;return a},{count:0,seconds:0,amount:0,cash:0,terminal:0,click:0,debt:0,lessons:0,inside:0});}
 function sendReport(req,res,data){
   const body=JSON.stringify(data);
@@ -869,9 +929,10 @@ app.get('/api/reports/daily',auth,async(req,res)=>{try{
     const r=a===b
       ? await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND s.started_at::date=$2 ORDER BY s.started_at DESC`,[uid(req),a])
       : {rows:await rangeReportRows(uid(req),a,b)};
-    return sendReport(req,res,{date:a,from:a,to:b,days,summary:reportSummary(r.rows),rows:r.rows});
+    const dps=await debtPaymentsBetween(uid(req),a,b);
+    return sendReport(req,res,{date:a,from:a,to:b,days,summary:Object.assign(reportSummary(r.rows),debtSummary(dps)),rows:r.rows,debtPayments:dps});
   }
-  const date=/^\d{4}-\d{2}-\d{2}$/.test(req.query.date||'')?req.query.date:new Date().toISOString().slice(0,10);const r=await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND s.started_at::date=$2 ORDER BY s.started_at DESC`,[uid(req),date]);res.json({date,summary:reportSummary(r.rows),rows:r.rows})}catch(e){console.error('DAILY:',e.message);res.status(500).json({error:'Hisobotni olishda xatolik'})}});
+  const date=/^\d{4}-\d{2}-\d{2}$/.test(req.query.date||'')?req.query.date:new Date().toISOString().slice(0,10);const r=await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND s.started_at::date=$2 ORDER BY s.started_at DESC`,[uid(req),date]);const dps=await debtPaymentsBetween(uid(req),date,date);res.json({date,summary:Object.assign(reportSummary(r.rows),debtSummary(dps)),rows:r.rows,debtPayments:dps})}catch(e){console.error('DAILY:',e.message);res.status(500).json({error:'Hisobotni olishda xatolik'})}});
 app.get('/api/history',auth,async(req,res)=>{const plate=String(req.query.plate||'').trim().toUpperCase();if(!plate)return res.status(400).json({error:'Avtomobil raqami kerak'});const like='%'+plate.replace(/\s+/g,'%')+'%';const r=await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND v.plate ILIKE $2 AND s.status IN ${REPORT_STATUSES} ORDER BY s.started_at DESC`,[uid(req),like]);res.json({plate,rows:r.rows})});
 app.get('/api/dashboard',auth,async(req,res)=>{const r=await pool.query(`SELECT COUNT(*) FILTER(WHERE status='active')::int active,COUNT(*) FILTER(WHERE status='frozen')::int frozen,COUNT(*) FILTER(WHERE status IN ('completed','active','frozen','paused') AND started_at::date=CURRENT_DATE)::int today_count,COALESCE(SUM(duration_seconds) FILTER(WHERE status='completed' AND started_at::date=CURRENT_DATE),0)::bigint today_seconds,COALESCE(SUM(amount) FILTER(WHERE status IN ('completed','active','frozen','paused') AND started_at::date=CURRENT_DATE),0)::numeric today_amount,COALESCE(SUM(cash_amount) FILTER(WHERE status IN ('completed','active','frozen','paused') AND started_at::date=CURRENT_DATE),0)::numeric today_cash,COALESCE(SUM(terminal_amount) FILTER(WHERE status IN ('completed','active','frozen','paused') AND started_at::date=CURRENT_DATE),0)::numeric today_terminal,COALESCE(SUM(lessons_counted) FILTER(WHERE status='completed' AND started_at::date=CURRENT_DATE),0)::int today_lessons FROM sessions WHERE user_id=$1`,[uid(req)]);const x=r.rows[0];res.json({active:Number(x.active),frozen:Number(x.frozen),todayCount:Number(x.today_count),todaySeconds:Number(x.today_seconds),todayAmount:Number(x.today_amount),todayCash:Number(x.today_cash),todayTerminal:Number(x.today_terminal),todayLessons:Number(x.today_lessons),cash:Number(x.today_cash),terminal:Number(x.today_terminal)})});
 

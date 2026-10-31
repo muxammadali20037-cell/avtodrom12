@@ -24,6 +24,7 @@ import { pool } from '../backend/src/db.js';
 import { ensureKassaSchema, cleanExpense, autoCloseDue } from './kassa-routes.js';
 import { logChange } from './audit-routes.js';
 import { maxsusOk, lockedResponse } from './lock-routes.js';
+import { postOf } from '../backend/src/post.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 const TZ = 'Asia/Tashkent';
@@ -106,7 +107,9 @@ const S_SELECT = `
          COALESCE(s.click_amount, 0)::float8 AS click_amount, COALESCE(s.debt_amount, 0)::float8 AS debt_amount,
          COALESCE(s.planned_amount, 0)::float8 AS planned_amount,
          s.correction_note, s.hourly_rate::float8 AS hourly_rate, s.minimum_payment::float8 AS minimum_payment,
-         s.calculation_mode, ds.name AS school_name
+         s.calculation_mode, ds.name AS school_name,
+         (to_jsonb(s)->>'post')::int AS post, (to_jsonb(s)->>'pay_post')::int AS pay_post,
+         COALESCE((to_jsonb(s)->>'debt_paid')::numeric, 0)::float8 AS debt_paid
     FROM sessions s
     LEFT JOIN vehicles v ON v.id = s.vehicle_id
     LEFT JOIN driving_schools ds ON ds.id = s.school_id`;
@@ -393,8 +396,9 @@ async function save(req, res, user) {
           ['status', eAt ? 'completed' : 'active'], ['customer_type', 'regular'], ['manual_price', true],
           ['amount', paid], ['cash_amount', m.cash], ['terminal_amount', m.terminal], ['click_amount', m.click],
           ['payment_method', methodOf(m.cash, m.terminal, m.click)], ['debt_amount', m.debt],
-          ['lessons_counted', 0], ['correction_note', note || 'Excel jadvalida qo‘shildi'], ['corrected_at', new Date()]
-        ].filter(([k]) => sCols.has(k));
+          ['lessons_counted', 0], ['correction_note', note || 'Excel jadvalida qo‘shildi'], ['corrected_at', new Date()],
+          ['post', postOf(req)], ['pay_post', paid > 0 ? postOf(req) : null]
+        ].filter(([k, v]) => sCols.has(k) && !(['post', 'pay_post'].includes(k) && v === null));
         let ins;
         try {
           await c.query('SAVEPOINT sp_row');

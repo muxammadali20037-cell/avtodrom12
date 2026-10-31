@@ -41,7 +41,8 @@
 
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
-import { runOnce } from '../backend/src/schema-once.js';
+import { runOnce, ddl } from '../backend/src/schema-once.js';
+import { postOf } from '../backend/src/post.js';
 import { logChange } from './audit-routes.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
@@ -136,7 +137,28 @@ export function ensureKassaSchema() {
       updated_at TIMESTAMPTZ,
       deleted_at TIMESTAMPTZ)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_expenses_user_day ON expenses(user_id, spent_on) WHERE deleted_at IS NULL`);
-  }).catch(e => { schemaP = null; throw e; });
+  }).then(() => runOnce('kassa-schema-v4-post-debtpay', async () => {
+    /* POST (1-POST / 2-POST) va QARZ TO'LOVLARI to'langan kuni bo'yicha.
+       Ustun bor bo'lsa ALTER chaqirilmaydi (jadval bejiz qulflanmasin). */
+    const cols = new Set((await pool.query(`SELECT table_name || '.' || column_name AS k FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name IN ('sessions', 'expenses')`)).rows.map(r => r.k));
+    if (!cols.has('sessions.post')) await ddl(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS post SMALLINT`);
+    if (!cols.has('sessions.pay_post')) await ddl(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS pay_post SMALLINT`);
+    if (!cols.has('sessions.debt_paid')) await ddl(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS debt_paid NUMERIC(12,2) NOT NULL DEFAULT 0`);
+    if (!cols.has('expenses.post')) await ddl(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS post SMALLINT`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS debt_payments(
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id TEXT NOT NULL,
+      session_id UUID NOT NULL,
+      amount NUMERIC(12,2) NOT NULL,
+      method TEXT NOT NULL,
+      post SMALLINT,
+      session_day DATE,
+      paid_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      note TEXT)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_debt_payments_user_paid ON debt_payments(user_id, paid_at)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_debt_payments_session ON debt_payments(session_id)`);
+  })).catch(e => { schemaP = null; throw e; });
   return schemaP;
 }
 
@@ -164,7 +186,7 @@ function clean(b, todayFallback) {
   return out;
 }
 const SELECT = `SELECT id, to_char(spent_on,'YYYY-MM-DD') spent_on, person, category, vehicle, amount::float8 amount,
-  pay_method, liters::float8 liters, odometer, note, created_at, updated_at FROM expenses`;
+  pay_method, liters::float8 liters, odometer, note, created_at, updated_at, (to_jsonb(expenses)->>'post')::int AS post FROM expenses`;
 
 async function list(req, res, user) {
   const u = new URL(req.url, 'http://localhost');
@@ -191,6 +213,8 @@ async function create(req, res, user) {
   const r = await pool.query(`INSERT INTO expenses(user_id, spent_on, person, category, vehicle, amount, pay_method, liters, odometer, note)
     VALUES($1,$2::date,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
     [user, b.spent_on, b.person, b.category, b.vehicle, b.amount, b.pay_method, b.liters, b.odometer, b.note]);
+  const post = postOf(req);
+  if (post) { try { await pool.query(`UPDATE expenses SET post = $1 WHERE id = $2`, [post, r.rows[0].id]); } catch (e) { /* ustun hali yo'q */ } }
   const row = (await pool.query(`${SELECT} WHERE id=$1`, [r.rows[0].id])).rows[0];
   return json(res, 201, row);
 }
@@ -270,38 +294,49 @@ async function debtList(req, res, user) {
   const total = r.rows.reduce((a, x) => a + Number(x.debt_amount || 0), 0);
   json(res, 200, { rows: r.rows, total });
 }
+/* QARZNI TO'LASH. Pul seansning o'z kuniga EMAS, TO'LANGAN KUNGA yoziladi:
+   bugun qarzga qoldi, ertaga to'ladi — pul ertangi hisobotga tushadi
+   («KECHAGI» qatori). Seansning o'z to'lovlari (naqd/terminal/Klik)
+   o'zgarmaydi; qarz debt_payments jadvaliga (summa, turi, post, vaqt)
+   yoziladi, seansda debt_amount = 0, debt_paid += summa. */
 async function debtPay(req, res, user) {
   const b = await readBody(req);
   const ids = (Array.isArray(b.ids) ? b.ids : []).map(x => text(x)).filter(Boolean).slice(0, 500);
   const method = ['cash', 'terminal', 'click'].includes(text(b.method)) ? text(b.method) : '';
   if (!ids.length) return json(res, 400, { error: 'To‘lanadigan yozuv tanlanmagan' });
   if (!method) return json(res, 400, { error: 'To‘lov turini tanlang: naqd, terminal yoki Klik' });
+  const post = postOf(req);
+  /* Internetsiz to'langan bo'lsa — haqiqiy to'langan vaqt (ko'pi bilan 3 kun oldin) */
+  let paidAt = null;
+  if (b.paid_at || b.paidAt) {
+    const d = new Date(b.paid_at || b.paidAt);
+    if (!isNaN(d.getTime()) && d.getTime() <= Date.now() + 60000 && d.getTime() >= Date.now() - 3 * 86400000) paidAt = d;
+  }
   const c = await pool.connect();
   try {
     await c.query('BEGIN');
     const r = await c.query(`
-      UPDATE sessions s
-         SET cash_amount = s.cash_amount + CASE WHEN $3 = 'cash' THEN s.debt_amount ELSE 0 END,
-             terminal_amount = s.terminal_amount + CASE WHEN $3 = 'terminal' THEN s.debt_amount ELSE 0 END,
-             click_amount = s.click_amount + CASE WHEN $3 = 'click' THEN s.debt_amount ELSE 0 END,
-             amount = COALESCE(s.amount, 0) + s.debt_amount,
-             settled_at = now(), debt_amount = 0
+      SELECT s.id, s.debt_amount, (s.started_at AT TIME ZONE 'Asia/Tashkent')::date AS day
+        FROM sessions s
        WHERE s.user_id = $1 AND s.id::text = ANY($2::text[]) AND s.status = 'completed' AND s.debt_amount > 0
-       RETURNING s.id`, [user, ids, method]);
-    const done = r.rows.map(x => String(x.id));
-    if (done.length) {
-      await c.query(`
-        UPDATE sessions SET payment_method = CASE
-            WHEN ((cash_amount > 0)::int + (terminal_amount > 0)::int + (click_amount > 0)::int) > 1 THEN 'mixed'
-            WHEN terminal_amount > 0 THEN 'terminal' WHEN click_amount > 0 THEN 'click' ELSE 'cash' END
-         WHERE user_id = $1 AND id::text = ANY($2::text[])`, [user, done]);
+       FOR UPDATE OF s`, [user, ids]);
+    const done = [];
+    let sum = 0;
+    for (const x of r.rows) {
+      const amt = Number(x.debt_amount || 0);
+      if (amt <= 0) continue;
+      await c.query(`INSERT INTO debt_payments(user_id, session_id, amount, method, post, session_day, paid_at)
+        VALUES($1, $2, $3, $4, $5, $6, COALESCE($7, now()))`, [user, x.id, amt, method, post, x.day, paidAt]);
+      await c.query(`UPDATE sessions SET debt_paid = COALESCE(debt_paid, 0) + debt_amount, debt_amount = 0,
+          settled_at = COALESCE($2, now()) WHERE id = $1`, [x.id, paidAt]);
+      done.push(String(x.id));
+      sum += amt;
     }
     await c.query('COMMIT');
-    const sum = Number(b.total || 0);
     await logChange(null, user, { entity: 'session', entityId: done[0] || null, entityName: text(b.name) || null,
-      action: 'debt_paid', field: method, newValue: (sum ? sum + ' so‘m, ' : '') + done.length + ' ta yozuv',
-      reason: 'To‘lanmagan vaqtlar birdan to‘landi' });
-    json(res, 200, { ok: true, count: done.length, ids: done });
+      action: 'debt_paid', field: method, newValue: sum + ' so‘m, ' + done.length + ' ta yozuv' + (post ? ', ' + post + '-POST' : ''),
+      reason: 'To‘lanmagan vaqtlar to‘landi (to‘langan kunning hisobotiga yoziladi)' });
+    json(res, 200, { ok: true, count: done.length, ids: done, total: sum });
   } catch (e) {
     try { await c.query('ROLLBACK'); } catch { /* noop */ }
     throw e;
@@ -343,8 +378,9 @@ async function sessionSplit(req, res, user, id) {
       ['click_amount', click], ['payment_method', method], ['status', 'completed'], ['customer_type', s.customer_type],
       ['instructor_id', s.instructor_id], ['instructor_name', s.instructor_name], ['driver_name', s.driver_name],
       ['manual_price', true], ['debt_amount', debt], ['target_duration', minutes * 60], ['lessons_counted', 0],
-      ['school_id', s.school_id], ['group_id', s.group_id]
-    ].filter(([k]) => cols.has(k));
+      ['school_id', s.school_id], ['group_id', s.group_id],
+      ['post', s.post || postOf(req)], ['pay_post', postOf(req)]
+    ].filter(([k, v]) => cols.has(k) && !(['post', 'pay_post'].includes(k) && v === null));
     if (click > 0 && !cols.has('click_amount')) throw new Error('Klik to‘lovi uchun baza hali tayyor emas');
     const ins = await c.query(`INSERT INTO sessions(${cand.map(([k]) => k).join(',')})
       VALUES(${cand.map((_, i) => '$' + (i + 1)).join(',')}) RETURNING id`, cand.map(([, v]) => v));
