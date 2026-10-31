@@ -1200,6 +1200,18 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 .net-chip.hidden { display: none; }
 .net-chip.off { background: #fef2f2; color: #b91c1c; border: 1.5px solid #fecaca; }
 .net-chip.sync { background: #fffbeb; color: #92400e; border: 1.5px solid #fde68a; }
+.net-chip { cursor: pointer; font-family: inherit; }
+.net-chip:focus-visible { outline: 2px solid var(--green, #16a34a); outline-offset: 2px; }
+.in-local { color: #d97706; font-size: .8em; margin-left: 4px; }
+.ob-list { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow: auto; margin: 6px 0 12px; }
+.ob-row { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; padding: 8px 12px; border: 1px solid var(--border, #e5e7eb); border-radius: 10px; background: #fff; font-size: 13.5px; }
+.ob-row.bad { border-color: #fecaca; background: #fef2f2; }
+.ob-k { font-weight: 800; color: #0f172a; }
+.ob-n { color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-t { color: #64748b; font-variant-numeric: tabular-nums; }
+.ob-e { grid-column: 1 / -1; color: #b91c1c; font-size: 12.5px; }
+.ob-e.soft { color: #92400e; }
+.ob-a { grid-column: 1 / -1; display: flex; gap: 6px; justify-content: flex-end; }
 @media (max-width: 700px) { .post-chip b { font-size: 12px; } }
 .post-tbl th, .post-tbl td { text-align: right; white-space: nowrap; }
 .post-tbl th:first-child { text-align: left; }
@@ -1431,14 +1443,14 @@ body.sheet-open { overflow: hidden; }
         </div>
       </div>
       <div class="top-right">
-        <span class="net-chip hidden" id="netChip" role="status" aria-live="polite"></span>
+        <button class="net-chip hidden" type="button" id="netChip" data-act="netOpen" aria-live="polite" title="Internetsiz yozilganlar"></button>
         <button class="post-chip" type="button" data-act="postPick" id="postChip" title="Bu kompyuter qaysi kassa (post)?"><i class="fa-solid fa-cash-register" aria-hidden="true"></i> <b id="postChipTxt">1-POST</b></button>
         <div class="avatar" id="avatar" aria-hidden="true">A</div>
         <span class="text-muted nowrap" id="who" style="font-size:13px;font-weight:600"></span>
         <button class="btn btn-ghost" type="button" data-act="logout" aria-label="Tizimdan chiqish"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> <span>Chiqish</span></button>
       </div>
     </header>
-    <div class="conn-warning" id="connWarning" role="status"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Server bilan aloqa yo'q. Ma'lumotlar eskirgan bo'lishi mumkin.</div>
+    <div class="conn-warning" id="connWarning" role="status"><i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i> Internet yo'q — kassa ishlayveradi: «Kirdi», «Chiqdi», «To'lash» va davomat shu kompyuterda saqlanadi, internet qaytishi bilan o'zi serverga yuboriladi. Hisobot internet qaytgach yangilanadi.</div>
 
     <div class="content">
 
@@ -2718,7 +2730,9 @@ function setError(id, msg) { const el = $(id); if (el) el.textContent = msg || '
 function setOnline(on) {
   if (STATE.online === on) return;
   STATE.online = on;
-  const w = $('connWarning'); if (w) w.classList.toggle('show', !on);
+  /* Belgi va ogohlantirish; internet qaytdi — navbatdagilar yuboriladi */
+  Outbox.render();
+  if (on) Outbox.kick(300);
 }
 
 /* ===================== 5. API (yagona wrapper) ===================== */
@@ -2822,6 +2836,351 @@ const adminApi = (path, opt) => request('/admin' + path, Object.assign({}, opt, 
   )
 }), 'admin');
 const jsonBody = obj => JSON.stringify(obj);
+
+/* ===================== INTERNETSIZ REJIM =====================
+   Internet uzilsa ham kassa to'xtamaydi:
+     • «Kirdi», «Chiqdi», «To'lash» (qarz), davomat, chek jurnali —
+       shu kompyuterda navbatga (localStorage) yoziladi, chek chiqadi,
+       ro'yxatlar darhol yangilanadi;
+     • internet qaytishi bilan navbat TARTIB BILAN serverga yuboriladi —
+       haqiqiy vaqtlari (kirgan, chiqqan, to'lagan payti) bilan, o'sha
+       post (1-POST / 2-POST) nomidan;
+     • har amalning noyob raqami bor (X-Op-Id) — ikki marta yetib borsa
+       ham server bir marta yozadi (api/op-guard.js);
+     • server rad etgan amal (masalan, mashinani boshqa post allaqachon
+       ochgan) yo'qolmaydi — «Yuborilmadi» ro'yxatida turadi, tepadagi
+       belgini bosib ko'rish, qayta yuborish yoki o'chirish mumkin.
+   Sahifaning o'zi ham internetsiz ochiladi (sw.js). Ro'yxatlar
+   (o'quvchilar, avtoshkolalar, ichkaridagilar, to'lanmaganlar)
+   oxirgi holati bilan kompyuterda saqlanadi (LocalCache). */
+const LocalCache = {
+  key(name) { return 'avtodrom_cache_v1:' + Outbox.uid() + ':' + name; },
+  put(name, data) {
+    try {
+      const s = JSON.stringify({ at: Date.now(), data: data });
+      if (s.length > 2500000) return;           /* juda katta — saqlanmaydi (navbatga joy qolsin) */
+      localStorage.setItem(this.key(name), s);
+    } catch (e) { /* joy to'lgan — kesh bo'lmasa ham ishlaydi */ }
+  },
+  get(name) {
+    try { const j = JSON.parse(localStorage.getItem(this.key(name)) || 'null'); return j ? j.data : null; }
+    catch (e) { return null; }
+  }
+};
+
+const Outbox = {
+  KEY: 'avtodrom_outbox_v1',
+  FKEY: 'avtodrom_outbox_failed_v1',
+  items: [], failed: [], syncing: false, timer: null, loaded: false, sentKinds: {},
+  uid() {
+    const u = STATE.auth.user || {};
+    return String(u.id || u.username || '');
+  },
+  newId() {
+    try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) { /* noop */ }
+    const b = new Uint8Array(16);
+    try { crypto.getRandomValues(b); } catch (e) { for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256); }
+    b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+    const h = Array.from(b).map(x => x.toString(16).padStart(2, '0')).join('');
+    return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+  },
+  load() {
+    try { this.items = JSON.parse(localStorage.getItem(this.KEY) || '[]') || []; } catch (e) { this.items = []; }
+    try { this.failed = JSON.parse(localStorage.getItem(this.FKEY) || '[]') || []; } catch (e) { this.failed = []; }
+    if (!Array.isArray(this.items)) this.items = [];
+    if (!Array.isArray(this.failed)) this.failed = [];
+    this.loaded = true;
+  },
+  save() {
+    const raw = JSON.stringify(this.items);
+    try { localStorage.setItem(this.KEY, raw); }
+    catch (e) {
+      /* Joy to'lgan — navbat muhimroq: ro'yxat keshlarini o'chirib qayta yozamiz */
+      try {
+        Object.keys(localStorage).filter(k => k.indexOf('avtodrom_cache_v1:') === 0)
+          .sort((a, b) => (b.indexOf(':students') >= 0) - (a.indexOf(':students') >= 0))
+          .forEach(k => { try { localStorage.removeItem(k); } catch (e2) { /* noop */ } });
+        localStorage.setItem(this.KEY, raw);
+      } catch (e3) { console.error('[outbox] saqlanmadi', e3); toast('Kompyuter xotirasi to‘lgan — internetsiz yozuv saqlanmadi!', 'error'); }
+    }
+    try { localStorage.setItem(this.FKEY, JSON.stringify(this.failed.slice(-200))); } catch (e) { /* noop */ }
+    this.render();
+  },
+  mine() { const u = this.uid(); return this.items.filter(x => !x.user || x.user === u); },
+  /* Kassirga ko'rsatiladigan amallar (chek jurnali jim yuboriladi) */
+  visible() { return this.mine().filter(x => x.kind !== 'ticket'); },
+  myFailed() { const u = this.uid(); return this.failed.filter(x => !x.user || x.user === u); },
+  isOffline() { return navigator.onLine === false || !STATE.online; },
+
+  /* Asosiy yo'l: internet bo'lsa — darhol (X-Op-Id bilan), bo'lmasa yoki
+     navbatda yuborilmaganlar bo'lsa — navbatga (tartib buzilmasin).
+     Natija: { queued, res } */
+  async call(path, body, meta) {
+    meta = meta || {};
+    if (!this.loaded) this.load();
+    const item = {
+      op: meta.op || this.newId(), user: this.uid(), post: Post.get(),
+      path: path, method: meta.method || 'POST', body: meta.queueBody || body,
+      at: new Date().toISOString(), kind: meta.kind || 'other', sid: meta.sid ? String(meta.sid) : '',
+      label: meta.label || '', local: meta.local || null, debt: meta.debt || null,
+      ids: meta.ids || null, att: meta.att || null, money: meta.money || 0, tries: 0
+    };
+    /* Internet yo'qligi ma'lum bo'lsa — kutib o'tirmaymiz, darhol saqlanadi
+       (yarim soniyadan keyin yuborib ko'riladi) */
+    if (navigator.onLine === false || !STATE.online || this.mine().length) { this.add(item); return { queued: true, item: item }; }
+    try {
+      const res = await request(path, {
+        method: item.method, body: jsonBody(body),
+        headers: { 'X-Op-Id': item.op, 'X-Post': String(item.post) },
+        timeout: 8000
+      }, 'user');
+      return { queued: false, res: res, item: item };
+    } catch (e) {
+      /* Javob kelmadi — server bajargan bo'lishi ham mumkin: shu raqam bilan
+         qayta yuboriladi, server ikkinchi marta yozmaydi */
+      if (e && e.status === 0) { this.add(item); return { queued: true, item: item }; }
+      throw e;
+    }
+  },
+  /* Javobi muhim bo'lmagan amal (chek jurnali) */
+  quiet(path, body, meta) { this.call(path, body, meta).catch(() => {}); },
+  /* Bir kompyuterda ikki oyna ochiq bo'lsa ham navbat buzilmasin:
+     har o'zgarishdan oldin saqlangan holat qayta o'qiladi */
+  add(item) {
+    this.load();
+    this.items.push(item);
+    this.save();
+    this.refreshLists();
+    this.kick(400);
+  },
+  refreshLists() {
+    try { Active.refresh(); } catch (e) { console.error('[outbox] active', e); }
+    try { Debts.refresh(); } catch (e) { console.error('[outbox] debts', e); }
+  },
+  kick(ms) {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.sync(), ms || 0);
+  },
+  drop(op) { this.load(); this.items = this.items.filter(x => x.op !== op); this.save(); },
+  fail(it, msg) {
+    this.load();
+    const bad = [Object.assign({}, it, { error: msg || 'Server qabul qilmadi', failedAt: new Date().toISOString() })];
+    let rest = this.items.filter(x => x.op !== it.op);
+    /* Ochilishi o'tmagan yozuvning chek/chiqish amallari ham o'tmaydi */
+    if (it.kind === 'start' && it.sid) {
+      rest = rest.filter(x => {
+        if (x.sid === it.sid && (x.kind === 'finish' || x.kind === 'ticket')) {
+          bad.push(Object.assign({}, x, { error: 'Ochilishi serverga o‘tmagani uchun', failedAt: new Date().toISOString() }));
+          return false;
+        }
+        return true;
+      });
+    }
+    this.items = rest;
+    this.failed = this.failed.concat(bad);
+    this.save();
+    this.refreshLists();
+    if (it.kind !== 'ticket') toast('Serverga o‘tmadi: ' + (it.label || this.kindName(it.kind)) + ' — ' + (msg || '') + '. Tepadagi qizil belgini bosing.', 'error');
+  },
+  async sync() {
+    /* Bir vaqtda faqat bitta oyna yuboradi (ikkinchisi kutmaydi) */
+    if (navigator.locks && navigator.locks.request && !this.inLock) {
+      return navigator.locks.request('avtodrom-outbox', { ifAvailable: true }, async lock => {
+        if (!lock) { this.kick(5000); return; }
+        this.inLock = true;
+        try { await this.sync(); } finally { this.inLock = false; }
+      }).catch(() => {});
+    }
+    this.load();
+    if (this.syncing || !STATE.auth.token) return;
+    if (!this.mine().length) { this.render(); return; }
+    if (navigator.onLine === false) { this.render(); this.kick(15000); return; }
+    this.syncing = true;
+    this.render();
+    let sent = 0, stop = false;
+    try {
+      for (let guard = 0; guard < 500; guard++) {
+        const it = this.mine()[0];
+        if (!it) break;
+        try {
+          await request(it.path, {
+            method: it.method || 'POST', body: jsonBody(it.body),
+            headers: { 'X-Op-Id': it.op, 'X-Post': String(it.post || 1) }, timeout: 20000
+          }, 'user');
+          this.sentKinds[it.kind] = (this.sentKinds[it.kind] || 0) + 1;
+          this.drop(it.op);
+          sent++;
+        } catch (e) {
+          const st = e && e.status;
+          const retry = !st || st >= 500 || st === 408 || st === 429 || st === 401 || (st === 409 && e.data && e.data.inProgress);
+          if (retry) {
+            this.load();
+            const cur = this.items.find(x => x.op === it.op) || it;
+            cur.tries = (cur.tries || 0) + 1;
+            cur.lastError = e.message;
+            if (st >= 500 && cur.tries >= 8) { this.fail(cur, e.message); continue; }
+            this.save();
+            stop = true;
+            break;
+          }
+          this.fail(it, e.message);
+        }
+      }
+    } finally {
+      this.syncing = false;
+      this.render();
+    }
+    if (sent) this.afterSync(sent - (this.sentKinds.ticket || 0));
+    if (this.mine().length) this.kick(stop ? 15000 : 300);
+  },
+  /* Yuborilgach — ro'yxatlar serverdan yangilanadi */
+  afterSync(n) {
+    const k = this.sentKinds; this.sentKinds = {};
+    if (!this.visible().length && n > 0) toast('Internet qaytdi: ' + n + ' ta yozuv serverga yuborildi.');
+    Active.load(true);
+    Debts.load(true);
+    Reports.loadDaily();
+    Data.ensureToday(true).then(() => Active.renderKpi()).catch(() => {});
+    if (k.att) Data.reloadStudents().then(() => { if (STATE.form.student) { STATE.form.student = Data.studentById(STATE.form.student.id) || STATE.form.student; Add.renderStudentPanel(); } });
+  },
+
+  /* ---------- Ro'yxatlarga internetsiz amallarni qo'shish ---------- */
+  overdue(v) {
+    if (!v || !v.auto_close) return false;
+    const t = sessionTiming(v);
+    return t.remaining !== null && t.remaining <= 0;
+  },
+  /* Ichkaridagilar: yuborilmagan «Kirdi» qo'shiladi, «Chiqdi» olib
+     tashlanadi. Internet yo'q paytda vaqti tugagan «1 soatga» yozuvlar
+     ham ro'yxatdan chiqadi (server ularni rejadagi vaqtda yopadi). */
+  overlayActive(rows, offline) {
+    const mine = this.mine();
+    const fin = new Set(mine.filter(x => x.kind === 'finish').map(x => String(x.sid)));
+    const have = new Set(rows.map(r => String(r.id)));
+    const out = rows.filter(r => !fin.has(String(r.id)) && !(offline && this.overdue(r)));
+    mine.forEach(x => {
+      if (x.kind !== 'start' || !x.local) return;
+      const id = String(x.sid);
+      if (have.has(id) || fin.has(id) || this.overdue(x.local)) return;
+      out.push(Object.assign({}, x.local));
+    });
+    return out;
+  },
+  /* To'lanmaganlar: internetsiz «Keyin to'laydi», vaqti tugab yopilgan
+     (to'lanmagan) yozuvlar qo'shiladi, internetsiz to'langanlari olinadi */
+  overlayDebts(rows) {
+    const mine = this.mine();
+    const paid = new Set();
+    mine.forEach(x => { if (x.kind === 'debtpay') (x.ids || []).forEach(id => paid.add(String(id))); });
+    const have = new Set(rows.map(r => String(r.id)));
+    const out = rows.filter(r => !paid.has(String(r.id)));
+    const push = d => {
+      if (!d || paid.has(String(d.id)) || have.has(String(d.id))) return;
+      have.add(String(d.id)); out.push(d);
+    };
+    mine.forEach(x => { if (x.kind === 'finish' && x.debt) push(x.debt); });
+    const fin = new Set(mine.filter(x => x.kind === 'finish').map(x => String(x.sid)));
+    const cands = [];
+    mine.forEach(x => { if (x.kind === 'start' && x.local) cands.push(x.local); });
+    if (STATE.activeOffline) (Active.serverRows || []).forEach(r => cands.push(r));
+    cands.forEach(v => {
+      if (fin.has(String(v.id)) || !this.overdue(v) || v.student_id) return;
+      const paidNow = num(v.cash_amount) + num(v.terminal_amount) + num(v.click_amount);
+      const owe = Math.max(0, num(v.planned_amount) - paidNow);
+      if (owe <= 0) return;
+      const st = new Date(v.started_at).getTime();
+      push({ id: v.id, plate: v.plate, started_at: v.started_at,
+        finished_at: new Date(st + num(v.target_duration) * 1000).toISOString(),
+        duration_seconds: num(v.target_duration), debt_amount: owe, auto_closed: true, _local: true });
+    });
+    return out;
+  },
+  /* Internetsiz yozilgan davomat — o'quvchi darslari soniga qo'shiladi */
+  overlayStudents(list) {
+    const add = {};
+    this.mine().forEach(x => { if (x.kind === 'att' && x.att) add[x.att.studentId] = (add[x.att.studentId] || 0) + num(x.att.lessons); });
+    if (!Object.keys(add).length) return list;
+    return list.map(s => add[s.id] ? Object.assign({}, s, { attendance_count: num(s.attendance_count) + add[s.id] }) : s);
+  },
+
+  /* ---------- Tepadagi belgi va oyna ---------- */
+  kindName(k) {
+    return { start: 'Kirdi', finish: 'Chiqdi', debtpay: 'Qarz to‘landi', att: 'Davomat', ticket: 'Chek jurnali' }[k] || 'Amal';
+  },
+  render() {
+    const chip = $('netChip');
+    const warn = $('connWarning');
+    const n = this.visible().length, f = this.myFailed().filter(x => x.kind !== 'ticket').length;
+    const off = this.isOffline();
+    if (warn) warn.classList.toggle('show', off);
+    if (!chip) return;
+    let cls = '', txt = '', ico = 'fa-wifi';
+    if (this.syncing && !off) { cls = 'sync'; ico = 'fa-arrows-rotate fa-spin'; txt = 'Yuborilmoqda: ' + n + ' ta'; }
+    else if (off) { cls = 'off'; ico = 'fa-plug-circle-xmark'; txt = 'Internet yo‘q' + (n ? ' · ' + n + ' ta kutmoqda' : ''); }
+    else if (n) { cls = 'sync'; ico = 'fa-cloud-arrow-up'; txt = n + ' ta yuborilmagan'; }
+    if (f) { txt = (txt ? txt + ' · ' : '') + f + ' ta o‘tmadi'; if (!cls) { cls = 'off'; ico = 'fa-circle-exclamation'; } }
+    chip.className = 'net-chip ' + cls + (txt ? '' : ' hidden');
+    chip.innerHTML = '<i class="fa-solid ' + ico + '" aria-hidden="true"></i> ' + esc(txt);
+  },
+  line(x, failed) {
+    const t = new Date(x.at);
+    const when = (dayOf(x.at) !== localDateISO(0) ? fmtDate(dayOf(x.at)) + ' ' : '') + hhmm(t);
+    return '<div class="ob-row' + (failed ? ' bad' : '') + '"><span class="ob-k">' + esc(this.kindName(x.kind)) + '</span>'
+      + '<span class="ob-n">' + esc(x.label || '') + (x.money ? ' · ' + esc(money(x.money)) : '') + (x.post ? ' · ' + x.post + '-POST' : '') + '</span>'
+      + '<span class="ob-t">' + esc(when) + '</span>'
+      + (failed ? '<div class="ob-e">' + esc(x.error || '') + '</div>'
+        + '<div class="ob-a"><button class="btn btn-light btn-sm" type="button" data-act="obRetry" data-op="' + esc(x.op) + '">Qayta yuborish</button>'
+        + '<button class="btn btn-ghost btn-sm" type="button" data-act="obDrop" data-op="' + esc(x.op) + '">O‘chirish</button></div>'
+        : (x.lastError ? '<div class="ob-e soft">' + esc(x.lastError) + '</div>' : ''))
+      + '</div>';
+  },
+  open() {
+    const p = this.visible(), f = this.myFailed();
+    const off = this.isOffline();
+    openModal('<div class="modal-head"><div><h2>' + (off ? 'Internet yo‘q — kassa ishlayveradi' : 'Internetsiz yozilganlar') + '</h2>'
+      + '<p class="text-muted">«Kirdi», «Chiqdi», «To‘lash» va davomat shu kompyuterda saqlanadi, internet qaytishi bilan o‘zi serverga yuboriladi (haqiqiy vaqti bilan). Sahifani yopsangiz ham yo‘qolmaydi.</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div class="field-label">Yuborilishini kutayotganlar (' + p.length + ')</div>'
+      + (p.length ? '<div class="ob-list">' + p.map(x => this.line(x, false)).join('') + '</div>' : '<div class="text-muted" style="margin:6px 0 12px">Hammasi yuborilgan.</div>')
+      + (f.length ? '<div class="field-label" style="color:#b91c1c">Server qabul qilmadi (' + f.length + ') — tekshirib, qayta yuboring yoki o‘chiring</div>'
+        + '<div class="ob-list">' + f.map(x => this.line(x, true)).join('') + '</div>' : '')
+      + '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">'
+      + (p.length ? '<button class="btn btn-green" type="button" data-act="obSync"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> Hozir yuborish</button>' : '')
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Yopish</button></div>');
+  },
+  retry(op) {
+    this.load();
+    const x = this.failed.find(y => y.op === op);
+    if (!x) return;
+    this.failed = this.failed.filter(y => y.op !== op);
+    const it = Object.assign({}, x); delete it.error; delete it.failedAt; it.tries = 0;
+    this.items.push(it);
+    this.save();
+    this.open();
+    this.kick(100);
+  },
+  remove(op) {
+    if (!confirm('Bu yozuv serverga yuborilmaydi. O‘chirilsinmi?')) return;
+    this.load();
+    this.failed = this.failed.filter(y => y.op !== op);
+    this.save();
+    this.open();
+  },
+  init() {
+    this.load();
+    window.addEventListener('online', () => { this.render(); this.kick(500); });
+    window.addEventListener('offline', () => { setOnline(false); this.render(); });
+    /* boshqa oynada qo'shilgan / yuborilgan — shu oynada ham ko'rinsin */
+    window.addEventListener('storage', e => {
+      if (e.key !== this.KEY && e.key !== this.FKEY) return;
+      this.load(); this.render();
+      if (STATE.auth.token) this.refreshLists();
+    });
+    setInterval(() => { if (this.mine().length) this.sync(); }, 20000);
+    this.render();
+    this.kick(1500);
+  }
+};
 
 /* ===================== 6. AUTH ===================== */
 function loadSession() {
@@ -3780,14 +4139,20 @@ const Data = {
       api('/students').catch(e => { console.error('[students]', e.technical); return null; }),
       api('/settings').catch(e => { console.error('[settings]', e.technical); return null; })
     ]);
+    /* Internet bo'lsa — kompyuterga saqlab qo'yiladi; bo'lmasa — oxirgi
+       saqlangani olinadi (kassa internetsiz ham o'quvchini topadi) */
+    const keep = (val, name) => { if (val !== null && val !== undefined) { LocalCache.put(name, val); return val; } return LocalCache.get(name); };
+    const sch = keep(schools, 'schools'), ins = keep(instructors, 'instructors'), sts = keep(students, 'students');
+    const set0 = keep(settings, 'settings');
     /* Tarif ilovada belgilangan bo'lsa serverdagi sozlama ustidan yozmaydi */
-    if (settings && !CONFIG.TARIFF_OVERRIDE) STATE.settings = settings;
-    STATE.schools = Array.isArray(schools) ? schools : (schools && schools.rows) || [];
-    STATE.instructors = Array.isArray(instructors) ? instructors : (instructors && instructors.rows) || [];
-    if (students === null) { STATE.studentsLoadFailed = true; STATE.students = []; }
+    if (set0 && !CONFIG.TARIFF_OVERRIDE) STATE.settings = set0;
+    STATE.schools = Array.isArray(sch) ? sch : (sch && sch.rows) || [];
+    STATE.instructors = Array.isArray(ins) ? ins : (ins && ins.rows) || [];
+    if (sts === null || sts === undefined) { STATE.studentsLoadFailed = true; STATE.students = []; }
     else {
-      STATE.students = Array.isArray(students) ? students : (students.rows || []);
+      STATE.students = Outbox.overlayStudents(Array.isArray(sts) ? sts : (sts.rows || []));
       STATE.studentsLoaded = true;
+      STATE.studentsLoadFailed = false;
     }
     Add.syncStudentSource();
     Add.syncInstructorSource();
@@ -3798,7 +4163,8 @@ const Data = {
   async reloadStudents() {
     try {
       const r = await api('/students');
-      STATE.students = Array.isArray(r) ? r : (r && r.rows) || [];
+      LocalCache.put('students', r);
+      STATE.students = Outbox.overlayStudents(Array.isArray(r) ? r : (r && r.rows) || []);
       STATE.studentsLoaded = true;
       STATE.studentsLoadFailed = false;
       Add.syncStudentSource();
@@ -3812,7 +4178,8 @@ const Data = {
   },
   async reloadGroups(schoolId) {
     const q = schoolId ? '?schoolId=' + encodeURIComponent(schoolId) : '';
-    const r = await api('/groups' + q).catch(() => null);
+    let r = await api('/groups' + q).catch(() => null);
+    if (r !== null) LocalCache.put('groups' + q, r); else r = LocalCache.get('groups' + q);
     const list = Array.isArray(r) ? r : (r && r.rows) || [];
     if (schoolId) {
       const others = STATE.groups.filter(g => String(g.school_id || g.schoolId) !== String(schoolId));
@@ -4618,7 +4985,8 @@ const Add = {
         }
         const over = t.target && t.remaining <= 0;
         return '<div class="in-row' + (r.match ? ' match' : '') + (over ? ' over' : '') + '" data-sid="' + esc(v.id) + '">'
-          + '<div class="in-main"><b class="in-name">' + esc(v.plate || '—') + '</b>'
+          + '<div class="in-main"><b class="in-name">' + esc(v.plate || '—')
+          + (v._local ? ' <i class="fa-solid fa-cloud-arrow-up in-local" title="Internetsiz ochilgan — internet qaytganda serverga yuboriladi" aria-label="internetsiz"></i>' : '') + '</b>'
           + '<span class="in-sub">' + esc(timeOnly(v.started_at)) + (t.target && auto ? '' : ' dan · ' + esc(ranText(t.elapsed))) + left + '</span></div>'
           + '<div class="in-money' + (!st.pre && auto ? ' unpaid' : '') + '"><b>' + esc(money1) + '</b><small>' + esc(sub2) + '</small></div>'
           + '<button class="btn btn-green in-out" type="button" data-act="exitOpen" data-id="' + esc(v.id) + '"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Chiqdi</button>'
@@ -4912,7 +5280,7 @@ const Add = {
       await withBusy('att:' + (d.student && d.student.id), actBtn, async () => {
         try {
           const car = this.carInfo();
-          const res = await api('/attendance', { method: 'POST', body: jsonBody({
+          const attBody = {
             studentId: d.student.id,
             instructorId: d.instructor ? d.instructor.id : null,
             instructorName: d.instructorName,
@@ -4921,7 +5289,14 @@ const Add = {
             model: car.model || '',
             /* 2 tadan ko'p dars bo'lsa server sababsiz qabul qilmaydi */
             reason: d.reason || ''
-          }) });
+          };
+          /* Internet yo'q bo'lsa — kompyuterda saqlanadi, chek chiqadi,
+             keyin haqiqiy vaqti bilan serverga yuboriladi */
+          const attOut = await Outbox.call('/attendance', attBody, {
+            kind: 'att', label: stName(d.student) + ' — ' + d.lessons + ' dars',
+            att: { studentId: String(d.student.id), lessons: d.lessons },
+            queueBody: Object.assign({}, attBody, { offline: true, at: new Date().toISOString() }) });
+          const res = attOut.queued ? { lessons: d.lessons, total: null, ids: [], quota: null, offline: true } : attOut.res;
           const n = num(res && res.lessons) || d.lessons;
 
           /* Natija DARHOL ko'rinsin — lekin BUTUN ro'yxatni qayta
@@ -4958,7 +5333,12 @@ const Add = {
              bepul chek berilmaydi. Davomat esa baribir yoziladi va
              nazoratda «to'lov kerak edi» bo'lib turadi. */
           const qq = (res && res.quota) || null;
-          const limitOshdi = qq ? num(qq.overLessons) > 0 : false;
+          /* Internetsiz: limitni oxirgi ma'lum holatdan tekshiramiz */
+          const qLocal = !qq && res && res.offline && this.quota && String(this.quota.studentId || this.quotaFor) === String(d.student.id) ? this.quota : null;
+          const limitOshdi = qq ? num(qq.overLessons) > 0
+            : (qLocal && num(qLocal.limit) > 0 && qLocal.left !== undefined && qLocal.left !== null ? num(qLocal.left) <= 0 : false);
+          if (qLocal) this.quota = Object.assign({}, qLocal, { left: Math.max(0, num(qLocal.left) - 1), used: num(qLocal.used) + 1 });
+          if (res && res.offline && limitOshdi) toast('CHEK CHIQARILMADI — bepul limit tugagan (internetsiz tekshirildi). Davomat saqlandi, internet qaytgach yuboriladi.', 'error');
           if (withChek && !limitOshdi) {
             const sid = (res && Array.isArray(res.ids) && res.ids[0]) ? String(res.ids[0]) : '';
             /* Turniket kodi — chekdagi QR. Olinmasa chek QR'siz chiqadi. */
@@ -4983,7 +5363,8 @@ const Add = {
             }, () => Add.focusStudent());
           }
 
-          toast('Davomat yozildi: ' + stName(d.student) + ' — ' + n + ' dars. Jami: ' + jami + ' dars');
+          toast('Davomat yozildi: ' + stName(d.student) + ' — ' + n + ' dars. Jami: ' + jami + ' dars'
+            + (res && res.offline ? ' (internetsiz — keyin yuboriladi)' : ''));
 
           /* ===== SHARTNOMA LIMITI =====
              Server shu yozuv limitdan oshganini aytsa, operator buni
@@ -5030,7 +5411,8 @@ const Add = {
     setError(E, '');
     await withBusy('start:' + d.body, $('kirdiBtn') || $('startBtn'), async () => {
       try {
-        await Active.load(true);
+        /* internet yo'q bo'lsa serverni kutmaymiz — oxirgi ro'yxat bilan */
+        if (Outbox.isOffline()) Active.refresh(); else await Active.load(true);
         const w = this.paidWindow();
         /* BRON (kirish vaqti keyinroq) — navbatga, vaqti kelganda o'zi ochiladi */
         if (w.future) { await Queue.fromEntry(d, w, 'bron'); return; }
@@ -5047,15 +5429,34 @@ const Add = {
         const field = { cash: 'cash_amount', terminal: 'terminal_amount', click: 'click_amount' }[pay];
         /* Hozir to'landi (vaqti o'tgan yozuvda ham) */
         if (field) payload[field] = price;
-        const res = await api('/sessions/start', { method: 'POST', body: jsonBody(payload) });
-        const sid = res && (res.id || (res.session && res.session.id));
+        /* Yozuv raqamini sahifa o'zi beradi: internet yo'q bo'lsa ham chek,
+           «Chiqdi» va to'lov shu raqamga bog'lanadi, keyin server ham
+           aynan shu raqam bilan yozadi (ikki marta ochilmaydi) */
+        const cid = Outbox.newId();
+        payload.clientId = cid;
+        const startISO = payload.startAt || w.start.toISOString();
+        const qb = Object.assign({}, payload, { offline: true, startAt: startISO, start_at: startISO });
+        const local = {
+          id: cid, plate: String(d.body).replace(/\s+/g, ' ').trim().toUpperCase().slice(0, 60), model: '',
+          started_at: startISO, status: 'active', customer_type: 'ordinary',
+          target_duration: num(payload.targetDuration), auto_close: !w.open, planned_amount: w.open ? 0 : price,
+          cash_amount: field === 'cash_amount' ? price : 0, terminal_amount: field === 'terminal_amount' ? price : 0,
+          click_amount: field === 'click_amount' ? price : 0, amount: field ? price : 0,
+          payment_method: pay || 'cash', instructor_id: payload.instructorId || null,
+          instructor_name: payload.instructorName || null, post: Post.get(), _local: true
+        };
+        const out = await Outbox.call('/sessions/start', payload, {
+          kind: 'start', sid: cid, label: local.plate, local: local, queueBody: qb, money: field ? price : 0 });
+        const res = out.queued ? { id: cid, offline: true } : out.res;
+        const sid = (res && (res.id || (res.session && res.session.id))) || cid;
+        const offNote = out.queued ? ' (internetsiz — keyin yuboriladi)' : '';
 
         /* VAQTI O'TGAN YOZUV (8:30–10:30, hozir 11:00): server uni darhol
            reja bo'yicha yopadi (faol ro'yxat so'ralganda); to'lanmagan bo'lsa
            «To'lanmagan» ro'yxatiga tushadi */
         if (w.past) {
           toast('Yozildi: ' + d.body + ' — ' + hhmm(w.start) + '–' + hhmm(w.end) + ', ' + money(price)
-            + (field ? ' (' + PAY_NAMES[pay] + ')' : ' · to\'lanmagan'));
+            + (field ? ' (' + PAY_NAMES[pay] + ')' : ' · to\'lanmagan') + offNote);
           this.reset();
           await Active.load(true);
           Debts.load(true);
@@ -5086,10 +5487,10 @@ const Add = {
           until: w.end ? w.end.toISOString() : ''
         }, () => Add.focusLabel());
 
-        toast(w.open
+        toast((w.open
           ? 'Kirdi: ' + d.body + ' — ' + hhmm(w.start) + '. Pul chiqishda.'
           : 'Kirdi: ' + d.body + ' — ' + hhmm(w.start) + '–' + hhmm(w.end) + ' · ' + money(price)
-            + (field ? ' ' + PAY_NAMES[pay] + ' olindi' : ' to\'lanmagan') + '. Vaqti tugaganda o\'zi yopiladi.');
+            + (field ? ' ' + PAY_NAMES[pay] + ' olindi' : ' to\'lanmagan') + '. Vaqti tugaganda o\'zi yopiladi.') + offNote);
         /* Shu sahifada qolamiz: mashina pastdagi «Ichkarida» ro'yxatiga
            tushadi, kursor keyingi mashina uchun tayyor. Kunlik hisobotga
            ham DARHOL tushadi (vaqti tugashini kutmaydi). */
@@ -5333,7 +5734,12 @@ const Queue = {
     const item = this.itemFromForm(d, w);
     let ok = false;
     try { ok = await this.enqueue(item); }
-    catch (e) { setError('labelErr', 'Navbatga qo\'shilmadi: ' + e.message); return false; }
+    catch (e) {
+      setError('labelErr', e && e.status === 0
+        ? 'Internet yo\'q — navbat va bron faqat internet bilan ishlaydi. Mashina bo\'shagach «Kirdi» ni bosing.'
+        : 'Navbatga qo\'shilmadi: ' + e.message);
+      return false;
+    }
     if (!ok) { setError('labelErr', 'Navbatga qo\'shilmadi — qayta urinib ko\'ring.'); return false; }
     this.render();
     const k0 = this.groupKey(item);
@@ -6851,7 +7257,11 @@ const DayExcel = {
    deganda aniq javob bo'lsin (Excel → Yozuv tarixi). Xato bo'lsa jim. */
 function logTicketPrint(sessionId, kind) {
   if (!sessionId) return;
-  api('/sessions/' + encodeURIComponent(sessionId) + '/ticket', { method: 'POST', body: jsonBody({ kind: kind || 'print' }), timeout: 8000 }).catch(() => {});
+  /* Internet yo'q bo'lsa — keyin, chek chiqqan haqiqiy vaqti bilan yuboriladi */
+  const at = new Date().toISOString();
+  Outbox.quiet('/sessions/' + encodeURIComponent(sessionId) + '/ticket', { kind: kind || 'print' }, {
+    kind: 'ticket', sid: sessionId, label: kind === 'reprint' ? 'qayta chek' : 'chek',
+    queueBody: { kind: kind || 'print', at: at, offline: true } });
 }
 
 const EntryTicket80 = {
@@ -7387,18 +7797,35 @@ const Active = {
     const prevAuto = (STATE.active || []).filter(v => v.auto_close);
     const prevAll = (STATE.active || []).slice();
     const hadList = !!this.loadedOnce;
+    /* Internet yo'q bo'lsa — oxirgi saqlangan ro'yxat + internetsiz
+       «Kirdi/Chiqdi»lar (Outbox). Kassa to'xtamaydi. */
+    let rows = null, offline = false, err = null;
     try {
-      const r = await api('/sessions/active');
-      STATE.active = Array.isArray(r) ? r : (r && r.rows) || [];
+      const r = await api('/sessions/active', STATE.online ? undefined : { timeout: 5000 });
+      rows = Array.isArray(r) ? r : (r && r.rows) || [];
+      this.serverRows = rows;
+      LocalCache.put('active', rows);
+    } catch (e) {
+      err = e;
+      if (e && e.status === 0) {
+        const base = this.serverRows || LocalCache.get('active');
+        if (base || Outbox.mine().length) { rows = base || []; offline = true; if (!this.serverRows) this.serverRows = rows; }
+      }
+    }
+    try {
+      if (!rows) throw err || new Error('Ma\'lumot yuklanmadi');
+      STATE.activeOffline = offline;
+      STATE.active = Outbox.overlayActive(rows, offline);
       this.loadedOnce = true;
       /* Chiqqan mashinalar — navbatdagisi o'zi boshlansin (holat serverdan) */
-      if (hadList && STATE.queue.some(q => q.waitingFor)) {
+      if (!offline && hadList && STATE.queue.some(q => q.waitingFor)) {
         const goneAll = prevAll.filter(v => !STATE.active.some(x => String(x.id) === String(v.id)));
         if (goneAll.length) Queue.sync(); else Queue.checkAuto();
       }
       const gone = prevAuto.filter(v => !STATE.active.some(x => String(x.id) === String(v.id)));
       const closed = gone.filter(v => !Chiqish.closedIds[v.id] && (sessionTiming(v).remaining === null || sessionTiming(v).remaining <= 120));
-      if (gone.length) { Debts.load(true); Reports.loadDaily(); }
+      if (gone.length && !offline) { Debts.load(true); Reports.loadDaily(); }
+      if (gone.length && offline) Debts.refresh();
       if (closed.length) {
         closed.forEach(v => {
           const pre = Finish.prepaidOf(v), plan = num(v.planned_amount);
@@ -7418,6 +7845,16 @@ const Active = {
       if (host && !STATE.active.length) host.innerHTML = emptyState('fa-triangle-exclamation', 'Ma\'lumot yuklanmadi', e.message, true);
       if (!silent) toast(e.message, 'error');
     } finally { this.loading = false; }
+  },
+  /* Serverga so'rov yubormasdan — internetsiz amal qo'shilgach ro'yxat darhol yangilansin */
+  refresh() {
+    const base = this.serverRows || LocalCache.get('active') || [];
+    STATE.active = Outbox.overlayActive(base, !!STATE.activeOffline);
+    this.render();
+    Finish.renderList();
+    Add.renderInside();
+    Add.fillLabelList();
+    this.badge();
   },
   badge() {
     const b = $('activeCount');
@@ -7698,13 +8135,22 @@ const Chiqish = {
     $$('#modal [data-act="exitPay"]').forEach(b => { b.disabled = true; });
     setError('exitErr', '');
     try {
-      await api('/sessions/' + encodeURIComponent(id) + '/finish', { method: 'POST', body: jsonBody({
+      const body = {
         cash_amount: cash, terminal_amount: term, click_amount: click,
         cashAmount: cash, terminalAmount: term, clickAmount: click,
-        amount: total, paymentMethod: pm, debt_amount: later ? owe : 0 }) });
+        amount: total, paymentMethod: pm, debt_amount: later ? owe : 0 };
+      /* Internet yo'q bo'lsa — haqiqiy chiqqan vaqti bilan keyin yuboriladi */
+      const finAt = new Date().toISOString();
+      const elapsed = Math.max(0, Math.round((Date.now() - new Date(v.started_at).getTime()) / 1000));
+      const out = await Outbox.call('/sessions/' + encodeURIComponent(id) + '/finish', body, {
+        kind: 'finish', sid: id, label: v.plate || '', money: total,
+        queueBody: Object.assign({}, body, { offline: true, finished_at: finAt, finishedAt: finAt }),
+        debt: later && owe > 0 ? { id: id, plate: v.plate || '', started_at: v.started_at, finished_at: finAt,
+          duration_seconds: elapsed, debt_amount: owe, _local: true } : null });
+      const offNote = out.queued ? ' (internetsiz — keyin yuboriladi)' : '';
       closeModal();
-      toast(later ? 'Chiqdi: ' + (v.plate || '') + ' — ' + money(owe) + ' to\'lanmagan («To\'lanmagan» ro\'yxatida)'
-                  : 'Chiqdi: ' + (v.plate || '') + ' — ' + money(total) + (add > 0 ? ' (' + PAY_NAMES[method] + ')' : ''));
+      toast((later ? 'Chiqdi: ' + (v.plate || '') + ' — ' + money(owe) + ' to\'lanmagan («To\'lanmagan» ro\'yxatida)'
+                  : 'Chiqdi: ' + (v.plate || '') + ' — ' + money(total) + (add > 0 ? ' (' + PAY_NAMES[method] + ')' : '')) + offNote);
       if (later && typeof Debts !== 'undefined') Debts.load(true);
       delete STATE.meta[id]; saveMeta();
       await Active.load(true);
@@ -7786,6 +8232,7 @@ const Bolish = {
     $$('#modal [data-act="splitPay"]').forEach(b => { b.disabled = true; });
     setError('splitErr', '');
     try {
+      if (Outbox.isOffline()) throw ApiError('Internet yo\'q — «bir qismini yopish» internet bilan ishlaydi. Hozir to\'liq «Chiqdi» qilsa bo\'ladi.', 0);
       const r = await api('/sessions/' + encodeURIComponent(v.id) + '/split', { method: 'POST', body: jsonBody(body) });
       closeModal();
       const from = r && r.continuesFrom ? hhmm(new Date(r.continuesFrom)) : '';
@@ -9050,13 +9497,23 @@ const Correct = {
    jamlanadi. Kun oxirida mijoz «qancha bo'ldi?» desa — «To'lash»: har
    bir kirish-chiqish va jami ko'rinadi, bitta tugma bilan hammasi to'lanadi. */
 const Debts = {
-  rows: [], total: 0, key: null, busy: false,
+  rows: [], total: 0, key: null, busy: false, serverRows: null,
   async load(silent) {
     try {
-      const r = await api('/debts');
-      this.rows = (r && r.rows) || [];
-      this.total = num(r && r.total);
-    } catch (e) { if (!silent) toast(e.message, 'error'); }
+      const r = await api('/debts', STATE.online ? undefined : { timeout: 5000 });
+      this.serverRows = (r && r.rows) || [];
+      LocalCache.put('debts', this.serverRows);
+    } catch (e) {
+      /* internet yo'q — oxirgi saqlangan ro'yxat */
+      if (e && e.status === 0) { if (!this.serverRows) this.serverRows = LocalCache.get('debts') || []; }
+      else if (!silent) toast(e.message, 'error');
+    }
+    this.refresh();
+  },
+  /* Internetsiz «Keyin to'laydi» / «To'lash» qo'shilgan ro'yxat */
+  refresh() {
+    this.rows = Outbox.overlayDebts(this.serverRows || LocalCache.get('debts') || []);
+    this.total = this.rows.reduce((a, r) => a + num(r.debt_amount), 0);
     this.render();
     Add.fillLabelList();
   },
@@ -9117,14 +9574,20 @@ const Debts = {
     this.busy = true;
     $$('#modal [data-act="debtPay"]').forEach(b => { b.disabled = true; });
     try {
-      await api('/debts/pay', { method: 'POST', body: jsonBody({ ids: g.rows.map(r => r.id), method: method, name: g.name, total: g.total }) });
+      const ids = g.rows.map(r => r.id);
+      const body = { ids: ids, method: method, name: g.name, total: g.total };
+      /* Internet yo'q bo'lsa — to'lagan vaqti bilan keyin yuboriladi (pul o'sha kunning hisobotiga) */
+      const out = await Outbox.call('/debts/pay', body, {
+        kind: 'debtpay', ids: ids, label: g.name + ' (' + PAY_NAMES[method] + ')', money: g.total,
+        queueBody: Object.assign({}, body, { offline: true, paid_at: new Date().toISOString() }) });
       closeModal();
-      toast('To\'landi: ' + g.name + ' — ' + money(g.total) + ' (' + PAY_NAMES[method] + ')');
+      toast('To\'landi: ' + g.name + ' — ' + money(g.total) + ' (' + PAY_NAMES[method] + ')' + (out.queued ? ' — internetsiz, keyin yuboriladi' : ''));
       await this.load(true);
       Reports.loadDaily();
       setTimeout(() => Add.focusLabel(), 60);
     } catch (e) {
       setError('debtErr', e.message);
+      if (e && e.data && e.data.nothing) this.load(true);
       $$('#modal [data-act="debtPay"]').forEach(b => { b.disabled = false; });
     } finally { this.busy = false; }
   }
@@ -9366,9 +9829,12 @@ const Finish = {
           amount: total, paymentMethod: method
         };
         if (endISO) { body.finished_at = endISO; body.finishedAt = endISO; }
-        await api('/sessions/' + encodeURIComponent(id) + '/finish', { method: 'POST', body: jsonBody(body) });
+        const finAt = endISO || new Date().toISOString();
+        const out = await Outbox.call('/sessions/' + encodeURIComponent(id) + '/finish', body, {
+          kind: 'finish', sid: id, label: (sess && (sess.plate || sessionPerson(sess))) || '', money: total,
+          queueBody: Object.assign({}, body, { offline: true, finished_at: finAt, finishedAt: finAt }) });
         closeModal();
-        toast('Yakunlandi. Jami: ' + money(total));
+        toast('Yakunlandi. Jami: ' + money(total) + (out.queued ? ' (internetsiz — keyin yuboriladi)' : ''));
         delete STATE.meta[id]; saveMeta();
         await Promise.all([Active.load(true), Frozen.load(true)]);
         Finish.renderList();
@@ -9893,8 +10359,10 @@ const Reports = {
       this.render();
       Active.renderKpi();
     } catch (e) {
-      if (host) host.innerHTML = emptyState('fa-triangle-exclamation', 'Hisobot yuklanmadi', e.message, true);
-      if (STATE.page === 'daily') toast(e.message, 'error');
+      const off = e && e.status === 0;
+      if (host) host.innerHTML = emptyState(off ? 'fa-plug-circle-xmark' : 'fa-triangle-exclamation', off ? 'Internet yo\'q' : 'Hisobot yuklanmadi',
+        off ? 'Hisobot serverdan olinadi. Internetsiz yozilganlar internet qaytgach hisobotga tushadi.' : e.message, true);
+      if (STATE.page === 'daily' && !off) toast(e.message, 'error');
     }
   },
   exportDaily() {
@@ -13516,6 +13984,10 @@ const ACTIONS = {
   openAdminGate: () => { if (!Maxsus.isOpen()) return Maxsus.ask(() => Admin.openGate()); return Admin.openGate(); },
   maxsusToggle: () => Maxsus.toggle(),
   postPick: () => Post.ask(false),
+  netOpen: () => Outbox.open(),
+  obSync: () => { Outbox.kick(0); closeModal(); toast('Yuborilmoqda…'); },
+  obRetry: d => Outbox.retry(d.op),
+  obDrop: d => Outbox.remove(d.op),
   postSet: d => Post.choose(d.n),
   maxsusLock: () => Maxsus.lock(true),
   maxsusChange: () => Maxsus.changeDialog(),
@@ -13742,6 +14214,12 @@ document.addEventListener('visibilitychange', () => {
 function init() {
   loadMeta();
   loadSession();
+  /* Internetsiz rejim: navbatdagi amallar, sahifani kompyuterda saqlash */
+  Outbox.init();
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname))) {
+    const reg = () => navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(e => console.warn('[sw]', e && e.message));
+    if (document.readyState === 'complete') reg(); else window.addEventListener('load', reg);
+  }
   Add.init();
   GroupPick.init();
   CascadePick.init();

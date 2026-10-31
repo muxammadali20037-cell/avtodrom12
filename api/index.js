@@ -21,6 +21,8 @@ import instructorHandler from "./instructor.js";
 import instructorsFixed from "./instructors-fixed.js";
 import instructorDailyHandler from "./instructor-daily.js";
 import { readFile } from "node:fs/promises";
+import { opGuard } from "./op-guard.js";
+import { SW_SOURCE } from "./sw-source.js";
 
 const rootFrontend = new URL("../index.html", import.meta.url);
 const backupFrontend = new URL("../index.backup.html", import.meta.url);
@@ -30,6 +32,15 @@ const screenFrontend = new URL("../ekran.html", import.meta.url);
 
 export default async function handler(req, res) {
   const path = String(req.url || "").split("?",1)[0];
+
+  /* INTERNETSIZ REJIM: sahifa va kutubxonalarni kompyuterda saqlovchi skript */
+  if (path === "/sw.js" && req.method === "GET") {
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Service-Worker-Allowed", "/");
+    return res.end(SW_SOURCE);
+  }
 
   /* Shartnoma limiti ustunlari (driving_schools.free_visits va h.k.)
      birinchi so'rovda qo'shiladi. Natija keshlanadi, shuning uchun
@@ -44,6 +55,12 @@ export default async function handler(req, res) {
   if (path.startsWith("/api/")) { try { await ensureKassaSchema(); } catch (e) { console.error("KASSA SCHEMA:", e.message); } }
   /* Vaqti tugagan «1 soatga» kabi yozuvlar faol ro'yxat / hisobotdan oldin yopiladi */
   try { await sweepForRequest(req); } catch (e) { console.error("AUTO CLOSE:", e.message); }
+
+  /* BIR AMAL — BIR MARTA: internetsiz yozilib keyin yuborilgan (yoki ikki
+     marta yetib kelgan) «Kirdi/Chiqdi/To'lash/davomat» qayta bajarilmaydi */
+  if (path.startsWith("/api/") && req.headers["x-op-id"]) {
+    try { if (await opGuard(req, res)) return; } catch (e) { console.error("OP GUARD:", e.message); }
+  }
 
   /* ANALITIKA KO'PRIGI — Avtodrom admin «Analitika» sahifasi uchun
      (faqat o'qiydi; kalit: RECEIPT_SHARED_KEY, QR chek ko'prigi bilan bir xil) */

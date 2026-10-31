@@ -559,7 +559,13 @@ export async function handleCompatRequest(req, res) {
           console.error('[attendance] darslar soni o‘qilmadi:', e && e.message);
         }
 
-        const now = Date.now();
+        /* INTERNETSIZ yozilgan davomat keyin yuboriladi — haqiqiy vaqti
+           (ko'pi bilan 3 kun oldin, kelajakda emas) saqlanadi */
+        let now = Date.now();
+        if (body.offline === true && (body.at || body.startedAt || body.started_at)) {
+          const t0 = new Date(body.at || body.startedAt || body.started_at).getTime();
+          if (Number.isFinite(t0) && t0 <= now + 60000 && now - t0 <= 72 * 3600 * 1000) now = Math.min(t0, now);
+        }
         const HOUR = 3600;
         const ids = [];
         /* ==================================================================

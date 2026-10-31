@@ -92,14 +92,16 @@ export async function logChange(db, owner, rec) {
     await ensureAuditSchema();
     await (db || pool).query(
       `INSERT INTO change_log(owner_key, entity, entity_id, entity_name, action,
-                              field, old_value, new_value, reason, actor)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+                              field, old_value, new_value, reason, actor, created_at)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, COALESCE($11::timestamptz, now()))`,
       [String(owner), text(rec.entity), rec.entityId ? String(rec.entityId) : null,
        text(rec.entityName) || null, text(rec.action) || 'edit',
        text(rec.field) || null,
        rec.oldValue === null || rec.oldValue === undefined ? null : String(rec.oldValue),
        rec.newValue === null || rec.newValue === undefined ? null : String(rec.newValue),
-       text(rec.reason), text(rec.actor) || String(owner)]);
+       text(rec.reason), text(rec.actor) || String(owner),
+       /* internetsiz bo'lgan amal — haqiqiy vaqti bilan */
+       rec.at instanceof Date && !isNaN(rec.at.getTime()) ? rec.at.toISOString() : null]);
     return true;
   } catch (e) {
     console.error('AUDIT LOG:', e.message);

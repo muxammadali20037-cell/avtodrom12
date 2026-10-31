@@ -306,6 +306,9 @@ async function debtPay(req, res, user) {
   if (!ids.length) return json(res, 400, { error: 'To‘lanadigan yozuv tanlanmagan' });
   if (!method) return json(res, 400, { error: 'To‘lov turini tanlang: naqd, terminal yoki Klik' });
   const post = postOf(req);
+  /* Vaqti tugagan «1 soatga» yozuvlar avval yopilsin — internetsiz paytda
+     «To'lanmagan»ga tushgan (server hali yopmagan) qarz ham to'lansin */
+  try { await autoCloseDue(user); } catch (e) { console.error('DEBT PAY sweep:', e.message); }
   /* Internetsiz to'langan bo'lsa — haqiqiy to'langan vaqt (ko'pi bilan 3 kun oldin) */
   let paidAt = null;
   if (b.paid_at || b.paidAt) {
@@ -331,6 +334,10 @@ async function debtPay(req, res, user) {
           settled_at = COALESCE($2, now()) WHERE id = $1`, [x.id, paidAt]);
       done.push(String(x.id));
       sum += amt;
+    }
+    if (!done.length) {
+      await c.query('ROLLBACK');
+      return json(res, 409, { error: 'Bu qarz allaqachon to‘langan yoki topilmadi — ro‘yxat yangilanmoqda', nothing: true });
     }
     await c.query('COMMIT');
     await logChange(null, user, { entity: 'session', entityId: done[0] || null, entityName: text(b.name) || null,
@@ -453,9 +460,15 @@ async function ticketLog(req, res, user, id) {
   const r = await pool.query(`SELECT s.id, COALESCE(v.plate, s.driver_name, '') AS plate FROM sessions s
     LEFT JOIN vehicles v ON v.id = s.vehicle_id WHERE s.id::text = $1 AND s.user_id = $2`, [id, user]);
   if (!r.rows[0]) return json(res, 404, { error: 'Yozuv topilmadi' });
+  /* internetsiz chiqarilgan chek — keyin yuboriladi, haqiqiy vaqti bilan */
+  let at = null;
+  if (b.at) {
+    const d = new Date(b.at);
+    if (!isNaN(d.getTime()) && d.getTime() <= Date.now() + 60000 && Date.now() - d.getTime() <= 72 * 3600 * 1000) at = d;
+  }
   await logChange(null, user, { entity: 'session', entityId: r.rows[0].id, entityName: r.rows[0].plate, action: 'ticket_print',
-    field: kind === 'reprint' ? 'qayta' : 'birinchi', newValue: text(b.note).slice(0, 120) || null,
-    reason: kind === 'reprint' ? 'Kirish taloni qayta chiqarildi' : 'Kirish taloni chiqarildi' });
+    field: kind === 'reprint' ? 'qayta' : 'birinchi', newValue: text(b.note).slice(0, 120) || (at && b.offline ? 'internetsiz' : null),
+    reason: kind === 'reprint' ? 'Kirish taloni qayta chiqarildi' : 'Kirish taloni chiqarildi', at });
   json(res, 200, { ok: true });
 }
 
