@@ -23,6 +23,7 @@ import instructorDailyHandler from "./instructor-daily.js";
 import { readFile } from "node:fs/promises";
 import { opGuard } from "./op-guard.js";
 import { SW_SOURCE } from "./sw-source.js";
+import { handleTelegramRequest, tgFlushIfAny } from "./telegram.js";
 
 const rootFrontend = new URL("../index.html", import.meta.url);
 const backupFrontend = new URL("../index.backup.html", import.meta.url);
@@ -60,6 +61,14 @@ export default async function handler(req, res) {
      marta yetib kelgan) «Kirdi/Chiqdi/To'lash/davomat» qayta bajarilmaydi */
   if (path.startsWith("/api/") && req.headers["x-op-id"]) {
     try { if (await opGuard(req, res)) return; } catch (e) { console.error("OP GUARD:", e.message); }
+  }
+
+  /* TELEGRAM BOT — webhook (Telegram'dan) va sozlash (Maxsus bo'lim) */
+  if (path.startsWith("/api/telegram/")) { const tgHandled = await handleTelegramRequest(req, res); if (tgHandled) return tgHandled; }
+  /* Navbatdagi Telegram xabarlari kassaning fon so'rovlarida yuboriladi
+     (bot ulanmagan bo'lsa — hech narsa qilmaydi) */
+  if (req.method === "GET" && (path === "/api/sessions/active" || path === "/api/queue" || path === "/api/debts")) {
+    await tgFlushIfAny(1500);
   }
 
   /* ANALITIKA KO'PRIGI — Avtodrom admin «Analitika» sahifasi uchun

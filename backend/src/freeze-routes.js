@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { tgNotify, tgText } from '../../api/telegram.js';
 import { pool } from './db.js';
 import { runOnce } from './schema-once.js';
 import { postOf } from './post.js';
@@ -123,6 +124,7 @@ async function finishFrozen(req,res,id){
       /* Klik to'lovi alohida ustunda (api/kassa-routes.js qo'shadi) */
       if(click>0||Number((u.rows[0]||{}).click_amount||0)>0) await c.query(`UPDATE sessions SET click_amount=$1 WHERE id=$2`,[click,id]);
       await c.query('COMMIT');
+      if(!s.student_id) await tgNotify(String(user.sub),'finish',tgText.finish({plate:s.plate,startedAt:s.started_at,finishedAt:end,seconds,cash,terminal,click,debt:0,post:postOf(req),note:'❄️ muzlatilgan vaqt yopildi'}));
       return res.json({...u.rows[0],plate:s.plate,amount:Number(amount),cash_amount:Number(cash),terminal_amount:Number(terminal),click_amount:Number(click),school_name:s.school_name,group_name:s.group_name,student_name:s.student_name});
     }catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}
   }catch(e){return res.status(400).json({error:e.message||'Muzlatilgan avtomobilni tugatishda server xatosi'});}

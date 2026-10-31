@@ -1,4 +1,5 @@
 import { accessCheck } from './access-routes.js';
+import { tgNotify, tgText } from './telegram.js';
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
 import { runOnce } from '../backend/src/schema-once.js';
@@ -440,6 +441,11 @@ export async function handleCompatRequest(req, res) {
           cand.map(([, val]) => val));
 
         await c.query('COMMIT');
+        /* Telegram: «Kirdi» xabari (avtoshkola darsi emas) — javobdan oldin navbatga yoziladi */
+        if (!studentId && customerType !== 'school') {
+          await tgNotify(user, 'start', tgText.start({ plate: p.plate, startedAt: r.rows[0].started_at, target, open: openEnded || !autoClose,
+            planned: plannedAmount, cash: pre.cash, terminal: pre.terminal, click: pre.click, post, offline: body.offline === true && !!startAt }));
+        }
         send(res,201,{id:r.rows[0].id,plate:p.plate,plateBody:p.body,startedAt:r.rows[0].started_at,
                       schoolId,groupId,studentId,instructorId,target_duration:target,auto_close:autoClose,
                       prepaid: pre.total > 0 ? pre : null});

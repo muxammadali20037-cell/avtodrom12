@@ -40,6 +40,7 @@
    ========================================================================== */
 
 import jwt from 'jsonwebtoken';
+import { tgNotify, tgText, tgAnyBots, ddmm } from './telegram.js';
 import { pool } from '../backend/src/db.js';
 import { runOnce, ddl } from '../backend/src/schema-once.js';
 import { postOf } from '../backend/src/post.js';
@@ -272,7 +273,18 @@ export async function autoCloseDue(user) {
            auto_closed = TRUE, resumed_at = NULL, frozen_at = NULL
       FROM due
      WHERE s.id = due.id AND due.end_at <= now()
-    RETURNING s.id`, [String(user)]);
+    RETURNING s.id, s.vehicle_id, s.started_at, s.finished_at, s.duration_seconds, s.amount, s.debt_amount`, [String(user)]);
+  /* Telegram: «vaqti tugadi» xabarlari */
+  if (r.rowCount && await tgAnyBots()) {
+    try {
+      const pl = await pool.query(`SELECT id, plate FROM vehicles WHERE id = ANY($1)`, [r.rows.map(x => x.vehicle_id).filter(Boolean)]);
+      const by = new Map(pl.rows.map(x => [String(x.id), x.plate]));
+      for (const x of r.rows) {
+        await tgNotify(user, 'auto', tgText.auto({ plate: by.get(String(x.vehicle_id)) || '—', startedAt: x.started_at, finishedAt: x.finished_at,
+          seconds: x.duration_seconds, paid: x.amount, debt: x.debt_amount }));
+      }
+    } catch (e) { console.error('TG AUTO:', e.message); }
+  }
   return r.rowCount;
 }
 /* api/index.js chaqiradi: faol ro'yxat / hisobot so'ralishidan oldin */
@@ -322,10 +334,11 @@ async function debtPay(req, res, user) {
   try {
     await c.query('BEGIN');
     const r = await c.query(`
-      SELECT s.id, s.debt_amount, (s.started_at AT TIME ZONE 'Asia/Tashkent')::date AS day
+      SELECT s.id, s.debt_amount, (s.started_at AT TIME ZONE 'Asia/Tashkent')::date AS day, s.started_at,
+             (s.started_at AT TIME ZONE 'Asia/Tashkent')::date < (COALESCE($3::timestamptz, now()) AT TIME ZONE 'Asia/Tashkent')::date AS old
         FROM sessions s
        WHERE s.user_id = $1 AND s.id::text = ANY($2::text[]) AND s.status = 'completed' AND s.debt_amount > 0
-       FOR UPDATE OF s`, [user, ids]);
+       FOR UPDATE OF s`, [user, ids, paidAt]);
     const done = [];
     let sum = 0;
     for (const x of r.rows) {
@@ -343,6 +356,10 @@ async function debtPay(req, res, user) {
       return json(res, 409, { error: 'Bu qarz allaqachon to‘langan yoki topilmadi — ro‘yxat yangilanmoqda', nothing: true });
     }
     await c.query('COMMIT');
+    {
+      const oldDays = [...new Set(r.rows.filter(x => x.old && done.includes(String(x.id))).map(x => ddmm(x.started_at)))].join(', ');
+      await tgNotify(user, 'debt', tgText.debt({ name: text(b.name) || '—', total: sum, method, count: done.length, oldDays, post }));
+    }
     await logChange(null, user, { entity: 'session', entityId: done[0] || null, entityName: text(b.name) || null,
       action: 'debt_paid', field: method, newValue: sum + ' so‘m, ' + done.length + ' ta yozuv' + (post ? ', ' + post + '-POST' : ''),
       reason: 'To‘lanmagan vaqtlar to‘landi (to‘langan kunning hisobotiga yoziladi)' });
@@ -397,6 +414,7 @@ async function debtUnpay(req, res, user) {
         debt_paid = GREATEST(COALESCE(debt_paid, 0) - $2, 0), settled_at = NULL,
         corrected_at = now(), correction_note = $3 WHERE id = $1`, [s.id, back, reason]);
     await c.query('COMMIT');
+    await tgNotify(user, 'fix', tgText.unpay({ plate: s.plate || '—', amount: back, reason, post: postOf(req) }));
     const pays = { rows: open };
     const tk = d => new Date(new Date(d).getTime() + 5 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
     await logChange(null, user, { entity: 'session', entityId: s.id, entityName: s.plate || null, action: 'debt_unpaid',
@@ -454,6 +472,11 @@ async function sessionSplit(req, res, user, id) {
       VALUES(${cand.map((_, i) => '$' + (i + 1)).join(',')}) RETURNING id`, cand.map(([, v]) => v));
     await c.query(`UPDATE sessions SET started_at = $1 WHERE id = $2`, [cut, s.id]);
     await c.query('COMMIT');
+    {
+      const pr = await pool.query(`SELECT plate FROM vehicles WHERE id = $1`, [s.vehicle_id]).catch(() => ({ rows: [] }));
+      await tgNotify(user, 'finish', tgText.finish({ plate: (pr.rows[0] && pr.rows[0].plate) || text(b.name) || '—', startedAt: start, finishedAt: cut,
+        seconds: minutes * 60, cash, terminal, click, debt, post: postOf(req), note: '✂️ bir qismi yopildi, qolgani davom etyapti' }));
+    }
     await logChange(null, user, { entity: 'session', entityId: s.id, entityName: text(b.name) || null, action: 'split',
       field: 'started_at', oldValue: start.toISOString(), newValue: cut.toISOString(),
       reason: minutes + ' daqiqa yopildi: ' + (paid ? paid + ' so‘m ' + method : '') + (debt ? ' qarz ' + debt + ' so‘m' : '') });
@@ -507,6 +530,10 @@ async function sessionCorrect(req, res, user, id) {
       [vals.cash_amount, vals.terminal_amount, vals.click_amount, vals.debt_amount, paid, method, reason, settle, s.id]);
     await c.query('COMMIT');
     const names = { cash_amount: 'naqd', terminal_amount: 'terminal', click_amount: 'Klik', debt_amount: 'to‘lanmagan' };
+    {
+      const fmt = v => Object.keys(names).filter(k => v[k] > 0).map(k => names[k] + ' ' + String(v[k]).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')).join(' + ') || 'pul yo‘q';
+      await tgNotify(user, 'fix', tgText.correct({ plate: s.plate || '—', from: fmt(old), to: fmt(vals), reason, post: postOf(req) }));
+    }
     for (const k of changed) {
       await logChange(null, user, { entity: 'session', entityId: s.id, entityName: s.plate || null, action: 'correct',
         field: names[k], oldValue: old[k], newValue: vals[k], reason: reason });

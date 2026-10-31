@@ -1218,6 +1218,33 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 .post-tbl tr.tot td, .post-tbl tr.tot th { background: #f0fdf4; }
 .post-tbl .red { color: var(--red); font-weight: 700; }
 .kech-list { margin-top: 12px; font-size: 13.5px; }
+/* Telegram bot sahifasi */
+.tg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 980px) { .tg-grid { grid-template-columns: 1fr; } }
+.tg-steps { margin: 6px 0 14px 18px; padding: 0; line-height: 1.65; font-size: 14px; }
+.tg-steps li { margin-bottom: 4px; }
+.tg-steps code, .tg-help code { background: #f1f5f9; border-radius: 6px; padding: 1px 6px; font-size: 13px; }
+.tg-bot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tg-bot .tg-ava { width: 46px; height: 46px; border-radius: 50%; background: #229ED9; color: #fff; display: grid; place-items: center; font-size: 22px; flex: 0 0 auto; }
+.tg-bot b { font-size: 17px; }
+.tg-bot .tg-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.tg-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.tg-row:first-of-type { border-top: 0; }
+.tg-row .tg-ico { width: 34px; height: 34px; border-radius: 50%; background: #e0f2fe; color: #0369a1; display: grid; place-items: center; flex: 0 0 auto; }
+.tg-row .tg-name { flex: 1; min-width: 0; }
+.tg-row .tg-name b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-row .tg-name small { color: var(--muted, #64748b); }
+.tg-switch { position: relative; min-width: 108px; height: 34px; border-radius: 999px; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; font-weight: 700; font-size: 12.5px; padding: 0 12px 0 34px; text-align: left; cursor: pointer; }
+.tg-switch::before { content: ''; position: absolute; left: 6px; top: 6px; width: 20px; height: 20px; border-radius: 50%; background: #cbd5e1; transition: background .15s; }
+.tg-switch.on { border-color: #86efac; background: #f0fdf4; color: #166534; }
+.tg-switch.on::before { background: #16a34a; }
+.tg-ev { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.tg-ev:first-of-type { border-top: 0; }
+.tg-code { text-align: center; border: 2px dashed #7dd3fc; background: #f0f9ff; border-radius: 16px; padding: 16px; margin-top: 12px; }
+.tg-code .tg-digits { font-size: 40px; font-weight: 900; letter-spacing: .18em; color: #0c4a6e; font-variant-numeric: tabular-nums; }
+.tg-code .tg-links { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+.tg-msg { background: #effdde; border-radius: 12px 12px 12px 4px; padding: 10px 12px; font-size: 13.5px; line-height: 1.5; white-space: pre-line; box-shadow: 0 1px 1px rgba(0,0,0,.08); margin-top: 8px; }
+.tg-help { font-size: 14px; line-height: 1.7; }
 .kech-row.rev b { color: #b91c1c; }
 .kech-note { display: block; width: 100%; color: #b91c1c; font-size: 12px; }
 .kech-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; padding: 7px 4px; border-top: 1px dashed var(--line); }
@@ -1427,6 +1454,7 @@ body.sheet-open { overflow: hidden; }
 
       <div class="nav-section">Boshqaruv</div>
       <button class="nav-btn" type="button" data-p="instructors"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktorlar</button>
+      <button class="nav-btn" type="button" data-p="telegram"><i class="fa-brands fa-telegram" aria-hidden="true"></i> Telegram bot</button>
       <button class="nav-btn" type="button" data-act="openAdminGate"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Admin panel</button>
       <div class="mx-foot">
         <button class="nav-btn mx-small" type="button" data-act="maxsusChange"><i class="fa-solid fa-key" aria-hidden="true"></i> Parolni o'zgartirish</button>
@@ -1997,6 +2025,16 @@ body.sheet-open { overflow: hidden; }
       </section>
 
       <!-- ===== NAZORAT — XATOLIKLAR VA ANIQLIKLAR ===== -->
+      <section id="p-telegram" class="page hidden">
+        <div class="page-header">
+          <div>
+            <h1>Telegram bot</h1>
+            <p>Kirdi / Chiqdi / qarz xabarlari telefoningizga keladi. Botga mashina raqamini yozsangiz — u haqida ma'lumot beradi.</p>
+          </div>
+        </div>
+        <div id="tgWrap"></div>
+      </section>
+
       <section id="p-control" class="page hidden">
         <div class="page-header">
           <div>
@@ -3309,7 +3347,7 @@ const Post = {
        yopilsa — qulflanadi
    ====================================================================== */
 const Maxsus = {
-  PAGES: ['daily', 'rasxod', 'sheet', 'history', 'control', 'instructors'],
+  PAGES: ['daily', 'rasxod', 'sheet', 'history', 'control', 'instructors', 'telegram'],
   KEY: 'avtodrom_maxsus',
   IDLE_MS: 15 * 60 * 1000,
   token: '', exp: 0, last: Date.now(), wired: false, pending: null,
@@ -3478,7 +3516,7 @@ const Maxsus = {
 const PAGE_TITLES = {
   add: 'Yangi avtomobil', active: 'Jarayonda', queue: 'Kutish rejimi', finish: 'Tugatish',
   frozen: 'Muzlatilgan', daily: 'Kunlik hisobot', rasxod: 'Rasxod (xarajatlar)', history: 'Tarix', instructors: 'Instruktorlar',
-  kassa: 'QR chek — avtoshkola', control: 'Xatoliklar va aniqliklar', sheet: 'Excel'
+  kassa: 'QR chek — avtoshkola', control: 'Xatoliklar va aniqliklar', sheet: 'Excel', telegram: 'Telegram bot'
 };
 function go(page) {
   const el = $('p-' + page);
@@ -3515,6 +3553,8 @@ function go(page) {
   if (page === 'instructors') Instructors.load();
   if (page === 'kassa') Kassa.onEnter();
   if (page === 'control') Control.onEnter();
+  if (page === 'telegram') TgBot.onEnter();
+  else TgBot.stopPoll();
 }
 function closeSidebar() {
   $('side').classList.remove('open');
@@ -11279,6 +11319,157 @@ const GroupPick = {
    ================================================================================ */
 const CONTROL_COLS = ['Instruktor', 'Avtomobil', "Jami o'quvchi", 'Platniy', 'Avtoshkola',
   'Platniy soat', 'Bepul soat', "To'lashi kerak", "To'lagan", 'Farq', 'Holat'];
+/* ===================== TELEGRAM BOT (Maxsus bo'lim) =====================
+   Rahbar @BotFather'da bot yaratadi, tokenni shu yerga qo'yadi, keyin
+   kimlar xabar olishini qo'shadi (6 xonali kod botga yuboriladi).
+   Server: api/telegram.js. Token sahifaga qaytarilmaydi. */
+const TgBot = {
+  st: null, code: null, poll: null, codeUntil: 0,
+  onEnter() { this.load(); },
+  stopPoll() { if (this.poll) { clearInterval(this.poll); this.poll = null; } },
+  async load(quiet) {
+    const host = $('tgWrap'); if (!host) return;
+    if (!this.st && !quiet) host.innerHTML = loadingLine('Yuklanmoqda...');
+    try { this.st = await api('/telegram/status'); }
+    catch (e) { if (!quiet) host.innerHTML = emptyState('fa-triangle-exclamation', 'Yuklanmadi', e.message, true); return; }
+    this.render();
+  },
+  sw(on, act, attrs) {
+    return '<button class="tg-switch' + (on ? ' on' : '') + '" type="button" data-act="' + act + '" ' + attrs + '>' + (on ? 'Yoqilgan' : 'O\'chirilgan') + '</button>';
+  },
+  render() {
+    const host = $('tgWrap'); if (!host) return;
+    const st = this.st || {};
+    if (!st.configured) {
+      host.innerHTML = '<div class="tg-grid"><div class="panel"><h3 style="margin-top:0"><i class="fa-brands fa-telegram" style="color:#229ED9" aria-hidden="true"></i> Botni ulash</h3>'
+        + '<ol class="tg-steps">'
+        + '<li>Telegramda <b>@BotFather</b> ni oching va <code>/newbot</code> deb yozing.</li>'
+        + '<li>Bot <b>nomini</b> yozing (masalan: <i>Avtodrom 12 kassa</i>), keyin <b>username</b> — oxiri <code>bot</code> bilan tugasin (masalan: <i>avtodrom12_kassa_bot</i>).</li>'
+        + '<li>BotFather bergan <b>tokenni</b> nusxa oling — ko\'rinishi: <code>123456789:AAH...</code></li>'
+        + '<li>Tokenni pastga qo\'yib, <b>«Ulash»</b> ni bosing.</li></ol>'
+        + '<label class="field-label" for="tgToken">Bot tokeni</label>'
+        + '<input id="tgToken" type="password" autocomplete="off" spellcheck="false" placeholder="123456789:AA...">'
+        + '<div class="field-help">Token faqat serverda shifrlangan holda saqlanadi, hech kimga ko\'rinmaydi.</div>'
+        + '<div id="tgErr" class="text-error" role="alert"></div>'
+        + '<div class="actions-row"><button class="btn btn-green btn-lg" type="button" id="tgConnectBtn" data-act="tgConnect"><span class="spinner"></span><i class="fa-solid fa-link btn-icon" aria-hidden="true"></i><span class="btn-text">Ulash</span></button></div>'
+        + '</div>' + this.helpCard() + '</div>';
+      const t = $('tgToken'); if (t) { t.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); this.connect(); } }); setTimeout(() => t.focus(), 50); }
+      return;
+    }
+    const q = st.queue || {};
+    const chats = st.chats || [];
+    const ev = st.enabled || {};
+    const bot = '<div class="panel"><div class="tg-bot"><div class="tg-ava"><i class="fa-brands fa-telegram" aria-hidden="true"></i></div>'
+      + '<div><b>' + esc(st.bot_name || 'Bot') + '</b><div class="text-muted">' + (st.bot_username ? '<a href="https://t.me/' + esc(st.bot_username) + '" target="_blank" rel="noopener">@' + esc(st.bot_username) + '</a>' : '') + ' · ulangan</div></div>'
+      + '<div class="tg-actions"><button class="btn btn-light" type="button" id="tgTestBtn" data-act="tgTest"><span class="spinner"></span><i class="fa-solid fa-paper-plane btn-icon" aria-hidden="true"></i><span class="btn-text">Sinov xabari</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="tgDisconnect"><i class="fa-solid fa-link-slash" aria-hidden="true"></i> Uzish</button></div></div>'
+      + (!st.webhook_ok ? '<div class="field-help" style="margin-top:10px;color:#b91c1c">Telegram sayt manzilini qabul qilmadi: ' + esc(st.last_error || '') + '. Saytni https://avtodrom.website orqali ochib, tokenni qayta ulang.</div>' : '')
+      + (num(q.pending) ? '<div class="field-help" style="margin-top:8px">Yuborilishini kutayotgan xabarlar: ' + num(q.pending) + '</div>' : '')
+      + (num(q.failed) ? '<div class="field-help" style="margin-top:4px;color:#b91c1c">Oxirgi kunda yuborilmagan: ' + num(q.failed) + '</div>' : '')
+      + '</div>';
+    const who = '<div class="panel"><h3 style="margin-top:0">Kimlarga xabar boradi</h3>'
+      + (chats.length ? chats.map(c => '<div class="tg-row"><div class="tg-ico"><i class="fa-solid ' + (c.kind === 'private' ? 'fa-user' : 'fa-users') + '" aria-hidden="true"></i></div>'
+        + '<div class="tg-name"><b>' + esc(c.title || c.chat_id) + '</b><small>' + (c.kind === 'private' ? 'shaxsiy' : 'guruh') + (c.username ? ' · @' + esc(c.username) : '')
+        + (c.last_error ? ' · <span style="color:#b91c1c">' + esc(/blocked/i.test(c.last_error) ? 'botni bloklagan' : /kicked|not a member/i.test(c.last_error) ? 'bot guruhdan chiqarilgan' : /not found/i.test(c.last_error) ? 'chat topilmadi' : c.last_error) + ' — xabar bormaydi</span>' : '') + '</small></div>'
+        + this.sw(c.notify, 'tgChat', 'data-id="' + esc(c.chat_id) + '" data-on="' + (c.notify ? '0' : '1') + '"')
+        + '<button class="btn btn-ghost btn-sm" type="button" data-act="tgChatRemove" data-id="' + esc(c.chat_id) + '" aria-label="O\'chirish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>').join('')
+        : '<div class="text-muted" style="margin:4px 0 10px">Hali hech kim ulanmagan.</div>')
+      + '<button class="btn btn-green" type="button" data-act="tgCode" style="margin-top:10px"><i class="fa-solid fa-user-plus" aria-hidden="true"></i> Odam yoki guruh qo\'shish</button>'
+      + '<div id="tgCodeBox">' + this.codeHTML() + '</div></div>';
+    const evs = '<div class="panel"><h3 style="margin-top:0">Qaysi xabarlar kelsin</h3>'
+      + Object.keys(st.events || {}).map(k => '<div class="tg-ev"><span>' + esc(st.events[k]) + '</span>' + this.sw(ev[k] !== false, 'tgEvent', 'data-k="' + esc(k) + '"') + '</div>').join('')
+      + '<div class="field-label" style="margin-top:12px">Xabar shunday ko\'rinadi</div>'
+      + '<div class="tg-msg">🟢 <b>KIRDI</b> · <b>01A777AA</b>\n🕐 14:05–15:05 · 1 soat\n💵 to\'landi: naqd 100 000 so\'m · 1-POST</div>'
+      + '<div class="tg-msg">🔴 <b>CHIQDI</b> · <b>455 DILNOZA</b>\n🕐 13:10–15:02 · 1 soat 52 daq\n💵 terminal 200 000 so\'m · 2-POST</div></div>';
+    host.innerHTML = '<div class="tg-grid"><div>' + bot + who + '</div><div>' + evs + this.helpCard() + '</div></div>';
+  },
+  helpCard() {
+    return '<div class="panel tg-help"><h3 style="margin-top:0">Botdan qanday foydalaniladi</h3>'
+      + '<div>• Mashina raqamini yozing: <code>01A777AA</code>, <code>148</code>, <code>455 dilnoza</code> — hozir ichkaridami, bugun necha marta, qancha to\'lagan, qarzi, oxirgi tashriflari.</div>'
+      + '<div>• <code>/ichkarida</code> — hozir avtodromdagi mashinalar</div>'
+      + '<div>• <code>/bugun</code> — bugungi tushum (1-POST, 2-POST)</div>'
+      + '<div>• <code>/qarzlar</code> — to\'lanmaganlar</div>'
+      + '<div>• Guruhda: <code>/raqam 01A777AA</code></div>'
+      + '<div class="field-help" style="margin-top:6px">Bot faqat ulangan odam va guruhlarga javob beradi — begona odam yozsa hech narsa ko\'rsatmaydi.</div></div>';
+  },
+  codeHTML() {
+    const c = this.code;
+    if (!c || Date.now() > this.codeUntil) return '';
+    const left = Math.max(0, Math.round((this.codeUntil - Date.now()) / 60000));
+    return '<div class="tg-code"><div class="text-muted">Telegramda botga shu kodni yuboring</div>'
+      + '<div class="tg-digits">' + esc(c.code) + '</div>'
+      + '<div class="text-muted" style="font-size:12.5px">' + left + ' daqiqa amal qiladi · ulangach shu yerda paydo bo\'ladi</div>'
+      + (c.link ? '<div class="tg-links"><a class="btn btn-light btn-sm" href="' + esc(c.link) + '" target="_blank" rel="noopener"><i class="fa-solid fa-user" aria-hidden="true"></i> Shaxsiy chatda ochish</a>'
+        + '<a class="btn btn-light btn-sm" href="' + esc(c.group_link) + '" target="_blank" rel="noopener"><i class="fa-solid fa-users" aria-hidden="true"></i> Guruhga qo\'shish</a></div>' : '')
+      + '<div class="field-help" style="margin-top:8px">Guruh uchun: botni guruhga qo\'shing va guruhda <code>/start ' + esc(c.code) + '</code> deb yozing.</div></div>';
+  },
+  async connect() {
+    const t = $('tgToken'); const token = t ? t.value.trim() : '';
+    setError('tgErr', '');
+    if (!token) { setError('tgErr', 'Tokenni qo\'ying.'); return; }
+    await withBusy('tgConnect', $('tgConnectBtn'), async () => {
+      try {
+        const r = await api('/telegram/connect', { method: 'POST', body: jsonBody({ token: token }), timeout: 30000 });
+        toast('Bot ulandi: @' + (r.bot_username || '') + (r.warning ? ' — ' + r.warning : ''), r.warning ? 'warn' : undefined);
+        this.st = null;
+        await this.load();
+        this.newCode();
+      } catch (e) { setError('tgErr', e.message); }
+    });
+  },
+  async disconnect() {
+    if (!confirm('Botni uzasizmi? Xabarlar kelmay qoladi, ulangan odamlar ro\'yxati saqlanadi.')) return;
+    try { await api('/telegram/disconnect', { method: 'POST', body: '{}' }); toast('Bot uzildi.'); this.code = null; this.st = null; this.load(); }
+    catch (e) { toast(e.message, 'error'); }
+  },
+  async newCode() {
+    try {
+      const r = await api('/telegram/code', { method: 'POST', body: '{}' });
+      this.code = r; this.codeUntil = Date.now() + num(r.expires_in || 600) * 1000;
+      const box = $('tgCodeBox'); if (box) box.innerHTML = this.codeHTML();
+      /* ulanishini kutamiz — yangi chat paydo bo'lsa ko'rsatamiz */
+      const before = ((this.st && this.st.chats) || []).length;
+      this.stopPoll();
+      this.poll = setInterval(async () => {
+        if (STATE.page !== 'telegram' || Date.now() > this.codeUntil) { this.stopPoll(); this.code = null; const b = $('tgCodeBox'); if (b) b.innerHTML = ''; return; }
+        try {
+          const st = await api('/telegram/status');
+          if ((st.chats || []).length > before) {
+            this.stopPoll(); this.code = null; this.st = st; this.render();
+            const c = st.chats[st.chats.length - 1];
+            toast('Ulandi: ' + (c.title || 'chat') + ' — endi xabarlar keladi.');
+          }
+        } catch (e) { /* keyingi safar */ }
+      }, 3000);
+    } catch (e) { toast(e.message, 'error'); }
+  },
+  async chat(id, on) {
+    try { await api('/telegram/chat', { method: 'POST', body: jsonBody({ chat_id: id, notify: on === '1' }) }); this.load(true); }
+    catch (e) { toast(e.message, 'error'); }
+  },
+  async removeChat(id) {
+    if (!confirm('Bu odam/guruh ro\'yxatdan o\'chirilsinmi? Bot unga javob bermay qo\'yadi.')) return;
+    try { await api('/telegram/chat', { method: 'POST', body: jsonBody({ chat_id: id, remove: true }) }); this.load(true); }
+    catch (e) { toast(e.message, 'error'); }
+  },
+  async event(k) {
+    const cur = Object.assign({}, (this.st && this.st.enabled) || {});
+    cur[k] = cur[k] === false;
+    try { const r = await api('/telegram/events', { method: 'POST', body: jsonBody({ events: cur }) }); this.st.enabled = r.enabled; this.render(); }
+    catch (e) { toast(e.message, 'error'); }
+  },
+  async test() {
+    await withBusy('tgTest', $('tgTestBtn'), async () => {
+      try {
+        const r = await api('/telegram/test', { method: 'POST', body: '{}', timeout: 20000 });
+        if (r.sent === r.total) toast('Sinov xabari yuborildi (' + r.sent + ' ta chat).');
+        else toast('Yuborildi: ' + r.sent + ' / ' + r.total + (r.errors && r.errors.length ? ' — ' + r.errors[0] : ''), 'warn');
+        this.load(true);
+      } catch (e) { toast(e.message, 'error'); }
+    });
+  }
+};
+
 const Control = {
   data: null,
 
@@ -14048,6 +14239,13 @@ const ACTIONS = {
   maxsusToggle: () => Maxsus.toggle(),
   postPick: () => Post.ask(false),
   netOpen: () => Outbox.open(),
+  tgConnect: () => TgBot.connect(),
+  tgDisconnect: () => TgBot.disconnect(),
+  tgCode: () => TgBot.newCode(),
+  tgChat: d => TgBot.chat(d.id, d.on),
+  tgChatRemove: d => TgBot.removeChat(d.id),
+  tgEvent: d => TgBot.event(d.k),
+  tgTest: () => TgBot.test(),
   debtUnpay: () => Correct.unpay(),
   obSync: () => { Outbox.kick(0); closeModal(); toast('Yuborilmoqda…'); },
   obRetry: d => Outbox.retry(d.op),

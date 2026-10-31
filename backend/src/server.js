@@ -10,6 +10,7 @@ import { pool, poolStats } from './db.js';
 import { postOf } from './post.js';
 import { dbLimits, ensureDbSafety } from './schema-once.js';
 import { logChange } from '../../api/audit-routes.js';
+import { tgNotify, tgText } from '../../api/telegram.js';
 
 dotenv.config();
 const app = express();
@@ -738,6 +739,11 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
             await c.query(`UPDATE sessions SET debt_amount=$1 WHERE id=$2`, [od, d0.id]).catch(() => null);
           }
           await c.query('COMMIT');
+          if (!d0.student_id && oc + ot + ok + od > 0) {
+            await tgNotify(uid(req), 'finish', tgText.finish({ plate: d0.plate, startedAt: d0.started_at, finishedAt: d0.finished_at,
+              seconds: d0.duration_seconds, cash: oc, terminal: ot, click: ok, debt: od, post: postOf(req),
+              note: '📴 internetsiz yozilgan (vaqti tugab avval yopilgan edi)' }));
+          }
           return res.json({ ...d0, already: true, cash_amount: oc, terminal_amount: ot, click_amount: ok, debt_amount: od });
         }
       }
@@ -817,6 +823,8 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
     const startMs = new Date(s.started_at).getTime();
     const planEnd = new Date(startMs + num(s.target_duration) * 1000);
     let extraId = null;
+    /* Telegram xabari uchun — haqiqiy chiqish va jami pul (bo'linishdan oldin) */
+    const tgx = { plate: s.plate, startedAt: s.started_at, finishedAt: end, seconds, cash, terminal, click, debt, post };
     if (post && prePost && prePost !== post && prevPaid > 0 && added > 0 && dC >= 0 && dT >= 0 && dK >= 0
         && num(s.target_duration) > 0 && !s.student_id && !s.receipt_id && !s.resumed_at && s.status === 'active'
         && planEnd.getTime() > startMs && planEnd.getTime() < end.getTime()) {
@@ -866,6 +874,10 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
       } catch (e) { try { await c.query('ROLLBACK TO SAVEPOINT sp_post'); } catch { /* noop */ } }
     }
     await c.query('COMMIT');
+    if (!s.student_id) {
+      await tgNotify(uid(req), 'finish', tgText.finish(Object.assign(tgx, {
+        note: extraId ? '✂️ oldindan to‘lov ' + prePost + '-POST da, ortiqcha vaqt ' + post + '-POST da — alohida yozildi' : '' })));
+    }
     if (extraId) {
       logChange(null, uid(req), { entity: 'session', entityId: s.id, entityName: s.plate || null, action: 'split',
         field: 'post', oldValue: prePost + '-POST: ' + prevPaid + ' so‘m (oldindan)',
