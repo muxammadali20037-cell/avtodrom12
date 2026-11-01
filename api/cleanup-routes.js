@@ -111,17 +111,20 @@ async function preview(res, user) {
   });
 }
 
-async function run(req, res, user) {
-  const b = await readBody(req);
-  const mode = text(b.mode) === 'all' ? 'all' : 'safe';
-  const withQueue = b.queue !== false;
-  const reason = text(b.reason).slice(0, 200) || 'Jarayondagilar tozalandi';
+/* Bitta hisob uchun tozalash (sahifadagi tugma ham, bir martalik umumiy
+   tozalash ham shuni ishlatadi). Bir vaqtda ikkita tozalash bo'lmasin —
+   hisob bo'yicha qulf. */
+export async function cleanupUser(user, opts) {
+  const mode = opts && opts.mode === 'all' ? 'all' : 'safe';
+  const withQueue = !(opts && opts.queue === false);
+  const reason = text(opts && opts.reason).slice(0, 200) || 'Jarayondagilar tozalandi';
   const c = await pool.connect();
   try {
     await c.query('BEGIN');
+    await c.query(`SELECT pg_advisory_xact_lock(hashtext('avtodrom-cleanup:' || $1))`, [String(user)]);
     const rows = await openRows(c, user, true);
     const queue = withQueue ? await queueRows(c, user, true) : [];
-    if (!rows.length && !queue.length) { await c.query('ROLLBACK'); return json(res, 409, { error: 'Jarayonda hech narsa yo‘q' }); }
+    if (!rows.length && !queue.length) { await c.query('ROLLBACK'); return { empty: true, removed: 0, closed: 0, queue: 0, keptMoney: 0, lostMoney: 0 }; }
     const items = [];
     let removed = 0, closed = 0, keptMoney = 0, lostMoney = 0;
     const now = new Date();
@@ -149,18 +152,50 @@ async function run(req, res, user) {
       await c.query(`UPDATE waiting_queue SET removed_at = now(), remove_reason = 'tozalash' WHERE id = $1`, [q.id]);
     }
     const ins = await c.query(`INSERT INTO session_cleanups(user_id, mode, reason, items, queue) VALUES($1, $2, $3, $4::jsonb, $5::jsonb) RETURNING id`,
-      [user, mode, reason, JSON.stringify(items), JSON.stringify(queue.map(q => q.id))]);
+      [String(user), mode, reason, JSON.stringify(items), JSON.stringify(queue.map(q => q.id))]);
     await c.query('COMMIT');
     const summary = removed + ' ta o‘chirildi' + (closed ? ', ' + closed + ' ta pulli yopildi (' + keptMoney + ' so‘m hisobotda qoldi)' : '')
       + (queue.length ? ', kutish rejimidan ' + queue.length + ' ta' : '') + (lostMoney ? ', hisobotdan chiqqan pul: ' + lostMoney + ' so‘m' : '');
     await logChange(null, user, { entity: 'session', entityId: ins.rows[0].id, entityName: 'Jarayondagilar', action: 'cleanup',
       field: mode, newValue: summary, reason });
     await tgNotify(user, 'fix', '🧹 <b>JARAYONDAGILAR TOZALANDI</b>\n' + summary.replace(/[<>&]/g, '') + '\nSabab: ' + reason.replace(/[<>&]/g, ''));
-    json(res, 200, { ok: true, id: ins.rows[0].id, removed, closed, queue: queue.length, keptMoney, lostMoney });
+    return { ok: true, id: ins.rows[0].id, removed, closed, queue: queue.length, keptMoney, lostMoney };
   } catch (e) {
     try { await c.query('ROLLBACK'); } catch { /* noop */ }
     throw e;
   } finally { c.release(); }
+}
+
+async function run(req, res, user) {
+  const b = await readBody(req);
+  const r = await cleanupUser(user, { mode: text(b.mode), queue: b.queue !== false, reason: text(b.reason) });
+  if (r.empty) return json(res, 409, { error: 'Jarayonda hech narsa yo‘q' });
+  json(res, 200, r);
+}
+
+/* BIR MARTALIK (2026-11-01, rahbar so'rovi): boshliq panelida «jarayonda»
+   turib qolgan hamma yozuvlar yopiladi — boshliq paneli ko'radigan hamma
+   hisoblar (ANALYTICS_OWNER_KEYS berilgan bo'lsa — faqat o'shalar).
+   Xavfsiz usul: pulsizlari o'chiriladi, pullilari yopiladi (pul hisobotda
+   qoladi), kutish rejimidagilar olib tashlanadi. Har hisob o'zining
+   «Tozalash» oynasida 24 soat ichida «Qaytarish» qila oladi. */
+let onceP = null;
+export function cleanupAllOnce() {
+  if (onceP) return onceP;
+  onceP = (async () => {
+    await ensureSchema();
+    return runOnce('cleanup-open-all-2026-11-01', async () => {
+      const keys = String(process.env.ANALYTICS_OWNER_KEYS || '').split(',').map(x => x.trim()).filter(Boolean);
+      const r = await pool.query(`SELECT DISTINCT user_id::text AS u FROM sessions WHERE status IN ${OPEN}
+        ${keys.length ? 'AND user_id::text = ANY($1::text[])' : ''}`, keys.length ? [keys] : []);
+      for (const x of r.rows) {
+        const out = await cleanupUser(x.u, { mode: 'safe', queue: true,
+          reason: 'Boshliq paneli: jarayonda qolib ketganlar yopildi (rahbar so‘rovi, 01.11.2026)' });
+        console.log('CLEANUP ONCE:', x.u, JSON.stringify(out));
+      }
+    });
+  })().catch(e => { onceP = null; console.error('CLEANUP ONCE:', e.message); });
+  return onceP;
 }
 
 async function undo(res, user) {

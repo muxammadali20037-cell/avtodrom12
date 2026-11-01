@@ -24,7 +24,7 @@ import { readFile } from "node:fs/promises";
 import { opGuard } from "./op-guard.js";
 import { SW_SOURCE } from "./sw-source.js";
 import { handleTelegramRequest, tgFlushIfAny } from "./telegram.js";
-import { handleCleanupRequest } from "./cleanup-routes.js";
+import { handleCleanupRequest, cleanupAllOnce } from "./cleanup-routes.js";
 import { handleEntryRequest, guardAuth } from "./entry-routes.js";
 
 const rootFrontend = new URL("../index.html", import.meta.url);
@@ -56,6 +56,8 @@ export default async function handler(req, res) {
   if (path.startsWith("/api/")) { try { await ensureAccessSchema(); } catch (e) { /* noop */ } }
   /* Klik ustuni, erkin yozuvli avtomobil, xarajatlar jadvali — ham tranzaksiyadan oldin */
   if (path.startsWith("/api/")) { try { await ensureKassaSchema(); } catch (e) { console.error("KASSA SCHEMA:", e.message); } }
+  /* Bir martalik (rahbar so'rovi, 01.11.2026): jarayonda qolib ketganlar yopiladi */
+  if (path.startsWith("/api/")) { try { await cleanupAllOnce(); } catch (e) { console.error("CLEANUP ONCE:", e.message); } }
   /* Vaqti tugagan «1 soatga» kabi yozuvlar faol ro'yxat / hisobotdan oldin yopiladi */
   try { await sweepForRequest(req); } catch (e) { console.error("AUTO CLOSE:", e.message); }
 
