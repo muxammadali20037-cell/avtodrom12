@@ -300,24 +300,96 @@ export const tgText = {
 };
 
 /* ---------------- BOT SO'ROVLARI ---------------- */
-async function plateReport(user, q) {
-  const key = plateKey(q);
-  if (key.length < 2) return 'Mashina raqamini yozing, masalan: <code>01A777AA</code> yoki <code>148</code>';
-  const exact = await pool.query(`SELECT id, plate FROM vehicles WHERE user_id::text = $1
-      AND regexp_replace(upper(plate), '[[:space:]\\-.,''\`‘’ʻʼ"]', '', 'g') = $2`, [user, key]);
-  let veh = exact.rows;
-  if (!veh.length) {
-    const like = await pool.query(`SELECT v.plate, MAX(s.started_at) AS last_at FROM vehicles v
-        LEFT JOIN sessions s ON s.vehicle_id = v.id AND s.status <> 'cancelled'
-       WHERE v.user_id::text = $1 AND regexp_replace(upper(v.plate), '[[:space:]\\-.,''\`‘’ʻʼ"]', '', 'g') LIKE '%' || $2 || '%'
-       GROUP BY v.plate ORDER BY MAX(s.started_at) DESC NULLS LAST LIMIT 8`, [user, key]);
-    if (!like.rows.length) return '🔎 <b>' + h(q) + '</b> — topilmadi.\nRaqamni to‘liq yozing (masalan <code>01A777AA</code>).';
-    if (like.rows.length > 1) {
-      return '🔎 Bir nechta mashina mos keldi — kerakligini aniq yozing:\n'
-        + like.rows.map(r => '• <code>' + h(r.plate) + '</code>' + (r.last_at ? ' (oxirgi: ' + ddmm(r.last_at) + ')' : '')).join('\n');
-    }
-    veh = (await pool.query(`SELECT id, plate FROM vehicles WHERE user_id::text = $1 AND plate = $2`, [user, like.rows[0].plate])).rows;
+/* Raqam bo'yicha mashinalarni topish. «402» yozilsa — ichida 402 bo'lgan
+   HAMMA mashina: «402», «402 MUHAYYO», «402 AZIZA», «402YC», «01A402AA».
+   Bo'sh joy, tire, katta-kichik harf hisobga olinmaydi; bir xil yozilgan
+   (masalan «402 AZIZA» va «402AZIZA») bitta mashina deb olinadi. */
+const PLATE_RX = `'[[:space:]\\-.,''\`‘’ʻʼ"]'`;
+async function findCars(user, key) {
+  const like = key.replace(/[\\%_]/g, m => '\\' + m);
+  const r = await pool.query(`SELECT v.id, v.plate, regexp_replace(upper(v.plate), ${PLATE_RX}, '', 'g') AS k,
+      (SELECT MAX(s.started_at) FROM sessions s WHERE s.vehicle_id = v.id AND s.status <> 'cancelled') AS last_at,
+      EXISTS (SELECT 1 FROM sessions s WHERE s.vehicle_id = v.id AND s.status IN ('active','frozen','paused')) AS inside
+    FROM vehicles v
+    WHERE v.user_id::text = $1 AND regexp_replace(upper(v.plate), ${PLATE_RX}, '', 'g') LIKE '%' || $2 || '%' ESCAPE '\\'
+    LIMIT 300`, [user, like]);
+  const by = new Map();
+  for (const v of r.rows) {
+    const g = by.get(v.k) || { key: v.k, plates: [], ids: [], last: 0, inside: false };
+    g.plates.push(v.plate); g.ids.push(v.id);
+    g.last = Math.max(g.last, v.last_at ? new Date(v.last_at).getTime() : 0);
+    g.inside = g.inside || v.inside;
+    by.set(v.k, g);
   }
+  return [...by.values()].sort((a, b) =>
+    (b.key === key) - (a.key === key) || (b.inside - a.inside) || (b.last - a.last)
+    || (b.key.startsWith(key) - a.key.startsWith(key)) || a.key.localeCompare(b.key));
+}
+
+/* Bir nechta mashina — har biri qisqa: hozir ichkaridami, bugun, qarzi, oxirgi kelgani */
+async function carsList(user, q, groups, group, more) {
+  const top = groups.slice(0, 12);
+  const ids = top.flatMap(g => g.ids);
+  const day = todayTk();
+  const [agg, ins] = await Promise.all([
+    pool.query(`SELECT s.vehicle_id,
+        COUNT(*) FILTER (WHERE ${'s.started_at'} >= ($2::date::timestamp AT TIME ZONE '${TZ}') AND s.started_at < (($2::date + 1)::timestamp AT TIME ZONE '${TZ}'))::int today_n,
+        COALESCE(SUM(s.amount) FILTER (WHERE s.started_at >= ($2::date::timestamp AT TIME ZONE '${TZ}') AND s.started_at < (($2::date + 1)::timestamp AT TIME ZONE '${TZ}')),0)::float8 today_paid,
+        COALESCE(SUM(s.debt_amount) FILTER (WHERE s.status = 'completed' AND s.debt_amount > 0),0)::float8 debt,
+        COUNT(*)::int visits
+      FROM sessions s WHERE s.vehicle_id = ANY($1) AND s.status IN ('completed','active','frozen','paused') GROUP BY 1`, [ids, day]),
+    pool.query(`SELECT s.vehicle_id, s.started_at, s.status, COALESCE(s.target_duration,0) target, s.planned_amount,
+        COALESCE(s.cash_amount,0)+COALESCE(s.terminal_amount,0)+COALESCE(s.click_amount,0) paid, s.post, s.student_id
+      FROM sessions s WHERE s.vehicle_id = ANY($1) AND s.status IN ('active','frozen','paused') ORDER BY s.started_at`, [ids])
+  ]);
+  const A = new Map(agg.rows.map(x => [String(x.vehicle_id), x]));
+  const I = new Map(); ins.rows.forEach(x => { if (!I.has(String(x.vehicle_id))) I.set(String(x.vehicle_id), x); });
+  const out = [more ? '🔎 <b>' + h(q) + '</b> raqamli yana ' + groups.length + ' ta mashina:' : '🔎 <b>' + h(q) + '</b> — ' + groups.length + ' ta mashina:'];
+  for (const g of top) {
+    let n = 0, paid = 0, debt = 0, visits = 0, inside = null;
+    for (const id of g.ids) {
+      const a = A.get(String(id));
+      if (a) { n += num(a.today_n); paid += num(a.today_paid); debt += num(a.debt); visits += num(a.visits); }
+      if (!inside && I.get(String(id))) inside = I.get(String(id));
+    }
+    const lines = ['\n🚗 <b>' + h(g.plates[0]) + '</b>'];
+    if (inside) {
+      const end = num(inside.target) > 0 ? new Date(new Date(inside.started_at).getTime() + num(inside.target) * 1000) : null;
+      lines.push('   🟢 ichkarida — ' + hhmm(inside.started_at) + (end ? '–' + hhmm(end) : ' dan') + ' (' + dur((Date.now() - new Date(inside.started_at).getTime()) / 1000) + ')'
+        + (inside.student_id ? ' · avtoshkola' : num(inside.paid) > 0 ? ' · to‘langan ' + som(inside.paid) : num(inside.planned_amount) > 0 ? ' · to‘lanmagan ' + som(inside.planned_amount) : ' · pul chiqishda')
+        + postTxt(inside.post));
+    }
+    lines.push('   ' + (n ? 'bugun: ' + n + ' marta' + (paid > 0 ? ' · ' + som(paid) : '') : g.last ? '⚪️ oxirgi: ' + ddmm(g.last) + ' ' + hhmm(g.last) : '⚪️ hali kelmagan')
+      + (debt > 0 ? ' · ⏳ <b>qarz ' + som(debt) + '</b>' : '') + (visits ? ' · jami ' + visits + ' marta' : ''));
+    out.push(lines.join('\n'));
+  }
+  if (groups.length > top.length) out.push('\n… yana ' + (groups.length - top.length) + ' ta — aniqroq yozing');
+  const ex = (top.find(g => /\D/.test(g.key)) || top[0]).plates[0];
+  out.push('\nBatafsil (oxirgi tashriflar bilan): ' + (group ? '<code>/raqam ' + h(ex) + '</code>' : 'to‘liq yozing, masalan <code>' + h(ex) + '</code>'));
+  return out.join('\n');
+}
+
+async function plateReport(user, q, group) {
+  const key = plateKey(q);
+  if (key.length < 2) return 'Mashina raqamini yozing, masalan: <code>01A777AA</code>, <code>402</code> yoki <code>455 dilnoza</code>';
+  const groups = await findCars(user, key);
+  if (!groups.length) return '🔎 <b>' + h(q) + '</b> — topilmadi.\nRaqamning bir qismini yozib ko‘ring (masalan <code>402</code>).';
+  /* Bitta mos kelsa — to'liq ma'lumot. Faqat raqam yozilsa («402») — shu
+     raqamli hammasi ro'yxat bo'lib chiqadi; harfi bilan to'liq yozilsa
+     («402 aziza») — o'sha mashinaning o'zi. */
+  const exact = groups.find(g => g.key === key);
+  if (groups.length === 1) return fullReport(user, groups[0]);
+  if (exact && /\D/.test(key)) return fullReport(user, exact);
+  /* «402» ning o'zi ham bor — u to'liq, qolgan «402 …» lar ostida qisqa */
+  if (exact) {
+    const others = groups.filter(g => g !== exact);
+    return (await fullReport(user, exact)) + '\n\n' + (await carsList(user, q, others, group, true));
+  }
+  return carsList(user, q, groups, group);
+}
+
+async function fullReport(user, pick) {
+  const veh = pick.ids.map((id, i) => ({ id, plate: pick.plates[i] }));
   const ids = veh.map(v => v.id);
   const plate = veh[0].plate;
   const day = todayTk();
@@ -493,7 +565,7 @@ async function webhook(req, res, secret) {
     if (cmd === 'ichkarida' || cmd === 'inside') return reply(await insideReport(user));
     if (cmd === 'bugun' || cmd === 'today' || cmd === 'hisobot') return reply(await todayReport(user));
     if (cmd === 'qarzlar' || cmd === 'qarz' || cmd === 'debts') return reply(await debtsReport(user));
-    if (cmd === 'raqam' || cmd === 'r' || cmd === 'mashina') return reply(arg ? await plateReport(user, arg) : 'Raqamni yozing: <code>/raqam 01A777AA</code>');
+    if (cmd === 'raqam' || cmd === 'r' || cmd === 'mashina') return reply(arg ? await plateReport(user, arg, chat.type !== 'private') : 'Raqamni yozing: <code>/raqam 402</code>');
     if (cmd) return reply('Bunday buyruq yo‘q.\n\n' + HELP);
     if (chat.type !== 'private') return json(res, 200, { ok: true });    /* guruhda faqat buyruqlar */
     return reply(await plateReport(user, raw.slice(0, 40)));
