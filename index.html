@@ -127,6 +127,22 @@ a { color: var(--g); text-decoration: none; }
   animation: scaleIn 0.5s ease-out both;
 }
 .login-card h1 { font-size: 22px; font-weight: 800; margin-bottom: 4px; color: var(--text); }
+.entry-pin { width: 100%; text-align: center; font-size: 34px; font-weight: 800; letter-spacing: .5em; padding: 12px 10px 12px 26px; margin: 16px 0 12px; border-radius: 14px; }
+.entry-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+.entry-pad button { height: 58px; border-radius: 14px; border: 1.5px solid var(--line); background: #fff; font-size: 24px; font-weight: 800; color: var(--text); cursor: pointer; font-family: inherit; }
+.entry-pad button:hover { background: var(--g-surface, #ecfdf5); border-color: #a7f3d0; }
+.entry-pad button:active { transform: scale(.97); }
+.cl-list { max-height: 38vh; overflow: auto; border: 1px solid var(--line); border-radius: 12px; margin: 8px 0 12px; }
+.cl-row { display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line); font-size: 13.5px; }
+.cl-row:first-child { border-top: 0; }
+.cl-row b { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-row .cl-t { color: #64748b; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cl-row .cl-m { white-space: nowrap; font-weight: 700; }
+.cl-row .cl-m.paid { color: #15803d; }
+.cl-opt { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 12px; margin-bottom: 8px; cursor: pointer; font-size: 14px; }
+.cl-opt input[type="radio"], .cl-opt input[type="checkbox"] { width: 18px !important; height: 18px !important; min-height: 0 !important; flex: 0 0 18px; margin: 2px 0 0; padding: 0; box-shadow: none; accent-color: #16a34a; }
+.cl-opt > span { flex: 1; min-width: 0; text-align: left; }
+.cl-opt.on { border-color: #86efac; background: #f0fdf4; }
 .login-card > .logo { margin-bottom: 24px; }
 
 /* ===== 5. LOGO ===== */
@@ -1363,6 +1379,27 @@ body.sheet-open { overflow: hidden; }
       </div>
     </div>
 
+    <!-- KIRISH KODI — login/paroldan oldin -->
+    <div id="entryBox" class="hidden">
+      <h1>Kirish kodi</h1>
+      <p class="text-muted">Saytga kirish uchun kodni kiriting.</p>
+      <form id="entryForm" data-act="entrySubmit" novalidate autocomplete="off">
+        <input id="entryPin" class="entry-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="••••" aria-label="Kirish kodi">
+        <div class="entry-pad" role="group" aria-label="Raqamlar">
+          <button type="button" data-act="entryKey" data-k="1">1</button><button type="button" data-act="entryKey" data-k="2">2</button><button type="button" data-act="entryKey" data-k="3">3</button>
+          <button type="button" data-act="entryKey" data-k="4">4</button><button type="button" data-act="entryKey" data-k="5">5</button><button type="button" data-act="entryKey" data-k="6">6</button>
+          <button type="button" data-act="entryKey" data-k="7">7</button><button type="button" data-act="entryKey" data-k="8">8</button><button type="button" data-act="entryKey" data-k="9">9</button>
+          <button type="button" data-act="entryKey" data-k="del" aria-label="O'chirish"><i class="fa-solid fa-delete-left" aria-hidden="true"></i></button><button type="button" data-act="entryKey" data-k="0">0</button><button type="button" data-act="entryKey" data-k="clr" aria-label="Tozalash">C</button>
+        </div>
+        <button class="btn btn-green btn-block" type="submit" id="entryBtn">
+          <span class="spinner" aria-hidden="true"></span>
+          <i class="fa-solid fa-unlock btn-icon" aria-hidden="true"></i>
+          <span class="btn-text">Kirish</span>
+        </button>
+      </form>
+      <div id="entryErr" class="text-error" role="alert" aria-live="polite"></div>
+    </div>
+
     <div id="loginBox">
       <h1>Xush kelibsiz</h1>
       <p class="text-muted">Operator paneliga kiring.</p>
@@ -1458,6 +1495,7 @@ body.sheet-open { overflow: hidden; }
       <button class="nav-btn" type="button" data-act="openAdminGate"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Admin panel</button>
       <div class="mx-foot">
         <button class="nav-btn mx-small" type="button" data-act="maxsusChange"><i class="fa-solid fa-key" aria-hidden="true"></i> Parolni o'zgartirish</button>
+        <button class="nav-btn mx-small" type="button" data-act="entryChange"><i class="fa-solid fa-door-closed" aria-hidden="true"></i> Saytga kirish kodi</button>
         <button class="nav-btn mx-small" type="button" data-act="maxsusLock"><i class="fa-solid fa-lock" aria-hidden="true"></i> Qulflash</button>
       </div>
     </div>
@@ -1734,6 +1772,7 @@ body.sheet-open { overflow: hidden; }
           <div><h1>Jarayonda</h1><p>Hozir avtodromdagi avtomobillar — vaqti tugayotganlari yuqorida</p></div>
           <div class="header-actions">
             <button class="btn btn-ghost" type="button" data-act="reloadActive"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Yangilash</button>
+            <button class="btn btn-danger" type="button" data-act="cleanupOpen" title="Eski, yopilmay qolganlarni to'xtatib tozalash (Maxsus parol)"><i class="fa-solid fa-broom" aria-hidden="true"></i> Tozalash</button>
             <button class="btn btn-green" type="button" data-act="goto" data-p="add"><i class="fa-solid fa-plus" aria-hidden="true"></i> Vaqt ochish</button>
           </div>
         </div>
@@ -2816,6 +2855,8 @@ async function request(path, opt, kind) {
       authToken ? { Authorization: 'Bearer ' + authToken } : {},
       /* Qaysi kassa (1-POST / 2-POST) — hisobot postlar bo'yicha ajratiladi */
       { 'X-Post': String(Post.get()) },
+      /* Saytga kirish kodi kaliti (login uchun shart) */
+      (typeof Entry !== 'undefined' && Entry.token()) ? { 'X-Entry': Entry.token() } : {},
       /* Maxsus bo'lim ochiq bo'lsa — kalit (Excel, Nazorat API'lari shuni so'raydi) */
       (typeof Maxsus !== 'undefined' && Maxsus.isOpen()) ? { 'X-Maxsus': Maxsus.token } : {},
       opt.headers || {}
@@ -2903,6 +2944,189 @@ const jsonBody = obj => JSON.stringify(obj);
    Sahifaning o'zi ham internetsiz ochiladi (sw.js). Ro'yxatlar
    (o'quvchilar, avtoshkolalar, ichkaridagilar, to'lanmaganlar)
    oxirgi holati bilan kompyuterda saqlanadi (LocalCache). */
+/* ===================== KIRISH KODI =====================
+   Sayt ochilganda avval shu kod so'raladi, keyin login/parol (yoki
+   saqlangan hisob). Server kodni tekshirib 12 soatlik kalit beradi —
+   login shusiz ishlamaydi. Kalit shu oyna yopilguncha (sessionStorage).
+   Internet yo'q paytda ham kassa ochilsin: oxirgi to'g'ri kodning
+   tuzlangan xeshi shu kompyuterda saqlanadi va shu bilan tekshiriladi. */
+const Entry = {
+  KEY: 'avtodrom_entry', LKEY: 'avtodrom_entry_local',
+  token() {
+    try { const j = JSON.parse(sessionStorage.getItem(this.KEY) || 'null'); return j && j.e > Date.now() ? j.t : ''; }
+    catch (e) { return ''; }
+  },
+  ok() { try { const j = JSON.parse(sessionStorage.getItem(this.KEY) || 'null'); return !!(j && j.e > Date.now()); } catch (e) { return false; } },
+  save(t, e) { try { sessionStorage.setItem(this.KEY, JSON.stringify({ t: t, e: e })); } catch (x) { /* noop */ } },
+  clear() { try { sessionStorage.removeItem(this.KEY); } catch (x) { /* noop */ } },
+  async hash(pin, salt) {
+    try {
+      const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + ':' + pin));
+      return Array.from(new Uint8Array(d)).map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) { return ''; }
+  },
+  async remember(pin) {
+    const salt = Outbox.newId();
+    const h = await this.hash(pin, salt);
+    if (h) try { localStorage.setItem(this.LKEY, JSON.stringify({ s: salt, h: h })); } catch (e) { /* noop */ }
+  },
+  async localOk(pin) {
+    try {
+      const j = JSON.parse(localStorage.getItem(this.LKEY) || 'null');
+      return !!(j && j.h && (await this.hash(pin, j.s)) === j.h);
+    } catch (e) { return false; }
+  },
+  next: null,
+  require(next) {
+    if (this.ok()) { next(); return; }
+    this.next = next;
+    $('login').classList.remove('hidden');
+    $('app').classList.add('hidden');
+    $('entryBox').classList.remove('hidden');
+    $('loginBox').classList.add('hidden');
+    $('registerBox').classList.add('hidden');
+    setError('entryErr', '');
+    const p = $('entryPin'); if (p) { p.value = ''; setTimeout(() => p.focus(), 60); }
+  },
+  key(k) {
+    const p = $('entryPin'); if (!p) return;
+    if (k === 'del') p.value = p.value.slice(0, -1);
+    else if (k === 'clr') p.value = '';
+    else if (p.value.length < 8) p.value += k;
+    setError('entryErr', '');
+    p.focus();
+  },
+  async submit() {
+    const p = $('entryPin');
+    const pin = p ? p.value.replace(/\s+/g, '') : '';
+    setError('entryErr', '');
+    if (pin.length < 4) { setError('entryErr', 'Kodni kiriting.'); return; }
+    await withBusy('entry', $('entryBtn'), async () => {
+      try {
+        const r = await request('/entry/check', { method: 'POST', body: jsonBody({ pin: pin }), timeout: 12000 }, 'public');
+        this.save(r.token, r.exp);
+        this.remember(pin);
+        this.done();
+      } catch (e) {
+        /* internet yo'q — shu kompyuterda avval to'g'ri kiritilgan kod bilan */
+        if (e && e.status === 0 && await this.localOk(pin)) { this.save('', Date.now() + 12 * 3600e3); this.done(); return; }
+        setError('entryErr', e && e.status === 0 ? 'Internet yo\'q — bu kompyuterda kod hali tekshirilmagan.' : e.message);
+        if (p) { p.value = ''; p.focus(); }
+      }
+    });
+  },
+  done() {
+    $('entryBox').classList.add('hidden');
+    const n = this.next; this.next = null;
+    if (n) n(); else loginMode();
+  },
+  changeDialog() {
+    openModal('<div class="modal-head"><div><h2>Saytga kirish kodi</h2><p class="text-muted">Sayt ochilganda so\'raladigan kod (hamma kompyuterda bir xil). 4–8 ta raqam.</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<label class="field-label" for="enNew">Yangi kod</label><input id="enNew" type="password" inputmode="numeric" maxlength="8" autocomplete="new-password">'
+      + '<label class="field-label" for="enNew2" style="margin-top:10px">Yana bir marta</label><input id="enNew2" type="password" inputmode="numeric" maxlength="8" autocomplete="new-password">'
+      + '<div id="enErr" class="text-error" role="alert"></div>'
+      + '<div class="actions-row"><button class="btn btn-green" type="button" id="enBtn" data-act="entrySave"><span class="spinner"></span><span class="btn-text">Saqlash</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>');
+    setTimeout(() => { const x = $('enNew'); if (x) x.focus(); }, 50);
+  },
+  async saveNew() {
+    const a = ($('enNew') && $('enNew').value.trim()) || '', b = ($('enNew2') && $('enNew2').value.trim()) || '';
+    setError('enErr', '');
+    if (!/^\d{4,8}$/.test(a)) { setError('enErr', 'Kod 4–8 ta raqam bo\'lsin.'); return; }
+    if (a !== b) { setError('enErr', 'Ikkala kod bir xil emas.'); return; }
+    await withBusy('entrySave', $('enBtn'), async () => {
+      try {
+        await api('/entry/change', { method: 'POST', body: jsonBody({ pin: a }) });
+        this.remember(a);
+        closeModal();
+        toast('Saytga kirish kodi o\'zgartirildi. Boshqa kompyuterlarda yangi kod bilan kiriladi.');
+      } catch (e) { setError('enErr', e.message); }
+    });
+  }
+};
+
+/* ===================== JARAYONDAGILARNI TOZALASH (Maxsus) =====================
+   Eski, yopilmay qolgan yozuvlarni bir bosishda to'xtatib olib tashlash.
+   Pul olinmaganlari o'chiriladi, pul olinganlari yopiladi (pul hisobotda
+   qoladi) — xohlasa hammasini o'chirish ham mumkin. 24 soat ichida
+   «Qaytarish». Server: api/cleanup-routes.js */
+const Cleanup = {
+  data: null,
+  open() {
+    if (!Maxsus.isOpen()) { Maxsus.ask(() => this.open()); return; }
+    if (Outbox.isOffline()) { toast('Internet yo\'q — tozalash internet bilan ishlaydi.', 'warn'); return; }
+    openModal('<div class="modal-head"><div><h2>Jarayondagilarni tozalash</h2></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div id="clBody">' + loadingLine('Yuklanmoqda...') + '</div>');
+    this.load();
+  },
+  async load() {
+    try { this.data = await api('/cleanup/preview'); }
+    catch (e) { const b = $('clBody'); if (b) b.innerHTML = emptyState('fa-triangle-exclamation', 'Yuklanmadi', e.message, true); return; }
+    this.render();
+  },
+  render() {
+    const b = $('clBody'); if (!b) return;
+    const d = this.data || {}, ss = d.sessions || [], qq = d.queue || [];
+    const paidRows = ss.filter(x => num(x.paid) > 0), paidSum = paidRows.reduce((a, x) => a + num(x.paid), 0);
+    const when = t => { const x = new Date(t); return (dayOf(t) !== localDateISO(0) ? fmtDate(dayOf(t)) + ' ' : '') + hhmm(x); };
+    const last = d.last ? '<div class="field-help" style="margin:0 0 10px;padding:8px 10px;border-radius:10px;background:#f1f5f9">Oxirgi tozalash: <b>' + esc(when(d.last.created_at)) + '</b>, ' + num(d.last.n) + ' ta'
+      + ' <button class="btn btn-light btn-sm" type="button" id="clUndoBtn" data-act="cleanupUndo" style="margin-left:6px"><span class="spinner"></span><span class="btn-text">Qaytarish</span></button></div>' : '';
+    if (!ss.length && !qq.length) { b.innerHTML = last + emptyState('fa-circle-check', 'Jarayonda hech narsa yo\'q', 'Tozalash kerak emas.'); return; }
+    b.innerHTML = last
+      + '<p class="text-muted" style="margin:0 0 6px">Jarayonda: <b>' + ss.length + ' ta</b>' + (qq.length ? ' · kutish rejimida: <b>' + qq.length + ' ta</b>' : '') + '</p>'
+      + '<div class="cl-list">' + ss.map(x => '<div class="cl-row"><b>' + esc(x.plate) + (x.student ? ' · ' + esc(x.student) : '') + '</b>'
+        + '<span class="cl-t">' + esc(when(x.started_at)) + ' dan' + (x.status !== 'active' ? ' · muzlatilgan' : '') + '</span>'
+        + '<span class="cl-m' + (num(x.paid) > 0 ? ' paid' : '') + '">' + (num(x.paid) > 0 ? money(x.paid) + ' olingan' : 'pul olinmagan') + '</span></div>').join('')
+        + qq.map(q => '<div class="cl-row"><b>' + esc(q.label) + '</b><span class="cl-t">kutish rejimi</span><span class="cl-m' + (num(q.prepay) > 0 ? ' paid' : '') + '">' + (num(q.prepay) > 0 ? money(q.prepay) + ' olingan' : '') + '</span></div>').join('')
+      + '</div>'
+      + '<label class="cl-opt on" id="clOptSafe"><input type="radio" name="clMode" value="safe" checked> <span><b>Tavsiya:</b> pul olinmaganlari o\'chiriladi, pul olinganlari (' + paidRows.length + ' ta, ' + esc(money(paidSum)) + ') <b>yopiladi</b> — pul hisobotda qoladi</span></label>'
+      + '<label class="cl-opt" id="clOptAll"><input type="radio" name="clMode" value="all"> <span><b>Hammasini o\'chirish</b>' + (paidSum ? ' — <span style="color:#b91c1c">' + esc(money(paidSum)) + ' hisobotdan ham chiqadi</span>' : '') + '</span></label>'
+      + (qq.length ? '<label class="cl-opt on" id="clOptQ"><input type="checkbox" id="clQueue" checked> <span>Kutish rejimidagilarni ham olib tashlash (' + qq.length + ' ta) — aks holda bo\'shagan mashinaga o\'zi ochilib ketadi</span></label>' : '')
+      + '<label class="field-label" for="clReason">Sababi</label><input id="clReason" maxlength="200" value="Eski, yopilmay qolganlar tozalandi">'
+      + '<div id="clErr" class="text-error" role="alert"></div>'
+      + '<div class="actions-row"><button class="btn btn-danger btn-lg" type="button" id="clBtn" data-act="cleanupRun"><span class="spinner"></span><i class="fa-solid fa-broom btn-icon" aria-hidden="true"></i><span class="btn-text">To\'xtatib tozalash</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
+      + '<div class="field-help" style="margin-top:8px">O\'chirilganlar ro\'yxat va hisobotlardan chiqadi, bazada iz qoladi. 24 soat ichida «Qaytarish» mumkin.</div>';
+    b.querySelectorAll('input[name="clMode"]').forEach(r => r.addEventListener('change', () => {
+      const all = b.querySelector('input[name="clMode"]:checked').value === 'all';
+      $('clOptSafe').classList.toggle('on', !all); $('clOptAll').classList.toggle('on', all);
+    }));
+    const qc = $('clQueue'); if (qc) qc.addEventListener('change', () => $('clOptQ').classList.toggle('on', qc.checked));
+  },
+  async run() {
+    const b = $('clBody'); if (!b) return;
+    const modeEl = b.querySelector('input[name="clMode"]:checked');
+    const body = { mode: modeEl ? modeEl.value : 'safe', queue: $('clQueue') ? $('clQueue').checked : true, reason: ($('clReason') && $('clReason').value.trim()) || '' };
+    if (body.mode === 'all' && !confirm('Hammasi o\'chiriladi, olingan pul ham hisobotdan chiqadi. Davom etasizmi?')) return;
+    setError('clErr', '');
+    await withBusy('cleanup', $('clBtn'), async () => {
+      try {
+        const r = await api('/cleanup/run', { method: 'POST', body: jsonBody(body), timeout: 30000 });
+        closeModal();
+        toast('Tozalandi: ' + r.removed + ' ta o\'chirildi' + (r.closed ? ', ' + r.closed + ' ta pulli yopildi' : '') + (r.queue ? ', kutish rejimidan ' + r.queue + ' ta' : '') + '.');
+        this.after();
+      } catch (e) { setError('clErr', e.message); }
+    });
+  },
+  async undo() {
+    if (!confirm('Oxirgi tozalash bekor qilinsinmi? Yozuvlar avvalgi holatiga qaytadi.')) return;
+    await withBusy('cleanupUndo', $('clUndoBtn'), async () => {
+      try {
+        const r = await api('/cleanup/undo', { method: 'POST', body: '{}' });
+        toast('Qaytarildi: ' + r.restored + ' ta' + (r.queue ? ', kutish rejimiga ' + r.queue + ' ta' : '') + (r.skipped ? ' (' + r.skipped + ' tasi orada o\'zgargan)' : '') + '.');
+        this.load();
+        this.after();
+      } catch (e) { toast(e.message, 'error'); }
+    });
+  },
+  after() {
+    Active.load(true); Frozen.load(true); Queue.sync(); Debts.load(true); Reports.loadDaily();
+    Data.ensureToday(true).then(() => Active.renderKpi()).catch(() => {});
+  }
+};
+
 const LocalCache = {
   key(name) { return 'avtodrom_cache_v1:' + Outbox.uid() + ':' + name; },
   put(name, data) {
@@ -3265,7 +3489,7 @@ function hardLogout(silent) {
   document.body.classList.remove('admin-open');
   if (!silent) location.reload(); else setTimeout(() => location.reload(), 400);
 }
-function loginMode() { $('loginBox').classList.remove('hidden'); $('registerBox').classList.add('hidden'); setError('loginErr', ''); }
+function loginMode() { $('loginBox').classList.remove('hidden'); $('registerBox').classList.add('hidden'); if ($('entryBox')) $('entryBox').classList.add('hidden'); setError('loginErr', ''); }
 function registerMode() { $('loginBox').classList.add('hidden'); $('registerBox').classList.remove('hidden'); setError('regErr', ''); }
 
 function boot() {
@@ -14070,7 +14294,10 @@ const ACTIONS = {
           body: jsonBody({ username: $('loginUser').value.trim(), password: $('loginPass').value })
         }, 'public');
         saveLogin(data);
-      } catch (e) { setError('loginErr', e.message); }
+      } catch (e) {
+        if (e && e.data && e.data.entry) { Entry.clear(); Entry.require(() => { showLoginScreen(); loginMode(); }); return; }
+        setError('loginErr', e.message);
+      }
     });
   },
   authRegister: async () => {
@@ -14082,7 +14309,10 @@ const ACTIONS = {
           body: jsonBody({ fullName: $('regName').value.trim(), username: $('regUser').value.trim(), password: $('regPass').value })
         }, 'public');
         saveLogin(data);
-      } catch (e) { setError('regErr', e.message); }
+      } catch (e) {
+        if (e && e.data && e.data.entry) { Entry.clear(); Entry.require(() => { showLoginScreen(); registerMode(); }); return; }
+        setError('regErr', e.message);
+      }
     });
   },
   logout: async () => {
@@ -14239,6 +14469,13 @@ const ACTIONS = {
   maxsusToggle: () => Maxsus.toggle(),
   postPick: () => Post.ask(false),
   netOpen: () => Outbox.open(),
+  entrySubmit: () => Entry.submit(),
+  entryKey: d => Entry.key(d.k),
+  entryChange: () => Entry.changeDialog(),
+  entrySave: () => Entry.saveNew(),
+  cleanupOpen: () => Cleanup.open(),
+  cleanupRun: () => Cleanup.run(),
+  cleanupUndo: () => Cleanup.undo(),
   tgConnect: () => TgBot.connect(),
   tgDisconnect: () => TgBot.disconnect(),
   tgCode: () => TgBot.newCode(),
@@ -14500,8 +14737,11 @@ function init() {
   Queue.load();
   Queue.badge();
 
-  if (STATE.auth.token && STATE.auth.user) boot();
-  else showLoginScreen();
+  /* Avval saytga kirish kodi, keyin hisob (saqlangan bo'lsa — darhol) */
+  Entry.require(() => {
+    if (STATE.auth.token && STATE.auth.user) boot();
+    else { showLoginScreen(); loginMode(); }
+  });
 }
 
 window.addEventListener('error', e => { console.error('[global error]', e.message, e.filename + ':' + e.lineno); });

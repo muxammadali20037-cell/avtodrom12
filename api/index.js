@@ -24,6 +24,8 @@ import { readFile } from "node:fs/promises";
 import { opGuard } from "./op-guard.js";
 import { SW_SOURCE } from "./sw-source.js";
 import { handleTelegramRequest, tgFlushIfAny } from "./telegram.js";
+import { handleCleanupRequest } from "./cleanup-routes.js";
+import { handleEntryRequest, guardAuth } from "./entry-routes.js";
 
 const rootFrontend = new URL("../index.html", import.meta.url);
 const backupFrontend = new URL("../index.backup.html", import.meta.url);
@@ -62,6 +64,12 @@ export default async function handler(req, res) {
   if (path.startsWith("/api/") && req.headers["x-op-id"]) {
     try { if (await opGuard(req, res)) return; } catch (e) { console.error("OP GUARD:", e.message); }
   }
+
+  /* KIRISH KODI (1212) — login/ro'yxatdan o'tish shu kodsiz ishlamaydi */
+  if (path.startsWith("/api/entry/")) { const enHandled = await handleEntryRequest(req, res); if (enHandled) return enHandled; }
+  if (guardAuth(req, res)) return;
+  /* JARAYONDAGILARNI TOZALASH (Maxsus bo'lim) */
+  if (path.startsWith("/api/cleanup/")) { const clHandled = await handleCleanupRequest(req, res); if (clHandled) return clHandled; }
 
   /* TELEGRAM BOT — webhook (Telegram'dan) va sozlash (Maxsus bo'lim) */
   if (path.startsWith("/api/telegram/")) { const tgHandled = await handleTelegramRequest(req, res); if (tgHandled) return tgHandled; }
