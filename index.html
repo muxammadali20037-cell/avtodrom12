@@ -2300,6 +2300,7 @@ const CONFIG = {
   MINIMUM_PAYMENT: 0,
   CALC_MODE: 'half',      /* 30 daqiqalik bo'laklar — soatiga HOURLY_RATE */
   GRACE_MIN: 20,          /* vaqtdan shuncha daqiqa oshsa ham qo'shimcha olinmaydi (1:19 → 1 soat, 1:23 → 1,5 soat) */
+  FIRST_HOUR_MIN: 40,     /* 40 daqiqa bo'ldimi — 1 soat (100 000), undan kam — 30 daqiqa (50 000). Rahbar, 02.11.2026 */
   ROUND_TO: 1000,
 
   DEBOUNCE: 300,
@@ -8193,11 +8194,16 @@ function tariff(v) {
    Mijoz buyurtma qilgan vaqtdan (1 soat, 1,5 soat, ...) kam to'lamaydi;
    ortiqcha vaqt keyingi 30 daqiqaga yaxlitlanadi, CONFIG.GRACE_MIN
    (20 daqiqa) kechiriladi: 1 soat 19 daq → 1 soat (100 000), 1 soat 23 daq →
-   1,5 soat (150 000). Eng kami 30 daqiqa. */
+   1,5 soat (150 000). Eng kami 30 daqiqa.
+   BIRINCHI SOAT: 40 daqiqa bo'ldimi — 1 soat (100 000); 39 daqiqagacha —
+   30 daqiqa (50 000). CONFIG.FIRST_HOUR_MIN. */
 function billMinutes(elapsedSec, targetSec) {
   const grace = num(CONFIG.GRACE_MIN);
-  const actual = Math.max(0, num(elapsedSec) / 60 - grace);
-  const used = Math.max(30, Math.ceil(actual / 30 - 1e-9) * 30);
+  const minutes = Math.max(0, num(elapsedSec) / 60);
+  const actual = Math.max(0, minutes - grace);
+  let used = Math.max(30, Math.ceil(actual / 30 - 1e-9) * 30);
+  const firstHour = num(CONFIG.FIRST_HOUR_MIN);
+  if (firstHour > 0 && minutes >= firstHour - 1e-9) used = Math.max(used, 60);
   const planned = num(targetSec) > 0 ? Math.ceil(num(targetSec) / 60 / 30 - 1e-9) * 30 : 0;
   return Math.max(used, planned);
 }
