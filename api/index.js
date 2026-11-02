@@ -26,6 +26,7 @@ import { SW_SOURCE } from "./sw-source.js";
 import { handleTelegramRequest, tgFlushIfAny } from "./telegram.js";
 import { handleCleanupRequest, cleanupAllOnce } from "./cleanup-routes.js";
 import { handleEntryRequest, guardAuth } from "./entry-routes.js";
+import { handleAccountsRequest, trackActivity } from "./accounts-routes.js";
 
 const rootFrontend = new URL("../index.html", import.meta.url);
 const backupFrontend = new URL("../index.backup.html", import.meta.url);
@@ -66,6 +67,10 @@ export default async function handler(req, res) {
   if (path.startsWith("/api/") && req.headers["x-op-id"]) {
     try { if (await opGuard(req, res)) return; } catch (e) { console.error("OP GUARD:", e.message); }
   }
+
+  /* Hisob + kompyuter faolligi (kim hozir kirgan) — bir daqiqada bir marta */
+  if (path.startsWith("/api/") && req.headers.authorization) trackActivity(req).catch(() => {});
+  if (path.startsWith("/api/accounts/")) { const acHandled = await handleAccountsRequest(req, res); if (acHandled) return acHandled; }
 
   /* KIRISH KODI (1212) — login/ro'yxatdan o'tish shu kodsiz ishlamaydi */
   if (path.startsWith("/api/entry/")) { const enHandled = await handleEntryRequest(req, res); if (enHandled) return enHandled; }
