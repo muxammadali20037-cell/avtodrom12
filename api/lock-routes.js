@@ -102,14 +102,17 @@ async function status(res, user) {
   json(res, 200, { set: !!r.rowCount });
 }
 
-async function unlock(req, res, user) {
-  const b = await readBody(req);
-  const pw = cleanPass(b.password);
+/* Maxsus parolni tekshirish (noto'g'ri urinishlar hisobi bilan) — Ochish va
+   xavfli amallar (hisobni o'chirish) uchun umumiy.
+   → { ok: true } yoki { ok: false, status, body } */
+export async function checkMaxsusPassword(user, password) {
+  await ensureLockSchema();
+  const pw = cleanPass(password);
   const r = await pool.query(`SELECT pass_hash, failed_count, blocked_until, blocked_until > now() AS blocked,
       GREATEST(0, EXTRACT(EPOCH FROM (blocked_until - now())))::int AS wait FROM section_locks WHERE user_id = $1`, [user]);
   const row = r.rows[0];
-  if (!row) return json(res, 409, { error: 'Parol hali qo‘yilmagan', notSet: true });
-  if (row.blocked) return json(res, 429, { error: 'Ko‘p marta noto‘g‘ri yozildi. ' + row.wait + ' soniyadan keyin urinib ko‘ring', wait: row.wait });
+  if (!row) return { ok: false, status: 409, body: { error: 'Parol hali qo‘yilmagan', notSet: true } };
+  if (row.blocked) return { ok: false, status: 429, body: { error: 'Ko‘p marta noto‘g‘ri yozildi. ' + row.wait + ' soniyadan keyin urinib ko‘ring', wait: row.wait } };
   const ok = pw.length > 0 && await bcrypt.compare(pw, row.pass_hash);
   if (!ok) {
     const u = await pool.query(`UPDATE section_locks SET failed_count = failed_count + 1,
@@ -119,11 +122,18 @@ async function unlock(req, res, user) {
     if (n >= MAX_FAILS) {
       await pool.query(`UPDATE section_locks SET failed_count = 0 WHERE user_id = $1`, [user]);
       await logChange(null, user, { entity: 'maxsus', action: 'unlock_blocked', reason: MAX_FAILS + ' marta noto‘g‘ri parol' });
-      return json(res, 429, { error: 'Parol ' + MAX_FAILS + ' marta noto‘g‘ri yozildi — ' + BLOCK_SEC + ' soniya kuting', wait: BLOCK_SEC });
+      return { ok: false, status: 429, body: { error: 'Parol ' + MAX_FAILS + ' marta noto‘g‘ri yozildi — ' + BLOCK_SEC + ' soniya kuting', wait: BLOCK_SEC } };
     }
-    return json(res, 400, { error: 'Parol noto‘g‘ri' + (MAX_FAILS - n <= 2 ? ' (yana ' + (MAX_FAILS - n) + ' ta urinish)' : ''), left: MAX_FAILS - n });
+    return { ok: false, status: 400, body: { error: 'Parol noto‘g‘ri' + (MAX_FAILS - n <= 2 ? ' (yana ' + (MAX_FAILS - n) + ' ta urinish)' : ''), left: MAX_FAILS - n } };
   }
   await pool.query(`UPDATE section_locks SET failed_count = 0, blocked_until = NULL WHERE user_id = $1`, [user]);
+  return { ok: true };
+}
+
+async function unlock(req, res, user) {
+  const b = await readBody(req);
+  const c = await checkMaxsusPassword(user, b.password);
+  if (!c.ok) return json(res, c.status, c.body);
   json(res, 200, Object.assign({ ok: true }, issue(user)));
 }
 

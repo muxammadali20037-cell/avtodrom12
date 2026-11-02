@@ -26,7 +26,7 @@ import { SW_SOURCE } from "./sw-source.js";
 import { handleTelegramRequest, tgFlushIfAny } from "./telegram.js";
 import { handleCleanupRequest, cleanupAllOnce } from "./cleanup-routes.js";
 import { handleEntryRequest, guardAuth } from "./entry-routes.js";
-import { handleAccountsRequest, trackActivity } from "./accounts-routes.js";
+import { handleAccountsRequest, trackActivity, isDeletedAccount } from "./accounts-routes.js";
 
 const rootFrontend = new URL("../index.html", import.meta.url);
 const backupFrontend = new URL("../index.backup.html", import.meta.url);
@@ -59,6 +59,12 @@ export default async function handler(req, res) {
   if (path.startsWith("/api/")) { try { await ensureKassaSchema(); } catch (e) { console.error("KASSA SCHEMA:", e.message); } }
   /* Bir martalik (rahbar so'rovi, 01.11.2026): jarayonda qolib ketganlar yopiladi */
   if (path.startsWith("/api/")) { try { await cleanupAllOnce(); } catch (e) { console.error("CLEANUP ONCE:", e.message); } }
+  /* O'chirilgan hisobning kaliti darhol yaroqsiz — o'sha kompyuter tizimdan chiqadi */
+  if (path.startsWith("/api/") && req.headers.authorization && await isDeletedAccount(req)) {
+    res.statusCode = 401;
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    return res.end(JSON.stringify({ error: "Bu hisob o‘chirilgan", deleted: true }));
+  }
   /* Vaqti tugagan «1 soatga» kabi yozuvlar faol ro'yxat / hisobotdan oldin yopiladi */
   try { await sweepForRequest(req); } catch (e) { console.error("AUTO CLOSE:", e.message); }
 

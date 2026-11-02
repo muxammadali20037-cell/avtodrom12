@@ -2914,8 +2914,9 @@ async function request(path, opt, kind) {
              Operator sessiyasiga TEGMAYMIZ va tizimdan chiqarmaymiz. */
           throw ApiError(serverMsg || "Login yoki parol noto'g'ri.", 401, serverMsg);
         }
+        if (data && data.deleted) { try { sessionStorage.setItem('avtodrom_deleted_msg', '1'); } catch (e) { /* noop */ } }
         hardLogout(true);
-        throw ApiError('Sessiya tugagan. Qaytadan kiring.', 401, serverMsg);
+        throw ApiError(data && data.deleted ? 'Bu hisob o\'chirilgan.' : 'Sessiya tugagan. Qaytadan kiring.', 401, serverMsg);
       }
       console.error('[API]', path, res.status, serverMsg || txt);
       /* Maxsus kalit eskirgan — bo'lim qulflanadi, parol qayta so'raladi */
@@ -3104,19 +3105,94 @@ const Accounts = {
     const b = $('accOnline'); if (b) b.textContent = num(d.online_accounts) ? String(num(d.online_accounts)) : '';
     const host = $('accList'); if (!host) return;
     if (!list.length) { host.innerHTML = emptyState('fa-users', 'Hisob yo\'q', ''); return; }
-    host.innerHTML = '<div class="table-wrap responsive"><table class="tbl"><thead><tr><th>Hisob</th><th>Holat</th><th>Kompyuterlar</th><th>Bugun</th><th>Jarayonda</th><th>Oxirgi yozuv</th></tr></thead><tbody>'
+    host.innerHTML = '<div class="table-wrap responsive"><table class="tbl"><thead><tr><th>Hisob</th><th>Holat</th><th>Kompyuterlar</th><th>Bugun</th><th>Jarayonda</th><th>Jami yozuv</th><th>Oxirgi yozuv</th></tr></thead><tbody>'
       + list.map(a => {
-        const devs = (a.devices || []).slice(0, 4).map(x => '<div style="white-space:nowrap">' + (x.online ? '🟢 ' : '⚪ ') + esc(x.device) + (x.post ? ' · ' + x.post + '-POST' : '')
+        const devs = (a.devices || []).slice(0, 4).map(x => '<div>' + (x.online ? '🟢 ' : '⚪ ') + esc(x.device) + (x.post ? ' · ' + x.post + '-POST' : '')
           + ' <span class="text-muted">' + esc(this.ago(x.last_seen)) + '</span></div>').join('') + ((a.devices || []).length > 4 ? '<div class="text-muted">+ yana ' + (a.devices.length - 4) + '</div>' : '');
+        const del = a.me ? '' : '<button class="btn ' + (a.can_delete ? 'btn-danger' : 'btn-light') + ' btn-sm" type="button" data-act="accDel" data-id="' + esc(a.id) + '" style="margin-top:6px"'
+          + (a.can_delete ? '' : ' title="' + esc(a.block || '') + '"') + '><i class="fa-solid ' + (a.can_delete ? 'fa-trash' : 'fa-lock') + '" aria-hidden="true"></i> O\'chirish</button>';
         return '<tr' + (a.online ? ' style="background:#f0fdf4"' : '') + '>'
-          + '<td data-label="Hisob"><b>' + esc(a.full_name || a.username) + '</b>' + (a.me ? ' <span class="badge badge-blue">siz</span>' : '') + '<div class="text-muted">' + esc(a.username) + '</div></td>'
+          + '<td data-label="Hisob"><div><b>' + esc(a.full_name || a.username) + '</b>' + (a.me ? ' <span class="badge badge-blue">siz</span>' : '') + '<div class="text-muted">' + esc(a.username) + '</div>' + del + '</div></td>'
           + '<td data-label="Holat">' + (a.online ? '<span class="badge badge-green">Hozir kirgan</span>' : '<span class="badge badge-grey">' + esc(a.last_seen ? 'oxirgi: ' + this.ago(a.last_seen) : 'ma\'lumot yo\'q') + '</span>') + '</td>'
-          + '<td data-label="Kompyuterlar">' + (devs || '<span class="text-muted">—</span>') + '</td>'
+          + '<td data-label="Kompyuterlar" style="white-space:normal;min-width:190px"><div>' + (devs || '<span class="text-muted">—</span>') + '</div></td>'
           + '<td data-label="Bugun">' + (a.today ? a.today + ' ta' : '—') + '</td>'
           + '<td data-label="Jarayonda">' + (a.open ? '<b style="color:#b45309">' + a.open + ' ta</b>' : '—') + '</td>'
+          + '<td data-label="Jami yozuv">' + (a.total ? num(a.total).toLocaleString('ru-RU').replace(/,/g, ' ') + ' ta' : '—') + '</td>'
           + '<td data-label="Oxirgi yozuv">' + esc(a.last_session ? this.ago(a.last_session) : '—') + '</td></tr>';
       }).join('') + '</tbody></table></div>'
-      + '<div class="field-help" style="margin-top:10px">Kompyuterlar shu yangilanishdan keyin yozila boshladi. Kirish kaliti kompyuterda saqlanadi — «hozir kirgan» oxirgi 5 daqiqadagi ishga qarab aniqlanadi.</div>';
+      + '<div class="field-help" style="margin-top:10px">Kompyuterlar shu yangilanishdan keyin yozila boshladi. Kirish kaliti kompyuterda saqlanadi — «hozir kirgan» oxirgi 5 daqiqadagi ishga qarab aniqlanadi.'
+      + ' «O\'chirish» — hisob va uning hamma ma\'lumoti bazadan butunlay o\'chadi (Maxsus parol so\'raladi). 1-POST va 2-POST bitta hisob ichida — har kompyuter tepadagi «POST» tugmasidan o\'z postini tanlaydi.</div>';
+  }
+};
+
+/* Hisobni butunlay o'chirish — Maxsus parol + login qo'lda yoziladi */
+const AccDel = {
+  data: null,
+  open(id) {
+    if (!Maxsus.isOpen()) { Maxsus.ask(() => this.open(id)); return; }
+    if (Outbox.isOffline()) { toast('Internet yo\'q — hisobni o\'chirish internet bilan ishlaydi.', 'warn'); return; }
+    this.data = null;
+    openModal('<div class="modal-head"><div><h2>Hisobni butunlay o\'chirish</h2></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div id="adBody">' + loadingLine('Tekshirilmoqda...') + '</div>');
+    this.load(id);
+  },
+  async load(id) {
+    try { this.data = await api('/accounts/delete-preview?id=' + encodeURIComponent(id)); }
+    catch (e) { const b = $('adBody'); if (b) b.innerHTML = emptyState('fa-triangle-exclamation', 'Yuklanmadi', e.message, true); return; }
+    this.render();
+  },
+  render() {
+    const b = $('adBody'); if (!b) return;
+    const d = this.data || {}, a = d.account || {};
+    const name = '<div style="padding:10px 12px;border-radius:12px;background:#f8fafc;margin-bottom:10px"><b style="font-size:16px">' + esc(a.full_name || a.username) + '</b>'
+      + '<div class="text-muted">Login: <b>' + esc(a.username) + '</b> · ochilgan: ' + esc(a.created_at ? fmtDate(dayOf(a.created_at)) : '—')
+      + (a.last_seen ? ' · oxirgi kirish: ' + esc(Accounts.ago(a.last_seen)) : '') + '</div></div>';
+    if (!d.can_delete) {
+      b.innerHTML = name + '<div class="text-error" role="alert" style="padding:10px 12px;border-radius:10px;background:#fef2f2"><i class="fa-solid fa-lock" aria-hidden="true"></i> ' + esc(d.block || 'Bu hisobni o\'chirib bo\'lmaydi.') + '</div>'
+        + '<div class="actions-row"><button class="btn btn-ghost" type="button" data-act="closeModal">Yopish</button></div>';
+      return;
+    }
+    const groups = (d.groups || []).map(g => '<div class="cl-row"><b>' + esc(g.label) + '</b><span class="cl-t"></span><span class="cl-m">' + num(g.n) + ' ta</span></div>').join('');
+    b.innerHTML = name
+      + (a.online_devices ? '<div class="field-help" style="margin:0 0 8px;color:#b45309"><i class="fa-solid fa-desktop" aria-hidden="true"></i> Bu hisob hozir <b>' + a.online_devices + ' ta kompyuterda</b> ochiq — o\'chirilgach ular tizimdan chiqadi.</div>' : '')
+      + '<p class="text-muted" style="margin:0 0 6px">Bazadan o\'chadi:</p>'
+      + '<div class="cl-list">' + (groups || '<div class="cl-row"><b>Faqat hisobning o\'zi</b><span class="cl-t">yozuvlari yo\'q</span><span class="cl-m"></span></div>') + '</div>'
+      + (d.open ? '<div class="field-help" style="margin:6px 0;color:#b45309">Jarayonda <b>' + d.open + ' ta</b> mashina bor — ular ham o\'chadi.</div>' : '')
+      + (num(d.money) > 0 ? '<div class="field-help" style="margin:6px 0;color:#b91c1c">Bu hisobdagi pul yozuvlari: <b>' + esc(money(d.money)) + '</b> — Kunlik hisobot, Excel va Boshliq ilovasidan ham chiqib ketadi.</div>' : '')
+      + '<div role="alert" style="margin:10px 0;padding:10px 12px;border-radius:10px;background:#fef2f2;color:#991b1b"><b>Qaytarib bo\'lmaydi.</b> Hisob va yuqoridagi hamma ma\'lumot bazadan butunlay o\'chadi.</div>'
+      + '<label class="field-label" for="adConfirm">Tasdiqlash uchun hisob loginini yozing: <b>' + esc(a.username) + '</b></label>'
+      + '<input id="adConfirm" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="' + esc(a.username) + '">'
+      + '<label class="field-label" for="adPass" style="margin-top:12px">Maxsus bo\'lim paroli</label>'
+      + '<input id="adPass" type="password" autocomplete="off" placeholder="Maxsus parol">'
+      + '<div id="adErr" class="text-error" role="alert"></div>'
+      + '<div class="actions-row"><button class="btn btn-danger btn-lg" type="button" id="adBtn" data-act="accDelRun" disabled><span class="spinner"></span><i class="fa-solid fa-trash btn-icon" aria-hidden="true"></i><span class="btn-text">Butunlay o\'chirish</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>';
+    const chk = () => {
+      const ok = $('adConfirm').value.trim().toLowerCase() === String(a.username || '').trim().toLowerCase() && $('adPass').value.length > 0;
+      $('adBtn').disabled = !ok;
+    };
+    $('adConfirm').addEventListener('input', chk);
+    $('adPass').addEventListener('input', chk);
+    $('adPass').addEventListener('keydown', e => { if (e.key === 'Enter' && !$('adBtn').disabled) this.run(); });
+    setTimeout(() => { const f = $('adConfirm'); if (f) f.focus(); }, 50);
+  },
+  async run() {
+    const d = this.data || {}, a = d.account || {};
+    if (!a.id || !$('adBtn') || $('adBtn').disabled) return;
+    setError('adErr', '');
+    await withBusy('accDel', $('adBtn'), async () => {
+      try {
+        const r = await api('/accounts/delete', { method: 'POST', body: jsonBody({ id: a.id, confirm: $('adConfirm').value.trim(), password: $('adPass').value }), timeout: 45000 });
+        closeModal();
+        toast('«' + (a.full_name || r.username) + '» hisobi o\'chirildi — bazadan ' + num(r.rows) + ' ta yozuv tozalandi.');
+        Accounts.load();
+      } catch (e) {
+        setError('adErr', e.message);
+        if (e.status === 404 || (e.data && e.data.blocked)) Accounts.load();
+        const p = $('adPass'); if (p && e.data && e.data.field === 'password') { p.value = ''; p.focus(); $('adBtn').disabled = true; }
+      }
+    });
   }
 };
 
@@ -3595,6 +3671,12 @@ function bootInner() {
 function showLoginScreen() {
   $('login').classList.remove('hidden');
   $('app').classList.add('hidden');
+  try {
+    if (sessionStorage.getItem('avtodrom_deleted_msg')) {
+      sessionStorage.removeItem('avtodrom_deleted_msg');
+      setTimeout(() => { setError('loginErr', 'Bu hisob rahbar tomonidan o\'chirilgan. Boshqa hisob bilan kiring.'); toast('Bu hisob o\'chirilgan.', 'warn'); }, 300);
+    }
+  } catch (e) { /* noop */ }
 }
 
 /* ===================== POST (KASSA) — 1-POST / 2-POST =====================
@@ -14545,6 +14627,8 @@ const ACTIONS = {
   entrySave: () => Entry.saveNew(),
   cleanupOpen: () => Cleanup.open(),
   accReload: () => Accounts.load(),
+  accDel: d => AccDel.open(d.id),
+  accDelRun: () => AccDel.run(),
   cleanupRun: () => Cleanup.run(),
   cleanupUndo: () => Cleanup.undo(),
   tgConnect: () => TgBot.connect(),

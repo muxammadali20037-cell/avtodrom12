@@ -631,6 +631,14 @@ async function disconnect(res, user) {
   json(res, 200, { ok: true });
 }
 
+/* Hisob butunlay o'chirilganda: token avval olinadi (keyin bazada qolmaydi),
+   baza tozalangach Telegram'dagi manzil (webhook) ham olib tashlanadi */
+export async function tgTokenFor(user) { try { return await tokenOf(user); } catch { return null; } }
+export async function tgForget(user, token) {
+  try { if (token) await tgApi(token, 'deleteWebhook', { drop_pending_updates: true }, 6000); } catch { /* noop */ }
+  tokenCache.delete(user); anyAt = 0;
+}
+
 async function newCode(res, user) {
   const b = (await pool.query(`SELECT bot_username FROM tg_bots WHERE user_id = $1`, [user])).rows[0];
   if (!b) return json(res, 409, { error: 'Avval botni ulang (token)' });
