@@ -171,9 +171,22 @@ async function dayData(user, day) {
     r.ticket_at = t.queued_at || t.print_first || t.created_at || null;
     r.ticket_kind = t.queued_at ? (t.booked_for ? 'bron' : 'navbat') : 'kirdi';
   });
+  /* SHU KUNI TO'LANGAN QARZLAR — pul shu kunning tushumiga kiradi (bugungi
+     qarz ham, oldingi kunlarniki ham). Jadvalda pastda alohida qator bo'lib
+     chiqadi va «BUGUNGI TUSHUM» ga qo'shiladi; qatorlarni tahrirlab bo'lmaydi. */
+  let dps = [];
+  try {
+    dps = (await pool.query(`SELECT d.id, d.session_id, d.amount::float8 AS amount, d.method, d.post,
+        to_char(d.session_day, 'YYYY-MM-DD') AS session_day, d.paid_at, d.note,
+        COALESCE(NULLIF(v.plate, ''), s.driver_name, '') AS plate
+      FROM debt_payments d LEFT JOIN sessions s ON s.id = d.session_id LEFT JOIN vehicles v ON v.id = s.vehicle_id
+      WHERE d.user_id = $1 AND (d.paid_at AT TIME ZONE '${TZ}')::date = $2::date
+      ORDER BY d.paid_at`, [user, day])).rows;
+  } catch (e) { /* qarz to'lovlari jadvali yo'q — eski baza */ }
   const now = await pool.query(`SELECT to_char((now() AT TIME ZONE '${TZ}')::date,'YYYY-MM-DD') d, now() t`);
   return {
     date: day, today: now.rows[0].d, server_time: now.rows[0].t,
+    debtPayments: dps.map(d => Object.assign(d, { time: hhmmOf(d.paid_at) })),
     sessions: ss.rows.map(r => Object.assign(r, { start: hhmmOf(r.started_at), end: r.status === 'completed' ? hhmmOf(r.finished_at) : '' })),
     expenses: xx.rows,
     school: kk.rows.map(r => Object.assign(r, { start: hhmmOf(r.started_at) }))

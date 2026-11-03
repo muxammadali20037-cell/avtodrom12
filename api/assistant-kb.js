@@ -461,7 +461,8 @@ export const KB = [
     tips: [
       "Kam yoki ko'p summa yozilsa ham aynan o'sha summa hisobotga tushadi va qarz yopiladi — qoldiq qarz bo'lib qolmaydi.",
       "Oldingi kunlardagi qarz bugun to'lansa — bugungi hisobotda «Kechagi (qarzdan)» bo'lib chiqadi.",
-      "Internet yo'q bo'lsa ham ishlaydi, keyin o'zi yuboriladi."
+      "Internet yo'q bo'lsa ham ishlaydi, keyin o'zi yuboriladi.",
+      "To'langan qarz shu kunning tushumiga tushadi: Kunlik hisobotda «Jami», Excel'da pastda «QARZDAN TO'LANDI» va «BUGUNGI TUSHUM» qatorlari."
     ],
     related: ["keyin-tolaydi", "qarz-bekor", "kechagi", "hisobot"]
   },
