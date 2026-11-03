@@ -299,18 +299,30 @@ export async function handleCompatRequest(req, res) {
 
         let vr = await c.query(`SELECT * FROM vehicles WHERE plate=$1 AND user_id=$2`, [p.plate, user]);
         let v = vr.rows[0];
-        if (!v && p.label) {
-          vr = await c.query(`
-            INSERT INTO vehicles(user_id,plate,model,driver_name)
-            VALUES($1,$2,$3,$4) RETURNING *
-          `, [user,p.plate,body.model||null,body.driverName||null]);
-          v = vr.rows[0];
-        } else if (!v) {
-          vr = await c.query(`
-            INSERT INTO vehicles(user_id,region_code,first_letter,number,last_letters,plate,model,driver_name)
-            VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *
-          `, [user,p.region,p.firstLetter,p.number,p.lastLetters,p.plate,body.model||null,body.driverName||null]);
-          v = vr.rows[0];
+        if (!v) {
+          /* AVTOMOBIL: ishlayotgan bazada raqam BUTUN bazada yagona
+             (vehicles_plate_key). Boshqa hisob (masalan, ikkinchi kassir)
+             shu raqamni avval yozgan bo'lsa, yangisini yaratish «duplicate
+             key» bo'lib «Bu avtomobil hozir jarayonda» deb NOTO'G'RI
+             chiqardi. Endi: yaratib bo'lmasa — o'sha raqamli mavjud yozuv
+             ishlatiladi. */
+          await c.query('SAVEPOINT sp_veh');
+          try {
+            vr = p.label
+              ? await c.query(`INSERT INTO vehicles(user_id,plate,model,driver_name) VALUES($1,$2,$3,$4) RETURNING *`,
+                  [user,p.plate,body.model||null,body.driverName||null])
+              : await c.query(`INSERT INTO vehicles(user_id,region_code,first_letter,number,last_letters,plate,model,driver_name)
+                  VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+                  [user,p.region,p.firstLetter,p.number,p.lastLetters,p.plate,body.model||null,body.driverName||null]);
+            v = vr.rows[0];
+            await c.query('RELEASE SAVEPOINT sp_veh');
+          } catch (e) {
+            await c.query('ROLLBACK TO SAVEPOINT sp_veh');
+            if (!e || e.code !== '23505') throw e;
+            vr = await c.query(`SELECT * FROM vehicles WHERE plate=$1 ORDER BY created_at LIMIT 1`, [p.plate]);
+            v = vr.rows[0];
+            if (!v) throw e;
+          }
         } else {
           await c.query(`UPDATE vehicles SET model=COALESCE($1,model),driver_name=COALESCE($2,driver_name) WHERE id=$3 AND user_id=$4`, [body.model||null,body.driverName||null,v.id,user]);
         }
@@ -338,6 +350,16 @@ export async function handleCompatRequest(req, res) {
         if (active.rows[0]) {
           await c.query('ROLLBACK');
           send(res,409,{error:'Bu avtomobil hozir jarayonda',activeSessionId:active.rows[0].id});
+          return true;
+        }
+        /* boshqa hisobda ochiq qolgan bo'lsa — qaysi hisobda ekanini aytamiz */
+        const elsewhere = await c.query(`SELECT s.id, s.started_at, COALESCE(NULLIF(u.full_name,''), u.username, 'boshqa hisob') AS who
+            FROM sessions s LEFT JOIN users u ON u.id::text = s.user_id::text
+           WHERE s.vehicle_id=$1 AND s.status='active' AND s.user_id::text <> $2::text LIMIT 1`, [v.id, user]);
+        if (elsewhere.rows[0]) {
+          await c.query('ROLLBACK');
+          const at = new Date(new Date(elsewhere.rows[0].started_at).getTime() + 5 * 3600e3).toISOString().slice(11, 16);
+          send(res,409,{error:'Bu avtomobil boshqa hisobda jarayonda: «' + elsewhere.rows[0].who + '», ' + at + ' dan — o‘sha hisobda «Chiqdi» qiling', otherAccount:true});
           return true;
         }
 
@@ -452,7 +474,13 @@ export async function handleCompatRequest(req, res) {
         return true;
       } catch (e) {
         try { await c.query('ROLLBACK'); } catch {}
-        send(res,e.code==='23505'?409:400,{error:e.code==='23505'?'Bu avtomobil hozir jarayonda':(e.message||'START bajarilmadi')});
+        /* 23505 — qaysi cheklov: faqat «bitta mashina — bitta ochiq yozuv» bo'lsa «jarayonda» */
+        const dupMsg = !e || e.code !== '23505' ? null
+          : e.constraint === 'one_active_session_per_vehicle' ? 'Bu avtomobil hozir jarayonda'
+          : e.constraint === 'vehicles_plate_key' ? 'Bu raqam boshqa hisobda yozilgan — sahifani yangilab qayta urinib ko‘ring'
+          : 'Bu yozuv allaqachon bor (' + (e.constraint || 'takroriy') + ') — sahifani yangilab qayta urinib ko‘ring';
+        if (dupMsg && e.constraint !== 'one_active_session_per_vehicle') console.error('START 23505:', e.constraint, e.detail);
+        send(res,dupMsg?409:400,{error:dupMsg||(e.message||'START bajarilmadi')});
         return true;
       } finally { c.release(); }
     }
@@ -609,10 +637,21 @@ export async function handleCompatRequest(req, res) {
                   [carModel, vehicleId]);
               }
             } else {
-              const made = await c.query(
-                `INSERT INTO vehicles(user_id, plate, model) VALUES($1,$2,$3) RETURNING id`,
-                [user, carPlate, carModel || null]);
-              vehicleId = made.rows[0].id;
+              /* raqam butun bazada yagona bo'lsa — boshqa hisob yozgani ishlatiladi */
+              await c.query('SAVEPOINT sp_car2');
+              try {
+                const made = await c.query(
+                  `INSERT INTO vehicles(user_id, plate, model) VALUES($1,$2,$3) RETURNING id`,
+                  [user, carPlate, carModel || null]);
+                vehicleId = made.rows[0].id;
+                await c.query('RELEASE SAVEPOINT sp_car2');
+              } catch (e2) {
+                await c.query('ROLLBACK TO SAVEPOINT sp_car2');
+                if (!e2 || e2.code !== '23505') throw e2;
+                const any = await c.query(`SELECT id FROM vehicles WHERE plate=$1 ORDER BY created_at LIMIT 1`, [carPlate]);
+                if (!any.rows[0]) throw e2;
+                vehicleId = any.rows[0].id;
+              }
             }
             await c.query('RELEASE SAVEPOINT sp_car');
           } catch (e) {

@@ -25,7 +25,9 @@
    4) TO'LANMAGAN (qarz): bir kunda 4–5 marta kelib, oxirida «qancha
       bo'ldi?» deb hammasini birdan to'laydiganlar uchun.
         GET  /api/debts                       to'lanmagan yozuvlar
-        POST /api/debts/pay { ids, method }   hammasini to'lash (naqd/terminal/Klik)
+        POST /api/debts/pay { ids, method, amount? }   to'lash (naqd/terminal/Klik);
+             amount — qo'lda yozilgan summa: qarzdan kam bo'lsa eng eskisidan
+             boshlab to'lanadi, qolgani «To'lanmagan»da qoladi
 
    5) BIR QISMINI YOPISH: vaqti ochiq mijoz «2 soatini yopaman» deb pul
       to'laydi va yurishda davom etadi.
@@ -320,6 +322,12 @@ async function debtPay(req, res, user) {
   const method = ['cash', 'terminal', 'click'].includes(text(b.method)) ? text(b.method) : '';
   if (!ids.length) return json(res, 400, { error: 'To‘lanadigan yozuv tanlanmagan' });
   if (!method) return json(res, 400, { error: 'To‘lov turini tanlang: naqd, terminal yoki Klik' });
+  /* QO'LDA SUMMA: berilmasa — hammasi */
+  let want = null;
+  if (b.amount !== undefined && b.amount !== null && String(b.amount).trim() !== '') {
+    want = Math.round(Number(String(b.amount).replace(/[\s,]/g, '')));
+    if (!Number.isFinite(want) || want <= 0) return json(res, 400, { error: 'Summani to‘g‘ri yozing', field: 'amount' });
+  }
   const post = postOf(req);
   /* Vaqti tugagan «1 soatga» yozuvlar avval yopilsin — internetsiz paytda
      «To'lanmagan»ga tushgan (server hali yopmagan) qarz ham to'lansin */
@@ -338,19 +346,32 @@ async function debtPay(req, res, user) {
              (s.started_at AT TIME ZONE 'Asia/Tashkent')::date < (COALESCE($3::timestamptz, now()) AT TIME ZONE 'Asia/Tashkent')::date AS old
         FROM sessions s
        WHERE s.user_id = $1 AND s.id::text = ANY($2::text[]) AND s.status = 'completed' AND s.debt_amount > 0
+       ORDER BY s.started_at
        FOR UPDATE OF s`, [user, ids, paidAt]);
+    const owed = r.rows.reduce((a, x) => a + Number(x.debt_amount || 0), 0);
+    if (want !== null && want > owed) {
+      /* internetsiz olingan pul keyin yetib kelsa — qarzdan ortig'i yozilmaydi */
+      if (b.offline === true) want = owed;
+      else { await c.query('ROLLBACK'); return json(res, 400, { error: 'Qarzdan ko‘p yozildi — jami qarz ' + Math.round(owed).toLocaleString('ru-RU') + ' so‘m', field: 'amount', owed }); }
+    }
     const done = [];
-    let sum = 0;
+    let sum = 0, left = want === null ? Infinity : want;
     for (const x of r.rows) {
-      const amt = Number(x.debt_amount || 0);
-      if (amt <= 0) continue;
-      await c.query(`INSERT INTO debt_payments(user_id, session_id, amount, method, post, session_day, paid_at)
-        VALUES($1, $2, $3, $4, $5, $6, COALESCE($7, now()))`, [user, x.id, amt, method, post, x.day, paidAt]);
-      await c.query(`UPDATE sessions SET debt_paid = COALESCE(debt_paid, 0) + debt_amount, debt_amount = 0,
-          settled_at = COALESCE($2, now()) WHERE id = $1`, [x.id, paidAt]);
+      if (left <= 0) break;
+      const debt = Number(x.debt_amount || 0);
+      if (debt <= 0) continue;
+      const amt = Math.min(debt, left);
+      await c.query(`INSERT INTO debt_payments(user_id, session_id, amount, method, post, session_day, paid_at, note)
+        VALUES($1, $2, $3, $4, $5, $6, COALESCE($7, now()), $8)`,
+        [user, x.id, amt, method, post, x.day, paidAt, amt < debt ? 'qisman to‘lov' : null]);
+      /* to'liq to'landi — yopiladi; qisman — qolgani qarz bo'lib turadi */
+      await c.query(`UPDATE sessions SET debt_paid = COALESCE(debt_paid, 0) + $3, debt_amount = debt_amount - $3,
+          settled_at = CASE WHEN debt_amount - $3 <= 0 THEN COALESCE($2, now()) ELSE settled_at END WHERE id = $1`, [x.id, paidAt, amt]);
       done.push(String(x.id));
       sum += amt;
+      left -= amt;
     }
+    const rest = Math.max(0, owed - sum);
     if (!done.length) {
       await c.query('ROLLBACK');
       return json(res, 409, { error: 'Bu qarz allaqachon to‘langan yoki topilmadi — ro‘yxat yangilanmoqda', nothing: true });
@@ -358,12 +379,13 @@ async function debtPay(req, res, user) {
     await c.query('COMMIT');
     {
       const oldDays = [...new Set(r.rows.filter(x => x.old && done.includes(String(x.id))).map(x => ddmm(x.started_at)))].join(', ');
-      await tgNotify(user, 'debt', tgText.debt({ name: text(b.name) || '—', total: sum, method, count: done.length, oldDays, post }));
+      await tgNotify(user, 'debt', tgText.debt({ name: text(b.name) || '—', total: sum, method, count: done.length, oldDays, post, rest }));
     }
     await logChange(null, user, { entity: 'session', entityId: done[0] || null, entityName: text(b.name) || null,
-      action: 'debt_paid', field: method, newValue: sum + ' so‘m, ' + done.length + ' ta yozuv' + (post ? ', ' + post + '-POST' : ''),
+      action: 'debt_paid', field: method, newValue: sum + ' so‘m, ' + done.length + ' ta yozuv' + (post ? ', ' + post + '-POST' : '')
+        + (rest > 0 ? ', qisman — ' + rest + ' so‘m qarz qoldi' : ''),
       reason: 'To‘lanmagan vaqtlar to‘landi (to‘langan kunning hisobotiga yoziladi)' });
-    json(res, 200, { ok: true, count: done.length, ids: done, total: sum });
+    json(res, 200, { ok: true, count: done.length, ids: done, total: sum, rest, partial: rest > 0 });
   } catch (e) {
     try { await c.query('ROLLBACK'); } catch { /* noop */ }
     throw e;
@@ -384,7 +406,7 @@ async function debtUnpay(req, res, user) {
   try {
     await c.query('BEGIN');
     const r = await c.query(`SELECT s.id, s.status, COALESCE(s.debt_amount, 0)::numeric AS debt_amount,
-        COALESCE(s.debt_paid, 0)::numeric AS debt_paid, COALESCE(v.plate, s.driver_name, '') AS plate
+        COALESCE(s.debt_paid, 0)::numeric AS debt_paid, s.settled_at, COALESCE(v.plate, s.driver_name, '') AS plate
       FROM sessions s LEFT JOIN vehicles v ON v.id = s.vehicle_id
       WHERE s.id::text = $1 AND s.user_id = $2 FOR UPDATE OF s`, [id, user]);
     const s = r.rows[0];
@@ -409,10 +431,13 @@ async function debtUnpay(req, res, user) {
         reversedN++;
       }
     }
-    /* qarz qaytadi (eski xato tufayli qarz ham yozilgan bo'lsa — ikki barobar bo'lmasin) */
-    await c.query(`UPDATE sessions SET debt_amount = GREATEST(COALESCE(debt_amount, 0), $2),
+    /* qarz qaytadi. Qisman to'langan (qarzi hali yopilmagan — settled_at yo'q):
+       qolgan qarz + qaytgan to'lov. To'liq yopilgan: eski xato tufayli qarz
+       ham yozilgan bo'lsa — ikki barobar bo'lmasin (GREATEST). */
+    const partialOpen = !s.settled_at && Number(s.debt_amount) > 0;
+    await c.query(`UPDATE sessions SET debt_amount = CASE WHEN $4 THEN COALESCE(debt_amount, 0) + $2 ELSE GREATEST(COALESCE(debt_amount, 0), $2) END,
         debt_paid = GREATEST(COALESCE(debt_paid, 0) - $2, 0), settled_at = NULL,
-        corrected_at = now(), correction_note = $3 WHERE id = $1`, [s.id, back, reason]);
+        corrected_at = now(), correction_note = $3 WHERE id = $1`, [s.id, back, reason, partialOpen]);
     await c.query('COMMIT');
     await tgNotify(user, 'fix', tgText.unpay({ plate: s.plate || '—', amount: back, reason, post: postOf(req) }));
     const pays = { rows: open };
@@ -422,7 +447,7 @@ async function debtUnpay(req, res, user) {
       oldValue: pays.rows.map(x => Number(x.amount) + ' so‘m ' + x.method + ' ' + tk(x.paid_at) + (x.post ? ' ' + x.post + '-POST' : '')).join('; '),
       newValue: 'bekor qilindi — ' + back + ' so‘m yana «To‘lanmagan»da'
         + (reversedN ? ' (o‘tgan kun to‘lovi o‘z kunida qoldi, bugun teskari yozuv)' : ''), reason });
-    json(res, 200, { ok: true, id: s.id, debt_amount: Math.max(Number(s.debt_amount), back), returned: back, deleted, reversed: reversedN });
+    json(res, 200, { ok: true, id: s.id, debt_amount: partialOpen ? Number(s.debt_amount) + back : Math.max(Number(s.debt_amount), back), returned: back, deleted, reversed: reversedN });
   } catch (e) {
     try { await c.query('ROLLBACK'); } catch { /* noop */ }
     throw e;

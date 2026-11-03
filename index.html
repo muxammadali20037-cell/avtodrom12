@@ -3569,7 +3569,7 @@ const Outbox = {
       path: path, method: meta.method || 'POST', body: meta.queueBody || body,
       at: new Date().toISOString(), kind: meta.kind || 'other', sid: meta.sid ? String(meta.sid) : '',
       label: meta.label || '', local: meta.local || null, debt: meta.debt || null,
-      ids: meta.ids || null, att: meta.att || null, money: meta.money || 0, tries: 0
+      ids: meta.ids || null, alloc: meta.alloc || null, att: meta.att || null, money: meta.money || 0, tries: 0
     };
     /* Internet yo'qligi ma'lum bo'lsa — kutib o'tirmaymiz, darhol saqlanadi
        (yarim soniyadan keyin yuborib ko'riladi) */
@@ -3716,10 +3716,16 @@ const Outbox = {
      (to'lanmagan) yozuvlar qo'shiladi, internetsiz to'langanlari olinadi */
   overlayDebts(rows) {
     const mine = this.mine();
-    const paid = new Set();
-    mine.forEach(x => { if (x.kind === 'debtpay') (x.ids || []).forEach(id => paid.add(String(id))); });
+    const paid = new Set(), part = {};
+    mine.forEach(x => {
+      if (x.kind !== 'debtpay') return;
+      if (x.alloc) Object.keys(x.alloc).forEach(id => { part[id] = (part[id] || 0) + num(x.alloc[id]); });
+      else (x.ids || []).forEach(id => paid.add(String(id)));
+    });
     const have = new Set(rows.map(r => String(r.id)));
-    const out = rows.filter(r => !paid.has(String(r.id)));
+    const out = rows.filter(r => !paid.has(String(r.id)))
+      .map(r => part[String(r.id)] ? Object.assign({}, r, { debt_amount: Math.max(0, num(r.debt_amount) - part[String(r.id)]) }) : r)
+      .filter(r => num(r.debt_amount) > 0);
     const push = d => {
       if (!d || paid.has(String(d.id)) || have.has(String(d.id))) return;
       have.add(String(d.id)); out.push(d);
@@ -10315,32 +10321,65 @@ const Debts = {
         + '<b>' + esc(money(num(r.debt_amount))) + '</b></div>';
     };
     const btn = (p, icon, label) => '<button class="btn ' + (p === 'cash' ? 'btn-green' : 'btn-light') + '" type="button" data-act="debtPay" data-p="' + p + '">'
-      + '<span><i class="fa-solid ' + icon + '" aria-hidden="true"></i> ' + label + '</span><small>' + esc(money(g.total)) + '</small></button>';
+      + '<span><i class="fa-solid ' + icon + '" aria-hidden="true"></i> ' + label + '</span><small class="debt-btn-sum">' + esc(money(g.total)) + '</small></button>';
     openModal('<div class="modal-head"><div><h2 style="letter-spacing:.02em">' + esc(g.name) + '</h2>'
       + '<p class="ex-time">' + g.rows.length + ' marta keldi · jami <b>' + esc(ranText(g.secs)) + '</b></p></div>'
       + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
       + '<div class="debt-list">' + g.rows.map(line).join('') + '</div>'
       + '<div class="price-hero"><div class="ph-sum">' + esc(money(g.total)) + '</div><div class="ph-sub">hammasi birga</div></div>'
+      + '<label class="field-label" for="debtAmt">Qancha to\'ladi? <span class="text-muted" style="font-weight:400">— summani o\'zgartirish mumkin</span></label>'
+      + '<div style="display:flex;gap:8px;align-items:center"><input id="debtAmt" type="number" min="1" step="1000" inputmode="numeric" value="' + Math.round(g.total) + '" style="font-size:20px;font-weight:700;max-width:240px">'
+      + '<span class="text-muted">so\'m</span><button class="btn btn-light btn-sm" type="button" id="debtAll">Hammasi</button></div>'
+      + '<div id="debtRest" class="field-help" style="margin:6px 0 4px"></div>'
       + '<div class="field-label">Qanday to\'ladi?</div><div class="pay-big">'
       + btn('cash', 'fa-money-bill-wave', 'Naqd') + btn('terminal', 'fa-credit-card', 'Terminal') + btn('click', 'fa-mobile-screen', 'Klik') + '</div>'
       + '<div id="debtErr" class="text-error" role="alert"></div>'
       + '<div style="text-align:right;margin-top:12px"><button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>');
+    const inp = $('debtAmt');
+    const upd = () => {
+      const v = this.amount(g);
+      $$('#modal .debt-btn-sum').forEach(x => { x.textContent = v ? money(v) : '—'; });
+      $$('#modal [data-act="debtPay"]').forEach(b => { b.disabled = !v; });
+      const r = $('debtRest');
+      if (r) r.innerHTML = !v ? '<span class="text-error">' + (num(inp.value) > g.total ? 'Qarzdan ko\'p — jami qarz ' + esc(money(g.total)) : 'Summani yozing') + '</span>'
+        : v < g.total ? 'Qisman to\'lov: <b>' + esc(money(g.total - v)) + '</b> qarz bo\'lib qoladi (eng eski kunlaridan boshlab yopiladi)'
+        : 'Qarz to\'liq yopiladi';
+    };
+    if (inp) { inp.addEventListener('input', upd); inp.addEventListener('focus', () => inp.select()); }
+    const all = $('debtAll'); if (all) all.addEventListener('click', () => { inp.value = Math.round(g.total); upd(); });
+    upd();
+  },
+  /* Yozilgan summa (to'g'ri bo'lsa), aks holda 0 */
+  amount(g) {
+    const inp = $('debtAmt');
+    if (!inp) return g.total;
+    const v = Math.round(num(inp.value));
+    return v > 0 && v <= Math.round(g.total) ? v : 0;
   },
   async pay(method) {
     if (this.busy) return;
     const g = this.groups().find(x => x.key === this.key);
     if (!g) { closeModal(); return; }
+    const amt = this.amount(g);
+    if (!amt) { setError('debtErr', 'Summani to\'g\'ri yozing (1 dan ' + money(g.total) + ' gacha)'); return; }
+    const partial = amt < Math.round(g.total);
     this.busy = true;
     $$('#modal [data-act="debtPay"]').forEach(b => { b.disabled = true; });
     try {
-      const ids = g.rows.map(r => r.id);
-      const body = { ids: ids, method: method, name: g.name, total: g.total };
+      /* qisman: eng eski kunidan boshlab (server ham shu tartibda yopadi) */
+      const sorted = g.rows.slice().sort((a, b) => new Date(a.started_at) - new Date(b.started_at));
+      const alloc = {};
+      let left = amt;
+      sorted.forEach(r => { if (left <= 0) return; const a = Math.min(num(r.debt_amount), left); if (a > 0) { alloc[String(r.id)] = a; left -= a; } });
+      const ids = partial ? Object.keys(alloc) : g.rows.map(r => r.id);
+      const body = { ids: ids, method: method, name: g.name, total: amt };
+      if (partial) body.amount = amt;
       /* Internet yo'q bo'lsa — to'lagan vaqti bilan keyin yuboriladi (pul o'sha kunning hisobotiga) */
       const out = await Outbox.call('/debts/pay', body, {
-        kind: 'debtpay', ids: ids, label: g.name + ' (' + PAY_NAMES[method] + ')', money: g.total,
+        kind: 'debtpay', ids: ids, alloc: partial ? alloc : null, label: g.name + ' (' + PAY_NAMES[method] + ')', money: amt,
         queueBody: Object.assign({}, body, { offline: true, paid_at: new Date().toISOString() }) });
       closeModal();
-      toast('To\'landi: ' + g.name + ' — ' + money(g.total) + ' (' + PAY_NAMES[method] + ')' + (out.queued ? ' — internetsiz, keyin yuboriladi' : ''));
+      toast('To\'landi: ' + g.name + ' — ' + money(amt) + ' (' + PAY_NAMES[method] + ')' + (partial ? ', yana ' + money(g.total - amt) + ' qarz qoldi' : '') + (out.queued ? ' — internetsiz, keyin yuboriladi' : ''));
       await this.load(true);
       Reports.loadDaily();
       setTimeout(() => Add.focusLabel(), 60);

@@ -287,7 +287,8 @@ export const tgText = {
   debt(x) {
     return '💰 <b>QARZ TO‘LANDI</b> · <b>' + h(x.name) + '</b>\n'
       + som(x.total) + ' · ' + h(PAY[x.method] || x.method) + (x.count > 1 ? ' · ' + x.count + ' ta yozuv' : '')
-      + (x.oldDays ? '\n📅 ' + h(x.oldDays) + ' dagi qarz' : '') + postTxt(x.post);
+      + (x.oldDays ? '\n📅 ' + h(x.oldDays) + ' dagi qarz' : '')
+      + (Number(x.rest) > 0 ? '\n⏳ qisman — yana ' + som(x.rest) + ' qarz qoldi' : '') + postTxt(x.post);
   },
   unpay(x) {
     return '↩️ <b>QARZ TO‘LOVI BEKOR QILINDI</b> · <b>' + h(x.plate) + '</b>\n'
@@ -308,10 +309,12 @@ const PLATE_RX = `'[[:space:]\\-.,''\`‘’ʻʼ"]'`;
 async function findCars(user, key) {
   const like = key.replace(/[\\%_]/g, m => '\\' + m);
   const r = await pool.query(`SELECT v.id, v.plate, regexp_replace(upper(v.plate), ${PLATE_RX}, '', 'g') AS k,
-      (SELECT MAX(s.started_at) FROM sessions s WHERE s.vehicle_id = v.id AND s.status <> 'cancelled') AS last_at,
-      EXISTS (SELECT 1 FROM sessions s WHERE s.vehicle_id = v.id AND s.status IN ('active','frozen','paused')) AS inside
+      (SELECT MAX(s.started_at) FROM sessions s WHERE s.vehicle_id = v.id AND s.user_id::text = $1 AND s.status <> 'cancelled') AS last_at,
+      EXISTS (SELECT 1 FROM sessions s WHERE s.vehicle_id = v.id AND s.user_id::text = $1 AND s.status IN ('active','frozen','paused')) AS inside
     FROM vehicles v
-    WHERE v.user_id::text = $1 AND regexp_replace(upper(v.plate), ${PLATE_RX}, '', 'g') LIKE '%' || $2 || '%' ESCAPE '\\'
+    /* o'z mashinasi yoki (raqam butun bazada yagona bo'lgani uchun) boshqa hisob yozgan, lekin shu hisob ishlatgan mashina */
+    WHERE (v.user_id::text = $1 OR v.id IN (SELECT s.vehicle_id FROM sessions s WHERE s.user_id::text = $1 AND s.vehicle_id IS NOT NULL))
+      AND regexp_replace(upper(v.plate), ${PLATE_RX}, '', 'g') LIKE '%' || $2 || '%' ESCAPE '\\'
     LIMIT 300`, [user, like]);
   const by = new Map();
   for (const v of r.rows) {
