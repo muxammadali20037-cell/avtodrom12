@@ -25,6 +25,7 @@ import { opGuard } from "./op-guard.js";
 import { SW_SOURCE } from "./sw-source.js";
 import { handleTelegramRequest, tgFlushIfAny } from "./telegram.js";
 import { handleCleanupRequest, cleanupAllOnce } from "./cleanup-routes.js";
+import { movePastCorrectionsOnce } from "./fix-once.js";
 import { handleEntryRequest, guardAuth } from "./entry-routes.js";
 import { handleAccountsRequest, trackActivity, tokenProblem, applyLoginPost, ensureOpenedBy, requestActor } from "./accounts-routes.js";
 import { actorCtx } from "../backend/src/db.js";
@@ -76,6 +77,8 @@ async function handle(req, res) {
   if (path.startsWith("/api/")) { try { await ensureKassaSchema(); } catch (e) { console.error("KASSA SCHEMA:", e.message); } }
   /* Bir martalik (rahbar so'rovi, 01.11.2026): jarayonda qolib ketganlar yopiladi */
   if (path.startsWith("/api/")) { try { await cleanupAllOnce(); } catch (e) { console.error("CLEANUP ONCE:", e.message); } }
+  /* Bir martalik (03.11.2026): shu kuni o'tgan kunlarga «To'g'rilash» bilan yozilgan qarz puli — shu kungi tushumga */
+  if (path.startsWith("/api/")) { try { await movePastCorrectionsOnce(); } catch (e) { console.error("MOVE ONCE:", e.message); } }
   /* Kim ochgan (sessions.opened_by) ustuni va trigger — bir marta */
   if (path.startsWith("/api/")) { try { await ensureOpenedBy(); } catch (e) { console.error("OPENED_BY:", e.message); } }
   /* O'chirilgan hisobning kaliti darhol yaroqsiz; asosiy hisobga qo'shilgan
