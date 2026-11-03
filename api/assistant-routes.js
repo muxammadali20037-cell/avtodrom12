@@ -77,9 +77,10 @@ export function isDataQuestion(raw) {
   const q = ' ' + normalizeQ(raw) + ' ';
   const howTo = /\b(qanday|qayerda|qayerga|qayerdan|qilinadi|qilaman|qilamiz|qilish|qoyiladi|qoyaman|qoyish|ozgartir|almashtir|tiklay|tiklash|unutdim|unutsam|unutib|organ|tushuntir|ochiladi|ochaman|kiritiladi|kiritaman|bosaman|bosiladi|ishlaydi|nima qilsam|nima qilay)/.test(q);
   /* parol / kod / login qiymati */
-  if (/\b(parol|parolni|paroli|kod|kodi|kodni|pin|login|logini|kalit)\b/.test(q)
-      && /\b(ayt|aytib|aytin|aytchi|ber|bering|nima|nechi|nechchi|yoz|yozib|korsat|bilasan|bilasizmi|qanday)\b/.test(q)
-      && !/\b(qoyiladi|qoyaman|qoyish|ozgartir|almashtir|tiklay|tiklash|unutdim|unutsam|unutib|kiritiladi|kiritaman|qayerga|qayerda|ochiladi|ochaman|nega|nimaga)\w*/.test(q)) return true;
+  if (/\b(parol\w*|kod|kodi|kodni|kodini|kodingiz|pin|login|logini|loginni|kalit|kaliti|kalitni)\b/.test(q)
+      && !/\b(qr|chek\w*|shtrix\w*)\b/.test(q)
+      && /\b(ayt\w*|ber|bering|nima|nechi\w*|yoz|yozib|korsat\w*|bilasan\w*|qanday)\b/.test(q)
+      && !/\b(qoy\w*|ozgartir\w*|almashtir\w*|tikla\w*|unut\w*|kirit\w*|qayer\w*|ochil\w*|ochaman|nega|nimaga|chiqar\w*|teraman|tering|teriladi|bos\w*|ishla\w*|yangila\w*)/.test(q)) return true;
   /* telefon / nomer */
   if (/\b(telefon|telefoni|tel|nomer|nomeri)\b/.test(q) && !/\b(admin)/.test(q)) return true;
   /* «ma'lumot ber» */

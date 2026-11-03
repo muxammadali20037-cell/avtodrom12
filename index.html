@@ -1392,7 +1392,16 @@ body.sheet-open { overflow: hidden; }
 .as-typing span { display: inline-block; width: 7px; height: 7px; margin-right: 3px; border-radius: 50%; background: #94a3b8; animation: asBlink 1.2s infinite; }
 .as-typing span:nth-child(2) { animation-delay: .2s; } .as-typing span:nth-child(3) { animation-delay: .4s; }
 @keyframes asBlink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
-@media (max-width: 640px) { .as-wrap { height: calc(100vh - 170px); } .as-me, .as-bot { max-width: 96%; } }
+@media (max-width: 640px) {
+  #p-assistant .page-header p { display: none; }
+  #p-assistant .page-header { margin-bottom: 8px; }
+  .as-wrap { height: calc(100vh - 250px); height: calc(100dvh - 250px); min-height: 360px; }
+  .as-me, .as-bot { max-width: 96%; }
+  .as-log { padding: 12px; }
+  .as-sugg { flex-wrap: nowrap; overflow-x: auto; padding: 8px 12px; }
+  .as-sugg .as-chip { flex: 0 0 auto; white-space: nowrap; }
+  .as-input .btn .fa-paper-plane + * { display: none; }
+}
 </style>
 </head>
 <body>
