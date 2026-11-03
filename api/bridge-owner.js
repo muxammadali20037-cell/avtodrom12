@@ -153,17 +153,24 @@ export async function buildOwnerBridge(range, db = pool, cut = null) {
              COUNT(*) FILTER (WHERE ${IS_SCHOOL})::int AS school
         FROM sessions s WHERE ${done} GROUP BY 1 ORDER BY 1`, cur),
     /* Mashina raqamlari — eng ko'p pul qoldirganlar */
+    /* Pul — TO'LANGAN KUNI bo'yicha (qarz keyin to'lansa — to'langan davrga,
+       seans kuniga emas): seansning o'z to'lovi + shu davrda to'langan qarzlar */
     safe('plates', `
-      SELECT COALESCE(NULLIF(v.plate, ''), ${col('s', 'driver_name')}, '—') AS plate,
-             MAX(COALESCE(${col('s', 'driver_name')}, v.driver_name)) AS driver,
-             COUNT(*)::int AS visits,
-             COALESCE(SUM(${secs}), 0)::bigint AS seconds,
-             COALESCE(SUM(${SESSION_MONEY('s')}), 0)::float8 AS revenue,
-             COALESCE(SUM(${numCol('s', 'debt_amount')}), 0)::float8 AS debt,
-             MAX(s.started_at) AS last_at
-        FROM sessions s LEFT JOIN vehicles v ON v.id = s.vehicle_id
-       WHERE ${done} AND ${IS_PAID}
-       GROUP BY 1 ORDER BY revenue DESC, visits DESC LIMIT 40`, cur),
+      WITH b AS (
+        SELECT COALESCE(NULLIF(v.plate, ''), ${col('s', 'driver_name')}, '—') AS plate,
+               COALESCE(${col('s', 'driver_name')}, v.driver_name) AS driver, 1 AS n, ${secs} AS sec,
+               COALESCE(s.amount, 0)::numeric AS money, ${numCol('s', 'debt_amount')} AS debt, s.started_at AS at
+          FROM sessions s LEFT JOIN vehicles v ON v.id = s.vehicle_id
+         WHERE ${done} AND ${IS_PAID}
+        UNION ALL
+        SELECT COALESCE(NULLIF(v.plate, ''), ${col('s', 'driver_name')}, '—'), NULL, 0, 0, d.amount::numeric, 0, NULL
+          FROM debt_payments d JOIN sessions s ON s.id = d.session_id LEFT JOIN vehicles v ON v.id = s.vehicle_id
+         WHERE d.paid_at >= $1 AND d.paid_at < $2${own('d.user_id', 3)}
+      )
+      SELECT plate, MAX(driver) AS driver, SUM(n)::int AS visits, COALESCE(SUM(sec), 0)::bigint AS seconds,
+             COALESCE(SUM(money), 0)::float8 AS revenue, COALESCE(SUM(debt), 0)::float8 AS debt, MAX(at) AS last_at
+        FROM b GROUP BY 1 HAVING SUM(n) > 0 OR SUM(money) <> 0
+       ORDER BY revenue DESC, visits DESC LIMIT 40`, cur),
     /* Yangi mashinalar — shu davrdan oldin hech kelmagan */
     safe('plates_new', `
       WITH p AS (SELECT DISTINCT s.vehicle_id FROM sessions s WHERE ${done} AND ${IS_PAID} AND s.vehicle_id IS NOT NULL)

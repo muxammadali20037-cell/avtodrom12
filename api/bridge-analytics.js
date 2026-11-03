@@ -162,14 +162,22 @@ export async function buildBridgeAnalytics(range) {
              (SELECT COUNT(*) FROM students st WHERE st.school_id = ds.id AND st.active)::int AS active_students,
              (SELECT COUNT(*) FROM school_groups g WHERE g.school_id = ds.id AND g.active)::int AS active_groups
         FROM driving_schools ds WHERE TRUE${own('ds.owner_key', 1)}`, withKeys([])),
+    /* Pul — TO'LANGAN KUNI bo'yicha: seansning o'z to'lovi + shu davrda to'langan qarzlar */
     safe('instructors', `
-      SELECT COALESCE(NULLIF(i.full_name, ''), NULLIF(s.instructor_name, ''), 'Instruktorsiz') AS name,
-             COUNT(*)::int AS sessions,
-             COUNT(*) FILTER (WHERE ${isSchool})::int AS school,
-             COALESCE(SUM(s.duration_seconds), 0)::bigint AS seconds,
-             COALESCE(SUM(${SESSION_MONEY('s')}), 0)::float8 AS revenue
-        FROM sessions s LEFT JOIN instructors i ON i.id::text = s.instructor_id::text
-       WHERE ${done} GROUP BY 1 ORDER BY sessions DESC LIMIT 15`, cur),
+      WITH b AS (
+        SELECT COALESCE(NULLIF(i.full_name, ''), NULLIF(s.instructor_name, ''), 'Instruktorsiz') AS name,
+               1 AS n, (CASE WHEN ${isSchool} THEN 1 ELSE 0 END) AS sch, COALESCE(s.duration_seconds, 0) AS sec,
+               COALESCE(s.amount, 0)::numeric AS money
+          FROM sessions s LEFT JOIN instructors i ON i.id::text = s.instructor_id::text
+         WHERE ${done}
+        UNION ALL
+        SELECT COALESCE(NULLIF(i.full_name, ''), NULLIF(s.instructor_name, ''), 'Instruktorsiz'), 0, 0, 0, d.amount::numeric
+          FROM debt_payments d JOIN sessions s ON s.id = d.session_id LEFT JOIN instructors i ON i.id::text = s.instructor_id::text
+         WHERE d.paid_at >= $1 AND d.paid_at < $2${own('d.user_id', 3)}
+      )
+      SELECT name, SUM(n)::int AS sessions, SUM(sch)::int AS school, COALESCE(SUM(sec), 0)::bigint AS seconds,
+             COALESCE(SUM(money), 0)::float8 AS revenue
+        FROM b GROUP BY 1 HAVING SUM(n) > 0 ORDER BY sessions DESC LIMIT 15`, cur),
     safe('live', `
       SELECT s.id::text AS id, s.status, v.plate,
              COALESCE(NULLIF(to_jsonb(s)->>'driver_name', ''), v.driver_name) AS driver,

@@ -245,6 +245,9 @@ async function save(req, res, user) {
        bir vaqtda Ctrl+S bossa ham aralashib ketmaydi) */
     await c.query(`SELECT pg_advisory_xact_lock(hashtext('avtodrom-sheet:' || $1))`, [user]);
 
+    /* o'tgan kun jadvali: qo'shilgan pul o'sha kunga emas — bugungi tushumga */
+    const todayTk = (await c.query(`SELECT to_char((now() AT TIME ZONE '${TZ}')::date, 'YYYY-MM-DD') AS d`)).rows[0].d;
+    const pastDay = day < todayTk;
     const set = (await c.query(`SELECT hourly_rate, minimum_payment, calculation_mode FROM user_settings WHERE user_id = $1`, [user])).rows[0]
       || { hourly_rate: 100000, minimum_payment: 0, calculation_mode: 'half' };
 
@@ -337,12 +340,33 @@ async function save(req, res, user) {
         if (changed.includes('plate')) {
           vid = await vehicleId(c, user, next.plate);
         }
-        const paid = m.cash + m.terminal + m.click;
+        let paid = m.cash + m.terminal + m.click;
         const moneyChanged = changed.some(k => ['cash', 'terminal', 'click', 'debt'].includes(k));
         /* qarzi keyin to'langan — pul katagini o'zgartirish pulni ikki marta sanardi */
         if (moneyChanged && Number(row.debt_paid || 0) > 0) {
           throw new RowError('s', id, changed.find(k => ['cash', 'terminal', 'click', 'debt'].includes(k)),
             'Qarzi keyin to‘langan (' + Math.round(Number(row.debt_paid)) + ' so‘m) — pulni o‘zgartirish uchun avval Kunlik hisobotda «Qarz to‘lovini bekor qilish»');
+        }
+        /* O'TGAN KUNGA PUL YOZILMAYDI: o'tgan kun qatoriga qo'shilgan pul — bugun
+           olingan pul; bugungi tushumga (qarz to'lovi) yoziladi, o'tgan kun o'zgarmaydi */
+        let paidToday = 0;
+        const nowPaid = Number(now.cash) + Number(now.terminal) + Number(now.click);
+        if (moneyChanged && pastDay && paid > nowPaid) {
+          const inc = { cash: m.cash - Number(now.cash), terminal: m.terminal - Number(now.terminal), click: m.click - Number(now.click) };
+          if (Object.values(inc).some(x => x < 0)) {
+            throw new RowError('s', id, changed.find(k => ['cash', 'terminal', 'click'].includes(k)) || 'cash',
+              'O‘tgan kunda usulni almashtirish va pul qo‘shish birga bo‘lmaydi — avval usulni to‘g‘rilang, qo‘shimcha pulni kassada «To‘lash» orqali oling');
+          }
+          for (const [mm, amt] of Object.entries(inc)) {
+            if (amt <= 0) continue;
+            await c.query(`INSERT INTO debt_payments(user_id, session_id, amount, method, post, session_day, paid_at, note)
+              VALUES($1, $2, $3, $4, $5, $6, now(), $7)`, [user, row.id, amt, mm, postOf(req), day, 'Excel orqali: bugun to‘landi']);
+          }
+          paidToday = paid - nowPaid;
+          m.cash = Number(now.cash); m.terminal = Number(now.terminal); m.click = Number(now.click);
+          paid = nowPaid;
+          logs.push({ entity: 'session', entityId: row.id, entityName: next.plate, action: 'debt_paid', field: 'Excel',
+            oldValue: now.debt + ' so‘m qarz', newValue: paidToday + ' so‘m bugun to‘landi (o‘tgan kunga emas)', reason: DEFAULT_REASON });
         }
         const params = [row.id];
         const sets = [];
@@ -360,7 +384,8 @@ async function save(req, res, user) {
         if (moneyChanged || closing) {
           add('cash_amount = ?', m.cash); add('terminal_amount = ?', m.terminal); add('click_amount = ?', m.click);
           add('debt_amount = ?', m.debt); add('amount = ?', paid); add('payment_method = ?', methodOf(m.cash, m.terminal, m.click));
-          if (now.debt > 0 && m.debt === 0) sets.push('settled_at = now()');
+          if (paidToday > 0) { add('debt_paid = COALESCE(debt_paid, 0) + ?', paidToday); if (m.debt === 0) sets.push('settled_at = now()'); }
+          else if (now.debt > 0 && m.debt === 0) sets.push('settled_at = now()');
         }
         sets.push('corrected_at = now()');
         add('correction_note = ?', noteEdited ? (note || null) : reason);

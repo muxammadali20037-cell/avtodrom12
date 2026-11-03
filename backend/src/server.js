@@ -993,7 +993,21 @@ function debtSummary(list){
   }
   return out;
 }
-function reportSummary(rows){return rows.reduce((a,x)=>{a.count++;a.seconds+=Number(x.duration_seconds||0);a.amount+=Number(x.amount||0);a.cash+=Number(x.cash_amount||0);a.terminal+=Number(x.terminal_amount||0);a.click+=Number(x.click_amount||0);a.debt+=Number(x.debt_amount||0);a.lessons+=Number(x.lessons_counted||0);if(x.status&&x.status!=='completed')a.inside++;return a},{count:0,seconds:0,amount:0,cash:0,terminal:0,click:0,debt:0,lessons:0,inside:0});}
+/* O'TGAN KUN HISOBOTI O'ZGARMASIN (rahbar qarori, 03.11.2026): qarz keyinroq
+   to'lansa — pul to'langan kunga tushadi, o'tgan kunning «To'lanmagan» i esa
+   o'sha kun oxiridagidek qoladi: kun oxiridagi qarz = hozirgi qarz + davrdan
+   KEYIN to'langani (debt_then). Bugungi hisobotga ta'sir qilmaydi. */
+async function withDebtThen(rows,to){
+  if(!rows.length)return rows;
+  try{
+    const q=await pool.query(`SELECT session_id::text id,SUM(amount)::float8 s FROM debt_payments
+      WHERE session_id::text=ANY($1::text[]) AND (paid_at AT TIME ZONE 'Asia/Tashkent')::date>$2::date GROUP BY 1`,[rows.map(r=>String(r.id)),to]);
+    const m=new Map(q.rows.map(x=>[x.id,Number(x.s)||0]));
+    rows.forEach(r=>{const later=Math.max(0,m.get(String(r.id))||0);r.paid_later=later;r.debt_then=Number(r.debt_amount||0)+later;});
+  }catch(e){/* qarz to'lovlari jadvali yo'q — eski baza */}
+  return rows;
+}
+function reportSummary(rows){return rows.reduce((a,x)=>{a.count++;a.seconds+=Number(x.duration_seconds||0);a.amount+=Number(x.amount||0);a.cash+=Number(x.cash_amount||0);a.terminal+=Number(x.terminal_amount||0);a.click+=Number(x.click_amount||0);a.debt+=Number(x.debt_then!==undefined?x.debt_then:(x.debt_amount||0));a.lessons+=Number(x.lessons_counted||0);if(x.status&&x.status!=='completed')a.inside++;return a},{count:0,seconds:0,amount:0,cash:0,terminal:0,click:0,debt:0,lessons:0,inside:0});}
 function sendReport(req,res,data){
   const body=JSON.stringify(data);
   if(body.length>1000000&&/\bgzip\b/.test(String(req.headers['accept-encoding']||''))){
@@ -1014,9 +1028,10 @@ app.get('/api/reports/daily',auth,async(req,res)=>{try{
       ? await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND ${tkDayRange('s.started_at','$2','$2')} ORDER BY s.started_at DESC`,[uid(req),a])
       : {rows:await rangeReportRows(uid(req),a,b)};
     const dps=await debtPaymentsBetween(uid(req),a,b);
+    await withDebtThen(r.rows,b);
     return sendReport(req,res,{date:a,from:a,to:b,days,summary:Object.assign(reportSummary(r.rows),debtSummary(dps)),rows:r.rows,debtPayments:dps});
   }
-  const date=/^\d{4}-\d{2}-\d{2}$/.test(req.query.date||'')?req.query.date:tkToday();const r=await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND ${tkDayRange('s.started_at','$2','$2')} ORDER BY s.started_at DESC`,[uid(req),date]);const dps=await debtPaymentsBetween(uid(req),date,date);res.json({date,summary:Object.assign(reportSummary(r.rows),debtSummary(dps)),rows:r.rows,debtPayments:dps})}catch(e){console.error('DAILY:',e.message);res.status(500).json({error:'Hisobotni olishda xatolik'})}});
+  const date=/^\d{4}-\d{2}-\d{2}$/.test(req.query.date||'')?req.query.date:tkToday();const r=await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND ${tkDayRange('s.started_at','$2','$2')} ORDER BY s.started_at DESC`,[uid(req),date]);const dps=await debtPaymentsBetween(uid(req),date,date);await withDebtThen(r.rows,date);res.json({date,summary:Object.assign(reportSummary(r.rows),debtSummary(dps)),rows:r.rows,debtPayments:dps})}catch(e){console.error('DAILY:',e.message);res.status(500).json({error:'Hisobotni olishda xatolik'})}});
 app.get('/api/history',auth,async(req,res)=>{const plate=String(req.query.plate||'').trim().toUpperCase();if(!plate)return res.status(400).json({error:'Avtomobil raqami kerak'});const like='%'+plate.replace(/\s+/g,'%')+'%';const r=await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND v.plate ILIKE $2 AND s.status IN ${REPORT_STATUSES} ORDER BY s.started_at DESC`,[uid(req),like]);res.json({plate,rows:r.rows})});
 app.get('/api/dashboard',auth,async(req,res)=>{
   /* «Bugun» — Toshkent kuni; pul: kunlik hisobot bilan bir xil (seanslar + shu kuni to'langan qarzlar) */

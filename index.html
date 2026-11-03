@@ -8216,7 +8216,8 @@ const DayExcel = {
     const hKe = line('KECHAGI', 'C' + P1.ke + '+C' + P2.ke);
     const hJ = line('JAMI', 'C' + P1.j + '+C' + P2.j, true);
     H.getCell(hJ, 3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
-    const debtSum = paidRows.reduce((a, r) => a + num(r.debt_amount), 0);
+    /* o'sha kun oxiridagi qarz (keyinroq to'langani ham — u to'langan kunda) */
+    const debtSum = paidRows.reduce((a, r) => a + num(r.debt_then !== undefined ? r.debt_then : r.debt_amount), 0);
     if (debtSum > 0) { const dr = H.getRow(h); dr.getCell(2).value = 'To\'lanmagan (keyin to\'laydi)'; dr.getCell(3).value = debtSum; dr.getCell(3).numFmt = MONEY;
       dr.getCell(3).font = { color: { argb: 'FFB91C1C' }, bold: true }; box(H, h, h, 2, 3); h++; }
     const cnt = H.getRow(h); cnt.getCell(2).value = 'Avtomobillar soni'; cnt.getCell(3).value = all.length; box(H, h, h, 2, 3); h++;
@@ -10463,8 +10464,11 @@ const Correct = {
       + '<p class="ex-time">' + esc(when) + ' · <b>' + esc(ranText(num(r.duration_seconds))) + '</b> · hisob bo\'yicha ' + esc(money(calc)) + '</p></div>'
       + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
       + '<div class="field-help" style="margin-bottom:8px">Hozir: ' + esc(this.fmt(r)) + '</div>'
+      /* O'TGAN KUN: qo'shilgan pul o'sha kunga emas — bugungi tushumga (server shunday yozadi) */
+      + (dayOf(r.started_at) !== localDateISO(0) ? '<div class="field-help" style="margin-bottom:10px;padding:8px 10px;border-radius:10px;background:#eff6ff;color:#1e40af">'
+        + '<b>Bu yozuv o\'tgan kunniki (' + esc(fmtDate(dayOf(r.started_at))) + ').</b> Bu yerda pul qo\'shsangiz, u o\'tgan kunga <b>yozilmaydi</b> — bugungi tushumga («Kechagi», shu postga) tushadi. O\'tgan kunning hisoboti o\'zgarmaydi.</div>'
       /* Qarzni KEYINROQ to'lash — bu oyna emas: pul to'langan kunga tushishi kerak */
-      + (debt > 0 ? '<div class="field-help" style="margin-bottom:10px;padding:8px 10px;border-radius:10px;background:#fffbeb;color:#92400e">'
+      : debt > 0 ? '<div class="field-help" style="margin-bottom:10px;padding:8px 10px;border-radius:10px;background:#fffbeb;color:#92400e">'
         + '<b>Qarzni hozir to\'layaptimi?</b> Unda bu yerda emas — kassadagi <b>«To\'lanmagan» → «To\'lash»</b> orqali: pul bugungi hisobotga'
         + (dayOf(r.started_at) !== localDateISO(0) ? ' («Kechagi»)' : '') + ' va shu postga yoziladi. Bu oyna — xato yozilganini tuzatish uchun.</div>' : '')
       + '<div class="field-label">Tez to\'g\'rilash (' + esc(money(this.base)) + ')</div>'
@@ -10553,10 +10557,11 @@ const Correct = {
     this.busy = true;
     try {
       await withBusy('fix:' + this.id, $('fixBtn'), async () => {
-        await api('/sessions/' + encodeURIComponent(this.id) + '/correct', { method: 'POST', body: jsonBody(Object.assign({ reason: reason }, v)) });
+        const res = await api('/sessions/' + encodeURIComponent(this.id) + '/correct', { method: 'POST', body: jsonBody(Object.assign({ reason: reason }, v)) });
         const r = ROW_CACHE[this.id];
         closeModal();
-        toast('To\'g\'rilandi' + (r && r.plate ? ': ' + r.plate : '') + '. Hisobot va Excel yangilandi.');
+        if (res && res.moved) toast('Pul bugungi tushumga yozildi: ' + money(res.paidToday) + (r && r.plate ? ' — ' + r.plate : '') + '. O\'tgan kun o\'zgarmadi.');
+        else toast('To\'g\'rilandi' + (r && r.plate ? ': ' + r.plate : '') + '. Hisobot va Excel yangilandi.');
         Reports.loadDaily();
         Debts.load(true);
         Data.ensureToday(true).then(() => Active.renderKpi());

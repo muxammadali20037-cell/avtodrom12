@@ -753,7 +753,8 @@ export const KB = [
     tips: [
       "Qarz to'lovi qaysi postda olingan bo'lsa, o'sha postga yoziladi.",
       "«Kassalar bo'yicha» ostida «Kechagi qarzlardan to'langanlar» ro'yxati bor: qaysi kungi qarz, qachon va qaysi postda to'langan.",
-      "Qatordagi «qarz … — … to'landi» yozuvi qarz keyinroq to'langanini bildiradi."
+      "Qatordagi «qarz … — … to'landi» yozuvi qarz keyinroq to'langanini bildiradi.",
+      "Pul faqat to'langan kunga tushadi: o'tgan kunning hisobotida pul ham, «To'lanmagan» ham o'sha kun oxiridagidek qoladi."
     ],
     related: ["hisobot", "qarz-tolash", "qarz-bekor"]
   },
@@ -794,7 +795,8 @@ export const KB = [
     tips: [
       "Qarzni hozir to'layotgan bo'lsa — bu oyna emas, kassadagi «To'lanmagan» → «To'lash» ishlatiladi.",
       "To'g'rilangan qatorda «to'g'rilangan» belgisi turadi, har o'zgarish jurnalga yoziladi.",
-      "Kassir xato qilsa — rahbarga aytadi, rahbar Maxsus bo'limdan to'g'rilaydi."
+      "Kassir xato qilsa — rahbarga aytadi, rahbar Maxsus bo'limdan to'g'rilaydi.",
+      "O'tgan kundagi yozuvga pul qo'shilsa — u o'tgan kunga yozilmaydi: bugungi tushumga («Kechagi») tushadi, o'tgan kun hisoboti o'zgarmaydi."
     ],
     related: ["qarz-bekor", "hisobot", "excel-bolimi", "tarix"]
   },

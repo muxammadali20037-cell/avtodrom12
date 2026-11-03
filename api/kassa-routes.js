@@ -548,6 +548,37 @@ async function sessionCorrect(req, res, user, id) {
     const changed = Object.keys(vals).filter(k => old[k] !== vals[k]);
     if (!changed.length) { await c.query('ROLLBACK'); return json(res, 400, { error: 'Hech narsa o‘zgarmadi' }); }
     const paid = vals.cash_amount + vals.terminal_amount + vals.click_amount;
+    /* O'TGAN KUNGA PUL YOZILMAYDI (rahbar qarori, 03.11.2026): o'tgan kundagi
+       yozuvga qo'shilgan pul — BUGUN olingan pul. U bugungi kunning tushumiga
+       (qarz to'lovi, «Kechagi») yoziladi, o'tgan kunning puli o'zgarmaydi. */
+    const oldPaid = old.cash_amount + old.terminal_amount + old.click_amount;
+    const dq = await c.query(`SELECT ($1::timestamptz AT TIME ZONE 'Asia/Tashkent')::date < (now() AT TIME ZONE 'Asia/Tashkent')::date AS past,
+        ($1::timestamptz AT TIME ZONE 'Asia/Tashkent')::date AS day`, [s.started_at]);
+    if (dq.rows[0].past && paid > oldPaid) {
+      const inc = { cash: vals.cash_amount - old.cash_amount, terminal: vals.terminal_amount - old.terminal_amount, click: vals.click_amount - old.click_amount };
+      if (Object.values(inc).some(x => x < 0)) {
+        await c.query('ROLLBACK');
+        return json(res, 400, { error: 'O‘tgan kunda to‘lov usulini almashtirish va pul qo‘shish birga bo‘lmaydi. Avval usulni to‘g‘rilang (summani o‘zgartirmasdan), keyin qo‘shimcha pulni kassadagi «To‘lanmagan» → «To‘lash» orqali oling.' });
+      }
+      const post = postOf(req);
+      const got = paid - oldPaid;
+      for (const [m, amt] of Object.entries(inc)) {
+        if (amt <= 0) continue;
+        await c.query(`INSERT INTO debt_payments(user_id, session_id, amount, method, post, session_day, paid_at, note)
+          VALUES($1, $2, $3, $4, $5, $6, now(), $7)`, [user, s.id, amt, m, post, dq.rows[0].day, ('To‘g‘rilash orqali: ' + reason).slice(0, 300)]);
+      }
+      await c.query(`UPDATE sessions SET debt_amount = $1::numeric, debt_paid = COALESCE(debt_paid, 0) + $2::numeric,
+          settled_at = CASE WHEN $1::numeric = 0 THEN now() ELSE settled_at END, corrected_at = now(), correction_note = $3 WHERE id = $4`,
+        [vals.debt_amount, got, reason, s.id]);
+      await c.query('COMMIT');
+      const PAYN = { cash: 'naqd', terminal: 'terminal', click: 'Klik' };
+      const mainM = Object.entries(inc).filter(([, a]) => a > 0).sort((a, b) => b[1] - a[1])[0][0];
+      await tgNotify(user, 'debt', tgText.debt({ name: s.plate || '—', total: got, method: mainM, count: 1, oldDays: ddmm(s.started_at), post }));
+      await logChange(null, user, { entity: 'session', entityId: s.id, entityName: s.plate || null, action: 'debt_paid',
+        field: Object.entries(inc).filter(([, a]) => a > 0).map(([m]) => PAYN[m]).join(','), oldValue: old.debt_amount + ' so‘m qarz',
+        newValue: got + ' so‘m bugun to‘landi (o‘tgan kunga emas)' + (post ? ', ' + post + '-POST' : ''), reason });
+      return json(res, 200, { ok: true, id: s.id, paidToday: got, debt_amount: vals.debt_amount, moved: true });
+    }
     const used = [vals.cash_amount > 0, vals.terminal_amount > 0, vals.click_amount > 0].filter(Boolean).length;
     const method = used > 1 ? 'mixed' : vals.terminal_amount > 0 ? 'terminal' : vals.click_amount > 0 ? 'click' : 'cash';
     const settle = old.debt_amount > 0 && vals.debt_amount === 0;
