@@ -21,11 +21,20 @@
             hisob asosiy hisobni o'chira olmasin).
           O'chirilgan hisobning kompyuterlari keyingi so'rovda tizimdan
           chiqadi (deleted_accounts — kim, qachon, nechta yozuv).
+     GET  /api/accounts/attach-preview?id=…
+     POST /api/accounts/attach  { id, password }
+          — boshqa hisobni ASOSIY hisobga qo'shish («hisobotga qo'shish»):
+            uning hamma yozuvlari asosiy hisobga o'tadi, u o'z login va
+            paroli bilan kiradi, lekin asosiy hisobda ishlaydi (Jarayonda,
+            Navbat, Qarzlar, Hisobot — umumiy). users.parent_id; kalitda
+            sub = asosiy hisob, act = kirgan login.
+     POST /api/accounts/detach  { id }  — loginni ajratish (yozuvlar asosiy
+            hisobda qoladi, login keyin o'z bo'sh hisobida ishlaydi)
    ========================================================================== */
 
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
-import { runOnce } from '../backend/src/schema-once.js';
+import { runOnce, ddl } from '../backend/src/schema-once.js';
 import { maxsusOk, lockedResponse, checkMaxsusPassword } from './lock-routes.js';
 import { MONEY_EVENTS } from './money-sql.js';
 import { logChange } from './audit-routes.js';
@@ -41,14 +50,18 @@ function json(res, status, data) {
   res.setHeader('Cache-Control', 'no-store');
   res.end(JSON.stringify(data));
 }
-function userOf(req) {
+function payloadOf(req) {
   try {
     const h = req.headers?.authorization || '';
     if (!h.startsWith('Bearer ')) return null;
     const p = jwt.verify(h.slice(7), JWT_SECRET);
-    return p && p.sub && String(p.sub) !== 'admin' ? String(p.sub) : null;
+    return p && p.sub && String(p.sub) !== 'admin' ? p : null;
   } catch { return null; }
 }
+/* Ma'lumot egasi (asosiy hisob) */
+function userOf(req) { const p = payloadOf(req); return p ? String(p.sub) : null; }
+/* Aynan kim kirgan (qo'shilgan login bo'lsa — o'sha login) */
+function actorOf(req) { const p = payloadOf(req); return p ? String(p.act || p.sub) : null; }
 
 async function readBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
@@ -87,31 +100,53 @@ function ensureDelSchema() {
   return delSchemaP;
 }
 
-/* O'chirilgan hisob kalitlari (token 30 kun amal qiladi) — darhol yaroqsiz.
+/* Qo'shilgan login qaysi asosiy hisobda ishlaydi */
+let parentP = null;
+function ensureParentCol() {
+  if (parentP) return parentP;
+  parentP = runOnce('users-parent-v1', async () => {
+    await ddl(`ALTER TABLE users ADD COLUMN IF NOT EXISTS parent_id TEXT`);
+  }).catch(e => { parentP = null; throw e; });
+  return parentP;
+}
+
+/* Kalitlar holati (token 30 kun amal qiladi): o'chirilgan hisob — darhol
+   yaroqsiz; asosiy hisobga qo'shilgan / ajratilgan login — qayta kirsin.
    Ro'yxat har serverda 20 soniyada bir yangilanadi. */
-let delSet = new Set(), delAt = 0, delLoad = null;
-async function deletedSet() {
-  if (Date.now() - delAt < 20000) return delSet;
+let delSet = new Set(), parentMap = new Map(), delAt = 0, delLoad = null;
+async function accState() {
+  if (Date.now() - delAt < 20000) return { deleted: delSet, parent: parentMap };
   if (!delLoad) delLoad = (async () => {
-    await ensureDelSchema();
-    const r = await pool.query(`SELECT user_id FROM deleted_accounts`);
-    delSet = new Set(r.rows.map(x => String(x.user_id)));
+    await ensureDelSchema(); await ensureParentCol();
+    const [d, p] = await Promise.all([
+      pool.query(`SELECT user_id FROM deleted_accounts`),
+      pool.query(`SELECT id::text AS id, parent_id FROM users WHERE parent_id IS NOT NULL`)
+    ]);
+    delSet = new Set(d.rows.map(x => String(x.user_id)));
+    parentMap = new Map(p.rows.map(x => [x.id, String(x.parent_id)]));
     delAt = Date.now();
   })().finally(() => { delLoad = null; });
   await delLoad;
-  return delSet;
+  return { deleted: delSet, parent: parentMap };
 }
-export async function isDeletedAccount(req) {
-  const user = userOf(req);
-  if (!user) return false;
-  try { return (await deletedSet()).has(user); } catch { return false; }
+/* null — kalit joyida; aks holda 401 javob tanasi */
+export async function tokenProblem(req) {
+  const p = payloadOf(req);
+  if (!p) return null;
+  let st;
+  try { st = await accState(); } catch { return null; }
+  const sub = String(p.sub), act = p.act ? String(p.act) : null;
+  if (st.deleted.has(sub) || (act && st.deleted.has(act))) return { error: 'Bu hisob o‘chirilgan', deleted: true };
+  if (st.parent.has(sub)) return { error: 'Hisobingiz asosiy hisobga qo‘shildi — qaytadan kiring', relogin: true };
+  if (act && act !== sub && st.parent.get(act) !== sub) return { error: 'Hisob sozlamasi o‘zgardi — qaytadan kiring', relogin: true };
+  return null;
 }
 
 /* Har /api so'rovida chaqiriladi — bir daqiqada bir marta yoziladi */
 const seen = new Map();
 export async function trackActivity(req) {
   try {
-    const user = userOf(req);
+    const user = actorOf(req);
     if (!user) return;
     const dev = String(req.headers['x-device'] || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64) || 'nomalum';
     const k = user + ':' + dev;
@@ -140,10 +175,10 @@ function device(ua) {
 }
 
 async function activity(res, me) {
-  await ensureSchema();
+  await ensureSchema(); await ensureParentCol();
   const TZ = 'Asia/Tashkent';
   const [users, acts, sess] = await Promise.all([
-    pool.query(`SELECT id::text AS id, username, full_name, role, created_at FROM users ORDER BY created_at`),
+    pool.query(`SELECT id::text AS id, username, full_name, role, created_at, parent_id FROM users ORDER BY created_at`),
     pool.query(`SELECT user_id, device_id, first_seen, last_seen, ip, ua, post, hits,
         EXTRACT(EPOCH FROM (now() - last_seen))::int AS ago FROM user_activity ORDER BY last_seen DESC`),
     pool.query(`SELECT user_id::text AS user_id, COUNT(*)::int AS total,
@@ -161,14 +196,22 @@ async function activity(res, me) {
     A.set(a.user_id, list);
   }
   const myTotal = Number((S.get(me) || {}).total || 0);
+  const names = new Map(users.rows.map(u => [u.id, u.full_name || u.username]));
+  const kids = new Map();
+  for (const u of users.rows) if (u.parent_id) kids.set(String(u.parent_id), (kids.get(String(u.parent_id)) || 0) + 1);
   const rows = users.rows.map(u => {
     const devs = A.get(u.id) || [];
     const s = S.get(u.id) || {};
     const t = { id: u.id, username: u.username, full_name: u.full_name, role: u.role || null, created_at: u.created_at, me: u.id === me,
       online: devs.some(d => d.online), devices: devs, last_seen: devs[0] ? devs[0].last_seen : null,
-      open: Number(s.open || 0), today: Number(s.today || 0), total: Number(s.total || 0), last_session: s.last_session || null };
+      open: Number(s.open || 0), today: Number(s.today || 0), total: Number(s.total || 0), last_session: s.last_session || null,
+      parent_id: u.parent_id ? String(u.parent_id) : null, parent_name: u.parent_id ? (names.get(String(u.parent_id)) || null) : null,
+      children: kids.get(u.id) || 0 };
     t.block = blockOf(me, t, myTotal);
     t.can_delete = !t.block;
+    t.attach_block = attachBlockOf(me, t, myTotal);
+    t.can_attach = !t.attach_block;
+    t.can_detach = t.parent_id === me;
     return t;
   }).sort((a, b) => (b.online - a.online) || (new Date(b.last_seen || b.last_session || 0) - new Date(a.last_seen || a.last_session || 0)));
   json(res, 200, {
@@ -192,9 +235,25 @@ function blockOf(me, t, myTotal) {
   if (t.id === me) return 'Bu — siz hozir kirgan hisob. O‘z hisobingizni o‘chira olmaysiz.';
   if (t.role === 'admin') return 'Bu admin panel hisobi — bu yerdan o‘chirilmaydi.';
   if (WS() && WS() === t.id) return 'Umumiy baza (avtoshkolalar, instruktorlar) shu hisobga bog‘langan — o‘chirilmaydi.';
+  if (t.parent_id && t.parent_id !== me) return 'Bu login boshqa asosiy hisobga qo‘shilgan — faqat o‘sha hisobdan boshqariladi.';
   if (Number(t.total || 0) > Number(myTotal || 0)) {
     return 'Bu hisobda yozuvlar sizning hisobingizdagidan ko‘p (' + t.total + ' ta, sizda ' + (myTotal || 0)
       + ' ta). Uni faqat asosiy hisobdan — yozuvlari ko‘p hisobdan kirib o‘chirish mumkin.';
+  }
+  return null;
+}
+/* Nega asosiy hisobga qo'shib bo'lmaydi (null — mumkin) */
+function attachBlockOf(me, t, myTotal) {
+  if (!t) return 'Hisob topilmadi';
+  if (t.id === me) return 'Bu — siz hozir kirgan asosiy hisob.';
+  if (t.parent_id === me) return 'Bu login allaqachon sizning hisobingizga qo‘shilgan.';
+  if (t.parent_id) return 'Bu login boshqa asosiy hisobga qo‘shilgan.';
+  if (t.role === 'admin') return 'Bu admin panel hisobi — qo‘shilmaydi.';
+  if (WS() && WS() === t.id) return 'Umumiy baza shu hisobga bog‘langan — qo‘shilmaydi.';
+  if (Number(t.children || 0) > 0) return 'Bu hisobning o‘ziga boshqa loginlar qo‘shilgan — avval ularni ajrating.';
+  if (Number(t.total || 0) > Number(myTotal || 0)) {
+    return 'Bu hisobda yozuvlar sizning hisobingizdagidan ko‘p (' + t.total + ' ta, sizda ' + (myTotal || 0)
+      + ' ta). Asosiy hisobdan — yozuvlari ko‘p hisobdan kirib qo‘shing.';
   }
   return null;
 }
@@ -227,7 +286,7 @@ const qi = n => '"' + String(n).replace(/"/g, '""') + '"';
 /* Bazadagi hisobga tegishli HAMMA jadval: user_id / user_key / owner_key
    ustuni bor har bir jadval (kelajakda qo'shilganlari ham) */
 async function userTables(db) {
-  const r = await (db || pool).query(`SELECT c.table_name AS t, c.column_name AS c
+  const r = await (db || pool).query(`SELECT c.table_name AS t, c.column_name AS c, c.data_type AS dt
       FROM information_schema.columns c
       JOIN information_schema.tables t ON t.table_schema = c.table_schema AND t.table_name = c.table_name AND t.table_type = 'BASE TABLE'
      WHERE c.table_schema = 'public' AND c.column_name IN ('user_id', 'user_key', 'owner_key')
@@ -238,7 +297,9 @@ async function userTables(db) {
 
 async function targetOf(id) {
   if (!/^[0-9a-f-]{8,64}$/i.test(String(id || ''))) return null;
-  const r = await pool.query(`SELECT u.id::text AS id, u.username, u.full_name, u.role, u.created_at,
+  await ensureParentCol();
+  const r = await pool.query(`SELECT u.id::text AS id, u.username, u.full_name, u.role, u.created_at, u.parent_id,
+      (SELECT COUNT(*)::int FROM users k WHERE k.parent_id = u.id::text) AS children,
       (SELECT COUNT(*)::int FROM sessions s WHERE s.user_id::text = u.id::text) AS total,
       (SELECT COUNT(*)::int FROM sessions s WHERE s.user_id::text = u.id::text AND s.status IN ('active','frozen','paused')) AS open
     FROM users u WHERE u.id::text = $1`, [String(id)]);
@@ -256,11 +317,25 @@ async function preview(req, res, me) {
   if (!t) return json(res, 404, { error: 'Hisob topilmadi' });
   const myTotal = await totalOf(me);
   const block = blockOf(me, t, myTotal);
+  const { groups, rows, money } = await countsOf(t.id);
+  const act = await pool.query(`SELECT COUNT(*) FILTER (WHERE last_seen > now() - make_interval(secs => $2))::int AS online, MAX(last_seen) AS last_seen
+      FROM user_activity WHERE user_id = $1`, [t.id, ONLINE_SEC]);
+  json(res, 200, {
+    account: { id: t.id, username: t.username, full_name: t.full_name, role: t.role, created_at: t.created_at,
+      online_devices: Number(act.rows[0].online || 0), last_seen: act.rows[0].last_seen || null },
+    total: t.total, open: t.open, my_total: myTotal, block, can_delete: !block,
+    groups, rows: rows + 1, money
+  });
+}
+
+/* Hisobdagi yozuvlar: guruhlab (oynada ko'rsatish uchun), jami va pul */
+async function countsOf(id, skip) {
   const groups = new Map();
   let rows = 0;
   for (const x of await userTables()) {
+    if (skip && skip.includes(x.t)) continue;
     try {
-      const n = Number((await pool.query(`SELECT COUNT(*)::int AS n FROM ${qi(x.t)} WHERE ${qi(x.c)}::text = $1`, [t.id])).rows[0].n || 0);
+      const n = Number((await pool.query(`SELECT COUNT(*)::int AS n FROM ${qi(x.t)} WHERE ${qi(x.c)}::text = $1`, [id])).rows[0].n || 0);
       if (!n) continue;
       rows += n;
       const l = LABEL[x.t] || 'Boshqa ma’lumotlar';
@@ -269,17 +344,12 @@ async function preview(req, res, me) {
   }
   let money = 0;
   try {
-    money = Number((await pool.query(`SELECT COALESCE(SUM(m.cash + m.terminal + m.click), 0)::float8 AS s FROM ${MONEY_EVENTS} m WHERE m.user_id = $1`, [t.id])).rows[0].s || 0);
+    money = Number((await pool.query(`SELECT COALESCE(SUM(m.cash + m.terminal + m.click), 0)::float8 AS s FROM ${MONEY_EVENTS} m WHERE m.user_id = $1`, [id])).rows[0].s || 0);
   } catch { /* noop */ }
-  const act = await pool.query(`SELECT COUNT(*) FILTER (WHERE last_seen > now() - make_interval(secs => $2))::int AS online, MAX(last_seen) AS last_seen
-      FROM user_activity WHERE user_id = $1`, [t.id, ONLINE_SEC]);
-  json(res, 200, {
-    account: { id: t.id, username: t.username, full_name: t.full_name, role: t.role, created_at: t.created_at,
-      online_devices: Number(act.rows[0].online || 0), last_seen: act.rows[0].last_seen || null },
-    total: t.total, open: t.open, my_total: myTotal, block, can_delete: !block,
+  return {
     groups: [...groups].map(([label, n]) => ({ label, n })).sort((a, b) => rankL(a.label) - rankL(b.label) || b.n - a.n),
-    rows: rows + 1, money
-  });
+    rows, money
+  };
 }
 
 async function remove(req, res, me) {
@@ -335,6 +405,7 @@ async function remove(req, res, me) {
       if (next.length === todo.length) throw Object.assign(new Error('Bog‘liq yozuvlar sabab o‘chirib bo‘lmadi: ' + next[0].err), { status: 409 });
       todo = next;
     }
+    await c.query(`UPDATE users SET parent_id = NULL WHERE parent_id = $1`, [t.id]);
     const u = await c.query(`DELETE FROM users WHERE id::text = $1`, [t.id]);
     total += u.rowCount;
     const summary = Object.fromEntries(Object.entries(done).map(([k, n]) => [k, n]));
@@ -350,12 +421,127 @@ async function remove(req, res, me) {
     return json(res, e.status || 500, { error: e.status ? e.message : 'O‘chirishda xatolik — hech narsa o‘chirilmadi: ' + e.message });
   } finally { c.release(); }
 
-  delSet.add(t.id);
+  delSet.add(t.id); delAt = 0;
   for (const k of [...seen.keys()]) if (k.startsWith(t.id + ':')) seen.delete(k);
   await tgForget(t.id, tgToken);
   await logChange(null, me, { entity: 'account', action: 'delete', entityId: t.id, entityName: t.username,
     reason: 'Hisob butunlay o‘chirildi: ' + (t.full_name || t.username) + ' (' + t.username + '), ' + total + ' ta yozuv' });
   json(res, 200, { ok: true, username: t.username, rows: total, sessions: done.sessions || 0, tables: done });
+}
+
+/* ===================== ASOSIY HISOBGA QO'SHISH ===================== */
+
+/* Qo'shilganda: qo'shilgan hisobning o'z sozlamalari, paroli, boti olib
+   tashlanadi (asosiy hisobniki ishlaydi); kirishlar tarixi login nomida
+   qoladi; qolgan HAMMA yozuv asosiy hisobga o'tadi. */
+const DROP_ON_ATTACH = ['section_locks', 'user_settings', 'tg_bots', 'tg_chats', 'tg_codes', 'tg_outbox', 'gate_settings', 'receipt_config'];
+const KEEP_ON_ATTACH = ['user_activity'];
+const MOVABLE = new Set(['text', 'character varying', 'uuid', 'character']);
+
+async function attachPreview(req, res, me) {
+  await ensureSchema();
+  const id = new URL(req.url, 'http://x').searchParams.get('id');
+  const t = await targetOf(id);
+  if (!t) return json(res, 404, { error: 'Hisob topilmadi' });
+  const block = attachBlockOf(me, t, await totalOf(me));
+  const { groups, money } = await countsOf(t.id, DROP_ON_ATTACH.concat(KEEP_ON_ATTACH));
+  const mine = await pool.query(`SELECT COALESCE(NULLIF(full_name, ''), username) AS name FROM users WHERE id::text = $1`, [me]);
+  json(res, 200, {
+    account: { id: t.id, username: t.username, full_name: t.full_name, created_at: t.created_at },
+    main: { id: me, name: mine.rows[0] ? mine.rows[0].name : '' },
+    total: t.total, open: t.open, money, groups, block, can_attach: !block
+  });
+}
+
+async function attach(req, res, me) {
+  await ensureSchema(); await ensureDelSchema(); await ensureParentCol();
+  const b = await readBody(req);
+  const t = await targetOf(b.id);
+  if (!t) return json(res, 404, { error: 'Hisob topilmadi' });
+  const block = attachBlockOf(me, t, await totalOf(me));
+  if (block) return json(res, 409, { error: block, blocked: true });
+  const pw = await checkMaxsusPassword(me, b.password);
+  if (!pw.ok) return json(res, pw.status, Object.assign({ field: 'password' }, pw.body));
+
+  const tgToken = await tgTokenFor(t.id);
+  const ownerTo = WS() || me;
+  const moved = {};
+  let total = 0, merged = 0;
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    await c.query(`SET LOCAL statement_timeout = '25s'`);
+    await c.query(`SELECT id FROM users WHERE id::text = ANY($1::text[]) ORDER BY id FOR UPDATE`, [[me, t.id]]);
+    const chk = await c.query(`SELECT parent_id, (SELECT COUNT(*)::int FROM users k WHERE k.parent_id = $1) AS kids FROM users WHERE id::text = $1`, [t.id]);
+    if (!chk.rows[0] || chk.rows[0].parent_id || chk.rows[0].kids) throw Object.assign(new Error('Hisob holati o‘zgardi — sahifani yangilab qayta urinib ko‘ring'), { status: 409 });
+
+    /* 1) Bir xil raqamli mashinalar birlashadi (asosiy hisobniki qoladi) */
+    if ((await c.query(`SELECT to_regclass('public.vehicles') AS r`)).rows[0].r) {
+      const fks = (await c.query(`SELECT cl.relname AS t, a.attname AS c
+          FROM pg_constraint k JOIN pg_class cl ON cl.oid = k.conrelid
+          JOIN pg_namespace n ON n.oid = cl.relnamespace
+          JOIN pg_attribute a ON a.attrelid = k.conrelid AND a.attnum = k.conkey[1]
+         WHERE k.contype = 'f' AND k.confrelid = 'public.vehicles'::regclass AND n.nspname = 'public'`)).rows;
+      const dup = (await c.query(`SELECT tv.id AS from_id,
+            (SELECT mv.id FROM vehicles mv WHERE mv.user_id::text = $2 AND mv.plate = tv.plate ORDER BY mv.created_at LIMIT 1) AS to_id
+          FROM vehicles tv WHERE tv.user_id::text = $1`, [t.id, me])).rows.filter(x => x.to_id);
+      for (const d of dup) {
+        await c.query('SAVEPOINT v');
+        try {
+          for (const f of fks) await c.query(`UPDATE ${qi(f.t)} SET ${qi(f.c)} = $2 WHERE ${qi(f.c)} = $1`, [d.from_id, d.to_id]);
+          await c.query(`DELETE FROM vehicles WHERE id = $1`, [d.from_id]);
+          await c.query('RELEASE SAVEPOINT v');
+          merged++;
+        } catch { await c.query('ROLLBACK TO SAVEPOINT v'); }   // birlashmasa — oddiy ko'chadi
+      }
+    }
+    /* 2) Qo'shilgan hisobning o'z sozlamalari / boti */
+    for (const tb of DROP_ON_ATTACH) {
+      if (!(await c.query(`SELECT to_regclass($1) AS r`, ['public.' + tb])).rows[0].r) continue;
+      await c.query('SAVEPOINT d');
+      try { await c.query(`DELETE FROM ${qi(tb)} WHERE user_id::text = $1`, [t.id]); await c.query('RELEASE SAVEPOINT d'); }
+      catch { await c.query('ROLLBACK TO SAVEPOINT d'); }
+    }
+    /* 3) Qolgan hamma yozuv — asosiy hisobga */
+    for (const x of await userTables(c)) {
+      if (DROP_ON_ATTACH.includes(x.t) || KEEP_ON_ATTACH.includes(x.t) || !MOVABLE.has(String(x.dt))) continue;
+      await c.query('SAVEPOINT m');
+      try {
+        const r = await c.query(`UPDATE ${qi(x.t)} SET ${qi(x.c)} = $2 WHERE ${qi(x.c)}::text = $1`, [t.id, x.c === 'owner_key' ? ownerTo : me]);
+        await c.query('RELEASE SAVEPOINT m');
+        if (r.rowCount) { moved[x.t] = (moved[x.t] || 0) + r.rowCount; total += r.rowCount; }
+      } catch (e) {
+        await c.query('ROLLBACK TO SAVEPOINT m');
+        throw Object.assign(new Error('«' + x.t + '» jadvalidagi yozuvlarni ko‘chirib bo‘lmadi: ' + (e.detail || e.message)), { status: 409 });
+      }
+    }
+    await c.query(`UPDATE users SET parent_id = $2 WHERE id::text = $1`, [t.id, me]);
+    await c.query('COMMIT');
+  } catch (e) {
+    try { await c.query('ROLLBACK'); } catch { /* noop */ }
+    console.error('ACCOUNT ATTACH:', e.message);
+    return json(res, e.status || 500, { error: e.status ? e.message : 'Qo‘shishda xatolik — hech narsa o‘zgarmadi: ' + e.message });
+  } finally { c.release(); }
+
+  parentMap.set(t.id, me); delAt = 0;
+  if (tgToken) await tgForget(t.id, tgToken);
+  await logChange(null, me, { entity: 'account', action: 'attach', entityId: t.id, entityName: t.username,
+    reason: 'Hisob asosiy hisobga qo‘shildi: ' + (t.full_name || t.username) + ' (' + t.username + '), ' + total + ' ta yozuv ko‘chdi' });
+  json(res, 200, { ok: true, username: t.username, rows: total, sessions: moved.sessions || 0, vehicles_merged: merged, tables: moved });
+}
+
+async function detach(req, res, me) {
+  await ensureParentCol();
+  const b = await readBody(req);
+  const t = await targetOf(b.id);
+  if (!t) return json(res, 404, { error: 'Hisob topilmadi' });
+  if (t.parent_id !== me) return json(res, 409, { error: 'Bu login sizning hisobingizga qo‘shilmagan' });
+  await pool.query(`UPDATE users SET parent_id = NULL WHERE id::text = $1 AND parent_id = $2`, [t.id, me]);
+  await pool.query(`INSERT INTO user_settings(user_id) VALUES($1) ON CONFLICT (user_id) DO NOTHING`, [t.id]).catch(() => null);
+  parentMap.delete(t.id); delAt = 0;
+  await logChange(null, me, { entity: 'account', action: 'detach', entityId: t.id, entityName: t.username,
+    reason: 'Login asosiy hisobdan ajratildi: ' + (t.full_name || t.username) + ' (' + t.username + '). Yozuvlar asosiy hisobda qoldi.' });
+  json(res, 200, { ok: true, username: t.username });
 }
 
 export async function handleAccountsRequest(req, res) {
@@ -379,6 +565,21 @@ export async function handleAccountsRequest(req, res) {
     if (path === '/api/accounts/delete' && req.method === 'POST') {
       if (!maxsusOk(req, user)) { lockedResponse(res); return true; }
       await remove(req, res, user);
+      return true;
+    }
+    if (path === '/api/accounts/attach-preview' && req.method === 'GET') {
+      if (!maxsusOk(req, user)) { lockedResponse(res); return true; }
+      await attachPreview(req, res, user);
+      return true;
+    }
+    if (path === '/api/accounts/attach' && req.method === 'POST') {
+      if (!maxsusOk(req, user)) { lockedResponse(res); return true; }
+      await attach(req, res, user);
+      return true;
+    }
+    if (path === '/api/accounts/detach' && req.method === 'POST') {
+      if (!maxsusOk(req, user)) { lockedResponse(res); return true; }
+      await detach(req, res, user);
       return true;
     }
     json(res, 404, { error: 'Topilmadi' });
