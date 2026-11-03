@@ -3126,8 +3126,9 @@ const Accounts = {
           + esc(mine ? 'sizning hisobotingizda' : (a.parent_name || 'boshqa') + ' hisobida') + (num(a.post) ? ' · ' + num(a.post) + '-POST' : '') + '</span></div>'
           : (a.children ? '<div style="margin-top:4px"><span class="badge badge-blue">' + a.children + ' ta login qo\'shilgan</span></div>' : '');
         const inMain = a.parent_id ? '<span class="text-muted">asosiy hisobda</span>' : null;
+        const view = a.can_view ? '<button class="btn btn-light btn-sm" type="button" data-act="accCars" data-id="' + esc(a.id) + '" style="margin:6px 6px 0 0"><i class="fa-solid fa-car" aria-hidden="true"></i> Mashinalari</button>' : '';
         return '<tr' + (a.online ? ' style="background:#f0fdf4"' : '') + '>'
-          + '<td data-label="Hisob"><div><b>' + esc(a.full_name || a.username) + '</b>' + (a.me ? ' <span class="badge badge-blue">siz</span>' : '') + '<div class="text-muted">' + esc(a.username) + '</div>' + link + postBtns + '<div>' + att + det + del + '</div></div></td>'
+          + '<td data-label="Hisob"><div><b>' + esc(a.full_name || a.username) + '</b>' + (a.me ? ' <span class="badge badge-blue">siz</span>' : '') + '<div class="text-muted">' + esc(a.username) + '</div>' + link + postBtns + '<div>' + view + att + det + del + '</div></div></td>'
           + '<td data-label="Holat">' + (a.online ? '<span class="badge badge-green">Hozir kirgan</span>' : '<span class="badge badge-grey">' + esc(a.last_seen ? 'oxirgi: ' + this.ago(a.last_seen) : 'ma\'lumot yo\'q') + '</span>') + '</td>'
           + '<td data-label="Kompyuterlar" style="white-space:normal;min-width:190px"><div>' + (devs || '<span class="text-muted">—</span>') + '</div></td>'
           + '<td data-label="Bugun">' + (inMain || (a.today ? a.today + ' ta' : '—')) + '</td>'
@@ -3139,6 +3140,100 @@ const Accounts = {
       + ' «Hisobotga qo\'shish» — o\'sha hisobning yozuvlari sizning hisobingizga o\'tadi; u o\'z logini bilan kiradi, lekin sizning hisobingizda ishlaydi (Jarayonda, Navbat, Qarzlar, Hisobot — umumiy).'
       + ' «O\'chirish» — hisob va uning hamma ma\'lumoti bazadan butunlay o\'chadi (Maxsus parol so\'raladi). 1-POST va 2-POST bitta hisob ichida — har kompyuter tepadagi «POST» tugmasidan o\'z postini tanlaydi;'
       + ' qo\'shilgan login esa o\'z postiga biriktiriladi («Posti») — qaysi kompyuterda kirmasin, ochgan vaqti va olgan puli o\'sha postga yoziladi.</div>';
+  }
+};
+
+/* Login (kassir) shu kuni ochgan mashinalar — jadval + Excel */
+const AccCars = {
+  id: null, data: null,
+  open(id, date) {
+    if (!Maxsus.isOpen()) { Maxsus.ask(() => this.open(id, date)); return; }
+    this.id = id; this.data = null;
+    openModal('<div class="modal-head"><div><h2 id="acTitle">Ochgan mashinalari</h2></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div id="acBody">' + loadingLine('Yuklanmoqda...') + '</div>', { wide: true });
+    this.load(date);
+  },
+  async load(date) {
+    const b = $('acBody');
+    try { this.data = await api('/accounts/sessions?id=' + encodeURIComponent(this.id) + (date ? '&date=' + encodeURIComponent(date) : '')); }
+    catch (e) { if (b) b.innerHTML = emptyState('fa-triangle-exclamation', 'Yuklanmadi', e.message, true); return; }
+    this.render();
+  },
+  pay(x) {
+    const p = [];
+    if (num(x.cash)) p.push(money(x.cash) + ' naqd');
+    if (num(x.terminal)) p.push(money(x.terminal) + ' terminal');
+    if (num(x.click)) p.push(money(x.click) + ' klik');
+    return p.join(' + ');
+  },
+  render() {
+    const b = $('acBody'); if (!b) return;
+    const d = this.data || {}, a = d.account || {}, t = d.totals || {}, rows = d.rows || [];
+    const who = a.full_name || a.username || '';
+    const ttl = $('acTitle'); if (ttl) ttl.textContent = who + ' — ochgan mashinalari';
+    const head = '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">'
+      + '<label class="field-label" for="acDate" style="margin:0">Kun</label>'
+      + '<input id="acDate" type="date" value="' + esc(d.date || '') + '" max="' + esc(d.today || '') + '" style="width:auto">'
+      + '<span class="text-muted">Login: <b>' + esc(a.username || '') + '</b>' + (a.parent_id ? ' · ' + esc(d.owner_name || '') + ' hisobida' : '') + '</span>'
+      + '<span style="flex:1"></span>'
+      + (rows.length ? '<button class="btn btn-light btn-sm" type="button" id="acXls" data-act="accCarsXls"><span class="spinner"></span><i class="fa-solid fa-file-excel btn-icon" aria-hidden="true"></i><span class="btn-text">Excel</span></button>' : '')
+      + '</div>';
+    const note = d.legacy ? '<div class="field-help" style="margin:0 0 10px;padding:8px 10px;border-radius:10px;background:#fffbeb;color:#92400e">'
+      + 'Bu login asosiy hisobga ' + esc(d.attached_at ? timeOnly(d.attached_at) : '') + ' da qo\'shilgan — o\'shangacha ochganlari chek jurnalidan tiklandi. Chek chiqarilmagan yozuvlari bu ro\'yxatda bo\'lmasligi mumkin. Bundan keyingilari aniq yoziladi.</div>' : '';
+    const kpi = '<div class="cl-list" style="margin-bottom:10px"><div class="cl-row"><b>Jami mashina</b><span class="cl-t">' + (t.inside ? t.inside + ' tasi hozir ichkarida' : '') + '</span><span class="cl-m">' + num(t.count) + ' ta</span></div>'
+      + '<div class="cl-row"><b>Olingan pul</b><span class="cl-t">' + esc([num(t.cash) ? money(t.cash) + ' naqd' : '', num(t.terminal) ? money(t.terminal) + ' terminal' : '', num(t.click) ? money(t.click) + ' klik' : ''].filter(Boolean).join(' · ')) + '</span><span class="cl-m paid">' + esc(money(t.money)) + '</span></div>'
+      + (num(t.debt) ? '<div class="cl-row"><b>To\'lanmagan (qarz)</b><span class="cl-t"></span><span class="cl-m">' + esc(money(t.debt)) + '</span></div>' : '') + '</div>';
+    const table = rows.length ? '<div class="table-wrap responsive"><table class="tbl" style="min-width:0"><thead><tr><th>№</th><th>Raqam</th><th>Kirdi</th><th>Chiqdi</th><th>Vaqt</th><th>To\'lov</th><th>Post</th></tr></thead><tbody>'
+      + rows.map((x, i) => {
+        const inside = x.status !== 'completed';
+        const sec = inside ? Math.max(0, (Date.now() - new Date(x.started_at).getTime()) / 1000) : num(x.duration_seconds);
+        const payTxt = x.is_school ? '<span class="text-muted">avtoshkola</span>' : (this.pay(x) || (num(x.debt) ? '' : '<span class="text-muted">—</span>'))
+          + (num(x.debt) ? (this.pay(x) ? '<br>' : '') + '<span style="color:#b45309">' + esc(money(x.debt)) + ' qarz</span>' : '');
+        return '<tr><td data-label="№">' + (i + 1) + '</td><td data-label="Raqam"><b>' + esc(x.plate) + '</b></td>'
+          + '<td data-label="Kirdi">' + esc(timeOnly(x.started_at)) + '</td>'
+          + '<td data-label="Chiqdi">' + (inside ? '<span class="badge badge-green">ichkarida</span>' : esc(timeOnly(x.finished_at))) + '</td>'
+          + '<td data-label="Vaqt">' + esc(ranText(sec)) + '</td>'
+          + '<td data-label="To\'lov" style="white-space:normal">' + payTxt + '</td>'
+          + '<td data-label="Post">' + num(x.post) + '-POST</td></tr>';
+      }).join('') + '</tbody></table></div>'
+      : emptyState('fa-car', 'Bu kuni mashina ochmagan', fmtDate(d.date));
+    b.innerHTML = head + note + kpi + table;
+    const di = $('acDate'); if (di) di.addEventListener('change', () => { if (di.value) { b.querySelectorAll('table').forEach(x => x.style.opacity = '.5'); this.load(di.value); } });
+  },
+  async excel() {
+    const d = this.data || {}, a = d.account || {}, rows = d.rows || [];
+    await withBusy('accCarsXls', $('acXls'), async () => {
+      try {
+        const ExcelJS = await DayExcel.lib();
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet('Mashinalar');
+        const who = a.full_name || a.username || '';
+        ws.addRow([who + ' (' + (a.username || '') + ') — ' + fmtDate(d.date) + ' kuni ochgan mashinalari']).font = { bold: true, size: 13 };
+        ws.addRow([]);
+        const h = ws.addRow(['№', 'Raqam', 'Kirdi', 'Chiqdi', 'Vaqt', 'Naqd', 'Terminal', 'Klik', 'Qarz', 'Post']);
+        h.font = { bold: true };
+        rows.forEach((x, i) => {
+          const inside = x.status !== 'completed';
+          const sec = inside ? Math.max(0, (Date.now() - new Date(x.started_at).getTime()) / 1000) : num(x.duration_seconds);
+          ws.addRow([i + 1, x.plate, timeOnly(x.started_at), inside ? 'ichkarida' : timeOnly(x.finished_at), ranText(sec),
+            num(x.cash) || null, num(x.terminal) || null, num(x.click) || null, num(x.debt) || null, num(x.post) + '-POST']);
+        });
+        const t = d.totals || {};
+        const f = ws.addRow(['', 'JAMI: ' + num(t.count) + ' ta', '', '', '', num(t.cash), num(t.terminal), num(t.click), num(t.debt), '']);
+        f.font = { bold: true };
+        [6, 7, 15, 15, 10, 13, 13, 13, 13, 9].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+        [6, 7, 8, 9].forEach(c => { ws.getColumn(c).numFmt = '#,##0'; });
+        const buf = await wb.xlsx.writeBuffer();
+        const name = String(a.username || 'login').replace(/[^\w.-]+/g, '_') + '-' + DayExcel.fileDate(d.date) + '.xlsx';
+        const el = document.createElement('a');
+        el.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+        el.download = name;
+        document.body.appendChild(el); el.click();
+        setTimeout(() => { URL.revokeObjectURL(el.href); el.remove(); }, 2000);
+        toast('Excel tayyor: ' + name);
+      } catch (e) { toast(e.message || 'Excel chiqmadi', 'error'); }
+    });
   }
 };
 
@@ -14800,6 +14895,8 @@ const ACTIONS = {
   accReload: () => Accounts.load(),
   accDel: d => AccDel.open(d.id),
   accAttach: d => AccAttach.open(d.id),
+  accCars: d => AccCars.open(d.id),
+  accCarsXls: () => AccCars.excel(),
   accAttachRun: () => AccAttach.run(),
   accDetach: d => AccAttach.detach(d.id),
   accPost: d => AccAttach.setPost(d.id, d.n),

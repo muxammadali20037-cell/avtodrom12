@@ -17,7 +17,7 @@
    ========================================================================== */
 
 import jwt from 'jsonwebtoken';
-import { pool } from '../backend/src/db.js';
+import { pool, currentActor } from '../backend/src/db.js';
 import { runOnce } from '../backend/src/schema-once.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
@@ -99,7 +99,7 @@ export async function logChange(db, owner, rec) {
        text(rec.field) || null,
        rec.oldValue === null || rec.oldValue === undefined ? null : String(rec.oldValue),
        rec.newValue === null || rec.newValue === undefined ? null : String(rec.newValue),
-       text(rec.reason), text(rec.actor) || String(owner),
+       text(rec.reason), text(rec.actor) || currentActor() || String(owner),
        /* internetsiz bo'lgan amal — haqiqiy vaqti bilan */
        rec.at instanceof Date && !isNaN(rec.at.getTime()) ? rec.at.toISOString() : null]);
     return true;

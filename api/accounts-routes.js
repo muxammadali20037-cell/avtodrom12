@@ -39,6 +39,9 @@
    xarajati shu postga yoziladi: server har so'rovda X-Post ni loginning
    postiga almashtiradi (applyLoginPost). Hisobot, Excel, Telegram va
    boshliq ilovasining «Platniy» bo'limida «2-POST · Ramziddin» bo'lib chiqadi.
+     GET  /api/accounts/sessions?id=…&date=YYYY-MM-DD
+          — shu login o'sha kuni ochgan mashinalar (sessions.opened_by;
+            yozilmagan eski yozuvlar — hisob egasiniki)
    ========================================================================== */
 
 import jwt from 'jsonwebtoken';
@@ -71,6 +74,7 @@ function payloadOf(req) {
 function userOf(req) { const p = payloadOf(req); return p ? String(p.sub) : null; }
 /* Aynan kim kirgan (qo'shilgan login bo'lsa — o'sha login) */
 function actorOf(req) { const p = payloadOf(req); return p ? String(p.act || p.sub) : null; }
+export function requestActor(req) { return actorOf(req); }
 
 async function readBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
@@ -127,6 +131,38 @@ export const DEFAULT_LOGIN_POST = 2;
 export function loginPost(v) {
   const n = Math.round(Number(v));
   return n >= 1 && n <= 9 ? n : DEFAULT_LOGIN_POST;
+}
+
+/* KIM OCHGAN: sessions.opened_by — yangi yozuvga trigger qo'yadi
+   (db.js: har tranzaksiyada `avtodrom.actor` = kirgan login). Bu
+   o'zgarishdan oldin asosiy hisobga qo'shilgan loginlarning yozuvlari
+   chek jurnalidan (ticket_print, actor) tiklanadi. */
+let openedP = null;
+export function ensureOpenedBy() {
+  if (openedP) return openedP;
+  openedP = (async () => {
+    await ensureParentCol();
+    await runOnce('sessions-opened-by-v1', async () => {
+      await ddl(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS opened_by TEXT`);
+      await pool.query(`CREATE OR REPLACE FUNCTION avtodrom_opened_by() RETURNS trigger LANGUAGE plpgsql AS $f$
+        BEGIN
+          IF NEW.opened_by IS NULL THEN
+            NEW.opened_by := NULLIF(current_setting('avtodrom.actor', true), '');
+          END IF;
+          RETURN NEW;
+        END $f$`);
+      await ddl(`DROP TRIGGER IF EXISTS trg_sessions_opened_by ON sessions`);
+      await ddl(`CREATE TRIGGER trg_sessions_opened_by BEFORE INSERT ON sessions FOR EACH ROW EXECUTE PROCEDURE avtodrom_opened_by()`);
+      try {
+        await pool.query(`UPDATE sessions s SET opened_by = l.actor
+            FROM change_log l, users u
+           WHERE l.entity = 'session' AND l.action = 'ticket_print' AND COALESCE(l.field, '') <> 'qayta'
+             AND l.entity_id = s.id::text AND u.id::text = l.actor AND u.parent_id IS NOT NULL
+             AND s.user_id::text = u.parent_id AND s.opened_by IS NULL`);
+      } catch (e) { console.error('OPENED_BY BACKFILL:', e.message); }
+    });
+  })().catch(e => { openedP = null; throw e; });
+  return openedP;
 }
 
 /* Kalitlar holati (token 30 kun amal qiladi): o'chirilgan hisob — darhol
@@ -260,6 +296,7 @@ async function activity(res, me) {
     t.attach_block = attachBlockOf(me, t, myTotal);
     t.can_attach = !t.attach_block;
     t.can_detach = t.parent_id === me;
+    t.can_view = !viewBlockOf(me, t, myTotal);
     return t;
   }).sort((a, b) => (b.online - a.online) || (new Date(b.last_seen || b.last_session || 0) - new Date(a.last_seen || a.last_session || 0)));
   json(res, 200, {
@@ -504,6 +541,7 @@ async function attachPreview(req, res, me) {
 
 async function attach(req, res, me) {
   await ensureSchema(); await ensureDelSchema(); await ensureParentCol();
+  try { await ensureOpenedBy(); } catch (e) { console.error('OPENED_BY:', e.message); }
   const b = await readBody(req);
   const t = await targetOf(b.id);
   if (!t) return json(res, 404, { error: 'Hisob topilmadi' });
@@ -565,7 +603,11 @@ async function attach(req, res, me) {
       try { const r = await c.query(sql, [t.id, post]); await c.query('RELEASE SAVEPOINT p'); if (tb === 'sessions') relabeled = r.rowCount; }
       catch { await c.query('ROLLBACK TO SAVEPOINT p'); }
     }
-    /* 3) Qolgan hamma yozuv — asosiy hisobga */
+    /* 3) Kim ochgani yo'qolmasin — keyin «Ramziddin ochgan mashinalar» */
+    await c.query('SAVEPOINT o');
+    try { await c.query(`UPDATE sessions SET opened_by = $1 WHERE user_id::text = $1 AND opened_by IS NULL`, [t.id]); await c.query('RELEASE SAVEPOINT o'); }
+    catch { await c.query('ROLLBACK TO SAVEPOINT o'); }
+    /* 4) Qolgan hamma yozuv — asosiy hisobga */
     for (const x of await userTables(c)) {
       if (DROP_ON_ATTACH.includes(x.t) || KEEP_ON_ATTACH.includes(x.t) || !MOVABLE.has(String(x.dt))) continue;
       await c.query('SAVEPOINT m');
@@ -627,6 +669,65 @@ async function detach(req, res, me) {
   json(res, 200, { ok: true, username: t.username });
 }
 
+/* ===================== LOGIN OCHGAN MASHINALAR ===================== */
+
+function viewBlockOf(me, t, myTotal) {
+  if (!t) return 'Hisob topilmadi';
+  if (t.id === me || t.parent_id === me) return null;
+  if (t.parent_id) return 'Bu login boshqa asosiy hisobga qo‘shilgan.';
+  if (Number(t.total || 0) > Number(myTotal || 0)) return 'Bu hisob yozuvlarini faqat asosiy hisobdan ko‘rish mumkin.';
+  return null;
+}
+const jx = (a, c) => `NULLIF(to_jsonb(${a})->>'${c}', '')`;
+
+async function loginSessions(req, res, me) {
+  await ensureSchema();
+  try { await ensureOpenedBy(); } catch (e) { console.error('OPENED_BY:', e.message); }
+  const q = new URL(req.url, 'http://x').searchParams;
+  const t = await targetOf(q.get('id'));
+  if (!t) return json(res, 404, { error: 'Hisob topilmadi' });
+  const block = viewBlockOf(me, t, await totalOf(me));
+  if (block) return json(res, 403, { error: block, blocked: true });
+  const today = (await pool.query(`SELECT to_char((now() AT TIME ZONE 'Asia/Tashkent')::date, 'YYYY-MM-DD') AS d`)).rows[0].d;
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(q.get('date') || '') ? q.get('date') : today;
+  const owner = t.parent_id || t.id;
+  const TZ = 'Asia/Tashkent';
+  const r = await pool.query(`SELECT s.id, COALESCE(NULLIF(v.plate, ''), ${jx('s', 'driver_name')}, '—') AS plate, s.status,
+        s.started_at, s.finished_at, COALESCE(s.duration_seconds, 0)::int AS duration_seconds,
+        COALESCE(s.cash_amount, 0)::float8 AS cash, COALESCE(s.terminal_amount, 0)::float8 AS terminal,
+        COALESCE(${jx('s', 'click_amount')}::numeric, 0)::float8 AS click,
+        COALESCE(${jx('s', 'debt_amount')}::numeric, 0)::float8 AS debt,
+        COALESCE(${jx('s', 'debt_paid')}::numeric, 0)::float8 AS debt_paid,
+        COALESCE(${jx('s', 'pay_post')}::int, ${jx('s', 'post')}::int, 1) AS post,
+        (s.school_id IS NOT NULL OR s.student_id IS NOT NULL OR COALESCE(s.customer_type, '') = 'school') AS is_school
+      FROM sessions s LEFT JOIN vehicles v ON v.id = s.vehicle_id
+     WHERE s.user_id::text = $1 AND COALESCE(${jx('s', 'opened_by')}, s.user_id::text) = $2
+       AND s.status IN ('completed', 'active', 'frozen', 'paused')
+       AND s.started_at >= ($3::date::timestamp AT TIME ZONE '${TZ}') AND s.started_at < (($3::date + 1)::timestamp AT TIME ZONE '${TZ}')
+     ORDER BY s.started_at`, [owner, t.id, date]);
+  const rows = r.rows;
+  const sum = k => rows.reduce((a, x) => a + Number(x[k] || 0), 0);
+  let attachedAt = null, legacy = false;
+  if (t.parent_id) {
+    try {
+      const a = await pool.query(`SELECT MAX(created_at) AS at FROM change_log WHERE entity = 'account' AND action = 'attach' AND entity_id = $1`, [t.id]);
+      attachedAt = a.rows[0] ? a.rows[0].at : null;
+      const m = await pool.query(`SELECT applied_at FROM avtodrom_migrations WHERE name = 'sessions-opened-by-v1'`);
+      const mig = m.rows[0] ? m.rows[0].applied_at : null;
+      legacy = !!(attachedAt && mig && new Date(attachedAt) < new Date(mig));
+    } catch { /* noop */ }
+  }
+  const own = await pool.query(`SELECT COALESCE(NULLIF(full_name, ''), username) AS name FROM users WHERE id::text = $1`, [owner]);
+  json(res, 200, {
+    account: { id: t.id, username: t.username, full_name: t.full_name, parent_id: t.parent_id || null },
+    owner_name: own.rows[0] ? own.rows[0].name : '', date, today, rows,
+    totals: { count: rows.length, inside: rows.filter(x => x.status !== 'completed').length,
+      cash: sum('cash'), terminal: sum('terminal'), click: sum('click'), debt: sum('debt'),
+      money: sum('cash') + sum('terminal') + sum('click') },
+    attached_at: attachedAt, legacy
+  });
+}
+
 export async function handleAccountsRequest(req, res) {
   const path = String(req.url || '').split('?', 1)[0];
   if (!path.startsWith('/api/accounts/')) return false;
@@ -664,6 +765,11 @@ export async function handleAccountsRequest(req, res) {
     if (path === '/api/accounts/post' && req.method === 'POST') {
       if (!maxsusOk(req, user)) { lockedResponse(res); return true; }
       await setPost(req, res, user);
+      return true;
+    }
+    if (path === '/api/accounts/sessions' && req.method === 'GET') {
+      if (!maxsusOk(req, user)) { lockedResponse(res); return true; }
+      await loginSessions(req, res, user);
       return true;
     }
     if (path === '/api/accounts/detach' && req.method === 'POST') {

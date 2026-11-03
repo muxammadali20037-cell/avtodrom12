@@ -465,8 +465,8 @@ async function sessionSplit(req, res, user, id) {
       ['instructor_id', s.instructor_id], ['instructor_name', s.instructor_name], ['driver_name', s.driver_name],
       ['manual_price', true], ['debt_amount', debt], ['target_duration', minutes * 60], ['lessons_counted', 0],
       ['school_id', s.school_id], ['group_id', s.group_id],
-      ['post', s.post || postOf(req)], ['pay_post', postOf(req)]
-    ].filter(([k, v]) => cols.has(k) && !(['post', 'pay_post'].includes(k) && v === null));
+      ['post', s.post || postOf(req)], ['pay_post', postOf(req)], ['opened_by', s.opened_by || null]
+    ].filter(([k, v]) => cols.has(k) && !(['post', 'pay_post', 'opened_by'].includes(k) && v === null));
     if (click > 0 && !cols.has('click_amount')) throw new Error('Klik to‘lovi uchun baza hali tayyor emas');
     const ins = await c.query(`INSERT INTO sessions(${cand.map(([k]) => k).join(',')})
       VALUES(${cand.map((_, i) => '$' + (i + 1)).join(',')}) RETURNING id`, cand.map(([, v]) => v));

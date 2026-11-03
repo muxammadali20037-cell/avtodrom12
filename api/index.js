@@ -26,7 +26,8 @@ import { SW_SOURCE } from "./sw-source.js";
 import { handleTelegramRequest, tgFlushIfAny } from "./telegram.js";
 import { handleCleanupRequest, cleanupAllOnce } from "./cleanup-routes.js";
 import { handleEntryRequest, guardAuth } from "./entry-routes.js";
-import { handleAccountsRequest, trackActivity, tokenProblem, applyLoginPost } from "./accounts-routes.js";
+import { handleAccountsRequest, trackActivity, tokenProblem, applyLoginPost, ensureOpenedBy, requestActor } from "./accounts-routes.js";
+import { actorCtx } from "../backend/src/db.js";
 
 const rootFrontend = new URL("../index.html", import.meta.url);
 const backupFrontend = new URL("../index.backup.html", import.meta.url);
@@ -34,7 +35,15 @@ const instructorFrontend = new URL("../instructor.html", import.meta.url);
 const gateFrontend = new URL("../turniket.html", import.meta.url);
 const screenFrontend = new URL("../ekran.html", import.meta.url);
 
-export default async function handler(req, res) {
+/* Har so'rov «kim qilyapti» (kirgan login) bilan bajariladi — bazada
+   yangi yozuvga kim ochgani (opened_by) va jurnalga kim qilgani yoziladi */
+export default function handler(req, res) {
+  let actor = null;
+  try { actor = requestActor(req); } catch { /* noop */ }
+  return actorCtx.run({ actor }, () => handle(req, res));
+}
+
+async function handle(req, res) {
   const path = String(req.url || "").split("?",1)[0];
 
   /* INTERNETSIZ REJIM: sahifa va kutubxonalarni kompyuterda saqlovchi skript */
@@ -59,6 +68,8 @@ export default async function handler(req, res) {
   if (path.startsWith("/api/")) { try { await ensureKassaSchema(); } catch (e) { console.error("KASSA SCHEMA:", e.message); } }
   /* Bir martalik (rahbar so'rovi, 01.11.2026): jarayonda qolib ketganlar yopiladi */
   if (path.startsWith("/api/")) { try { await cleanupAllOnce(); } catch (e) { console.error("CLEANUP ONCE:", e.message); } }
+  /* Kim ochgan (sessions.opened_by) ustuni va trigger — bir marta */
+  if (path.startsWith("/api/")) { try { await ensureOpenedBy(); } catch (e) { console.error("OPENED_BY:", e.message); } }
   /* O'chirilgan hisobning kaliti darhol yaroqsiz; asosiy hisobga qo'shilgan
      (yoki ajratilgan) login qaytadan kiradi — o'sha kompyuter tizimdan chiqadi */
   if (path.startsWith("/api/") && req.headers.authorization) {
@@ -82,7 +93,8 @@ export default async function handler(req, res) {
   }
 
   /* Hisob + kompyuter faolligi (kim hozir kirgan) — bir daqiqada bir marta */
-  if (path.startsWith("/api/") && req.headers.authorization) trackActivity(req).catch(() => {});
+  /* kutiladi: Vercel javobdan keyin funksiyani to'xtatadi — ulanish osilib qolmasin */
+  if (path.startsWith("/api/") && req.headers.authorization) { try { await trackActivity(req); } catch { /* noop */ } }
   if (path.startsWith("/api/accounts/")) { const acHandled = await handleAccountsRequest(req, res); if (acHandled) return acHandled; }
 
   /* KIRISH KODI (1212) — login/ro'yxatdan o'tish shu kodsiz ishlamaydi */

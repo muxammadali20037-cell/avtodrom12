@@ -1,5 +1,6 @@
 import pg from 'pg';
 import dotenv from 'dotenv';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 dotenv.config();
 
@@ -67,11 +68,37 @@ function onClientError(e) {
   console.error('DB CLIENT ERROR (band ulanish):', e && (e.code || ''), e && e.message);
 }
 
+/* ---------------------------------------------------------------------------
+   KIM QILDI (actor): api/index.js har so'rovni actorCtx ichida bajaradi
+   ({ actor: kirgan login }). Har tranzaksiya boshida (BEGIN) shu qiymat
+   `avtodrom.actor` sozlamasiga yoziladi (faqat shu tranzaksiya uchun) —
+   bazadagi trigger yangi yozuvning `opened_by` ustuniga qo'yadi.
+   ------------------------------------------------------------------------- */
+export const actorCtx = new AsyncLocalStorage();
+export function currentActor() {
+  const s = actorCtx.getStore();
+  return s && s.actor ? String(s.actor) : null;
+}
+function wrapActor(client) {
+  if (client.__avtActor) return;
+  client.__avtActor = true;
+  const q = client.query.bind(client);
+  client.query = function query(text, values, cb) {
+    const res = q(text, values, cb);
+    if (typeof values === 'function' || typeof cb === 'function' || !res || typeof res.then !== 'function') return res;
+    if (typeof text !== 'string' || !/^\s*BEGIN\b/i.test(text)) return res;
+    const a = currentActor();
+    if (!a) return res;
+    return res.then(r => q(`SELECT set_config('avtodrom.actor', $1, true)`, [a]).then(() => r, () => r));
+  };
+}
+
 function track(client) {
   if (!client.__avtGuard) {
     client.__avtGuard = true;
     client.on('error', onClientError);
   }
+  wrapActor(client);
   const where = (new Error().stack || '').split('\n').slice(3, 7).map(s => s.trim()).join(' | ');
   checkedOut.set(client, { at: Date.now(), where, warned: false });
   const orig = client.release;
@@ -156,6 +183,23 @@ pool.query = function query(text, values, cb) {
   const sql = typeof text === 'string' ? text : (text && text.text) || '';
   /* Faqat O'QISH so'rovi (SELECT) ulanish uzilganda qayta yuboriladi —
      yozuv so'rovlari hech qachon takrorlanmaydi (ikki marta tushmasin). */
+  /* Tranzaksiyasiz yangi yozuv (sessions) — kim ochgani yozilsin */
+  if (/^\s*INSERT\s+INTO\s+sessions\b/i.test(sql) && currentActor()) {
+    return (async () => {
+      const client = await connectRetry();
+      try {
+        await client.query('BEGIN');
+        const r = await client.query(text, values);
+        await client.query('COMMIT');
+        client.release();
+        return r;
+      } catch (e) {
+        try { await client.query('ROLLBACK'); } catch { /* noop */ }
+        client.release(isTransientDbError(e) ? e : undefined);
+        throw e;
+      }
+    })();
+  }
   const readOnly = /^\s*(SELECT|SHOW|WITH)\b/i.test(sql)
     && !/\b(INSERT|UPDATE|DELETE|MERGE|FOR\s+UPDATE|FOR\s+SHARE|nextval|setval|pg_terminate_backend|pg_advisory)/i.test(sql);
   return (async () => {

@@ -845,8 +845,8 @@ app.post('/api/sessions/:id/finish', auth, async (req, res) => {
         ['click_amount', dK], ['payment_method', xMethod], ['status', 'completed'], ['customer_type', s.customer_type],
         ['instructor_id', s.instructor_id], ['instructor_name', s.instructor_name], ['driver_name', s.driver_name],
         ['manual_price', true], ['debt_amount', debt], ['target_duration', 0], ['lessons_counted', 0],
-        ['post', post], ['pay_post', post]
-      ].filter(([k]) => cols.has(k));
+        ['post', post], ['pay_post', post], ['opened_by', s.opened_by || null]
+      ].filter(([k, v]) => cols.has(k) && !(k === 'opened_by' && v === null));
       const xi = await c.query(`INSERT INTO sessions(${cand.map(([k]) => k).join(',')})
         VALUES(${cand.map((_, i) => '$' + (i + 1)).join(',')}) RETURNING id`, cand.map(([, v]) => v));
       extraId = xi.rows[0].id;
