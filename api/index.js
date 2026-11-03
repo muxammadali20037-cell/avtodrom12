@@ -28,6 +28,14 @@ import { handleCleanupRequest, cleanupAllOnce } from "./cleanup-routes.js";
 import { handleEntryRequest, guardAuth } from "./entry-routes.js";
 import { handleAccountsRequest, trackActivity, tokenProblem, applyLoginPost, ensureOpenedBy, requestActor } from "./accounts-routes.js";
 import { actorCtx } from "../backend/src/db.js";
+import { handleAssistantRequest, normalizeQ, isDataQuestion } from "./assistant-routes.js";
+import { KB as ASSIST_KB } from "./assistant-kb.js";
+
+/* AI yordamchi: bilim bazasi va «ma'lumot so'ralyaptimi» qoidasi sahifaga
+   qo'shib beriladi — yordamchi internetsiz ham ishlaydi, qoida serverdagi bilan bir xil */
+const ASSIST_BOOT = "window.AVT_KB=" + JSON.stringify(ASSIST_KB).replace(/</g, "\\u003c")
+  + ";window.AVT_Q=(function(){" + normalizeQ.toString() + "\n" + isDataQuestion.toString()
+  + "\nreturn {normalizeQ: normalizeQ, isDataQuestion: isDataQuestion};})();";
 
 const rootFrontend = new URL("../index.html", import.meta.url);
 const backupFrontend = new URL("../index.backup.html", import.meta.url);
@@ -102,6 +110,9 @@ async function handle(req, res) {
   if (guardAuth(req, res)) return;
   /* JARAYONDAGILARNI TOZALASH (Maxsus bo'lim) */
   if (path.startsWith("/api/cleanup/")) { const clHandled = await handleCleanupRequest(req, res); if (clHandled) return clHandled; }
+
+  /* AI YORDAMCHI — sozlama (admin telefoni) va ixtiyoriy haqiqiy AI */
+  if (path.startsWith("/api/assistant/")) { const asHandled = await handleAssistantRequest(req, res); if (asHandled) return asHandled; }
 
   /* TELEGRAM BOT — webhook (Telegram'dan) va sozlash (Maxsus bo'lim) */
   if (path.startsWith("/api/telegram/")) { const tgHandled = await handleTelegramRequest(req, res); if (tgHandled) return tgHandled; }
@@ -190,7 +201,8 @@ async function handle(req, res) {
         : path === "/turniket.html" || path === "/turniket" ? gateFrontend
         : path === "/ekran.html" || path === "/ekran" ? screenFrontend
         : rootFrontend;
-      const html = await readFile(filePath, "utf8");
+      let html = await readFile(filePath, "utf8");
+      if (filePath === rootFrontend) html = html.replace("/*AVT_ASSIST_BOOT*/", () => ASSIST_BOOT);
       res.statusCode=200; res.setHeader("Content-Type","text/html; charset=utf-8"); res.setHeader("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate"); res.setHeader("Pragma","no-cache"); res.setHeader("Expires","0");
       return res.end(html);
     } catch(error) { console.error("FRONTEND SERVE ERROR:",error?.message||error); res.statusCode=500; res.setHeader("Content-Type","application/json; charset=utf-8"); return res.end(JSON.stringify({error:"Frontend yuklanmadi"})); }

@@ -1365,6 +1365,43 @@ body.sheet-open { overflow: hidden; }
 .xl-menu hr { border: 0; border-top: 1px solid #edebe9; margin: 4px 0; }
 .sh-empty { padding: 40px; text-align: center; color: #605e5c; }
 .sh-clip { position: fixed; left: -2000px; top: 0; width: 10px; height: 10px; opacity: 0; }
+/* ===== AI YORDAMCHI ===== */
+.as-wrap { display: flex; flex-direction: column; height: calc(100vh - 210px); min-height: 460px; padding: 0; overflow: hidden; }
+.as-log { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; background: linear-gradient(180deg, #f8fafc, #fff); }
+.as-me { align-self: flex-end; max-width: 78%; background: var(--g); color: #fff; padding: 10px 14px; border-radius: 16px 16px 4px 16px; font-size: 15px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+.as-bot { align-self: flex-start; max-width: 92%; background: #fff; border: 1px solid var(--line); padding: 12px 16px; border-radius: 16px 16px 16px 4px; font-size: 15px; line-height: 1.5; box-shadow: var(--shadow-sm); }
+.as-bot .as-who { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
+.as-bot .as-who i { color: var(--g); }
+.as-title { font-weight: 800; font-size: 16px; color: var(--text); margin-bottom: 2px; }
+.as-where { font-size: 12.5px; color: var(--g-dark); margin-bottom: 8px; }
+.as-bot p { margin: 0 0 8px; color: var(--text-secondary); }
+.as-bot ol { margin: 0 0 8px; padding-left: 22px; }
+.as-bot ol li { margin: 3px 0; }
+.as-tips { margin: 6px 0 4px; padding: 8px 12px; background: var(--amber-surface); border-radius: 10px; font-size: 13.5px; color: #92400e; list-style: none; }
+.as-tips li::before { content: '💡 '; }
+.as-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.as-chip { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; color: var(--text-secondary); font-family: inherit; text-align: left; }
+.as-chip:hover { border-color: var(--g-light); color: var(--g-dark); background: var(--g-surface); }
+.as-go { border: 0; background: var(--g); color: #fff; border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.as-admin { border-color: #fecaca; background: #fff7f7; }
+.as-admin a { color: var(--red); font-weight: 800; text-decoration: none; }
+.as-input { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); background: #fff; }
+.as-input input { flex: 1; font-size: 16px; }
+.as-sugg { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 18px 12px; background: #fff; }
+.as-sugg:empty { display: none; }
+.as-typing span { display: inline-block; width: 7px; height: 7px; margin-right: 3px; border-radius: 50%; background: #94a3b8; animation: asBlink 1.2s infinite; }
+.as-typing span:nth-child(2) { animation-delay: .2s; } .as-typing span:nth-child(3) { animation-delay: .4s; }
+@keyframes asBlink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+@media (max-width: 640px) {
+  #p-assistant .page-header p { display: none; }
+  #p-assistant .page-header { margin-bottom: 8px; }
+  .as-wrap { height: calc(100vh - 250px); height: calc(100dvh - 250px); min-height: 360px; }
+  .as-me, .as-bot { max-width: 96%; }
+  .as-log { padding: 12px; }
+  .as-sugg { flex-wrap: nowrap; overflow-x: auto; padding: 8px 12px; }
+  .as-sugg .as-chip { flex: 0 0 auto; white-space: nowrap; }
+  .as-input .btn .fa-paper-plane + * { display: none; }
+}
 </style>
 </head>
 <body>
@@ -1475,6 +1512,7 @@ body.sheet-open { overflow: hidden; }
     <button class="nav-btn" type="button" data-p="queue"><i class="fa-regular fa-clock" aria-hidden="true"></i> Kutish rejimi <span id="queueCount" class="nav-badge amber"></span></button>
     <button class="nav-btn" type="button" data-p="finish"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Tugatish</button>
     <button class="nav-btn" type="button" data-p="frozen"><i class="fa-regular fa-snowflake" aria-hidden="true"></i> Muzlatilgan <span id="frozenCount" class="nav-badge"></span></button>
+    <button class="nav-btn" type="button" data-p="assistant"><i class="fa-solid fa-robot" aria-hidden="true"></i> AI yordamchi</button>
 
     <div class="nav-section">Maxsus</div>
     <button class="nav-btn nav-maxsus" type="button" data-act="maxsusToggle" id="maxsusBtn" title="Hisobot, Excel, Nazorat va Boshqaruv — parol bilan">
@@ -1818,6 +1856,26 @@ body.sheet-open { overflow: hidden; }
       </section>
 
       <!-- ===== MUZLATILGAN ===== -->
+      <!-- ===== AI YORDAMCHI — dasturni o'rgatadi; ma'lumot bermaydi ===== -->
+      <section id="p-assistant" class="page hidden">
+        <div class="page-header">
+          <div><h1>AI yordamchi</h1><p>Dasturdan qanday foydalanishni so'rang: qayerda nima qilinadi, qaysi tugma bosiladi, muammo bo'lsa nima qilish kerak.</p></div>
+          <div class="header-actions">
+            <button class="btn btn-ghost" type="button" data-act="asClear" title="Suhbatni tozalash"><i class="fa-solid fa-broom" aria-hidden="true"></i> Tozalash</button>
+            <button class="btn btn-ghost" type="button" data-act="asSettings" title="Admin telefoni (Maxsus parol)" aria-label="Sozlash"><i class="fa-solid fa-gear" aria-hidden="true"></i></button>
+          </div>
+        </div>
+        <div class="panel as-wrap">
+          <div id="asLog" class="as-log" aria-live="polite"></div>
+          <div id="asSugg" class="as-sugg"></div>
+          <form class="as-input" data-act="asSend" autocomplete="off">
+            <input id="asQ" maxlength="500" placeholder="Savolingizni yozing… masalan: qarzni qanday to'layman?" aria-label="Savol">
+            <button class="btn btn-green" type="submit" id="asBtn"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Yuborish</button>
+          </form>
+        </div>
+        <script>/*AVT_ASSIST_BOOT*/</script>
+      </section>
+
       <section id="p-frozen" class="page hidden">
         <div class="page-header">
           <div><h1>Muzlatilgan</h1><p>Davom ettirish yoki yakunlash mumkin</p></div>
@@ -3143,6 +3201,186 @@ const Accounts = {
   }
 };
 
+/* ===================== AI YORDAMCHI =====================
+   Dasturni o'rgatadi: bilim bazasi (window.AVT_KB) sahifa bilan keladi,
+   javob shu yerda topiladi — internetsiz ham ishlaydi. Rahbar AI kalitini
+   ulasa (ANTHROPIC_API_KEY), savollarga haqiqiy AI javob beradi.
+   Ma'lumot (pul, hisobot, mijoz, raqam, parol...) so'ralsa — HECH QACHON
+   bermaydi: «Adminga qo'ng'iroq qiling» (window.AVT_Q.isDataQuestion —
+   serverdagi qoida bilan bir xil). */
+const Assist = {
+  KEY: 'avtodrom_assist_v1',
+  msgs: [], cfg: {}, busy: false, inited: false, idx: null,
+  POPULAR: ['kirdi', 'chiqdi', 'narx', 'qarz-tolash', 'navbat', 'internetsiz', 'togrilash', 'maxsus', 'hisobot', 'muammo-jarayonda'],
+  STOP: new Set(['va', 'bilan', 'uchun', 'nima', 'qilib', 'kerak', 'bu', 'shu', 'ham', 'men', 'menga', 'biz', 'bizga', 'siz', 'sizga', 'agar', 'yoki', 'lekin', 'endi', 'qanday', 'qayerda', 'qayerga', 'qachon', 'nega', 'nimaga', 'bormi', 'bor', 'yoq', 'mi', 'edi', 'ekan', 'qil', 'qiling', 'qilaman', 'qilamiz', 'qilish', 'qilinadi', 'qilsa', 'qilsam', 'bolsa', 'boladi', 'boldi', 'kerakmi', 'iltimos', 'ayting', 'aytib', 'bering', 'organ', 'organing', 'orgat', 'tushuntir', 'tushuntiring', 'dastur', 'dasturda', 'programma', 'programmada', 'sayt', 'saytda', 'bilan', 'keyin', 'oldin', 'hamma', 'har', 'bir', 'ikki', 'the']),
+  kb() { return Array.isArray(window.AVT_KB) ? window.AVT_KB : []; },
+  art(id) { return this.kb().find(a => a.id === id) || null; },
+  norm(s) {
+    if (window.AVT_Q && AVT_Q.normalizeQ) return AVT_Q.normalizeQ(s);
+    return String(s || '').toLowerCase().replace(/[ʻʼ’‘`´']/g, '').replace(/[^a-z0-9\s-]/g, ' ').replace(/\s+/g, ' ').trim();
+  },
+  isData(q) { try { return !!(window.AVT_Q && AVT_Q.isDataQuestion && AVT_Q.isDataQuestion(q)); } catch (e) { return false; } },
+  toks(s) { return this.norm(s).split(/[\s-]+/).filter(t => t.length >= 3 && !this.STOP.has(t)); },
+  lev(a, b) {
+    if (Math.abs(a.length - b.length) > 1) return 2;
+    const m = a.length, n = b.length, d = [];
+    for (let i = 0; i <= m; i++) { d[i] = [i]; }
+    for (let j = 1; j <= n; j++) d[0][j] = j;
+    for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return d[m][n];
+  },
+  /* so'z mosligi: aynan, o'zak (5 harf: «mashinani» = «mashina»), yoki bitta harf xato */
+  like(t, u) {
+    if (t === u) return true;
+    if (t.length >= 4 && u.length >= 4) { const k = Math.min(5, t.length, u.length); if (t.slice(0, k) === u.slice(0, k)) return true; }
+    return t.length >= 5 && u.length >= 5 && this.lev(t, u) <= 1;
+  },
+  index() {
+    if (this.idx && this.idx.n === this.kb().length) return this.idx.list;
+    const list = this.kb().map(a => ({
+      a, title: this.toks(a.title), keys: (a.keys || []).map(k => this.norm(k)).filter(Boolean),
+      keyTok: this.toks((a.keys || []).join(' ')), body: this.toks([a.text].concat(a.steps || []).join(' '))
+    }));
+    this.idx = { n: this.kb().length, list };
+    return list;
+  },
+  search(q) {
+    const nq = ' ' + this.norm(q) + ' ', qt = [...new Set(this.toks(q))];
+    return this.index().map(x => {
+      let s = 0;
+      x.keys.forEach(k => { if (k.length >= 4 && nq.indexOf(' ' + k) >= 0) s += 3 + 2 * k.split(' ').length; });
+      qt.forEach(t => {
+        if (x.title.some(u => this.like(t, u))) s += 3;
+        else if (x.keyTok.some(u => this.like(t, u))) s += 2.5;
+        else if (x.body.some(u => this.like(t, u))) s += 0.6;
+      });
+      return { a: x.a, s };
+    }).filter(r => r.s > 0).sort((p, r) => r.s - p.s);
+  },
+  load() {
+    try { const j = JSON.parse(sessionStorage.getItem(this.KEY) || '[]'); this.msgs = Array.isArray(j) ? j.slice(-40) : []; } catch (e) { this.msgs = []; }
+  },
+  save() { try { sessionStorage.setItem(this.KEY, JSON.stringify(this.msgs.slice(-40))); } catch (e) { /* noop */ } },
+  async open() {
+    if (!this.inited) { this.inited = true; this.load(); }
+    this.render();
+    setTimeout(() => { const q = $('asQ'); if (q && window.innerWidth > 700) q.focus(); }, 60);
+    try { this.cfg = (await api('/assistant/config', { timeout: 6000 })) || {}; } catch (e) { /* internetsiz — bilim bazasi bilan */ }
+  },
+  adminText() {
+    const c = this.cfg || {};
+    return 'Bu ma\'lumotni men bera olmayman — men faqat dasturdan qanday foydalanishni o\'rgataman. Bu ma\'lumot uchun <b>Adminga qo\'ng\'iroq qiling</b>.'
+      + (c.admin_name || c.admin_phone ? '<div style="margin-top:8px">📞 Admin: ' + esc(c.admin_name || '')
+        + (c.admin_phone ? (c.admin_name ? ' — ' : '') + '<a href="tel:' + esc(String(c.admin_phone).replace(/[^\d+]/g, '')) + '">' + esc(c.admin_phone) + '</a>' : '') + '</div>' : '');
+  },
+  fmt(t) {
+    return esc(String(t || '')).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+  },
+  card(m) {
+    const who = '<div class="as-who"><i class="fa-solid fa-robot" aria-hidden="true"></i> AI yordamchi' + (m.ai ? ' · AI' : '') + '</div>';
+    if (m.kind === 'admin') return '<div class="as-bot as-admin">' + who + this.adminText() + '</div>';
+    if (m.kind === 'text') return '<div class="as-bot">' + who + this.fmt(m.text) + (m.more && m.more.length ? '<div class="as-actions">' + m.more.map(id => this.chipArt(id)).join('') + '</div>' : '') + '</div>';
+    if (m.kind === 'article') {
+      const a = this.art(m.id);
+      if (!a) return '';
+      const WHO = { kassir: 'kassir', rahbar: 'rahbar', hamma: 'hamma uchun' };
+      return '<div class="as-bot">' + who
+        + '<div class="as-title">' + esc(a.title) + '</div>'
+        + (a.where ? '<div class="as-where"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> ' + esc(a.where) + (a.who && WHO[a.who] ? ' · ' + WHO[a.who] : '') + '</div>' : '')
+        + (a.text ? '<p>' + this.fmt(a.text) + '</p>' : '')
+        + (a.steps && a.steps.length ? '<ol>' + a.steps.map(x => '<li>' + this.fmt(x) + '</li>').join('') + '</ol>' : '')
+        + (a.tips && a.tips.length ? '<ul class="as-tips">' + a.tips.map(x => '<li>' + this.fmt(x) + '</li>').join('') + '</ul>' : '')
+        + '<div class="as-actions">'
+        + (a.page && PAGE_TITLES[a.page] && a.page !== STATE.page ? '<button class="as-go" type="button" data-act="asGo" data-p="' + esc(a.page) + '"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> «' + esc(PAGE_TITLES[a.page]) + '» ni ochish</button>' : '')
+        + (m.more || []).concat(a.related || []).filter((id, i, arr) => arr.indexOf(id) === i && id !== a.id).slice(0, 4).map(id => this.chipArt(id)).join('')
+        + '</div></div>';
+    }
+    return '';
+  },
+  chipArt(id) { const a = this.art(id); return a ? '<button class="as-chip" type="button" data-act="asArt" data-id="' + esc(a.id) + '">' + esc(a.title) + '</button>' : ''; },
+  render() {
+    const log = $('asLog'); if (!log) return;
+    if (!this.kb().length) { log.innerHTML = emptyState('fa-triangle-exclamation', 'Yordamchi yuklanmadi', 'Sahifani yangilang (F5).', true); return; }
+    const hello = '<div class="as-bot"><div class="as-who"><i class="fa-solid fa-robot" aria-hidden="true"></i> AI yordamchi</div>'
+      + 'Assalomu alaykum! Men dasturni yaxshi bilaman: <b>qayerda nima qilinadi, qaysi tugma bosiladi, kim nima qiladi</b> — so\'rang, o\'rgatib beraman.'
+      + '<div style="margin-top:6px;color:var(--muted);font-size:13px">Pul, hisobot raqamlari, mijozlar, parollar kabi ma\'lumotlarni bermayman — ular uchun Adminga qo\'ng\'iroq qiling.</div></div>';
+    log.innerHTML = hello + this.msgs.map(m => m.role === 'user' ? '<div class="as-me">' + esc(m.text) + '</div>' : this.card(m)).join('')
+      + (this.busy ? '<div class="as-bot as-typing"><span></span><span></span><span></span></div>' : '');
+    log.scrollTop = log.scrollHeight;
+    const sg = $('asSugg');
+    if (sg) {
+      const ids = this.msgs.length ? [] : this.POPULAR.filter(id => this.art(id)).slice(0, 8);
+      sg.innerHTML = ids.map(id => this.chipArt(id)).join('');
+    }
+  },
+  push(m) { this.msgs.push(m); this.save(); this.render(); },
+  /* bilim bazasidan javob */
+  local(q) {
+    const nq = this.norm(q);
+    if (/^(salom|assalom|assalomu|hayrli|xayrli|hello|privet)/.test(nq)) return { role: 'assistant', kind: 'text', text: 'Va alaykum assalom! Savolingizni yozing — masalan: «mashinani qanday kiritaman?», «qarzni qanday to\'layman?». Pastdagi mavzulardan birini ham tanlashingiz mumkin.', more: this.POPULAR.filter(id => this.art(id)).slice(0, 4) };
+    if (/^(rahmat|raxmat|spasibo|sag bol|sagbol|tashakkur)/.test(nq)) return { role: 'assistant', kind: 'text', text: 'Arzimaydi! Yana savol bo\'lsa — yozing.' };
+    const r = this.search(q);
+    if (!r.length || r[0].s < 3.5) {
+      return { role: 'assistant', kind: 'text', text: 'Savolingizni aniq tushunmadim. Boshqacha so\'z bilan yozib ko\'ring (masalan: «chiqdi qanday bosiladi», «navbat nima»). Yoki pastdagi mavzulardan birini tanlang. Javob topilmasa — Adminga qo\'ng\'iroq qiling.',
+        more: (r.length ? r.slice(0, 3).map(x => x.a.id) : this.POPULAR.filter(id => this.art(id)).slice(0, 4)) };
+    }
+    const more = r.slice(1, 3).filter(x => x.s >= r[0].s * 0.6).map(x => x.a.id);
+    return { role: 'assistant', kind: 'article', id: r[0].a.id, more };
+  },
+  async ask(raw) {
+    const q = String(raw || '').replace(/\s+/g, ' ').trim().slice(0, 500);
+    if (!q || this.busy) return;
+    this.push({ role: 'user', text: q });
+    if (this.isData(q)) { this.push({ role: 'assistant', kind: 'admin' }); return; }
+    const hist = this.msgs.slice(-7, -1).map(m => ({ role: m.role, text: m.role === 'user' ? m.text : (m.kind === 'article' ? ((this.art(m.id) || {}).title || '') : (m.text || '')) }));
+    if (this.cfg && this.cfg.ai && STATE.online !== false && navigator.onLine !== false) {
+      this.busy = true; this.render();
+      try {
+        const r = await api('/assistant/ask', { method: 'POST', body: jsonBody({ q, history: hist }), timeout: 30000 });
+        this.busy = false;
+        if (r && r.data) { this.push({ role: 'assistant', kind: 'admin' }); return; }
+        if (r && r.answer) {
+          const loc = this.search(q);
+          this.push({ role: 'assistant', kind: 'text', text: r.answer, ai: true, more: loc.slice(0, 2).filter(x => x.s >= 3.5).map(x => x.a.id) });
+          return;
+        }
+      } catch (e) { this.busy = false; /* AI javob bermadi — bilim bazasidan */ }
+    }
+    this.push(this.local(q));
+  },
+  send() {
+    const inp = $('asQ'); if (!inp) return;
+    const q = inp.value; inp.value = '';
+    this.ask(q);
+  },
+  showArt(id) {
+    const a = this.art(id); if (!a) return;
+    this.push({ role: 'user', text: a.title });
+    this.push({ role: 'assistant', kind: 'article', id: a.id });
+  },
+  clear() { this.msgs = []; this.save(); this.render(); },
+  settings() {
+    if (!Maxsus.isOpen()) { Maxsus.ask(() => this.settings()); return; }
+    const c = this.cfg || {};
+    openModal('<div class="modal-head"><div><h2>AI yordamchi — sozlash</h2><p class="text-muted" style="margin:4px 0 0">Ma\'lumot so\'ralganda «Adminga qo\'ng\'iroq qiling» bilan birga shu chiqadi.</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<label class="field-label" for="asAdmName">Admin ismi</label><input id="asAdmName" maxlength="60" value="' + esc(c.admin_name || '') + '" placeholder="masalan: Muxammadali">'
+      + '<label class="field-label" for="asAdmPhone" style="margin-top:10px">Admin telefoni</label><input id="asAdmPhone" maxlength="30" inputmode="tel" value="' + esc(c.admin_phone || '') + '" placeholder="+998 90 123 45 67">'
+      + '<div class="field-help" style="margin-top:8px">' + (c.ai ? '✅ Haqiqiy AI ulangan — savollarga AI javob beradi.' : 'Hozir yordamchi o\'z bilim bazasi bilan javob beradi (internetsiz ham). Haqiqiy AI uchun serverga ANTHROPIC_API_KEY qo\'shiladi.') + '</div>'
+      + '<div id="asCfgErr" class="text-error" role="alert"></div>'
+      + '<div class="actions-row"><button class="btn btn-green" type="button" id="asCfgBtn" data-act="asSaveCfg"><span class="spinner"></span><span class="btn-text">Saqlash</span></button>'
+      + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>');
+  },
+  async saveCfg() {
+    await withBusy('asCfg', $('asCfgBtn'), async () => {
+      try {
+        this.cfg = await api('/assistant/config', { method: 'POST', body: jsonBody({ admin_name: $('asAdmName').value, admin_phone: $('asAdmPhone').value }) });
+        closeModal(); toast('Saqlandi.'); this.render();
+      } catch (e) { setError('asCfgErr', e.message); }
+    });
+  }
+};
+
 /* Login (kassir) shu kuni ochgan mashinalar — jadval + Excel */
 const AccCars = {
   id: null, data: null,
@@ -4175,7 +4413,8 @@ const Maxsus = {
 const PAGE_TITLES = {
   add: 'Yangi avtomobil', active: 'Jarayonda', queue: 'Kutish rejimi', finish: 'Tugatish',
   frozen: 'Muzlatilgan', daily: 'Kunlik hisobot', rasxod: 'Rasxod (xarajatlar)', history: 'Tarix', instructors: 'Instruktorlar',
-  kassa: 'QR chek — avtoshkola', control: 'Xatoliklar va aniqliklar', sheet: 'Excel', telegram: 'Telegram bot', accounts: 'Hisoblar va kompyuterlar'
+  kassa: 'QR chek — avtoshkola', control: 'Xatoliklar va aniqliklar', sheet: 'Excel', telegram: 'Telegram bot', accounts: 'Hisoblar va kompyuterlar',
+  assistant: 'AI yordamchi'
 };
 function go(page) {
   const el = $('p-' + page);
@@ -4213,6 +4452,7 @@ function go(page) {
   if (page === 'kassa') Kassa.onEnter();
   if (page === 'control') Control.onEnter();
   if (page === 'accounts') Accounts.load();
+  if (page === 'assistant') Assist.open();
   if (page === 'telegram') TgBot.onEnter();
   else TgBot.stopPoll();
 }
@@ -14946,6 +15186,12 @@ const ACTIONS = {
   cleanupOpen: () => Cleanup.open(),
   accReload: () => Accounts.load(),
   accDel: d => AccDel.open(d.id),
+  asSend: () => Assist.send(),
+  asClear: () => Assist.clear(),
+  asSettings: () => Assist.settings(),
+  asSaveCfg: () => Assist.saveCfg(),
+  asArt: d => Assist.showArt(d.id),
+  asGo: d => go(d.p),
   accAttach: d => AccAttach.open(d.id),
   accCars: d => AccCars.open(d.id),
   accCarsXls: () => AccCars.excel(),
