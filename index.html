@@ -3184,8 +3184,8 @@ const AccCars = {
     const kpi = '<div class="cl-list" style="margin-bottom:10px"><div class="cl-row"><b>Jami mashina</b><span class="cl-t">' + (t.inside ? t.inside + ' tasi hozir ichkarida' : '') + '</span><span class="cl-m">' + num(t.count) + ' ta</span></div>'
       + '<div class="cl-row"><b>Olingan pul</b><span class="cl-t">' + esc([num(t.cash) ? money(t.cash) + ' naqd' : '', num(t.terminal) ? money(t.terminal) + ' terminal' : '', num(t.click) ? money(t.click) + ' klik' : ''].filter(Boolean).join(' · ')) + '</span><span class="cl-m paid">' + esc(money(t.money)) + '</span></div>'
       + (num(t.debt) ? '<div class="cl-row"><b>To\'lanmagan (qarz)</b><span class="cl-t"></span><span class="cl-m">' + esc(money(t.debt)) + '</span></div>' : '') + '</div>';
-    const table = rows.length ? '<div class="table-wrap responsive"><table class="tbl" style="min-width:0"><thead><tr><th>№</th><th>Raqam</th><th>Kirdi</th><th>Chiqdi</th><th>Vaqt</th><th>To\'lov</th><th>Post</th></tr></thead><tbody>'
-      + rows.map((x, i) => {
+    const tableOf = list => '<div class="table-wrap responsive"><table class="tbl" style="min-width:0"><thead><tr><th>№</th><th>Raqam</th><th>Kirdi</th><th>Chiqdi</th><th>Vaqt</th><th>To\'lov</th><th>Post</th></tr></thead><tbody>'
+      + list.map((x, i) => {
         const inside = x.status !== 'completed';
         const sec = inside ? Math.max(0, (Date.now() - new Date(x.started_at).getTime()) / 1000) : num(x.duration_seconds);
         const payTxt = x.is_school ? '<span class="text-muted">avtoshkola</span>' : (this.pay(x) || (num(x.debt) ? '' : '<span class="text-muted">—</span>'))
@@ -3196,9 +3196,15 @@ const AccCars = {
           + '<td data-label="Vaqt">' + esc(ranText(sec)) + '</td>'
           + '<td data-label="To\'lov" style="white-space:normal">' + payTxt + '</td>'
           + '<td data-label="Post">' + num(x.post) + '-POST</td></tr>';
-      }).join('') + '</tbody></table></div>'
-      : emptyState('fa-car', 'Bu kuni mashina ochmagan', fmtDate(d.date));
-    b.innerHTML = head + note + kpi + table;
+      }).join('') + '</tbody></table></div>';
+    const table = rows.length ? tableOf(rows) : emptyState('fa-car', 'Bu kuni mashina ochmagan', fmtDate(d.date));
+    const ap = d.approx || [], at = d.approx_totals || {};
+    const approx = ap.length ? '<div style="margin-top:14px;padding:10px 12px;border-radius:12px;background:#fffbeb">'
+      + '<b>Taxminiy — yana ' + ap.length + ' ta (' + esc(money(at.money)) + ')</b>'
+      + '<div class="field-help" style="margin:4px 0 8px;color:#92400e">' + esc(timeOnly(d.attached_at)) + ' – ' + esc(timeOnly(d.tracked_from))
+      + ' oralig\'ida kim ochgani yozilmagan, lekin ' + num(d.approx_post) + '-POSTda (uning postida) ochilgan. Shu vaqtda ' + num(d.approx_post) + '-POSTda boshqa odam ishlamagan bo\'lsa — bular ham uniki.</div>'
+      + tableOf(ap) + '</div>' : '';
+    b.innerHTML = head + note + kpi + table + approx;
     const di = $('acDate'); if (di) di.addEventListener('change', () => { if (di.value) { b.querySelectorAll('table').forEach(x => x.style.opacity = '.5'); this.load(di.value); } });
   },
   async excel() {
@@ -3222,6 +3228,17 @@ const AccCars = {
         const t = d.totals || {};
         const f = ws.addRow(['', 'JAMI: ' + num(t.count) + ' ta', '', '', '', num(t.cash), num(t.terminal), num(t.click), num(t.debt), '']);
         f.font = { bold: true };
+        const ap = d.approx || [];
+        if (ap.length) {
+          ws.addRow([]);
+          ws.addRow(['Taxminiy: ' + timeOnly(d.attached_at) + ' – ' + timeOnly(d.tracked_from) + ' oralig\'ida ' + num(d.approx_post) + '-POSTda ochilgan (kim ochgani yozilmagan)']).font = { bold: true, color: { argb: 'FF92400E' } };
+          ap.forEach((x, i) => {
+            const inside = x.status !== 'completed';
+            const sec = inside ? Math.max(0, (Date.now() - new Date(x.started_at).getTime()) / 1000) : num(x.duration_seconds);
+            ws.addRow([i + 1, x.plate, timeOnly(x.started_at), inside ? 'ichkarida' : timeOnly(x.finished_at), ranText(sec),
+              num(x.cash) || null, num(x.terminal) || null, num(x.click) || null, num(x.debt) || null, num(x.post) + '-POST']);
+          });
+        }
         [6, 7, 15, 15, 10, 13, 13, 13, 13, 9].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
         [6, 7, 8, 9].forEach(c => { ws.getColumn(c).numFmt = '#,##0'; });
         const buf = await wb.xlsx.writeBuffer();

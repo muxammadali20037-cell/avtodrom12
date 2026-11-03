@@ -692,7 +692,7 @@ async function loginSessions(req, res, me) {
   const date = /^\d{4}-\d{2}-\d{2}$/.test(q.get('date') || '') ? q.get('date') : today;
   const owner = t.parent_id || t.id;
   const TZ = 'Asia/Tashkent';
-  const r = await pool.query(`SELECT s.id, COALESCE(NULLIF(v.plate, ''), ${jx('s', 'driver_name')}, '—') AS plate, s.status,
+  const SEL = `SELECT s.id, COALESCE(NULLIF(v.plate, ''), ${jx('s', 'driver_name')}, '—') AS plate, s.status,
         s.started_at, s.finished_at, COALESCE(s.duration_seconds, 0)::int AS duration_seconds,
         COALESCE(s.cash_amount, 0)::float8 AS cash, COALESCE(s.terminal_amount, 0)::float8 AS terminal,
         COALESCE(${jx('s', 'click_amount')}::numeric, 0)::float8 AS click,
@@ -701,21 +701,29 @@ async function loginSessions(req, res, me) {
         COALESCE(${jx('s', 'pay_post')}::int, ${jx('s', 'post')}::int, 1) AS post,
         (s.school_id IS NOT NULL OR s.student_id IS NOT NULL OR COALESCE(s.customer_type, '') = 'school') AS is_school
       FROM sessions s LEFT JOIN vehicles v ON v.id = s.vehicle_id
-     WHERE s.user_id::text = $1 AND COALESCE(${jx('s', 'opened_by')}, s.user_id::text) = $2
-       AND s.status IN ('completed', 'active', 'frozen', 'paused')
-       AND s.started_at >= ($3::date::timestamp AT TIME ZONE '${TZ}') AND s.started_at < (($3::date + 1)::timestamp AT TIME ZONE '${TZ}')
-     ORDER BY s.started_at`, [owner, t.id, date]);
+     WHERE s.user_id::text = $1 AND s.status IN ('completed', 'active', 'frozen', 'paused')
+       AND s.started_at >= ($2::date::timestamp AT TIME ZONE '${TZ}') AND s.started_at < (($2::date + 1)::timestamp AT TIME ZONE '${TZ}')`;
+  const r = await pool.query(`${SEL} AND COALESCE(${jx('s', 'opened_by')}, s.user_id::text) = $3 ORDER BY s.started_at`, [owner, date, t.id]);
   const rows = r.rows;
   const sum = k => rows.reduce((a, x) => a + Number(x[k] || 0), 0);
-  let attachedAt = null, legacy = false;
+  let attachedAt = null, legacy = false, approx = [], approxPost = null, migAt = null;
   if (t.parent_id) {
     try {
       const a = await pool.query(`SELECT MAX(created_at) AS at FROM change_log WHERE entity = 'account' AND action = 'attach' AND entity_id = $1`, [t.id]);
       attachedAt = a.rows[0] ? a.rows[0].at : null;
       const m = await pool.query(`SELECT applied_at FROM avtodrom_migrations WHERE name = 'sessions-opened-by-v1'`);
-      const mig = m.rows[0] ? m.rows[0].applied_at : null;
-      legacy = !!(attachedAt && mig && new Date(attachedAt) < new Date(mig));
-    } catch { /* noop */ }
+      migAt = m.rows[0] ? m.rows[0].applied_at : null;
+      legacy = !!(attachedAt && migAt && new Date(attachedAt) < new Date(migAt));
+      /* Qo'shilgandan to «kim ochgan» yozila boshlaguncha: ochgan login
+         yozilmagan, lekin loginning postida ochilganlar — TAXMINIY */
+      if (legacy) {
+        const pr = await pool.query(`SELECT to_jsonb(users)->>'post' AS post FROM users WHERE id::text = $1`, [t.id]);
+        approxPost = loginPost(pr.rows[0] ? pr.rows[0].post : null);
+        approx = (await pool.query(`${SEL} AND ${jx('s', 'opened_by')} IS NULL
+            AND COALESCE(${jx('s', 'post')}::int, 1) = $3 AND s.started_at >= $4 AND s.started_at < $5
+          ORDER BY s.started_at`, [owner, date, approxPost, attachedAt, migAt])).rows;
+      }
+    } catch (e) { console.error('LOGIN SESSIONS:', e.message); }
   }
   const own = await pool.query(`SELECT COALESCE(NULLIF(full_name, ''), username) AS name FROM users WHERE id::text = $1`, [owner]);
   json(res, 200, {
@@ -724,7 +732,9 @@ async function loginSessions(req, res, me) {
     totals: { count: rows.length, inside: rows.filter(x => x.status !== 'completed').length,
       cash: sum('cash'), terminal: sum('terminal'), click: sum('click'), debt: sum('debt'),
       money: sum('cash') + sum('terminal') + sum('click') },
-    attached_at: attachedAt, legacy
+    attached_at: attachedAt, legacy, tracked_from: migAt,
+    approx, approx_post: approxPost,
+    approx_totals: approx.length ? { count: approx.length, money: approx.reduce((a, x) => a + Number(x.cash || 0) + Number(x.terminal || 0) + Number(x.click || 0), 0) } : null
   });
 }
 
