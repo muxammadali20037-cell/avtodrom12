@@ -26,8 +26,9 @@
       bo'ldi?» deb hammasini birdan to'laydiganlar uchun.
         GET  /api/debts                       to'lanmagan yozuvlar
         POST /api/debts/pay { ids, method, amount? }   to'lash (naqd/terminal/Klik);
-             amount — qo'lda yozilgan summa: qarzdan kam bo'lsa eng eskisidan
-             boshlab to'lanadi, qolgani «To'lanmagan»da qoladi
+             amount — qo'lda yozilgan summa (rahbar qarori, 03.11.2026): qarzdan
+             kam ham, ko'p ham bo'lishi mumkin — AYNAN shu summa hisobotga
+             tushadi, tanlangan qarzlar to'liq yopiladi (qarz bo'lib qolmaydi)
 
    5) BIR QISMINI YOPISH: vaqti ochiq mijoz «2 soatini yopaman» deb pul
       to'laydi va yurishda davom etadi.
@@ -326,7 +327,7 @@ async function debtPay(req, res, user) {
   let want = null;
   if (b.amount !== undefined && b.amount !== null && String(b.amount).trim() !== '') {
     want = Math.round(Number(String(b.amount).replace(/[\s,]/g, '')));
-    if (!Number.isFinite(want) || want <= 0) return json(res, 400, { error: 'Summani to‘g‘ri yozing', field: 'amount' });
+    if (!Number.isFinite(want) || want <= 0 || want > 1e9) return json(res, 400, { error: 'Summani to‘g‘ri yozing', field: 'amount' });
   }
   const post = postOf(req);
   /* Vaqti tugagan «1 soatga» yozuvlar avval yopilsin — internetsiz paytda
@@ -349,29 +350,31 @@ async function debtPay(req, res, user) {
        ORDER BY s.started_at
        FOR UPDATE OF s`, [user, ids, paidAt]);
     const owed = r.rows.reduce((a, x) => a + Number(x.debt_amount || 0), 0);
-    if (want !== null && want > owed) {
-      /* internetsiz olingan pul keyin yetib kelsa — qarzdan ortig'i yozilmaydi */
-      if (b.offline === true) want = owed;
-      else { await c.query('ROLLBACK'); return json(res, 400, { error: 'Qarzdan ko‘p yozildi — jami qarz ' + Math.round(owed).toLocaleString('ru-RU') + ' so‘m', field: 'amount', owed }); }
-    }
+    /* Yozilgan summa — hisobotga AYNAN shu tushadi; tanlangan qarzlar yopiladi.
+       Eng eskisidan boshlab taqsimlanadi; oxirgisiga qolgan farq (ko'p bo'lsa —
+       ortig'i, kam bo'lsa — yetgani) yoziladi. */
+    const total = want === null ? owed : want;
+    const manual = want !== null && Math.round(want) !== Math.round(owed);
+    const note = manual ? 'qo‘lda: qarz ' + Math.round(owed) + ', to‘landi ' + Math.round(total) : null;
     const done = [];
-    let sum = 0, left = want === null ? Infinity : want;
-    for (const x of r.rows) {
-      if (left <= 0) break;
+    let sum = 0, left = total;
+    for (let i = 0; i < r.rows.length; i++) {
+      const x = r.rows[i];
       const debt = Number(x.debt_amount || 0);
       if (debt <= 0) continue;
-      const amt = Math.min(debt, left);
-      await c.query(`INSERT INTO debt_payments(user_id, session_id, amount, method, post, session_day, paid_at, note)
-        VALUES($1, $2, $3, $4, $5, $6, COALESCE($7, now()), $8)`,
-        [user, x.id, amt, method, post, x.day, paidAt, amt < debt ? 'qisman to‘lov' : null]);
-      /* to'liq to'landi — yopiladi; qisman — qolgani qarz bo'lib turadi */
-      await c.query(`UPDATE sessions SET debt_paid = COALESCE(debt_paid, 0) + $3, debt_amount = debt_amount - $3,
-          settled_at = CASE WHEN debt_amount - $3 <= 0 THEN COALESCE($2, now()) ELSE settled_at END WHERE id = $1`, [x.id, paidAt, amt]);
+      const amt = Math.max(0, i === r.rows.length - 1 ? left : Math.min(debt, left));
+      if (amt > 0) {
+        await c.query(`INSERT INTO debt_payments(user_id, session_id, amount, method, post, session_day, paid_at, note)
+          VALUES($1, $2, $3, $4, $5, $6, COALESCE($7, now()), $8)`,
+          [user, x.id, amt, method, post, x.day, paidAt, note]);
+      }
+      await c.query(`UPDATE sessions SET debt_paid = COALESCE(debt_paid, 0) + $3, debt_amount = 0,
+          settled_at = COALESCE($2, now()) WHERE id = $1`, [x.id, paidAt, amt]);
       done.push(String(x.id));
       sum += amt;
       left -= amt;
     }
-    const rest = Math.max(0, owed - sum);
+    const rest = 0;
     if (!done.length) {
       await c.query('ROLLBACK');
       return json(res, 409, { error: 'Bu qarz allaqachon to‘langan yoki topilmadi — ro‘yxat yangilanmoqda', nothing: true });
@@ -379,13 +382,13 @@ async function debtPay(req, res, user) {
     await c.query('COMMIT');
     {
       const oldDays = [...new Set(r.rows.filter(x => x.old && done.includes(String(x.id))).map(x => ddmm(x.started_at)))].join(', ');
-      await tgNotify(user, 'debt', tgText.debt({ name: text(b.name) || '—', total: sum, method, count: done.length, oldDays, post, rest }));
+      await tgNotify(user, 'debt', tgText.debt({ name: text(b.name) || '—', total: sum, method, count: done.length, oldDays, post, owed: manual ? owed : null }));
     }
     await logChange(null, user, { entity: 'session', entityId: done[0] || null, entityName: text(b.name) || null,
-      action: 'debt_paid', field: method, newValue: sum + ' so‘m, ' + done.length + ' ta yozuv' + (post ? ', ' + post + '-POST' : '')
-        + (rest > 0 ? ', qisman — ' + rest + ' so‘m qarz qoldi' : ''),
+      action: 'debt_paid', field: method, oldValue: manual ? Math.round(owed) + ' so‘m qarz' : null,
+      newValue: sum + ' so‘m, ' + done.length + ' ta yozuv' + (post ? ', ' + post + '-POST' : '') + (manual ? ' (summa qo‘lda yozildi)' : ''),
       reason: 'To‘lanmagan vaqtlar to‘landi (to‘langan kunning hisobotiga yoziladi)' });
-    json(res, 200, { ok: true, count: done.length, ids: done, total: sum, rest, partial: rest > 0 });
+    json(res, 200, { ok: true, count: done.length, ids: done, total: sum, owed, manual, rest });
   } catch (e) {
     try { await c.query('ROLLBACK'); } catch { /* noop */ }
     throw e;

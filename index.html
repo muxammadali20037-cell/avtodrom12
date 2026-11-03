@@ -10341,45 +10341,41 @@ const Debts = {
       $$('#modal .debt-btn-sum').forEach(x => { x.textContent = v ? money(v) : '—'; });
       $$('#modal [data-act="debtPay"]').forEach(b => { b.disabled = !v; });
       const r = $('debtRest');
-      if (r) r.innerHTML = !v ? '<span class="text-error">' + (num(inp.value) > g.total ? 'Qarzdan ko\'p — jami qarz ' + esc(money(g.total)) : 'Summani yozing') + '</span>'
-        : v < g.total ? 'Qisman to\'lov: <b>' + esc(money(g.total - v)) + '</b> qarz bo\'lib qoladi (eng eski kunlaridan boshlab yopiladi)'
+      if (r) r.innerHTML = !v ? '<span class="text-error">Summani yozing</span>'
+        : v !== Math.round(g.total) ? 'Hisobotga <b>' + esc(money(v)) + '</b> yoziladi, qarz yopiladi (qarz ' + esc(money(g.total)) + ' edi)'
         : 'Qarz to\'liq yopiladi';
     };
     if (inp) { inp.addEventListener('input', upd); inp.addEventListener('focus', () => inp.select()); }
     const all = $('debtAll'); if (all) all.addEventListener('click', () => { inp.value = Math.round(g.total); upd(); });
     upd();
   },
-  /* Yozilgan summa (to'g'ri bo'lsa), aks holda 0 */
+  /* Yozilgan summa (rahbar qarori: kam ham, ko'p ham bo'lishi mumkin — aynan
+     shu summa hisobotga tushadi, qarz yopiladi); noto'g'ri bo'lsa 0 */
   amount(g) {
     const inp = $('debtAmt');
     if (!inp) return g.total;
     const v = Math.round(num(inp.value));
-    return v > 0 && v <= Math.round(g.total) ? v : 0;
+    return v > 0 && v <= 1e9 ? v : 0;
   },
   async pay(method) {
     if (this.busy) return;
     const g = this.groups().find(x => x.key === this.key);
     if (!g) { closeModal(); return; }
     const amt = this.amount(g);
-    if (!amt) { setError('debtErr', 'Summani to\'g\'ri yozing (1 dan ' + money(g.total) + ' gacha)'); return; }
-    const partial = amt < Math.round(g.total);
+    if (!amt) { setError('debtErr', 'Summani to\'g\'ri yozing'); return; }
+    const manual = amt !== Math.round(g.total);
     this.busy = true;
     $$('#modal [data-act="debtPay"]').forEach(b => { b.disabled = true; });
     try {
-      /* qisman: eng eski kunidan boshlab (server ham shu tartibda yopadi) */
-      const sorted = g.rows.slice().sort((a, b) => new Date(a.started_at) - new Date(b.started_at));
-      const alloc = {};
-      let left = amt;
-      sorted.forEach(r => { if (left <= 0) return; const a = Math.min(num(r.debt_amount), left); if (a > 0) { alloc[String(r.id)] = a; left -= a; } });
-      const ids = partial ? Object.keys(alloc) : g.rows.map(r => r.id);
+      const ids = g.rows.map(r => r.id);
       const body = { ids: ids, method: method, name: g.name, total: amt };
-      if (partial) body.amount = amt;
+      if (manual) body.amount = amt;
       /* Internet yo'q bo'lsa — to'lagan vaqti bilan keyin yuboriladi (pul o'sha kunning hisobotiga) */
       const out = await Outbox.call('/debts/pay', body, {
-        kind: 'debtpay', ids: ids, alloc: partial ? alloc : null, label: g.name + ' (' + PAY_NAMES[method] + ')', money: amt,
+        kind: 'debtpay', ids: ids, label: g.name + ' (' + PAY_NAMES[method] + ')', money: amt,
         queueBody: Object.assign({}, body, { offline: true, paid_at: new Date().toISOString() }) });
       closeModal();
-      toast('To\'landi: ' + g.name + ' — ' + money(amt) + ' (' + PAY_NAMES[method] + ')' + (partial ? ', yana ' + money(g.total - amt) + ' qarz qoldi' : '') + (out.queued ? ' — internetsiz, keyin yuboriladi' : ''));
+      toast('To\'landi: ' + g.name + ' — ' + money(amt) + ' (' + PAY_NAMES[method] + ')' + (out.queued ? ' — internetsiz, keyin yuboriladi' : ''));
       await this.load(true);
       Reports.loadDaily();
       setTimeout(() => Add.focusLabel(), 60);

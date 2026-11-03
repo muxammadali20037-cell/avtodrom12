@@ -288,7 +288,7 @@ export const tgText = {
     return '💰 <b>QARZ TO‘LANDI</b> · <b>' + h(x.name) + '</b>\n'
       + som(x.total) + ' · ' + h(PAY[x.method] || x.method) + (x.count > 1 ? ' · ' + x.count + ' ta yozuv' : '')
       + (x.oldDays ? '\n📅 ' + h(x.oldDays) + ' dagi qarz' : '')
-      + (Number(x.rest) > 0 ? '\n⏳ qisman — yana ' + som(x.rest) + ' qarz qoldi' : '') + postTxt(x.post);
+      + (x.owed !== null && x.owed !== undefined ? '\n📝 summa qo‘lda yozildi — qarz ' + som(x.owed) + ' edi, qarz yopildi' : '') + postTxt(x.post);
   },
   unpay(x) {
     return '↩️ <b>QARZ TO‘LOVI BEKOR QILINDI</b> · <b>' + h(x.plate) + '</b>\n'
