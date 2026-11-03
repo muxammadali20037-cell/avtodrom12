@@ -11,6 +11,7 @@ import { postOf } from './post.js';
 import { dbLimits, ensureDbSafety } from './schema-once.js';
 import { logChange } from '../../api/audit-routes.js';
 import { tgNotify, tgText } from '../../api/telegram.js';
+import { loginPost } from '../../api/accounts-routes.js';
 
 dotenv.config();
 const app = express();
@@ -416,7 +417,7 @@ app.post('/api/auth/register',async(req,res)=>{const{fullName,username,password}
 app.post('/api/auth/login',async(req,res)=>{try{const username=String(req.body.username||'').trim(),password=String(req.body.password||'');const r=await pool.query(`SELECT * FROM users WHERE username=$1 LIMIT 1`,[username]);if(!r.rows[0]||!(await bcrypt.compare(password,r.rows[0].password_hash)))return res.status(401).json({error:'Login yoki parol noto‘g‘ri'});const u=r.rows[0];
   /* Asosiy hisobga qo'shilgan login: o'z ismi bilan kiradi, lekin asosiy hisob ma'lumotida ishlaydi (sub = asosiy, act = login) */
   if(u.parent_id){const pr=await pool.query(`SELECT id,role FROM users WHERE id::text=$1 LIMIT 1`,[String(u.parent_id)]);const pu=pr.rows[0];
-    if(pu){const user={id:pu.id,full_name:u.full_name,username:u.username,role:u.role==='admin'?'operator':u.role,login_id:u.id};await ensureAccountData(pu.id);return res.json({user,token:tokenFor({id:pu.id,role:user.role,username:u.username},{act:String(u.id)})})}}
+    if(pu){const user={id:pu.id,full_name:u.full_name,username:u.username,role:u.role==='admin'?'operator':u.role,login_id:u.id,post:loginPost(u.post)};await ensureAccountData(pu.id);return res.json({user,token:tokenFor({id:pu.id,role:user.role,username:u.username},{act:String(u.id)})})}}
   const user={id:u.id,full_name:u.full_name,username:u.username,role:u.role};await ensureAccountData(user.id);res.json({user,token:tokenFor(user)})}catch{res.status(500).json({error:'Kirishda server xatosi'})}});
 
 /* ==========================================================================

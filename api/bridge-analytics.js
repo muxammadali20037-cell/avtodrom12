@@ -22,6 +22,7 @@
  */
 import crypto from 'node:crypto';
 import { MONEY_EVENTS, SESSION_MONEY, IS_KECHAGI } from './money-sql.js';
+import { postOperators } from './bridge-posts.js';
 import { pool } from '../backend/src/db.js';
 
 const TZ = 'Asia/Tashkent';
@@ -128,7 +129,7 @@ export async function buildBridgeAnalytics(range) {
 
   const [
     totalsRows, prevRows, seriesRows, hourRows, heatRows, schoolRows, schoolMeta,
-    instrRows, operatorRows, liveRows, waitingRows, receiptRows, receiptPrevRows,
+    instrRows, liveRows, waitingRows, receiptRows, receiptPrevRows,
     scannerRows, gateRows, studentRows, expiringRows,
     logRows, recentSessions, recentReceipts, recentGate,
   ] = await Promise.all([
@@ -169,12 +170,6 @@ export async function buildBridgeAnalytics(range) {
              COALESCE(SUM(${SESSION_MONEY('s')}), 0)::float8 AS revenue
         FROM sessions s LEFT JOIN instructors i ON i.id::text = s.instructor_id::text
        WHERE ${done} GROUP BY 1 ORDER BY sessions DESC LIMIT 15`, cur),
-    safe('operators', `
-      SELECT COALESCE(NULLIF(u.full_name, ''), u.username, 'Operator') AS name,
-             COUNT(*)::int AS sessions,
-             COALESCE(SUM(${SESSION_MONEY('s')}), 0)::float8 AS revenue
-        FROM sessions s LEFT JOIN users u ON u.id::text = s.user_id::text
-       WHERE ${done} GROUP BY 1 ORDER BY sessions DESC LIMIT 10`, cur),
     safe('live', `
       SELECT s.id::text AS id, s.status, v.plate,
              COALESCE(NULLIF(to_jsonb(s)->>'driver_name', ''), v.driver_name) AS driver,
@@ -254,11 +249,13 @@ export async function buildBridgeAnalytics(range) {
       COALESCE(SUM(m.total) FILTER (WHERE m.kind = 'debt'), 0)::float8 AS debt_collected,
       COALESCE(SUM(m.total) FILTER (WHERE ${IS_KECHAGI('m')}), 0)::float8 AS kechagi
     FROM ${MONEY_EVENTS} m WHERE ${mWhere}`;
-  const [mCur, mPrev, mSeries] = await Promise.all([
+  const [mCur, mPrev, mSeries, operatorRows] = await Promise.all([
     safe('money', moneySql, cur),
     safe('money_previous', moneySql, prev),
     safe('money_series', `SELECT to_char((m.at AT TIME ZONE '${TZ}'), '${fmt}') AS k, COALESCE(SUM(m.total), 0)::float8 AS total
       FROM ${MONEY_EVENTS} m WHERE ${mWhere} GROUP BY 1`, cur),
+    /* operatorlar — postlar bo'yicha (bridge-posts.js) */
+    postOperators(safe, { done, mWhere, params: cur, isPaid: `NOT ${isSchool}`, isSchool }),
   ]);
   {
     const by = new Map(seriesRows.map((r) => [String(r.k), Object.assign(r, { revenue: 0 })]));
@@ -381,7 +378,7 @@ export async function buildBridgeAnalytics(range) {
     schools,
     instructors: instrRows.map((r) => ({ name: r.name, sessions: n(r.sessions), school: n(r.school),
       minutes: mins(r.seconds), revenue: n(r.revenue) })),
-    operators: operatorRows.map((r) => ({ name: r.name, sessions: n(r.sessions), revenue: n(r.revenue) })),
+    operators: operatorRows.map((r) => ({ name: r.name, post: r.post, people: r.people, sessions: r.sessions, paid: r.paid, school: r.school, revenue: r.revenue })),
     live: {
       active: live.filter((x) => x.status === 'active').length,
       frozen: live.filter((x) => x.status !== 'active').length,

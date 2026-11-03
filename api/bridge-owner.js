@@ -23,6 +23,7 @@
 import { pool } from '../backend/src/db.js';
 import { checkBridgeKey, bridgeRange } from './bridge-analytics.js';
 import { MONEY_EVENTS, SESSION_MONEY, IS_KECHAGI } from './money-sql.js';
+import { postOperators } from './bridge-posts.js';
 
 const TZ = 'Asia/Tashkent';
 const TZ_OFFSET_MS = 5 * 3600e3;
@@ -130,7 +131,7 @@ export async function buildOwnerBridge(range, db = pool, cut = null) {
 
   const [
     totalsRows, prevRows, seriesRows, hourRows, plateRows, plateNewRows, debtRows, debtTop,
-    liveRows, waitingRows, operatorRows,
+    liveRows, waitingRows,
     schoolRows, schoolMeta, overRows, schoolInstr, receiptRows, studentRows, expiringRows,
     expTot, expPrevRows, expCat, expVeh, expPerson, expSeries, expRecent,
     schoolSeries, expCatSeries, schoolGroups,
@@ -205,13 +206,6 @@ export async function buildOwnerBridge(range, db = pool, cut = null) {
        WHERE s.status IN ('active', 'paused', 'frozen')${own('s.user_id', 1)}
        ORDER BY s.started_at ASC LIMIT 200`, withKeys([])),
     safe('waiting', `SELECT COUNT(*)::int AS n FROM waiting_sessions w WHERE TRUE${own('w.user_id', 1)}`, withKeys([])),
-    safe('operators', `
-      SELECT COALESCE(NULLIF(u.full_name, ''), u.username, 'Operator') AS name,
-             COUNT(*) FILTER (WHERE ${IS_PAID})::int AS paid,
-             COUNT(*) FILTER (WHERE ${IS_SCHOOL})::int AS school,
-             COALESCE(SUM(${SESSION_MONEY('s')}), 0)::float8 AS revenue
-        FROM sessions s LEFT JOIN users u ON u.id::text = s.user_id::text
-       WHERE ${done} GROUP BY 1 ORDER BY revenue DESC, paid DESC LIMIT 10`, cur),
 
     /* ---------------- AVTOSHKOLA ---------------- */
     safe('schools', `
@@ -318,13 +312,15 @@ export async function buildOwnerBridge(range, db = pool, cut = null) {
            COALESCE(SUM(m.total) FILTER (WHERE m.post = 1), 0)::float8 AS post1,
            COALESCE(SUM(m.total) FILTER (WHERE m.post = 2), 0)::float8 AS post2
       FROM ${MONEY_EVENTS} m WHERE ${mWhere}`;
-  const [moneyCur, moneyPrev, moneySeries, moneyHours] = await Promise.all([
+  const [moneyCur, moneyPrev, moneySeries, moneyHours, operatorRows] = await Promise.all([
     safe('money', moneyTotSql, cur),
     safe('money_previous', moneyTotSql, prev),
     safe('money_series', `SELECT to_char(${mTk}, '${fmt}') AS k, COALESCE(SUM(m.total), 0)::float8 AS total
       FROM ${MONEY_EVENTS} m WHERE ${mWhere} GROUP BY 1 ORDER BY 1`, cur),
     safe('money_hours', `SELECT EXTRACT(HOUR FROM ${mTk})::int AS hour, COALESCE(SUM(m.total), 0)::float8 AS total
       FROM ${MONEY_EVENTS} m WHERE ${mWhere} GROUP BY 1 ORDER BY 1`, cur),
+    /* KASSIRLAR — postlar bo'yicha: «1-POST · Platniylar», «2-POST · Ramziddin» */
+    postOperators(safe, { done, mWhere, params: cur, isPaid: IS_PAID, isSchool: IS_SCHOOL }),
   ]);
   const withMoney = (row, M) => {
     if (!M) return row || {};
@@ -450,7 +446,10 @@ export async function buildOwnerBridge(range, db = pool, cut = null) {
         total: n(D.total), sessions: n(D.n), vehicles: n(D.vehicles), oldest: D.oldest || null,
         top: debtTop.map((r) => ({ plate: r.plate, n: n(r.n), total: n(r.total), oldest: r.oldest })),
       },
-      operators: operatorRows.map((r) => ({ name: r.name, paid: n(r.paid), school: n(r.school), revenue: n(r.revenue) })),
+      /* kassirlar — POSTLAR bo'yicha (qo'shilgan login o'z postida, ismi bilan) */
+      operators: operatorRows.filter((r) => r.paid || r.revenue)
+        .map((r) => ({ name: r.name, post: r.post, account: r.account, people: r.people, paid: r.paid, school: r.school,
+          minutes: r.minutes, revenue: r.revenue, cash: r.cash, terminal: r.terminal, click: r.click })),
       live: { active: livePaid.filter((x) => x.status === 'active').length, frozen: livePaid.filter((x) => x.status !== 'active').length,
         waiting: n(waitingRows[0]?.n), sessions: livePaid },
     },

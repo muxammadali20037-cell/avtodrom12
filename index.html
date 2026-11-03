@@ -1205,6 +1205,7 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 .post-chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1.5px solid #a7f3d0;
   background: var(--g-surface); color: var(--g-dark); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
 .post-chip.p2 { border-color: #93c5fd; background: #eff6ff; color: #1d4ed8; }
+.post-chip.fixed b::after { content: ' \1F512'; font-size: 11px; }
 .post-chip:hover { filter: brightness(.97); }
 .post-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 6px 0 12px; }
 .post-opt { border: 2px solid var(--line); background: #fff; border-radius: 14px; padding: 18px 10px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; font: inherit; }
@@ -3116,14 +3117,17 @@ const Accounts = {
         const att = a.me || a.parent_id ? '' : '<button class="btn ' + (a.can_attach ? 'btn-green' : 'btn-light') + ' btn-sm" type="button" data-act="accAttach" data-id="' + esc(a.id) + '" style="margin:6px 6px 0 0"'
           + (a.can_attach ? '' : ' title="' + esc(a.attach_block || '') + '"') + '><i class="fa-solid ' + (a.can_attach ? 'fa-link' : 'fa-lock') + '" aria-hidden="true"></i> Hisobotga qo\'shish</button>';
         const det = a.can_detach ? '<button class="btn btn-light btn-sm" type="button" data-act="accDetach" data-id="' + esc(a.id) + '" style="margin:6px 6px 0 0"><i class="fa-solid fa-link-slash" aria-hidden="true"></i> Ajratish</button>' : '';
+        /* Qo'shilgan login qaysi postda ishlaydi — bir bosishda o'zgaradi */
+        const postBtns = a.can_detach ? '<div style="margin-top:6px"><span class="text-muted" style="margin-right:6px">Posti:</span>' + [1, 2].map(n => '<button class="btn ' + (num(a.post) === n ? 'btn-green' : 'btn-light')
+          + ' btn-sm" type="button" data-act="accPost" data-id="' + esc(a.id) + '" data-n="' + n + '" style="margin:0 6px 0 0"' + (num(a.post) === n ? ' aria-pressed="true"' : '') + '>' + n + '-POST</button>').join('') + '</div>' : '';
         const del = a.me ? '' : '<button class="btn ' + (a.can_delete ? 'btn-danger' : 'btn-light') + ' btn-sm" type="button" data-act="accDel" data-id="' + esc(a.id) + '" style="margin-top:6px"'
           + (a.can_delete ? '' : ' title="' + esc(a.block || '') + '"') + '><i class="fa-solid ' + (a.can_delete ? 'fa-trash' : 'fa-lock') + '" aria-hidden="true"></i> O\'chirish</button>';
         const link = a.parent_id ? '<div style="margin-top:4px"><span class="badge ' + (mine ? 'badge-green' : 'badge-grey') + '"><i class="fa-solid fa-link" aria-hidden="true"></i> '
-          + esc(mine ? 'sizning hisobotingizda' : (a.parent_name || 'boshqa') + ' hisobida') + '</span></div>'
+          + esc(mine ? 'sizning hisobotingizda' : (a.parent_name || 'boshqa') + ' hisobida') + (num(a.post) ? ' · ' + num(a.post) + '-POST' : '') + '</span></div>'
           : (a.children ? '<div style="margin-top:4px"><span class="badge badge-blue">' + a.children + ' ta login qo\'shilgan</span></div>' : '');
         const inMain = a.parent_id ? '<span class="text-muted">asosiy hisobda</span>' : null;
         return '<tr' + (a.online ? ' style="background:#f0fdf4"' : '') + '>'
-          + '<td data-label="Hisob"><div><b>' + esc(a.full_name || a.username) + '</b>' + (a.me ? ' <span class="badge badge-blue">siz</span>' : '') + '<div class="text-muted">' + esc(a.username) + '</div>' + link + '<div>' + att + det + del + '</div></div></td>'
+          + '<td data-label="Hisob"><div><b>' + esc(a.full_name || a.username) + '</b>' + (a.me ? ' <span class="badge badge-blue">siz</span>' : '') + '<div class="text-muted">' + esc(a.username) + '</div>' + link + postBtns + '<div>' + att + det + del + '</div></div></td>'
           + '<td data-label="Holat">' + (a.online ? '<span class="badge badge-green">Hozir kirgan</span>' : '<span class="badge badge-grey">' + esc(a.last_seen ? 'oxirgi: ' + this.ago(a.last_seen) : 'ma\'lumot yo\'q') + '</span>') + '</td>'
           + '<td data-label="Kompyuterlar" style="white-space:normal;min-width:190px"><div>' + (devs || '<span class="text-muted">—</span>') + '</div></td>'
           + '<td data-label="Bugun">' + (inMain || (a.today ? a.today + ' ta' : '—')) + '</td>'
@@ -3133,7 +3137,8 @@ const Accounts = {
       }).join('') + '</tbody></table></div>'
       + '<div class="field-help" style="margin-top:10px">Kompyuterlar shu yangilanishdan keyin yozila boshladi. Kirish kaliti kompyuterda saqlanadi — «hozir kirgan» oxirgi 5 daqiqadagi ishga qarab aniqlanadi.'
       + ' «Hisobotga qo\'shish» — o\'sha hisobning yozuvlari sizning hisobingizga o\'tadi; u o\'z logini bilan kiradi, lekin sizning hisobingizda ishlaydi (Jarayonda, Navbat, Qarzlar, Hisobot — umumiy).'
-      + ' «O\'chirish» — hisob va uning hamma ma\'lumoti bazadan butunlay o\'chadi (Maxsus parol so\'raladi). 1-POST va 2-POST bitta hisob ichida — har kompyuter tepadagi «POST» tugmasidan o\'z postini tanlaydi.</div>';
+      + ' «O\'chirish» — hisob va uning hamma ma\'lumoti bazadan butunlay o\'chadi (Maxsus parol so\'raladi). 1-POST va 2-POST bitta hisob ichida — har kompyuter tepadagi «POST» tugmasidan o\'z postini tanlaydi;'
+      + ' qo\'shilgan login esa o\'z postiga biriktiriladi («Posti») — qaysi kompyuterda kirmasin, ochgan vaqti va olgan puli o\'sha postga yoziladi.</div>';
   }
 };
 
@@ -3149,8 +3154,13 @@ const AccAttach = {
       + '<div id="aaBody">' + loadingLine('Tekshirilmoqda...') + '</div>');
     this.load(id);
   },
+  post: 2,
+  pickPost(n) {
+    this.post = Number(n) === 1 ? 1 : 2;
+    document.querySelectorAll('#aaPost .post-opt').forEach(b => b.classList.toggle('on', Number(b.dataset.n) === this.post));
+  },
   async load(id) {
-    try { this.data = await api('/accounts/attach-preview?id=' + encodeURIComponent(id)); }
+    try { this.data = await api('/accounts/attach-preview?id=' + encodeURIComponent(id)); this.post = Number(this.data && this.data.post) === 1 ? 1 : 2; }
     catch (e) { const b = $('aaBody'); if (b) b.innerHTML = emptyState('fa-triangle-exclamation', 'Yuklanmadi', e.message, true); return; }
     this.render();
   },
@@ -3169,7 +3179,11 @@ const AccAttach = {
     b.innerHTML = name
       + '<div style="margin:0 0 10px;padding:10px 12px;border-radius:10px;background:#ecfdf5;color:#065f46">'
       + '<b>' + who + '</b> bundan keyin o\'z logini va paroli bilan kiradi, lekin <b>' + esc(m.name || 'sizning') + '</b> hisobida ishlaydi:'
-      + ' kirgan-chiqqan mashinalar, navbat, qarzlar, Kunlik hisobot va Excel — hammasi bitta. Kompyuteri qaysi postda bo\'lsa (1-POST / 2-POST), pul o\'sha postga yoziladi.</div>'
+      + ' kirgan-chiqqan mashinalar, navbat, qarzlar, Kunlik hisobot va Excel — hammasi bitta.</div>'
+      + '<div class="field-label" style="margin-top:4px">Qaysi postda ishlaydi?</div>'
+      + '<div class="post-opts" id="aaPost" style="margin:6px 0 4px">' + [1, 2].map(n => '<button type="button" class="post-opt' + (n === this.post ? ' on' : '') + '" data-act="accAttachPost" data-n="' + n + '">'
+        + '<i class="fa-solid fa-cash-register" aria-hidden="true"></i><b>' + n + '-POST</b><small>' + (n === 1 ? 'birinchi kassa' : 'ikkinchi kassa') + '</small></button>').join('') + '</div>'
+      + '<div class="field-help" style="margin:0 0 8px">Qaysi kompyuterda kirmasin, <b>' + who + '</b> ochgan vaqt, olgan pul va xarajatlar shu postga yoziladi; hozirgacha yozganlari ham shu post bo\'lib o\'tadi. Keyin «Hisoblar»dan o\'zgartirsa bo\'ladi.</div>'
       + '<p class="text-muted" style="margin:0 0 6px">Hozirgacha yozganlari ham sizning hisobotingizga o\'tadi:</p>'
       + '<div class="cl-list">' + (groups || '<div class="cl-row"><b>Yozuvlari yo\'q</b><span class="cl-t"></span><span class="cl-m"></span></div>') + '</div>'
       + (num(d.money) > 0 ? '<div class="field-help" style="margin:6px 0;color:#065f46">Pul yozuvlari: <b>' + esc(money(d.money)) + '</b> — o\'z kunlari va postlari bo\'yicha hisobotingizga qo\'shiladi.</div>' : '')
@@ -3190,9 +3204,9 @@ const AccAttach = {
     setError('aaErr', '');
     await withBusy('accAttach', $('aaBtn'), async () => {
       try {
-        const r = await api('/accounts/attach', { method: 'POST', body: jsonBody({ id: a.id, password: $('aaPass').value }), timeout: 45000 });
+        const r = await api('/accounts/attach', { method: 'POST', body: jsonBody({ id: a.id, password: $('aaPass').value, post: this.post }), timeout: 45000 });
         closeModal();
-        toast('«' + (a.full_name || r.username) + '» hisobotingizga qo\'shildi — ' + num(r.sessions) + ' ta mashina yozuvi o\'tdi.');
+        toast('«' + (a.full_name || r.username) + '» hisobotingizga qo\'shildi (' + (num(r.post) || this.post) + '-POST) — ' + num(r.sessions) + ' ta mashina yozuvi o\'tdi.');
         Accounts.load();
         Active.load(true); Queue.sync(); Debts.load(true); Reports.loadDaily();
         Data.ensureToday(true).then(() => Active.renderKpi()).catch(() => {});
@@ -3202,6 +3216,18 @@ const AccAttach = {
         const p = $('aaPass'); if (p && e.data && e.data.field === 'password') { p.value = ''; p.focus(); $('aaBtn').disabled = true; }
       }
     });
+  },
+  /* Qo'shilgan loginning postini o'zgartirish (bundan keyingi yozuvlar uchun) */
+  async setPost(id, n) {
+    if (!Maxsus.isOpen()) { Maxsus.ask(() => this.setPost(id, n)); return; }
+    const a = ((Accounts.data || {}).accounts || []).find(x => x.id === id) || {};
+    if (num(a.post) === Number(n)) return;
+    if (!confirm('«' + (a.full_name || a.username || '') + '» endi ' + n + '-POST da ishlasinmi?\n\nBundan keyin u ochgan vaqt va olgan pul ' + n + '-POST ga yoziladi. O\'tgan yozuvlar o\'z postida qoladi.')) return;
+    try {
+      const r = await api('/accounts/post', { method: 'POST', body: jsonBody({ id, post: Number(n) }) });
+      toast('«' + (a.full_name || r.username) + '» — ' + r.post + '-POST.');
+      Accounts.load();
+    } catch (e) { toast(e.message, 'error'); }
   },
   async detach(id) {
     const a = ((Accounts.data || {}).accounts || []).find(x => x.id === id) || {};
@@ -3788,20 +3814,58 @@ function showLoginScreen() {
    HISOBOT varag'i 1-POST / 2-POST bo'lib chiqadi. */
 const Post = {
   KEY: 'avtodrom_post',
-  get() { try { return localStorage.getItem(this.KEY) === '2' ? 2 : 1; } catch (e) { return 1; } },
-  isSet() { try { return !!localStorage.getItem(this.KEY); } catch (e) { return true; } },
+  /* Asosiy hisobga qo'shilgan login (masalan, Ramziddin) o'z postiga
+     BIRIKTIRILGAN — kompyuterda tanlangan post emas, loginniki ishlaydi
+     (server ham shuni yozadi). Oddiy hisob — 0 (kompyuter tanlaydi). */
+  fixed() {
+    const u = STATE.auth && STATE.auth.user;
+    if (!u || !u.login_id || String(u.login_id) === String(u.id)) return 0;
+    const n = Math.round(Number(u.post));
+    return n >= 1 && n <= 9 ? n : 2;
+  },
+  get() {
+    const f = this.fixed(); if (f) return f;
+    try { return localStorage.getItem(this.KEY) === '2' ? 2 : 1; } catch (e) { return 1; }
+  },
+  isSet() { if (this.fixed()) return true; try { return !!localStorage.getItem(this.KEY); } catch (e) { return true; } },
   set(n) {
     try { localStorage.setItem(this.KEY, String(n === 2 ? 2 : 1)); } catch (e) { /* noop */ }
     this.render();
   },
-  label(n) { return (n === 2 ? 2 : 1) + '-POST'; },
+  label(n) { return (Math.round(Number(n)) || 1) + '-POST'; },
   render() {
+    const f = this.fixed();
     const t = $('postChipTxt'); if (t) t.textContent = this.label(this.get());
-    const c = $('postChip'); if (c) c.classList.toggle('p2', this.get() === 2);
+    const c = $('postChip');
+    if (c) {
+      c.classList.toggle('p2', this.get() === 2);
+      c.classList.toggle('fixed', !!f);
+      c.title = f ? 'Bu login ' + this.label(f) + ' ga biriktirilgan' : 'Bu kompyuter qaysi kassa (post)?';
+    }
+  },
+  /* Server aytgan post (yurak urishi): rahbar Hisoblar'da o'zgartirsa shu yerga keladi */
+  sync(post) {
+    const u = STATE.auth && STATE.auth.user;
+    if (!u || !u.login_id || String(u.login_id) === String(u.id)) return;
+    const n = Math.round(Number(post));
+    if (!(n >= 1 && n <= 9) || Number(u.post) === n) return;
+    u.post = n;
+    try { localStorage.setItem(CONFIG.USER_KEY, JSON.stringify(u)); } catch (e) { /* noop */ }
+    this.render();
   },
   /* Birinchi marta: «Bu kompyuter qaysi post?» */
   init() { this.render(); if (!this.isSet()) setTimeout(() => this.ask(true), 400); },
   ask(first) {
+    const f = this.fixed();
+    if (f) {
+      const u = STATE.auth.user || {};
+      openModal('<div class="modal-head"><div><h2>' + esc(this.label(f)) + '</h2>'
+        + '<p class="text-muted"><b>' + esc(u.full_name || u.username || 'Bu login') + '</b> ' + esc(this.label(f)) + ' ga biriktirilgan: qaysi kompyuterda kirmasin, ochgan vaqti, olgan puli va xarajatlari '
+        + esc(this.label(f)) + ' ga yoziladi va hisobotda shu post bo\'lib chiqadi.</p></div>'
+        + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+        + '<div class="field-help" style="text-align:center">Postni rahbar o\'zgartiradi: Maxsus bo\'lim → Boshqaruv → Hisoblar.</div>');
+      return;
+    }
     const b = n => '<button type="button" class="post-opt' + (this.get() === n && !first ? ' on' : '') + '" data-act="postSet" data-n="' + n + '">'
       + '<i class="fa-solid fa-cash-register" aria-hidden="true"></i><b>' + n + '-POST</b><small>' + (n === 1 ? 'birinchi kassa' : 'ikkinchi kassa') + '</small></button>';
     openModal('<div class="modal-head"><div><h2>Bu kompyuter qaysi kassa?</h2>'
@@ -6484,7 +6548,7 @@ const Queue = {
         if (pf && num(q.prepay.amount) > 0) payload[pf] = num(q.prepay.amount);
         let res;
         /* Oldindan to'langan bron/navbat — pul olingan post nomidan ochiladi */
-        const qHeaders = pf && num(q.prepay && q.prepay.amount) > 0 && (q.post === 1 || q.post === 2) ? { 'X-Post': String(q.post) } : {};
+        const qHeaders = pf && num(q.prepay && q.prepay.amount) > 0 && (q.post === 1 || q.post === 2) ? { 'X-Post': String(q.post), 'X-Post-Src': 'prepay' } : {};
         try { res = await api('/sessions/start', { method: 'POST', body: jsonBody(payload), headers: qHeaders }); }
         catch (e) {
           api('/queue/' + encodeURIComponent(id) + '/release', { method: 'POST', body: '{}' }).catch(() => {});
@@ -14738,6 +14802,8 @@ const ACTIONS = {
   accAttach: d => AccAttach.open(d.id),
   accAttachRun: () => AccAttach.run(),
   accDetach: d => AccAttach.detach(d.id),
+  accPost: d => AccAttach.setPost(d.id, d.n),
+  accAttachPost: d => AccAttach.pickPost(d.n),
   accDelRun: () => AccDel.run(),
   cleanupRun: () => Cleanup.run(),
   cleanupUndo: () => Cleanup.undo(),
@@ -14981,7 +15047,10 @@ function init() {
   /* Internetsiz rejim: navbatdagi amallar, sahifani kompyuterda saqlash */
   Outbox.init();
   /* «Hisoblar» uchun yurak urishi — sahifa orqada turganda ham daqiqada bir */
-  setInterval(() => { if (STATE.auth.token && navigator.onLine !== false) request('/accounts/ping', { timeout: 8000 }, 'user').catch(() => {}); }, 60000);
+  const ping = () => { if (STATE.auth.token && navigator.onLine !== false) request('/accounts/ping', { timeout: 8000 }, 'user').then(r => Post.sync(r && r.post)).catch(() => {}); };
+  setInterval(ping, 60000);
+  /* ochilishi bilan bir marta — qo'shilgan loginning posti darhol to'g'ri ko'rinsin */
+  setTimeout(ping, 1500);
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname))) {
     const reg = () => navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(e => console.warn('[sw]', e && e.message));
     if (document.readyState === 'complete') reg(); else window.addEventListener('load', reg);

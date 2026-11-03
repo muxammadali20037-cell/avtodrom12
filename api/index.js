@@ -26,7 +26,7 @@ import { SW_SOURCE } from "./sw-source.js";
 import { handleTelegramRequest, tgFlushIfAny } from "./telegram.js";
 import { handleCleanupRequest, cleanupAllOnce } from "./cleanup-routes.js";
 import { handleEntryRequest, guardAuth } from "./entry-routes.js";
-import { handleAccountsRequest, trackActivity, tokenProblem } from "./accounts-routes.js";
+import { handleAccountsRequest, trackActivity, tokenProblem, applyLoginPost } from "./accounts-routes.js";
 
 const rootFrontend = new URL("../index.html", import.meta.url);
 const backupFrontend = new URL("../index.backup.html", import.meta.url);
@@ -68,6 +68,9 @@ export default async function handler(req, res) {
       res.setHeader("Content-Type", "application/json; charset=utf-8");
       return res.end(JSON.stringify(tp));
     }
+    /* Asosiy hisobga qo'shilgan login (masalan, Ramziddin — 2-POST): kompyuterda
+       qaysi post tanlangan bo'lmasin, yozuvlar loginning o'z postiga tushadi */
+    try { await applyLoginPost(req); } catch (e) { console.error("LOGIN POST:", e.message); }
   }
   /* Vaqti tugagan «1 soatga» kabi yozuvlar faol ro'yxat / hisobotdan oldin yopiladi */
   try { await sweepForRequest(req); } catch (e) { console.error("AUTO CLOSE:", e.message); }

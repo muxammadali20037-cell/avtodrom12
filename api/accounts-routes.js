@@ -30,6 +30,15 @@
             sub = asosiy hisob, act = kirgan login.
      POST /api/accounts/detach  { id }  — loginni ajratish (yozuvlar asosiy
             hisobda qoladi, login keyin o'z bo'sh hisobida ishlaydi)
+     POST /api/accounts/post  { id, post }  — qo'shilgan login qaysi postda
+            (1-POST / 2-POST) ishlashi
+
+   LOGIN POSTI: asosiy hisobga qo'shilgan login o'z postiga BIRIKTIRILADI
+   (users.post; qo'shilganda tanlanadi, tanlanmasa — 2-POST). U qaysi
+   kompyuterda kirmasin, ochgan vaqti, olgan puli, qarz to'lovi va
+   xarajati shu postga yoziladi: server har so'rovda X-Post ni loginning
+   postiga almashtiradi (applyLoginPost). Hisobot, Excel, Telegram va
+   boshliq ilovasining «Platniy» bo'limida «2-POST · Ramziddin» bo'lib chiqadi.
    ========================================================================== */
 
 import jwt from 'jsonwebtoken';
@@ -106,28 +115,65 @@ function ensureParentCol() {
   if (parentP) return parentP;
   parentP = runOnce('users-parent-v1', async () => {
     await ddl(`ALTER TABLE users ADD COLUMN IF NOT EXISTS parent_id TEXT`);
-  }).catch(e => { parentP = null; throw e; });
+  }).then(() => runOnce('users-post-v1', async () => {
+    /* Qo'shilgan login qaysi postda ishlaydi (NULL — 2-POST) */
+    await ddl(`ALTER TABLE users ADD COLUMN IF NOT EXISTS post SMALLINT`);
+  })).catch(e => { parentP = null; throw e; });
   return parentP;
+}
+
+/* Qo'shilgan loginning posti: tanlanmagan bo'lsa — 2-POST (asosiy hisob odatda 1-POST) */
+export const DEFAULT_LOGIN_POST = 2;
+export function loginPost(v) {
+  const n = Math.round(Number(v));
+  return n >= 1 && n <= 9 ? n : DEFAULT_LOGIN_POST;
 }
 
 /* Kalitlar holati (token 30 kun amal qiladi): o'chirilgan hisob — darhol
    yaroqsiz; asosiy hisobga qo'shilgan / ajratilgan login — qayta kirsin.
    Ro'yxat har serverda 20 soniyada bir yangilanadi. */
-let delSet = new Set(), parentMap = new Map(), delAt = 0, delLoad = null;
+let delSet = new Set(), parentMap = new Map(), postMap = new Map(), delAt = 0, delLoad = null;
 async function accState() {
-  if (Date.now() - delAt < 20000) return { deleted: delSet, parent: parentMap };
+  if (Date.now() - delAt < 20000) return { deleted: delSet, parent: parentMap, post: postMap };
   if (!delLoad) delLoad = (async () => {
     await ensureDelSchema(); await ensureParentCol();
     const [d, p] = await Promise.all([
       pool.query(`SELECT user_id FROM deleted_accounts`),
-      pool.query(`SELECT id::text AS id, parent_id FROM users WHERE parent_id IS NOT NULL`)
+      pool.query(`SELECT id::text AS id, parent_id, (to_jsonb(users)->>'post') AS post FROM users WHERE parent_id IS NOT NULL`)
     ]);
     delSet = new Set(d.rows.map(x => String(x.user_id)));
     parentMap = new Map(p.rows.map(x => [x.id, String(x.parent_id)]));
+    postMap = new Map(p.rows.map(x => [x.id, loginPost(x.post)]));
     delAt = Date.now();
   })().finally(() => { delLoad = null; });
   await delLoad;
-  return { deleted: delSet, parent: parentMap };
+  return { deleted: delSet, parent: parentMap, post: postMap };
+}
+
+/* Qo'shilgan loginning biriktirilgan posti (oddiy hisob — null) */
+export async function fixedPostOf(req) {
+  const p = payloadOf(req);
+  if (!p || !p.act || String(p.act) === String(p.sub)) return null;
+  let st;
+  try { st = await accState(); } catch { return null; }
+  if (st.parent.get(String(p.act)) !== String(p.sub)) return null;
+  return st.post.get(String(p.act)) || DEFAULT_LOGIN_POST;
+}
+
+/* Har /api so'rovida (kalit tekshirilgandan keyin): qo'shilgan login uchun
+   X-Post — uning posti. Kompyuterda boshqa post tanlangan bo'lsa ham,
+   internetsiz yozilib keyin yuborilgan amal bo'lsa ham — pul va vaqt
+   loginning o'z postiga yoziladi. */
+export async function applyLoginPost(req) {
+  const fp = await fixedPostOf(req);
+  if (!fp || !req.headers) return fp;
+  /* ISTISNO: oldindan to'langan navbat/bron ochilganda kassa pul OLINGAN
+     postni yuboradi (X-Post-Src: prepay) — pul o'z postida qolsin */
+  const src = String(req.headers['x-post-src'] || '').toLowerCase();
+  const given = Math.round(Number(req.headers['x-post']));
+  if (src === 'prepay' && given >= 1 && given <= 9) return fp;
+  req.headers['x-post'] = String(fp);
+  return fp;
 }
 /* null — kalit joyida; aks holda 401 javob tanasi */
 export async function tokenProblem(req) {
@@ -178,7 +224,7 @@ async function activity(res, me) {
   await ensureSchema(); await ensureParentCol();
   const TZ = 'Asia/Tashkent';
   const [users, acts, sess] = await Promise.all([
-    pool.query(`SELECT id::text AS id, username, full_name, role, created_at, parent_id FROM users ORDER BY created_at`),
+    pool.query(`SELECT id::text AS id, username, full_name, role, created_at, parent_id, (to_jsonb(users)->>'post') AS post FROM users ORDER BY created_at`),
     pool.query(`SELECT user_id, device_id, first_seen, last_seen, ip, ua, post, hits,
         EXTRACT(EPOCH FROM (now() - last_seen))::int AS ago FROM user_activity ORDER BY last_seen DESC`),
     pool.query(`SELECT user_id::text AS user_id, COUNT(*)::int AS total,
@@ -206,7 +252,9 @@ async function activity(res, me) {
       online: devs.some(d => d.online), devices: devs, last_seen: devs[0] ? devs[0].last_seen : null,
       open: Number(s.open || 0), today: Number(s.today || 0), total: Number(s.total || 0), last_session: s.last_session || null,
       parent_id: u.parent_id ? String(u.parent_id) : null, parent_name: u.parent_id ? (names.get(String(u.parent_id)) || null) : null,
-      children: kids.get(u.id) || 0 };
+      children: kids.get(u.id) || 0,
+      /* qo'shilgan login — o'z postiga biriktirilgan */
+      post: u.parent_id ? loginPost(u.post) : null };
     t.block = blockOf(me, t, myTotal);
     t.can_delete = !t.block;
     t.attach_block = attachBlockOf(me, t, myTotal);
@@ -449,7 +497,8 @@ async function attachPreview(req, res, me) {
   json(res, 200, {
     account: { id: t.id, username: t.username, full_name: t.full_name, created_at: t.created_at },
     main: { id: me, name: mine.rows[0] ? mine.rows[0].name : '' },
-    total: t.total, open: t.open, money, groups, block, can_attach: !block
+    total: t.total, open: t.open, money, groups, block, can_attach: !block,
+    post: DEFAULT_LOGIN_POST
   });
 }
 
@@ -463,10 +512,12 @@ async function attach(req, res, me) {
   const pw = await checkMaxsusPassword(me, b.password);
   if (!pw.ok) return json(res, pw.status, Object.assign({ field: 'password' }, pw.body));
 
+  /* Qaysi postda ishlaydi: tanlanmasa — 2-POST */
+  const post = loginPost(b.post);
   const tgToken = await tgTokenFor(t.id);
   const ownerTo = WS() || me;
   const moved = {};
-  let total = 0, merged = 0;
+  let total = 0, merged = 0, relabeled = 0;
   const c = await pool.connect();
   try {
     await c.query('BEGIN');
@@ -502,6 +553,18 @@ async function attach(req, res, me) {
       try { await c.query(`DELETE FROM ${qi(tb)} WHERE user_id::text = $1`, [t.id]); await c.query('RELEASE SAVEPOINT d'); }
       catch { await c.query('ROLLBACK TO SAVEPOINT d'); }
     }
+    /* 2b) Uning yozuvlari — o'z postiga: asosiy hisobda 1-POST bilan
+           aralashib ketmasin (ochgan vaqti, olgan puli, qarz to'lovi, xarajati) */
+    for (const [tb, sql] of [
+      ['sessions', `UPDATE sessions SET post = $2::smallint, pay_post = CASE WHEN pay_post IS NULL THEN NULL ELSE $2::smallint END WHERE user_id::text = $1`],
+      ['debt_payments', `UPDATE debt_payments SET post = $2::smallint WHERE user_id::text = $1`],
+      ['expenses', `UPDATE expenses SET post = $2::smallint WHERE user_id::text = $1`],
+    ]) {
+      if (!(await c.query(`SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name = 'post'`, [tb])).rows[0]) continue;
+      await c.query('SAVEPOINT p');
+      try { const r = await c.query(sql, [t.id, post]); await c.query('RELEASE SAVEPOINT p'); if (tb === 'sessions') relabeled = r.rowCount; }
+      catch { await c.query('ROLLBACK TO SAVEPOINT p'); }
+    }
     /* 3) Qolgan hamma yozuv — asosiy hisobga */
     for (const x of await userTables(c)) {
       if (DROP_ON_ATTACH.includes(x.t) || KEEP_ON_ATTACH.includes(x.t) || !MOVABLE.has(String(x.dt))) continue;
@@ -515,7 +578,7 @@ async function attach(req, res, me) {
         throw Object.assign(new Error('«' + x.t + '» jadvalidagi yozuvlarni ko‘chirib bo‘lmadi: ' + (e.detail || e.message)), { status: 409 });
       }
     }
-    await c.query(`UPDATE users SET parent_id = $2 WHERE id::text = $1`, [t.id, me]);
+    await c.query(`UPDATE users SET parent_id = $2, post = $3::smallint WHERE id::text = $1`, [t.id, me, post]);
     await c.query('COMMIT');
   } catch (e) {
     try { await c.query('ROLLBACK'); } catch { /* noop */ }
@@ -523,11 +586,31 @@ async function attach(req, res, me) {
     return json(res, e.status || 500, { error: e.status ? e.message : 'Qo‘shishda xatolik — hech narsa o‘zgarmadi: ' + e.message });
   } finally { c.release(); }
 
-  parentMap.set(t.id, me); delAt = 0;
+  parentMap.set(t.id, me); postMap.set(t.id, post); delAt = 0;
   if (tgToken) await tgForget(t.id, tgToken);
   await logChange(null, me, { entity: 'account', action: 'attach', entityId: t.id, entityName: t.username,
-    reason: 'Hisob asosiy hisobga qo‘shildi: ' + (t.full_name || t.username) + ' (' + t.username + '), ' + total + ' ta yozuv ko‘chdi' });
-  json(res, 200, { ok: true, username: t.username, rows: total, sessions: moved.sessions || 0, vehicles_merged: merged, tables: moved });
+    reason: 'Hisob asosiy hisobga qo‘shildi: ' + (t.full_name || t.username) + ' (' + t.username + '), ' + post + '-POST, ' + total + ' ta yozuv ko‘chdi' });
+  json(res, 200, { ok: true, username: t.username, post, rows: total, sessions: moved.sessions || 0, relabeled, vehicles_merged: merged, tables: moved });
+}
+
+/* Qo'shilgan login postini o'zgartirish — bundan keyingi yozuvlar uchun
+   (o'tgan yozuvlar o'z postida qoladi: kassa hisobotlari o'zgarmasin) */
+async function setPost(req, res, me) {
+  await ensureParentCol();
+  const b = await readBody(req);
+  const n = Math.round(Number(b.post));
+  if (!(n >= 1 && n <= 9)) return json(res, 400, { error: 'Post 1 yoki 2 bo‘lishi kerak' });
+  const t = await targetOf(b.id);
+  if (!t) return json(res, 404, { error: 'Hisob topilmadi' });
+  if (t.parent_id !== me) return json(res, 409, { error: 'Bu login sizning hisobingizga qo‘shilmagan — postni faqat qo‘shilgan loginga biriktirsa bo‘ladi' });
+  const old = loginPost((await pool.query(`SELECT (to_jsonb(users)->>'post') AS post FROM users WHERE id::text = $1`, [t.id])).rows[0]?.post);
+  await pool.query(`UPDATE users SET post = $2::smallint WHERE id::text = $1 AND parent_id = $3`, [t.id, n, me]);
+  postMap.set(t.id, n); delAt = 0;
+  if (old !== n) {
+    await logChange(null, me, { entity: 'account', action: 'post', entityId: t.id, entityName: t.username, field: 'post',
+      oldValue: old + '-POST', newValue: n + '-POST', reason: (t.full_name || t.username) + ' endi ' + n + '-POST da ishlaydi' });
+  }
+  json(res, 200, { ok: true, username: t.username, post: n });
 }
 
 async function detach(req, res, me) {
@@ -551,7 +634,8 @@ export async function handleAccountsRequest(req, res) {
   const user = userOf(req);
   if (!user) { json(res, 401, { error: 'Kirish talab qilinadi' }); return true; }
   try {
-    if (path === '/api/accounts/ping' && req.method === 'GET') { json(res, 200, { ok: true }); return true; }
+    /* Yurak urishi + shu loginning biriktirilgan posti (kassa tepasidagi «2-POST» belgisi uchun) */
+    if (path === '/api/accounts/ping' && req.method === 'GET') { json(res, 200, { ok: true, post: await fixedPostOf(req) }); return true; }
     if (path === '/api/accounts/activity' && req.method === 'GET') {
       if (!maxsusOk(req, user)) { lockedResponse(res); return true; }
       await activity(res, user);
@@ -575,6 +659,11 @@ export async function handleAccountsRequest(req, res) {
     if (path === '/api/accounts/attach' && req.method === 'POST') {
       if (!maxsusOk(req, user)) { lockedResponse(res); return true; }
       await attach(req, res, user);
+      return true;
+    }
+    if (path === '/api/accounts/post' && req.method === 'POST') {
+      if (!maxsusOk(req, user)) { lockedResponse(res); return true; }
+      await setPost(req, res, user);
       return true;
     }
     if (path === '/api/accounts/detach' && req.method === 'POST') {
