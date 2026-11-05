@@ -162,6 +162,8 @@ export async function handleCompatRequest(req, res) {
        bloki hech qachon ishlamasdi — so'rov Express'ga o'tib 404 berardi. */
     (req.method === 'POST' && /^\/api\/sessions\/[^/]+\/cancel$/.test(pathname)) ||
     (req.method === 'POST' && pathname === '/api/group-bulk') ||
+    (req.method === 'GET' && pathname === '/api/student-batches') ||
+    (req.method === 'POST' && pathname === '/api/student-batches/undo') ||
     (req.method === 'GET' && pathname === '/api/duplicates') ||
     (req.method === 'POST' && pathname === '/api/duplicates/merge') ||
     (req.method === 'GET' && pathname === '/api/students') ||
@@ -1038,6 +1040,20 @@ export async function handleCompatRequest(req, res) {
       const added=[],skipped=[];
       try{
         await c.query('BEGIN');
+        /* Ro'yxat importi (`onlyEmpty`) — o'quvchisi bor guruhga USTIDAN
+           qo'shilmaydi: boshqa guruh bilan aralashib ketmasin (05.11.2026).
+           Guruh qatori qulflanadi — ikki kompyuter bir vaqtda yuborsa ham
+           faqat birinchisi o'tadi. */
+        if(body.onlyEmpty && groupId){
+          await c.query(`SELECT id FROM school_groups WHERE id=$1 FOR UPDATE`,[groupId]);
+          const busy=await c.query(`SELECT COUNT(*)::int n FROM students WHERE owner_key=$1 AND group_id=$2 AND active=true`,[user,groupId]);
+          const n=Number(busy.rows[0]?.n||0);
+          if(n>0){
+            await c.query('ROLLBACK');
+            send(res,409,{error:`Bu guruhda ${n} ta o‘quvchi bor — ustiga qo‘shilmadi`,groupBusy:true,existing:n});
+            return true;
+          }
+        }
         for(const row of valid){
           /* Shu guruhda AYNAN shunday ism bor bo'lsa qayta yozmaymiz —
              ro'yxat ikki marta yopishtirilsa nusxa paydo bo'lmaydi. */
@@ -1058,6 +1074,76 @@ export async function handleCompatRequest(req, res) {
         await c.query('COMMIT');
       }catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}
       send(res,201,{ok:true,added:added.length,skipped:skipped.length,skippedNames:skipped.slice(0,20),errors});return true;
+    }
+
+    /* ===== OXIRGI QO'SHILGANLAR (import tarixi) =====
+       Bir importda (bitta tranzaksiya) yozilgan o'quvchilarning
+       `created_at` i bir xil (NOW() — tranzaksiya vaqti). Shu bo'yicha
+       guruhlab, oxirgi 30 kundagi ro'yxatlar ko'rsatiladi. Qo'shimcha
+       ustun kerak emas — ilgari qilingan importlar ham ko'rinadi.
+       `older` — shu guruhda import'dan OLDIN bor bo'lgan o'quvchilar:
+       noldan katta bo'lsa, ro'yxat boshqa guruh ustiga qo'shilgan. */
+    if(req.method==='GET'&&pathname==='/api/student-batches'){
+      const r=await pool.query(`
+        SELECT s.created_at::text AS k, s.created_at AS at, s.school_id, d.name AS school_name,
+               s.group_id, g.name AS group_name, COUNT(*)::int AS n,
+               (ARRAY_AGG(s.full_name ORDER BY s.full_name))[1:3] AS sample,
+               (SELECT COUNT(*)::int FROM students o
+                 WHERE o.owner_key=s.owner_key AND o.group_id=s.group_id AND o.active=true
+                   AND o.created_at<s.created_at) AS older
+          FROM students s
+          LEFT JOIN driving_schools d ON d.id=s.school_id
+          LEFT JOIN school_groups g ON g.id=s.group_id
+         WHERE s.owner_key=$1 AND s.active=true AND s.created_at > NOW() - INTERVAL '30 days'
+         GROUP BY s.created_at, s.owner_key, s.school_id, d.name, s.group_id, g.name
+        HAVING COUNT(*)>=2
+         ORDER BY s.created_at DESC
+         LIMIT 40`,[user]);
+      send(res,200,{rows:r.rows});return true;
+    }
+
+    /* Bitta importni bekor qilish: o'sha ro'yxat o'quvchilari o'chiriladi
+       (active=false — boshqa joylardagi o'chirish kabi). Davomati yoki
+       QR cheki bor o'quvchiga TEGILMAYDI — u alohida aytiladi. */
+    if(req.method==='POST'&&pathname==='/api/student-batches/undo'){
+      const body=bodyOf(req);
+      const key=String(body.key||'').trim();
+      const groupId=body.groupId?String(body.groupId).trim():null;
+      if(!/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,6})?([+-]\d{2}(:?\d{2})?|Z)?$/.test(key)){send(res,400,{error:'Ro‘yxat tanlanmagan'});return true;}
+      if(groupId&&!/^[0-9a-f-]{36}$/i.test(groupId)){send(res,400,{error:'Guruh noto‘g‘ri'});return true;}
+      const c=await pool.connect();
+      try{
+        await c.query('BEGIN');
+        const list=(await c.query(`
+          SELECT s.id, s.full_name, g.name AS group_name, d.name AS school_name
+            FROM students s
+            LEFT JOIN school_groups g ON g.id=s.group_id
+            LEFT JOIN driving_schools d ON d.id=s.school_id
+           WHERE s.owner_key=$1 AND s.active=true AND s.created_at=$2::timestamptz
+             AND s.group_id IS NOT DISTINCT FROM $3::uuid
+           FOR UPDATE OF s`,[user,key,groupId])).rows;
+        if(!list.length){
+          await c.query('ROLLBACK');
+          send(res,404,{error:'Bu ro‘yxat topilmadi — allaqachon bekor qilingan bo‘lishi mumkin'});return true;
+        }
+        const ids=list.map(x=>String(x.id));
+        const used=new Set((await c.query(`SELECT DISTINCT student_id::text AS id FROM sessions
+            WHERE student_id::text=ANY($1::text[]) AND COALESCE(status,'')<>'cancelled'`,[ids])).rows.map(x=>x.id));
+        const rc=(await c.query(`SELECT to_regclass('public.receipts') AS t`)).rows[0].t;
+        if(rc){
+          (await c.query(`SELECT DISTINCT student_id::text AS id FROM receipts
+              WHERE student_id::text=ANY($1::text[]) AND COALESCE(status,'')<>'cancelled'`,[ids])).rows.forEach(x=>used.add(x.id));
+        }
+        const drop=ids.filter(id=>!used.has(id));
+        if(drop.length) await c.query(`UPDATE students SET active=false WHERE id=ANY($1::uuid[]) AND owner_key=$2`,[drop,user]);
+        const kept=list.filter(x=>used.has(String(x.id))).map(x=>x.full_name);
+        await logChange(c,user,{entity:'student_batch',entityId:groupId||'',entityName:(list[0].school_name||'')+' · '+(list[0].group_name||'guruhsiz'),
+          action:'undo_import',field:'o‘quvchilar',oldValue:list.length+' ta qo‘shilgan edi',
+          newValue:drop.length+' tasi o‘chirildi'+(kept.length?', '+kept.length+' tasi qoldi (davomati bor)':''),
+          reason:'Import bekor qilindi'});
+        await c.query('COMMIT');
+        send(res,200,{ok:true,removed:drop.length,kept:kept.length,keptNames:kept.slice(0,20)});return true;
+      }catch(e){try{await c.query('ROLLBACK');}catch{} throw e;}finally{c.release();}
     }
 
     return false;

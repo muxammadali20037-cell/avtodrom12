@@ -970,6 +970,14 @@ body.admin-open { overflow: hidden; }
 .import-stats .bad b { color: var(--red); }
 .import-preview { max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
 .import-preview table { min-width: 640px; }
+.rb-list { max-height: 60vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+.rb-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.rb-item:last-child { border-bottom: 0; }
+.rb-item.mixed { background: var(--red-surface); }
+.rb-main { flex: 1 1 320px; min-width: 0; }
+.rb-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+.rb-meta { color: var(--muted); font-size: 12.5px; margin-top: 3px; overflow-wrap: anywhere; }
+.rb-warn { color: var(--red); font-size: 12.5px; font-weight: 600; margin-top: 3px; }
 .row-bad td { background: var(--red-surface); }
 .row-dup td { background: var(--amber-surface); }
 
@@ -13316,14 +13324,18 @@ const Roster = {
     const totalStudents = this.groups.reduce((a, g) => a + g.rows.length, 0);
     const totalDups = this.groups.reduce((a, g) => a + g.dups, 0);
 
-    const rowsHTML = this.groups.map(g => {
+    this.groups.forEach(g => { g.rename = ''; g.go = false; });
+    this.done = false;
+    const rowsHTML = this.groups.map((g, i) => {
       const withDate = g.rows.filter(r => r.birthDate).length;
       const withLessons = g.rows.filter(r => r.lessons > 0).length;
       return '<tr><td><b>' + esc(g.name) + '</b></td>'
         + '<td>' + g.rows.length + '</td>'
         + '<td>' + withDate + '</td>'
         + '<td>' + withLessons + '</td>'
-        + '<td class="rosterState" data-g="' + esc(g.name) + '"></td></tr>';
+        + '<td class="rosterState" data-i="' + i + '"><span class="rs-badge"></span>'
+        + '<div class="rs-rename hidden"><div class="field-help" style="margin:6px 0 4px">Ustiga qo\'shilmaydi. Bu yangi guruh bo\'lsa — boshqa nom yozing:</div>'
+        + '<input class="roster-rename" data-i="' + i + '" maxlength="40" autocomplete="off" placeholder="masalan ' + esc(g.name) + '-2" style="max-width:160px"></div></td></tr>';
     }).join('');
 
     openModal('<div class="modal-head"><div><h2>Guruhli ro\'yxatni import qilish</h2>'
@@ -13339,24 +13351,71 @@ const Roster = {
       + '</tr></thead><tbody>' + rowsHTML + '</tbody></table></div>'
       + (totalDups ? '<div class="field-help">Faylning o\'zida ' + totalDups + ' ta takroriy ism bor edi — bir marta olinadi.</div>' : '')
       + (this.skipped.length ? '<div class="field-help">' + this.skipped.length + ' ta qator guruhsiz qolgani uchun tashlab ketildi.</div>' : '')
+      + '<div id="rosterBusyNote" class="text-error hidden" style="margin-top:10px;font-weight:600"></div>'
       + '<div class="actions-row"><button class="btn btn-green" type="button" data-act="rosterRun" id="rosterBtn">'
       + '<span class="spinner"></span><i class="fa-solid fa-file-import btn-icon" aria-hidden="true"></i>'
       + '<span class="btn-text">' + totalStudents + ' ta o\'quvchini import qilish</span></button>'
       + '<button class="btn btn-ghost" type="button" data-act="closeModal">Bekor qilish</button></div>'
       + '<div id="rosterProgress" class="text-muted" style="margin-top:10px"></div>', { wide: true });
-    this.markExisting();
-  },
-  /* Qaysi guruh bazada bor, qaysisi yangi ochiladi */
-  markExisting() {
-    const sid = this.schoolId;
-    document.querySelectorAll('.rosterState').forEach(td => {
-      const name = td.dataset.g;
-      const g = (STATE.groups || []).find(x => String(x.school_id || x.schoolId) === String(sid)
-        && lower(String(x.name).trim()) === lower(String(name).trim()));
-      td.innerHTML = g
-        ? '<span class="badge badge-green">Bor</span>'
-        : '<span class="badge badge-blue">Yangi ochiladi</span>';
+    document.querySelectorAll('.roster-rename').forEach(el => {
+      el.addEventListener('input', () => {
+        const g = this.groups[Number(el.dataset.i)];
+        if (g) { g.rename = el.value; this.markExisting(); }
+      });
     });
+    this.markExisting();
+    /* Guruhlardagi o'quvchilar soni eskirgan bo'lishi mumkin — yangilab olamiz */
+    this.setSchool(this.schoolId);
+  },
+  /* Guruh holati: «new» — yangi ochiladi, «empty» — bor, lekin bo'sh,
+     «busy» — o'quvchilari bor (ustiga QO'SHILMAYDI, 05.11.2026) */
+  groupState(name) {
+    const n = lower(String(name || '').trim());
+    if (!n) return { kind: 'none' };
+    const g = (STATE.groups || []).find(x => String(x.school_id || x.schoolId) === String(this.schoolId)
+      && lower(String(x.name).trim()) === n);
+    if (!g) return { kind: 'new' };
+    let cnt = Number(g.student_count);
+    if (!Number.isFinite(cnt)) cnt = (STATE.students || []).filter(s => String(s.group_id || s.groupId) === String(g.id) && s.active !== false).length;
+    return cnt > 0 ? { kind: 'busy', n: cnt, g: g } : { kind: 'empty', g: g };
+  },
+  /* Qaysi guruh bazada bor, qaysisi yangi ochiladi, qaysisi band */
+  markExisting() {
+    let busy = 0, goStudents = 0, goGroups = 0;
+    document.querySelectorAll('.rosterState').forEach(td => {
+      const g = this.groups[Number(td.dataset.i)];
+      if (!g) return;
+      const own = this.groupState(g.name);
+      const box = td.querySelector('.rs-rename'), badge = td.querySelector('.rs-badge');
+      const renamed = own.kind === 'busy' && String(g.rename || '').trim();
+      if (box) box.classList.toggle('hidden', own.kind !== 'busy');
+      let st = own, html;
+      if (own.kind === 'busy' && !renamed) {
+        html = '<span class="badge badge-red">Bu guruhda ' + own.n + ' ta o\'quvchi bor</span>';
+      } else {
+        if (renamed) st = this.groupState(renamed);
+        html = st.kind === 'busy'
+          ? '<span class="badge badge-red">«' + esc(renamed) + '» guruhida ham ' + st.n + ' ta o\'quvchi bor</span>'
+          : st.kind === 'empty' ? '<span class="badge badge-green">Bor (bo\'sh)</span>'
+          : '<span class="badge badge-blue">' + (renamed ? '«' + esc(renamed) + '» yangi ochiladi' : 'Yangi ochiladi') + '</span>';
+      }
+      g.go = st.kind === 'new' || st.kind === 'empty';
+      if (own.kind === 'busy') busy++;
+      if (g.go) { goGroups++; goStudents += g.rows.length; }
+      if (badge) badge.innerHTML = html;
+    });
+    const note = $('rosterBusyNote');
+    if (note) {
+      note.classList.toggle('hidden', !busy);
+      note.innerHTML = busy ? '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ' + busy
+        + ' ta guruhda o\'quvchilar bor — ularning ustiga qo\'shilmaydi (boshqa guruh bilan aralashib ketmasin).' : '';
+    }
+    const btn = $('rosterBtn');
+    if (btn && !btn.classList.contains('is-busy')) {
+      btn.disabled = !goStudents;
+      const t = btn.querySelector('.btn-text');
+      if (t) t.textContent = goStudents ? goStudents + ' ta o\'quvchini import qilish' : 'Qo\'shiladigan guruh yo\'q';
+    }
   },
   async setSchool(id) {
     this.schoolId = String(id);
@@ -13369,24 +13428,33 @@ const Roster = {
   async run() {
     const sid = this.schoolId;
     if (!sid) { toast('Avtoshkolani tanlang.', 'error'); return; }
+    if (this.done) { toast('Bu ro\'yxat allaqachon import qilindi.', 'warn'); return; }
     await withBusy('roster', $('rosterBtn'), async () => {
       const prog = $('rosterProgress');
       await Data.reloadGroups(sid).catch(() => null);
+      this.markExisting();
       let added = 0, skipped = 0, madeGroups = 0, failed = 0, lastError = '';
+      const blocked = [];
+      const todo = this.groups.filter(g => g.go);
 
-      for (let i = 0; i < this.groups.length; i++) {
-        const g = this.groups[i];
-        if (prog) prog.textContent = 'Guruh ' + g.name + ' (' + (i + 1) + '/' + this.groups.length + ')...';
+      for (let i = 0; i < todo.length; i++) {
+        const g = todo[i];
+        const own = this.groupState(g.name);
+        const name = own.kind === 'busy' ? String(g.rename || '').trim() : g.name;
+        if (prog) prog.textContent = 'Guruh ' + name + ' (' + (i + 1) + '/' + todo.length + ')...';
         try {
-          /* Guruh bor-yo'qligini tekshiramiz, bo'lmasa ochamiz */
-          let found = (STATE.groups || []).find(x => String(x.school_id || x.schoolId) === String(sid)
-            && lower(String(x.name).trim()) === lower(String(g.name).trim()));
+          /* Guruh bor-yo'qligini tekshiramiz, bo'lmasa ochamiz.
+             O'quvchisi bor guruhga ustidan qo'shilmaydi. */
+          const st = this.groupState(name);
+          if (st.kind === 'busy' || st.kind === 'none') { blocked.push(name + ' (' + (st.n || 0) + ' ta)'); continue; }
+          let found = st.g;
           if (!found) {
             const created = await api('/groups', {
               method: 'POST',
-              body: jsonBody({ schoolId: sid, school_id: sid, name: g.name })
+              body: jsonBody({ schoolId: sid, school_id: sid, name: name })
             });
             if (created && created.id) {
+              created.student_count = 0;
               STATE.groups.push(created);
               found = created;
               madeGroups++;
@@ -13396,30 +13464,94 @@ const Roster = {
 
           const res = await api('/student-bulk', {
             method: 'POST',
-            body: jsonBody({ schoolId: sid, groupId: found.id, rows: g.rows })
+            body: jsonBody({ schoolId: sid, groupId: found.id, rows: g.rows, onlyEmpty: true })
           });
           added += num(res && res.added);
           skipped += num(res && res.skipped);
+          found.student_count = num(found.student_count) + num(res && res.added);
         } catch (e) {
+          if (e.status === 409) { blocked.push(name); continue; }
           failed += g.rows.length;
-          lastError = (g.name + '-guruh: ' + (e.message || 'xato'));
-          console.error('[roster]', g.name, e.technical || e.message);
+          lastError = (name + '-guruh: ' + (e.message || 'xato'));
+          console.error('[roster]', name, e.technical || e.message);
         }
       }
+      this.groups.filter(g => !g.go).forEach(g => {
+        const st = this.groupState(g.name);
+        blocked.push(g.name + (st.n ? ' (' + st.n + ' ta)' : ''));
+      });
 
       if (prog) {
         prog.innerHTML = '<b>' + added + '</b> ta o\'quvchi qo\'shildi, '
-          + '<b>' + skipped + '</b> tasi bazada bor edi, '
           + '<b>' + madeGroups + '</b> ta yangi guruh ochildi'
+          + (skipped ? ', <b>' + skipped + '</b> tasi takror edi' : '')
           + (failed ? ', <b>' + failed + '</b> tasida xato' : '') + '.'
-          + (lastError ? '<div class="text-error" style="margin-top:6px">' + esc(lastError) + '</div>' : '');
+          + (blocked.length ? '<div class="text-error" style="margin-top:6px"><b>Qo\'shilmadi — guruhda o\'quvchilar bor:</b> '
+            + esc(blocked.join(', ')) + '</div>' : '')
+          + (lastError ? '<div class="text-error" style="margin-top:6px">' + esc(lastError) + '</div>' : '')
+          + '<div style="margin-top:8px"><button class="btn btn-light btn-sm" type="button" data-act="rosterHistory">'
+          + '<i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Oxirgi qo\'shilganlar (bekor qilish)</button></div>';
       }
-      toast(added + ' ta o\'quvchi import qilindi.', failed ? 'warn' : 'ok');
+      toast(added + ' ta o\'quvchi import qilindi.' + (blocked.length ? ' ' + blocked.length + ' ta guruh band — qo\'shilmadi.' : ''),
+        failed || blocked.length ? 'warn' : 'ok');
+      /* Hammasi xato bo'lsa (internet) — qayta bosish mumkin */
+      this.done = !failed || added > 0;
+      const rb = $('rosterBtn');
+      if (rb && this.done) { const t = rb.querySelector('.btn-text'); if (t) t.textContent = 'Import qilindi'; }
       STATE.studentsStale = true;
       await Data.reloadStudents().catch(() => null);
       if (typeof GroupPick !== 'undefined') { GroupPick.index = null; GroupPick.stamp = ''; }
       if (typeof Admin !== 'undefined' && Admin.refreshCounters) Admin.refreshCounters();
     });
+  },
+
+  /* ---------- OXIRGI QO'SHILGANLAR: importni bekor qilish (05.11.2026) ----------
+     Bir importda qo'shilgan o'quvchilar bitta ro'yxat bo'lib ko'rinadi.
+     «Ustiga qo'shilgan» — guruhda import'dan oldin ham o'quvchi bor edi. */
+  batches: [],
+  async history() {
+    openModal('<div class="modal-head"><div><h2>Oxirgi qo\'shilgan ro\'yxatlar</h2>'
+      + '<p class="text-muted">Xato qo\'shilgan ro\'yxatni bekor qilish mumkin. Guruhdagi eski o\'quvchilarga tegilmaydi.</p></div>'
+      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
+      + '<div id="rbList">' + loadingLine() + '</div>', { wide: true, noFocus: true });
+    let r;
+    try { r = await api('/student-batches'); }
+    catch (e) { if ($('rbList')) $('rbList').innerHTML = emptyState('fa-triangle-exclamation', 'Yuklab bo\'lmadi', e.message, true); return; }
+    this.batches = (r && r.rows) || [];
+    const box = $('rbList');
+    if (!box) return;
+    if (!this.batches.length) { box.innerHTML = emptyState('fa-list-check', 'Oxirgi 30 kunda ro\'yxat qo\'shilmagan', ''); return; }
+    box.innerHTML = '<div class="rb-list">' + this.batches.map((b, i) => '<div class="rb-item' + (b.older > 0 ? ' mixed' : '') + '">'
+      + '<div class="rb-main"><div class="rb-title"><b>' + esc(b.school_name || '—') + ' · ' + esc(b.group_name || 'guruhsiz')
+      + (b.group_name && /^\d+$/.test(String(b.group_name)) ? '-guruh' : '') + '</b>'
+      + (b.older > 0 ? '<span class="badge badge-red">Ustiga qo\'shilgan</span>' : '<span class="badge badge-grey">Alohida guruh</span>') + '</div>'
+      + '<div class="rb-meta">' + esc(dt(b.at)) + ' · <b>' + num(b.n) + ' ta</b>: ' + esc((b.sample || []).join(', ')) + (b.n > 3 ? '…' : '') + '</div>'
+      + (b.older > 0 ? '<div class="rb-warn">Guruhda yana ' + num(b.older) + ' ta eski o\'quvchi bor — ro\'yxat ularning ustiga qo\'shilib ketgan</div>' : '')
+      + '</div><button class="btn btn-danger btn-sm" type="button" data-act="rosterUndo" data-i="' + i + '">'
+      + '<i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Bekor qilish</button></div>').join('')
+      + '</div>';
+  },
+  async undo(i) {
+    const b = this.batches[i];
+    if (!b) return;
+    const ok = await confirmModal({
+      title: 'Ro\'yxatni bekor qilasizmi?',
+      text: (b.school_name || '') + ' · ' + (b.group_name || 'guruhsiz') + ' — shu ro\'yxatda qo\'shilgan ' + num(b.n)
+        + ' ta o\'quvchi o\'chiriladi. Guruhdagi eski o\'quvchilar qoladi. Davomati yozilgan o\'quvchiga tegilmaydi.',
+      okText: 'Ha, bekor qilish', danger: true
+    });
+    if (!ok) { this.history(); return; }
+    try {
+      const r = await api('/student-batches/undo', { method: 'POST', body: jsonBody({ key: b.k, groupId: b.group_id }) });
+      toast(num(r.removed) + ' ta o\'quvchi o\'chirildi.' + (r.kept ? ' ' + r.kept + ' tasida davomat bor — qoldirildi: ' + (r.keptNames || []).join(', ') : ''),
+        r.kept ? 'warn' : 'ok');
+    } catch (e) { toast(e.message, 'error'); }
+    STATE.studentsStale = true;
+    await Data.reloadStudents().catch(() => null);
+    await Data.reloadGroups(b.school_id).catch(() => null);
+    if (typeof GroupPick !== 'undefined') { GroupPick.index = null; GroupPick.stamp = ''; }
+    if (typeof Admin !== 'undefined' && Admin.refreshCounters) Admin.refreshCounters();
+    this.history();
   }
 };
 
@@ -14907,7 +15039,8 @@ const Admin = {
       + '<div class="card"><h3><i class="fa-solid fa-users-rectangle" style="color:var(--g)" aria-hidden="true"></i> Guruhli ro\'yxat</h3>'
       + '<p class="text-muted" style="font-size:12.5px">Word yoki Excel fayl — bir nechta guruh birdaniga, guruhlar avtomat ochiladi</p>'
       + '<div class="actions-row"><button class="btn btn-green btn-sm" type="button" data-act="rosterPick"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Fayldan import</button>'
-      + '<button class="btn btn-light btn-sm" type="button" data-act="rosterPaste"><i class="fa-regular fa-paste" aria-hidden="true"></i> Matndan qo\'shish</button></div></div>'
+      + '<button class="btn btn-light btn-sm" type="button" data-act="rosterPaste"><i class="fa-regular fa-paste" aria-hidden="true"></i> Matndan qo\'shish</button>'
+      + '<button class="btn btn-ghost btn-sm" type="button" data-act="rosterHistory"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Oxirgi qo\'shilganlar</button></div></div>'
       + '<div class="card"><h3><i class="fa-solid fa-chart-bar" style="color:var(--g)" aria-hidden="true"></i> Kunlik hisobot</h3>'
       + '<p class="text-muted" style="font-size:12.5px">Operator panelidagi tanlangan sana bo\'yicha</p>'
       + '<div class="actions-row"><button class="btn btn-light btn-sm" type="button" data-act="exportDaily"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export</button></div></div>'
@@ -15323,6 +15456,8 @@ const ACTIONS = {
   rosterPasteGo: () => Roster.pasteGo(),
   rosterSchool: (d, el) => Roster.setSchool(el.value),
   rosterRun: () => Roster.run(),
+  rosterHistory: () => Roster.history(),
+  rosterUndo: d => Roster.undo(Number(d.i)),
   adminRefresh: () => Admin.realtime(),
   schoolModal: d => Admin.schoolModal(d.id || ''),
   schoolSave: d => Admin.schoolSave(d.id || ''),

@@ -1059,7 +1059,7 @@ export const KB = [
   {
     id: "guruh-import",
     title: "Guruhli ro'yxatni fayldan import qilish",
-    keys: ["import", "royxat import", "guruh royxati", "guruhli royxat", "fayldan import", "word fayl", "excel fayl import", "oquvchilarni yuklash", "kop oquvchi qoshish", "matndan qoshish", "royxatni kiritish", "shablon"],
+    keys: ["import", "royxat import", "guruh royxati", "guruhli royxat", "fayldan import", "word fayl", "excel fayl import", "oquvchilarni yuklash", "kop oquvchi qoshish", "matndan qoshish", "royxatni kiritish", "shablon", "importni bekor qilish", "ustiga qoshilib ketdi", "boshqa guruhga qoshilib ketdi", "oxirgi qoshilganlar", "royxatni qaytarish"],
     who: "rahbar",
     where: "Admin panel → Excel → «Guruhli ro'yxat»",
     page: null,
@@ -1073,6 +1073,8 @@ export const KB = [
     tips: [
       "Guruh sarlavhasi «30-guruh» yoki «11-2026гр.» ko'rinishida bo'lsin; har qatorda raqam, F.I.Sh., tug'ilgan sana (ixtiyoriy).",
       "Import oldidan hamma qator tekshiriladi, takroriy ism bir marta olinadi.",
+      "O'quvchisi bor guruhga ro'yxat USTIDAN qo'shilmaydi: oynada qizil «Bu guruhda N ta o'quvchi bor» chiqadi. Bu yangi guruh bo'lsa, o'sha qatorga boshqa nom yozing (masalan «30-2»).",
+      "Xato qo'shilgan ro'yxatni bekor qilish: «Guruhli ro'yxat» → «Oxirgi qo'shilganlar» → kerakli qatorda «Bekor qilish». Qizil «Ustiga qo'shilgan» — boshqa guruh ustiga tushib qolgan ro'yxat. Eski o'quvchilarga va davomati yozilganlarga tegilmaydi.",
       "Bitta ro'yxat (o'quvchilar yoki instruktorlar) uchun — o'sha kartadagi «Import» va «Shablon»."
     ],
     related: ["admin-panel", "guruh-tiklash", "oquvchi-qidiruv"]
