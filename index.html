@@ -1542,6 +1542,7 @@ body.sheet-open { overflow: hidden; }
       <div class="nav-section">Boshqaruv</div>
       <button class="nav-btn" type="button" data-p="instructors"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktorlar</button>
       <button class="nav-btn" type="button" data-p="telegram"><i class="fa-brands fa-telegram" aria-hidden="true"></i> Telegram bot</button>
+      <button class="nav-btn" type="button" data-p="scanner"><i class="fa-solid fa-qrcode" aria-hidden="true"></i> QR skaner <span id="scState" class="nav-badge"></span></button>
       <button class="nav-btn" type="button" data-p="accounts"><i class="fa-solid fa-users-viewfinder" aria-hidden="true"></i> Hisoblar <span id="accOnline" class="nav-badge"></span></button>
       <button class="nav-btn" type="button" data-act="openAdminGate"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Admin panel</button>
       <div class="mx-foot">
@@ -2155,6 +2156,16 @@ body.sheet-open { overflow: hidden; }
           </div>
         </div>
         <div id="tgWrap"></div>
+      </section>
+
+      <section id="p-scanner" class="page hidden">
+        <div class="page-header">
+          <div>
+            <h1>QR skaner — shaxsiy QR</h1>
+            <p>O'quvchi birinchi chekda o'zining QR kodini oladi. Keyingi safar o'sha QR skanerga urilsa — ism yozilmaydi, oddiy chek o'zi chiqadi.</p>
+          </div>
+        </div>
+        <div id="scWrap"></div>
       </section>
 
       <section id="p-control" class="page hidden">
@@ -4155,6 +4166,8 @@ function bootInner() {
   Reports.loadDaily();
   Maxsus.init();
   Post.init();
+  /* Shaxsiy QR (skaner) yoqilganmi — boshida o'chiq */
+  Card.load();
   if (localStorage.getItem(CONFIG.ADMIN_FLAG_KEY) === '1' && STATE.admin.token && Maxsus.isOpen()) {
     $('adminPanel').classList.remove('hidden');
     document.body.classList.add('admin-open');
@@ -4255,7 +4268,7 @@ const Post = {
        yopilsa — qulflanadi
    ====================================================================== */
 const Maxsus = {
-  PAGES: ['daily', 'rasxod', 'sheet', 'history', 'control', 'instructors', 'telegram', 'accounts'],
+  PAGES: ['daily', 'rasxod', 'sheet', 'history', 'control', 'instructors', 'telegram', 'accounts', 'scanner'],
   KEY: 'avtodrom_maxsus',
   IDLE_MS: 15 * 60 * 1000,
   token: '', exp: 0, last: Date.now(), wired: false, pending: null,
@@ -4425,7 +4438,7 @@ const PAGE_TITLES = {
   add: 'Yangi avtomobil', active: 'Jarayonda', queue: 'Kutish rejimi', finish: 'Tugatish',
   frozen: 'Muzlatilgan', daily: 'Kunlik hisobot', rasxod: 'Rasxod (xarajatlar)', history: 'Tarix', instructors: 'Instruktorlar',
   kassa: 'QR chek — avtoshkola', control: 'Xatoliklar va aniqliklar', sheet: 'Excel', telegram: 'Telegram bot', accounts: 'Hisoblar va kompyuterlar',
-  assistant: 'AI yordamchi'
+  assistant: 'AI yordamchi', scanner: 'QR skaner'
 };
 function go(page) {
   const el = $('p-' + page);
@@ -4464,6 +4477,7 @@ function go(page) {
   if (page === 'control') Control.onEnter();
   if (page === 'accounts') Accounts.load();
   if (page === 'assistant') Assist.open();
+  if (page === 'scanner') { Card.render(); Card.load(); }
   if (page === 'telegram') TgBot.onEnter();
   else TgBot.stopPoll();
 }
@@ -4918,11 +4932,11 @@ const Kassa = {
       + '<div class="muted" style="font-size:12px">' + esc(s.school_name || s.schoolName || '')
       + (s.group_name || s.groupName ? ' · ' + esc(s.group_name || s.groupName) : '') + '</div>'
       + '<div id="kzQuota" style="font-size:13px;margin-top:6px"></div>'
-      + '<div id="kzAccess"></div></div>'
+      + '<div id="kzAccess"></div>' + Card.panelHTML(s) + '</div>'
       + '<button class="btn btn-light btn-sm" type="button" data-act="kzPick" data-id="">O\'zgartirish</button>';
-    this.loadQuota(s.id);
-    this.loadAccess(s.id);
+    const p = Promise.all([this.loadQuota(s.id), this.loadAccess(s.id)]).catch(() => null);
     setTimeout(() => { const b = $('kzIssueBtn'); if (b) b.focus(); }, 60);
+    return p;
   },
 
   async issue() {
@@ -4949,6 +4963,8 @@ const Kassa = {
         if (idx >= 0) STATE.students[idx] = Object.assign({}, STATE.students[idx], { attendance_count: num(r.total_lessons) });
       }
       if (typeof Data.addTodayLessons === 'function') Data.addTodayLessons(picked.id, n);
+      /* Shaxsiy QR — yoqilgan bo'lsa, o'quvchining BIRINCHI chekida */
+      if (Card.needs(picked)) { const no = await Card.issue(picked); if (no) r.card_no = no; }
       this.showReceipt(r);
       toast('Davomat yozildi: ' + (r.student_name || stName(picked))
         + (r.visit_index ? ' — ' + num(r.visit_index) + '-kelishi' : ''),
@@ -5601,9 +5617,9 @@ const Add = {
       if (!have) await Fleet.reload(sid);
     }
     this.renderCarOptions();
-    /* Shartnoma limitini fonda olamiz — formani kutib turmaydi */
-    this.loadQuota();
-    this.loadAccess(true);
+    /* Shartnoma limitini fonda olamiz — formani kutib turmaydi.
+       (Skaner esa shuni kutadi: muddati tugagan bo'lsa chek chiqmasin.) */
+    return Promise.all([this.loadQuota(), this.loadAccess(true)]).catch(() => null);
   },
   renderCarOptions() {
     const sel = $('schoolCar');
@@ -6095,6 +6111,7 @@ const Add = {
       + '</div>'
       + this.quotaHTML()
       + Access.boxHTML(this.accessNow(), 'add')
+      + Card.panelHTML(s)
       + '<div class="field-help" style="margin-top:8px">1 soat = 1 dars. Yakuniy hisob serverda yangilanadi.</div></div>';
     this.syncChekButton();
     this.syncAccessBlock();
@@ -6306,6 +6323,8 @@ const Add = {
             const sid = (res && Array.isArray(res.ids) && res.ids[0]) ? String(res.ids[0]) : '';
             /* Turniket kodi — chekdagi QR. Olinmasa chek QR'siz chiqadi. */
             const gateCode = await Gate.codeFor(sid);
+            /* Shaxsiy QR — yoqilgan bo'lsa, o'quvchining BIRINCHI chekida */
+            const cardNo = (!(res && res.offline) && Card.needs(d.student)) ? await Card.issue(d.student) : '';
             chekSent = true;
             logTicketPrint(sid, 'print');
             EntryTicket80.printHidden({
@@ -6322,6 +6341,7 @@ const Add = {
               overLessons: qq ? num(qq.overLessons) : 0,
               /* Yozuvni keyin topish uchun qisqa raqam */
               code: sid ? sid.replace(/-/g, '').slice(-6).toUpperCase() : '',
+              cardNo: cardNo,
               issued: new Date().toISOString()
             }, () => Add.focusStudent());
           }
@@ -6355,6 +6375,7 @@ const Add = {
             }
           }
           saved = true;
+          this.lastSavedAt = Date.now();
         } catch (e) {
           const m = /404|topilmadi|not found/i.test(String(e.message))
             ? 'Server hali yangilanmagan: /api/attendance topilmadi. '
@@ -8510,6 +8531,9 @@ const EntryTicket80 = {
         ? '<div class="arow"><div class="aq">' + qr + '<b>' + esc(String(data.gateCode).replace(/(\d{4})(?=\d)/g, '$1 ')) + '</b></div>' + info + '</div>'
         : info)
 
+      /* Shaxsiy QR — faqat birinchi chekda (sozlama yoqilgan bo'lsa) */
+      + (data.cardNo ? this.cardBlock(data.cardNo) : '')
+
       /* ===== YIRTILADIGAN QISM (koreshok) — ikki qator ===== */
       + '<div class="acut"><span>✂</span></div>'
       + '<div class="astub"><b>KIRDI: ' + esc(data.person || '—') + '</b> · <span style="white-space:nowrap">' + dars + ' dars</span><br>'
@@ -8592,7 +8616,44 @@ const EntryTicket80 = {
       + '<div class="s">' + esc(lesson) + '</div>'
       + (when ? '<div>' + esc(when) + '</div>' : '')
       + '<div class="f' + (over ? ' x' : '') + '">' + (over ? 'LIMIT TUGAGAN' : 'TEKIN') + '</div>'
-      + '</div></div>',
+      + '</div></div>'
+      /* Shaxsiy QR — faqat birinchi chekda (sozlama yoqilgan bo'lsa) */
+      + (r.card_no ? this.cardBlock(r.card_no) : ''),
+      true);
+  },
+
+  /* ============ SHAXSIY QR (o'quvchi kartasi) ============
+     Chekning tagida: QR (faqat raqam — skaner klaviatura tartibidan
+     qat'i nazar to'g'ri yozadi) va qisqa izoh. */
+  cardSvg(no) {
+    try {
+      if (typeof qrcode !== 'function') return '';
+      const q = qrcode(0, 'M'); q.addData(String(no)); q.make();
+      return q.createSvgTag({ cellSize: 4, margin: 2, scalable: false });
+    } catch (e) { return ''; }
+  },
+  cardNoText(no) { return String(no || '').replace(/^(\d{2})(\d{4})(\d{4})$/, '$1 $2 $3'); },
+  cardBlock(no) {
+    const svg = this.cardSvg(no);
+    return '<style>.pq{display:flex;gap:3mm;align-items:center;border-top:1px dashed #000;margin-top:2.5mm;padding-top:2mm}'
+      + '.pqq{flex:none;width:24mm}.pqq svg{display:block;width:24mm;height:24mm}'
+      + '.pqt{flex:1;min-width:0;font-size:11px;line-height:1.3}.pqt b{display:block;font-size:12px;font-weight:900;margin-bottom:.5mm}'
+      + '.pqn{display:block;font-family:Consolas,monospace;font-size:11px;font-weight:700;margin-top:1mm}</style>'
+      + '<div class="pq">' + (svg ? '<div class="pqq">' + svg + '</div>' : '')
+      + '<div class="pqt"><b>SHAXSIY QR — SIZNIKI</b>Keyingi safar shu QR ni ko\'rsating: ism yozilmaydi, chek darrov chiqadi. '
+      + 'Telefoningizga rasmga olib qo\'ying.<span class="pqn">' + esc(this.cardNoText(no)) + '</span></div></div>';
+  },
+  /* Yo'qotgan o'quvchiga — alohida qisqa chek (faqat QR) */
+  cardHTML(d) {
+    const place = [d.school, d.group ? d.group + '-guruh' : ''].filter(Boolean).join(' · ');
+    return this.ticketShell('Shaxsiy QR',
+        '<style>.t{padding:2mm 3mm}.pad{height:4mm}'
+      + '.ch{text-align:center;font-size:12px;font-weight:900;letter-spacing:.5px;border-bottom:1px dashed #000;padding-bottom:1.5mm;margin-bottom:2mm}'
+      + '.cn{font-size:15px;font-weight:900;line-height:1.2;overflow-wrap:anywhere}.cp{font-size:12px;margin-top:.5mm}</style>'
+      + '<div class="ch">INDEX AVTODROM · SHAXSIY QR</div>'
+      + '<div class="cn">' + esc(d.person || '—') + '</div>'
+      + (place ? '<div class="cp">' + esc(place) + '</div>' : '')
+      + this.cardBlock(d.cardNo),
       true);
   },
 
@@ -8632,7 +8693,9 @@ const EntryTicket80 = {
          sahifaga uzatiladi (masalan, ism maydoniga yoziladi) */
       try {
         f.contentWindow.addEventListener('keydown', e => {
-          if (e.ctrlKey || e.metaKey || e.altKey || !e.key || e.key.length !== 1) return;
+          if (e.ctrlKey || e.metaKey || e.altKey || !e.key) return;
+          /* Skaner chekdan keyin darrov urilsa — Enter ham asosiy sahifaga o'tsin */
+          if (e.key.length !== 1 && !(e.key === 'Enter' && typeof Scan !== 'undefined' && Scan.buf)) return;
           e.preventDefault();
           try { window.focus(); } catch (er) { /* noop */ }
           document.dispatchEvent(new KeyboardEvent('keydown', { key: e.key, bubbles: true, cancelable: true }));
@@ -15199,6 +15262,295 @@ const Admin = {
   }
 };
 
+/* ===================== 21b. SHAXSIY QR + USB SKANER (06.11.2026) =====================
+   Rahbar: «hozir QR'siz chiqaramiz. Skaner olgandan keyin birinchi chekda
+   QR chiqsin, keyin o'sha QR urilsa oddiy chek chiqsin. Hozircha sozlab
+   tayyor qilib qo'y.»
+
+   · Sozlama boshida O'CHIQ (Maxsus → Boshqaruv → QR skaner) — cheklar
+     avvalgidek chiqadi, skaner kuzatilmaydi.
+   · Yoqilgach o'quvchining BIRINCHI chekida shaxsiy QR chiqadi
+     (api/card-routes.js: «77» + 8 raqam). Keyingi cheklar oddiy.
+   · USB skaner klaviatura bo'lib juda tez yozadi va Enter bosadi. Scan
+     shuni tutadi: tez yozilgan «77xxxxxxxx» + Enter — shaxsiy QR. Kursor
+     biror maydonda bo'lsa, skaner yozgani o'sha maydondan olib tashlanadi.
+   · QR urilsa: «QR chek» sahifasida — QR chek chiqadi va chop etiladi;
+     boshqa joyda — «Yangi avtomobil» → avtoshkola davomati + chek.
+     5 daqiqa ichida o'sha o'quvchi qayta urilsa — avval so'raladi.
+   ===================================================================== */
+const Card = {
+  enabled: false, issued: 0, loaded: false,
+  RE: /^77\d{8}$/,
+
+  async load() {
+    try {
+      const r = await api('/card/settings');
+      this.enabled = !!r.enabled; this.issued = num(r.issued);
+    } catch (e) { /* server eski yoki internet yo'q — o'chiq deb turamiz */ }
+    this.loaded = true;
+    const b = $('scState');
+    if (b) { b.textContent = this.enabled ? 'yoqilgan' : ''; b.classList.toggle('hidden', !this.enabled); }
+    if (STATE.page === 'scanner') this.render();
+  },
+
+  /* Shu chekda shaxsiy QR chiqishi kerakmi (birinchi marta) */
+  needs(s) { return !!(this.enabled && s && s.id && !s.card_issued_at); },
+
+  update(id, patch) {
+    const i = (STATE.students || []).findIndex(x => String(x.id) === String(id));
+    if (i >= 0) STATE.students[i] = Object.assign({}, STATE.students[i], patch);
+    if (STATE.form && STATE.form.student && String(STATE.form.student.id) === String(id)) STATE.form.student = Object.assign({}, STATE.form.student, patch);
+    if (Kassa.student && String(Kassa.student.id) === String(id)) Kassa.student = Object.assign({}, Kassa.student, patch);
+  },
+
+  /* QR raqamini olish (bo'lmasa beriladi). Olinmasa — chek QR'siz chiqadi,
+     keyingi chekda yana urinadi. Chekni hech qachon to'xtatmaydi. */
+  async issue(s) {
+    try {
+      const r = await Promise.race([
+        api('/card/issue', { method: 'POST', body: jsonBody({ studentId: s.id }) }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('vaqt tugadi')), 6000))
+      ]);
+      if (r && r.card_no) {
+        const first = !s.card_issued_at;
+        this.update(s.id, { card_no: String(r.card_no), card_issued_at: r.card_issued_at || new Date().toISOString() });
+        if (first) this.issued++;
+        return String(r.card_no);
+      }
+    } catch (e) { console.warn('[card]', e.message); }
+    return '';
+  },
+
+  /* O'quvchi panelidagi qator (yoqilgan bo'lsa) */
+  panelHTML(s) {
+    if (!this.enabled || !s || !s.id) return '';
+    const has = !!s.card_issued_at;
+    return '<div class="field-help" style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+      + '<span><i class="fa-solid fa-qrcode" aria-hidden="true"></i> Shaxsiy QR: '
+      + (has ? '<b>berilgan</b>' : '<b>hali yo\'q</b> — shu chekda chiqadi') + '</span>'
+      + (has ? '<button class="btn btn-ghost btn-sm" type="button" data-act="cardReprint" data-id="' + esc(s.id) + '">'
+        + '<i class="fa-solid fa-print" aria-hidden="true"></i> QR ni qayta chiqarish</button>' : '')
+      + '</div>';
+  },
+
+  /* Yo'qotgan o'quvchiga — o'sha QR alohida qisqa chekda */
+  async reprint(id) {
+    const s = Data.studentById(id) || (STATE.students || []).find(x => String(x.id) === String(id))
+      || (STATE.form.student && String(STATE.form.student.id) === String(id) ? STATE.form.student : null)
+      || (Kassa.student && String(Kassa.student.id) === String(id) ? Kassa.student : null);
+    if (!s) { toast('O\'quvchi topilmadi.', 'error'); return; }
+    const no = await this.issue(s);
+    if (!no) { toast('QR olinmadi — internetni tekshirib, qayta bosing.', 'error'); return; }
+    EntryTicket80.printDoc(EntryTicket80.cardHTML({
+      person: stName(s),
+      school: s.school_name || Data.schoolName(s.school_id || s.schoolId) || '',
+      group: s.group_name || Data.groupName(s.group_id || s.groupId) || '',
+      cardNo: no
+    }));
+    toast(stName(s) + ' — shaxsiy QR chop etildi.');
+  },
+
+  async setEnabled(on) {
+    try {
+      const r = await api('/card/settings', { method: 'POST', body: jsonBody({ enabled: !!on }) });
+      this.enabled = !!r.enabled;
+      toast(this.enabled ? 'Shaxsiy QR yoqildi. Endi har o\'quvchining birinchi chekida QR chiqadi.' : 'Shaxsiy QR o\'chirildi — cheklar QR\'siz chiqadi.');
+    } catch (e) { toast(e.message || 'Saqlanmadi', 'error'); }
+    await this.load();
+    if (typeof Add !== 'undefined' && STATE.form && STATE.form.student) Add.renderStudentPanel();
+  },
+
+  render() {
+    const box = $('scWrap'); if (!box) return;
+    const on = this.enabled;
+    box.innerHTML = '<div class="panel" style="max-width:820px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">'
+      + '<div><div style="font-size:18px;font-weight:800">Holat: '
+      + (on ? '<span class="badge badge-green">Yoqilgan</span>' : '<span class="badge badge-grey">O\'chiq</span>') + '</div>'
+      + '<div class="text-muted" style="margin-top:4px">' + (on
+        ? 'Har o\'quvchining birinchi chekida shaxsiy QR chiqadi. QR skanerga urilsa — oddiy chek o\'zi chiqadi.'
+        : 'Cheklar hozirgidek, QR\'siz chiqadi. Skaner olgach «Yoqish» ni bosing.') + '</div>'
+      + (this.issued ? '<div class="text-muted" style="margin-top:4px">Shaxsiy QR berilgan: <b>' + num(this.issued) + '</b> ta o\'quvchi</div>' : '')
+      + '</div>'
+      + (on
+        ? '<button class="btn btn-light" type="button" data-act="cardToggle" data-on="0"><i class="fa-solid fa-power-off" aria-hidden="true"></i> O\'chirish</button>'
+        : '<button class="btn btn-green" type="button" data-act="cardToggle" data-on="1"><i class="fa-solid fa-qrcode" aria-hidden="true"></i> Yoqish</button>')
+      + '</div></div>'
+
+      + '<div class="panel" style="max-width:820px;margin-top:14px"><h3 style="margin:0 0 8px">Qanday ishlaydi</h3>'
+      + '<ol style="margin:0;padding-left:20px;line-height:1.7">'
+      + '<li>O\'quvchiga <b>birinchi marta</b> chek chiqqanda chekning tagida uning <b>shaxsiy QR</b> kodi chiqadi. O\'quvchi uni saqlaydi yoki telefoniga rasmga oladi.</li>'
+      + '<li>Keyingi safar kassada QR ni skanerga ko\'rsatadi — <b>ism yozilmaydi</b>, o\'quvchi o\'zi topiladi va <b>oddiy chek</b> darrov chiqadi.</li>'
+      + '<li>«QR chek» sahifasida urilsa — QR chek; boshqa sahifada — «Yangi avtomobil» dagi avtoshkola davomati + chek.</li>'
+      + '<li>QR ni yo\'qotgan bo\'lsa — o\'quvchini tanlang va «QR ni qayta chiqarish» ni bosing (o\'sha QR qayta chiqadi).</li>'
+      + '<li>5 daqiqa ichida o\'sha o\'quvchi qayta urilsa — chek chiqishidan oldin so\'raladi (ikki marta yozilmasin).</li>'
+      + '</ol></div>'
+
+      + '<div class="panel" style="max-width:820px;margin-top:14px"><h3 style="margin:0 0 8px">Skanerni sinash</h3>'
+      + '<p class="text-muted" style="margin:0 0 10px">Skanerni kompyuterga ulang va istalgan QR yoki shtrix-kodni uring. Bu sahifada chek chiqmaydi — faqat nima o\'qilgani ko\'rsatiladi.</p>'
+      + '<div id="scTest" class="autofill" style="min-height:52px"><span class="text-muted"><i class="fa-solid fa-barcode" aria-hidden="true"></i> Kutilmoqda…</span></div></div>'
+
+      + '<div class="panel" style="max-width:820px;margin-top:14px"><h3 style="margin:0 0 8px">Qanday skaner kerak</h3>'
+      + '<ul style="margin:0;padding-left:20px;line-height:1.7">'
+      + '<li><b>2D</b> skaner (QR o\'qiydigan). Oddiy «1D / lazer» skaner QR ni o\'qimaydi.</li>'
+      + '<li><b>USB</b> simli — o\'rnatish kerak emas, kompyuterga ulanadi va darrov ishlaydi (klaviatura bo\'lib yozadi).</li>'
+      + '<li><b>Telefon ekranidan</b> o\'qiy olsin — o\'quvchi QR rasmini telefonida ko\'rsatadi.</li>'
+      + '<li>Iloji bo\'lsa <b>tagligi (подставка)</b> bilan — o\'quvchi QR ni o\'zi tutadi, qo\'l bo\'sh qoladi.</li>'
+      + '</ul></div>';
+  },
+
+  /* Sinash sahifasida — nima o'qilganini ko'rsatadi (chek chiqmaydi) */
+  async testResult(code) {
+    const box = $('scTest'); if (!box) return;
+    const raw = String(code);
+    if (!this.RE.test(raw)) {
+      box.innerHTML = '<b class="text-green"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Skaner ishlayapti.</b>'
+        + '<div class="text-muted" style="margin-top:4px">O\'qildi: <b>' + esc(raw.slice(0, 60)) + '</b> — bu shaxsiy QR emas (boshqa kod).</div>';
+      return;
+    }
+    box.innerHTML = '<span class="text-muted">Tekshirilmoqda…</span>';
+    let s = (STATE.students || []).find(x => String(x.card_no || '') === raw);
+    if (!s) { try { s = (await api('/card/lookup?no=' + raw)).student; } catch (e) { s = null; } }
+    box.innerHTML = s
+      ? '<b class="text-green"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Skaner ishlayapti — shaxsiy QR tanildi.</b>'
+        + '<div style="margin-top:4px"><b>' + esc(stName(s)) + '</b> · ' + esc(s.school_name || '') + (s.group_name ? ' · ' + esc(s.group_name) + '-guruh' : '') + '</div>'
+      : '<b class="text-green"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Skaner ishlayapti.</b>'
+        + '<div class="text-muted" style="margin-top:4px">Bu QR (' + esc(EntryTicket80.cardNoText(raw)) + ') hech kimga berilmagan.</div>';
+  }
+};
+
+const Scan = {
+  buf: '', first: 0, last: 0, el: null, val: null, timer: null, busy: false,
+  GAP: 60,               /* skaner harflari orasidagi eng katta vaqt (ms) */
+  recent: new Map(),     /* o'quvchi → oxirgi chek vaqti */
+
+  /* window + capture — boshqa hamma klaviatura tinglovchilaridan (masalan,
+     «harf bosilsa ism maydoniga yozish») OLDIN ishlaydi */
+  init() { window.addEventListener('keydown', e => this.key(e), true); },
+  watching() { return !!(STATE.auth && STATE.auth.token) && (Card.enabled || STATE.page === 'scanner'); },
+  now() { return (window.performance && performance.now) ? performance.now() : Date.now(); },
+
+  key(e) {
+    if (!this.watching()) { this.buf = ''; return; }
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    const now = this.now();
+    if (e.key === 'Enter') {
+      if (this.finish(now)) { e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation(); }
+      return;
+    }
+    if (!e.key || e.key.length !== 1) return;
+    if (!this.buf || now - this.last > this.GAP) {
+      /* yangi ketma-ketlik — kursor turgan maydon va undagi matn eslab qolinadi */
+      this.buf = ''; this.first = now;
+      const a = document.activeElement;
+      this.el = a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA') ? a : null;
+      this.val = this.el ? this.el.value : null;
+    }
+    this.last = now;
+    this.buf = (this.buf + e.key).slice(-60);
+    /* Enter yubormaydigan skaner uchun: tez yozish to'xtasa ham tekshiriladi */
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.finish(this.now(), true), 160);
+  },
+
+  /* Tez yozilgan ketma-ketlik tugadi — skanermi? */
+  finish(now, idle) {
+    clearTimeout(this.timer);
+    const code = this.buf, n = code.length;
+    const fast = n >= 3 && (idle || now - this.last < 250) && (this.last - this.first) / Math.max(1, n - 1) < 45;
+    const el = this.el, val = this.val;
+    this.buf = '';
+    if (!fast) return false;
+    const card = Card.RE.test(code);
+    if (!card && STATE.page !== 'scanner') return false;      /* boshqa kod — odatdagidek ishlasin */
+    if (idle && !card) return false;
+    /* skaner yozgan raqamlar maydonda qolmasin (kursor turgan joyda ham,
+       «harf bosilsa ism maydoniga» o'tib ketgan bo'lsa o'sha maydonda ham) */
+    const fix = x => {
+      if (!x || !(x.tagName === 'INPUT' || x.tagName === 'TEXTAREA')) return;
+      const v = String(x.value || '');
+      let k = v;
+      if (x === el && val !== null) k = val;
+      else if (v.endsWith(code)) k = v.slice(0, -code.length);
+      else if (v.endsWith(code.slice(1))) k = v.slice(0, -(code.length - 1));
+      if (k !== v) { try { x.value = k; x.dispatchEvent(new Event('input', { bubbles: true })); } catch (er) { /* noop */ } }
+    };
+    fix(el);
+    if (document.activeElement !== el) fix(document.activeElement);
+    this.handle(code);
+    return true;
+  },
+
+  async handle(code) {
+    if (STATE.page === 'scanner') { Card.testResult(code); return; }
+    if (this.busy) { toast('Oldingi chek chiqyapti — biroz kuting.', 'warn'); return; }
+    if (document.body.classList.contains('admin-open')) { toast('Admin panel ochiq — chek uchun uni yoping.', 'warn'); return; }
+    if (STATE.page === 'sheet') { toast('Excel ochiq — chek uchun uni yoping.', 'warn'); return; }
+    this.busy = true;
+    try {
+      let s = (STATE.students || []).find(x => String(x.card_no || '') === code);
+      if (!s) {
+        try {
+          const r = await api('/card/lookup?no=' + code);
+          s = r.student;
+          const i = (STATE.students || []).findIndex(x => String(x.id) === String(s.id));
+          if (i >= 0) STATE.students[i] = Object.assign({}, STATE.students[i], s); else STATE.students.push(s);
+          s = STATE.students.find(x => String(x.id) === String(s.id)) || s;
+        } catch (e) {
+          toast(e.status === 404 ? 'Bu QR bo\'yicha o\'quvchi topilmadi.' : (e.message || 'QR tekshirilmadi'), 'error');
+          return;
+        }
+      }
+      if ($('modal') && !$('modal').classList.contains('hidden')) closeModal();
+      const prev = this.recent.get(String(s.id));
+      if (prev && Date.now() - prev < 5 * 60e3) {
+        const m = Math.floor((Date.now() - prev) / 60e3);
+        const ok = await confirmModal({
+          title: stName(s),
+          text: 'Bu o\'quvchiga ' + (m < 1 ? 'hozirgina' : m + ' daqiqa oldin') + ' chek chiqdi. Yana chek chiqarilsinmi?',
+          okText: 'Ha, yana chiqarish'
+        });
+        if (!ok) return;
+      }
+      const done = STATE.page === 'kassa' ? await this.viaKassa(s) : await this.viaAdd(s);
+      if (done) this.recent.set(String(s.id), Date.now());
+    } finally { this.busy = false; }
+  },
+
+  /* «QR chek» sahifasi: tanlanadi → chek chiqadi → chop etiladi */
+  async viaKassa(s) {
+    if (!Kassa.schoolId) { toast('QR chek uchun avtoshkola tanlanmagan.', 'error'); return false; }
+    if (String(s.school_id || s.schoolId) !== String(Kassa.schoolId)) {
+      toast(stName(s) + ' — boshqa avtoshkola (' + (s.school_name || '—') + '). Bu yerda QR chek faqat tanlangan avtoshkolaga chiqadi.', 'error');
+      return false;
+    }
+    await Kassa.pick(s.id);
+    if (Kassa.accessBlocked()) { toast(stName(s) + ': ' + ((Kassa.access && Kassa.access.error) || 'kirish muddati tugagan'), 'error'); return false; }
+    const before = Kassa.lastReceipt;
+    await Kassa.issue();
+    if (Kassa.lastReceipt && Kassa.lastReceipt !== before) { Kassa.print(); return true; }
+    return false;
+  },
+
+  /* Boshqa sahifalar: «Yangi avtomobil» → avtoshkola davomati + chek */
+  async viaAdd(s) {
+    if (STATE.page !== 'add') go('add');
+    if (STATE.page !== 'add') { toast('Davomat sahifasi ochilmadi.', 'error'); return false; }
+    if (STATE.form.customerType !== 'school') Add.setType('school');
+    if (Add.comboStudent) Add.comboStudent.setValue(s);
+    STATE.form.student = s;
+    Add.renderStudentPanel();
+    await Add.onStudentPicked();
+    if (Access.blocked(Add.accessNow())) {
+      toast(stName(s) + ': ' + ((Add.access && Add.access.error) || 'kirish muddati tugagan'), 'error');
+      return false;
+    }
+    const before = Add.lastSavedAt || 0;
+    await Add.submit(true);
+    return (Add.lastSavedAt || 0) > before;
+  }
+};
+
 /* ===================== 22. ACTIONS (event delegation) ===================== */
 const ACTIONS = {
   /* --- auth --- */
@@ -15457,6 +15809,8 @@ const ACTIONS = {
   rosterSchool: (d, el) => Roster.setSchool(el.value),
   rosterRun: () => Roster.run(),
   rosterHistory: () => Roster.history(),
+  cardToggle: d => Card.setEnabled(d.on === '1'),
+  cardReprint: d => Card.reprint(d.id),
   rosterUndo: d => Roster.undo(Number(d.i)),
   adminRefresh: () => Admin.realtime(),
   schoolModal: d => Admin.schoolModal(d.id || ''),
@@ -15666,6 +16020,8 @@ function init() {
   GroupPick.init();
   CascadePick.init();
   wireInputs();
+  /* USB QR skaner — klaviatura bo'lib tez yozadi; shaxsiy QR tanib olinadi */
+  Scan.init();
   updateClock();
   setInterval(updateClock, 1000);
   setInterval(() => { try { Active.tick(); } catch (e) { console.error('[tick]', e); } }, 1000);

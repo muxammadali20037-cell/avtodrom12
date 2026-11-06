@@ -802,7 +802,9 @@ export async function handleCompatRequest(req, res) {
         SELECT st.id,st.owner_key,st.school_id,st.group_id,st.full_name,st.birth_date,st.phone,st.plate,st.notes,st.active,st.created_at,
                s.name school_name,g.name group_name,
                /* Darslar sonini trigger yuritadi (api/students.js ga qarang) */
-               COALESCE(st.attendance_count,0)::int attendance_count
+               COALESCE(st.attendance_count,0)::int attendance_count,
+               /* Shaxsiy QR (api/card-routes.js) — ustun hali bo'lmasa ham yiqilmaydi */
+               to_jsonb(st)->>'card_no' card_no, to_jsonb(st)->>'card_issued_at' card_issued_at
         FROM students st JOIN driving_schools s ON s.id=st.school_id LEFT JOIN school_groups g ON g.id=st.group_id
         WHERE ${where} ORDER BY st.full_name
       `,params);

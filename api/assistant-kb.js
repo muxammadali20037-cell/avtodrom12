@@ -554,7 +554,31 @@ export const KB = [
       "Avtoshkola darslari tekin — summa yo'q.",
       "Kirish muddati tugagan bo'lsa tugma «Kirish muddati tugagan — chek chiqmaydi» bo'ladi."
     ],
-    related: ["davomat", "bepul-limit", "katta-ekran", "kirish-muddati"]
+    related: ["davomat", "bepul-limit", "katta-ekran", "kirish-muddati", "shaxsiy-qr"]
+  },
+  {
+    id: "shaxsiy-qr",
+    title: "Shaxsiy QR va USB skaner (ism yozmasdan chek)",
+    keys: ["shaxsiy qr", "qr skaner", "usb skaner", "skaner yoqish", "skanerni yoqish", "skaner qayerdan", "skaner sotib olish", "qanday skaner", "2d skaner", "qr ni yoqotdi", "qr yoqoldi", "qr qayta chiqarish", "skaner ishlamayapti", "skanerni sinash", "ism yozmasdan", "tez chek", "qr urilsa"],
+    who: "rahbar (yoqish), kassir (ishlatish)",
+    where: "Maxsus bo'lim → Boshqaruv → QR skaner",
+    page: "scanner",
+    text: "Yoqilgach o'quvchining birinchi chekida uning shaxsiy QR kodi chiqadi. Keyingi safar o'quvchi o'sha QR ni (qog'ozda yoki telefonida) skanerga ko'rsatadi — ism yozilmaydi, oddiy chek o'zi chiqadi. Boshida o'chiq: cheklar QR'siz chiqadi.",
+    steps: [
+      "Kassaga 2D USB skaner ulang (QR o'qiydigan, telefon ekranidan ham o'qisin).",
+      "Maxsus bo'lim → Boshqaruv → «QR skaner» ni oching va «Skanerni sinash» da istalgan kodni uring — «Skaner ishlayapti» chiqsin.",
+      "«Yoqish» ni bosing.",
+      "Har o'quvchining birinchi chekida «SHAXSIY QR — SIZNIKI» chiqadi; o'quvchiga saqlab qo'yishni yoki telefoniga rasmga olishni ayting.",
+      "Keyingi safar QR ni skanerga urish kifoya: «QR chek» sahifasida — QR chek chiqib, chop etiladi; boshqa sahifada — avtoshkola davomati + chek."
+    ],
+    tips: [
+      "QR ni yo'qotgan bo'lsa — o'quvchini tanlang, o'quvchi kartasida «QR ni qayta chiqarish» ni bosing (o'sha QR qayta chiqadi).",
+      "5 daqiqa ichida o'sha o'quvchi qayta urilsa — chek chiqishidan oldin so'raladi.",
+      "Oddiy «1D / lazer» skaner QR ni o'qimaydi — «2D» bo'lishi kerak. O'rnatish kerak emas, klaviatura bo'lib ishlaydi.",
+      "Kirish muddati tugagan yoki bepul limit tugagan bo'lsa — skanerda ham chek odatdagidek chiqmaydi.",
+      "«QR chek» sahifasida faqat tanlangan avtoshkola o'quvchisiga chek chiqadi."
+    ],
+    related: ["qr-chek", "davomat", "kirish-muddati"]
   },
   {
     id: "bepul-limit",

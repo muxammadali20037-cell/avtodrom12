@@ -31,6 +31,7 @@ import { handleEntryRequest, guardAuth } from "./entry-routes.js";
 import { handleAccountsRequest, trackActivity, tokenProblem, applyLoginPost, ensureOpenedBy, requestActor } from "./accounts-routes.js";
 import { actorCtx } from "../backend/src/db.js";
 import { handleAssistantRequest, normalizeQ, isDataQuestion } from "./assistant-routes.js";
+import { handleCardRequest } from "./card-routes.js";
 import { KB as ASSIST_KB } from "./assistant-kb.js";
 
 /* AI yordamchi: bilim bazasi va «ma'lumot so'ralyaptimi» qoidasi sahifaga
@@ -119,6 +120,8 @@ async function handle(req, res) {
 
   /* AI YORDAMCHI — sozlama (admin telefoni) va ixtiyoriy haqiqiy AI */
   if (path.startsWith("/api/assistant/")) { const asHandled = await handleAssistantRequest(req, res); if (asHandled) return asHandled; }
+  /* SHAXSIY QR — o'quvchi kartasi va USB skaner (sozlama boshida o'chiq) */
+  if (path.startsWith("/api/card/")) { const cdHandled = await handleCardRequest(req, res); if (cdHandled) return cdHandled; }
 
   /* TELEGRAM BOT — webhook (Telegram'dan) va sozlash (Maxsus bo'lim) */
   if (path.startsWith("/api/telegram/")) { const tgHandled = await handleTelegramRequest(req, res); if (tgHandled) return tgHandled; }
