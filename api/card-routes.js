@@ -113,17 +113,24 @@ export async function handleCardRequest(req, res) {
       if (!/^[0-9a-f-]{36}$/i.test(id)) { json(res, 400, { error: 'O‘quvchi tanlanmagan' }); return true; }
       for (let i = 0; i < 6; i++) {
         const no = '77' + String(randomInt(0, 1e8)).padStart(8, '0');
+        const c = await pool.connect();
         try {
-          const r = await pool.query(`UPDATE students SET card_no = COALESCE(card_no, $3), card_issued_at = now()
+          await c.query('BEGIN');
+          /* Bu texnik belgi — boshliqning «Tahrirlanganlar» jurnaliga
+             (api/edits-log.js) tahrir bo'lib tushmasin */
+          await c.query(`SELECT set_config('avtodrom.audit_off', '1', true)`);
+          const r = await c.query(`UPDATE students SET card_no = COALESCE(card_no, $3), card_issued_at = now()
               WHERE id = $1 AND owner_key = $2 AND active = true
               RETURNING id, card_no, card_issued_at`, [id, u.sub, no]);
+          await c.query('COMMIT');
           if (!r.rows.length) { json(res, 404, { error: 'O‘quvchi topilmadi' }); return true; }
           json(res, 200, { ok: true, student_id: r.rows[0].id, card_no: r.rows[0].card_no, card_issued_at: r.rows[0].card_issued_at });
           return true;
         } catch (e) {
+          try { await c.query('ROLLBACK'); } catch { /* noop */ }
           if (e && e.code === '23505') continue;          /* raqam band — boshqasi */
           throw e;
-        }
+        } finally { c.release(); }
       }
       json(res, 500, { error: 'QR raqami berilmadi — qayta urinib ko‘ring' });
       return true;
