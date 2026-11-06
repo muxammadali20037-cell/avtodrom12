@@ -75,6 +75,20 @@ function onClientError(e) {
    bazadagi trigger yangi yozuvning `opened_by` ustuniga qo'yadi.
    ------------------------------------------------------------------------- */
 export const actorCtx = new AsyncLocalStorage();
+
+/* TAHRIRLAR JURNALI (api/edits-log.js): kuzatiladigan jadvalga tranzaksiyasiz
+   UPDATE / DELETE — so'rov oxiriga izoh «avt-actor:<login>» qo'shiladi.
+   Bazadagi trigger kim qilganini shu izohdan o'qiydi (current_query()):
+   qo'shimcha so'rov yo'q, kassa sekinlashmaydi. */
+const TRACK_RE = /^\s*(?:UPDATE|DELETE\s+FROM)\s+(?:public\.)?(?:sessions|expenses|debt_payments|students|driving_schools|school_groups|instructors|vehicles|school_vehicles|user_settings|settings)\b/i;
+export function withActorTag(text, sql) {
+  const a = currentActor();
+  if (!a || !TRACK_RE.test(sql)) return text;
+  const tag = ` /* avt-actor:${String(a).replace(/[^A-Za-z0-9_.@-]/g, '').slice(0, 80)} */`;
+  if (typeof text === 'string') return text.replace(/[\s;]+$/, '') + tag;
+  if (text && typeof text.text === 'string') return { ...text, text: text.text.replace(/[\s;]+$/, '') + tag };
+  return text;
+}
 export function currentActor() {
   const s = actorCtx.getStore();
   return s && s.actor ? String(s.actor) : null;
@@ -181,6 +195,7 @@ pool.query = function query(text, values, cb) {
     return pg.Pool.prototype.query.call(pool, text, values, cb);
   }
   const sql = typeof text === 'string' ? text : (text && text.text) || '';
+  text = withActorTag(text, sql);
   /* Faqat O'QISH so'rovi (SELECT) ulanish uzilganda qayta yuboriladi —
      yozuv so'rovlari hech qachon takrorlanmaydi (ikki marta tushmasin). */
   /* Tranzaksiyasiz yangi yozuv (sessions) — kim ochgani yozilsin */

@@ -17,6 +17,7 @@ import { handleKassaRequest, ensureKassaSchema, sweepForRequest } from "./kassa-
 import { handleQueueRequest } from "./queue-routes.js";
 import { handleBridgeRequest } from "./bridge-analytics.js";
 import { handleOwnerBridgeRequest } from "./bridge-owner.js";
+import { handleEditsBridge, ensureEditsSchema } from "./edits-log.js";
 import instructorHandler from "./instructor.js";
 import instructorsFixed from "./instructors-fixed.js";
 import instructorDailyHandler from "./instructor-daily.js";
@@ -81,6 +82,8 @@ async function handle(req, res) {
   if (path.startsWith("/api/")) { try { await movePastCorrectionsOnce(); } catch (e) { console.error("MOVE ONCE:", e.message); } }
   /* Kim ochgan (sessions.opened_by) ustuni va trigger — bir marta */
   if (path.startsWith("/api/")) { try { await ensureOpenedBy(); } catch (e) { console.error("OPENED_BY:", e.message); } }
+  /* Bazadagi hamma tahrir/o'chirish jurnali (db_changes + triggerlar) — bir marta */
+  if (path.startsWith("/api/")) { try { await ensureEditsSchema(); } catch (e) { console.error("EDITS LOG:", e.message); } }
   /* O'chirilgan hisobning kaliti darhol yaroqsiz; asosiy hisobga qo'shilgan
      (yoki ajratilgan) login qaytadan kiradi — o'sha kompyuter tizimdan chiqadi */
   if (path.startsWith("/api/") && req.headers.authorization) {
@@ -131,6 +134,8 @@ async function handle(req, res) {
   /* BOSHLIQ KO'PRIGI — Avtodrom «Boshliq ilovasi» (iPhone): avtoshkola,
      platniy (oddiy mijoz), xarajatlar. Faqat o'qiydi, kalit o'sha. */
   if (path === "/api/bridge/owner") return handleOwnerBridgeRequest(req, res);
+  /* TAHRIRLAR KO'PRIGI — boshliq ilovasi «Tahrirlanganlar»: nima, qachon, kim, eski → yangi */
+  if (path === "/api/bridge/edits") return handleEditsBridge(req, res);
 
   /* Telegram instruktor mini-ilovasi — FAQAT birlikdagi /api/instructor/...
      Ilgari bu shart `startsWith("/api/instructor")` edi va ko'plikdagi
