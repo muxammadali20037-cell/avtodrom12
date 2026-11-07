@@ -21,7 +21,7 @@
  * IXTIYORIY: ANALYTICS_OWNER_KEYS="uuid1,uuid2" — faqat shu hisob(lar).
  */
 import { pool } from '../backend/src/db.js';
-import { checkBridgeKey, bridgeRange } from './bridge-analytics.js';
+import { checkBridgeKey, bridgeRange, bridgeKeysConfigured } from './bridge-analytics.js';
 import { MONEY_EVENTS, SESSION_MONEY, IS_KECHAGI } from './money-sql.js';
 import { postOperators } from './bridge-posts.js';
 
@@ -498,7 +498,7 @@ export async function handleOwnerBridgeRequest(req, res) {
   const url = new URL(String(req.url || '/'), 'http://local');
   if (url.pathname !== '/api/bridge/owner') return false;
   if (String(req.method || 'GET').toUpperCase() !== 'GET') return send(res, 405, { ok: false, error: 'Faqat GET' });
-  if (!process.env.RECEIPT_SHARED_KEY) return send(res, 503, { ok: false, error: 'RECEIPT_SHARED_KEY sozlanmagan' });
+  if (!bridgeKeysConfigured()) return send(res, 503, { ok: false, error: 'Ko‘prik kaliti sozlanmagan' });
   if (!checkBridgeKey(req)) return send(res, 401, { ok: false, error: 'Kalit noto‘g‘ri' });
   const range = bridgeRange(url.searchParams);
   if (range.error) return send(res, 400, { ok: false, error: range.error });

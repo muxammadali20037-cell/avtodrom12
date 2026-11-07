@@ -40,13 +40,31 @@ function send(res, status, data) {
 }
 
 /** Maxfiy kalitni vaqt-xavfsiz solishtiradi (receipt-routes.js bilan bir xil qoida). */
-export function checkBridgeKey(req) {
-  const key = String(process.env.RECEIPT_SHARED_KEY || '');
-  if (!key) return false;
-  const given = String(req.headers?.['x-receipt-key'] || '');
-  if (given.length !== key.length) return false;
+function sameKey(given, key) {
+  if (!key || !given || given.length !== key.length) return false;
   try { return crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key)); }
   catch { return false; }
+}
+
+/* XAVFSIZLIK (Phase 0.1): FAQAT O'QISH uchun alohida kalit.
+   BRIDGE_READ_KEY (kamida 32 belgi) faqat shu uchta GET ko'prigini ochadi:
+   /api/bridge/analytics, /api/bridge/owner, /api/bridge/edits.
+   U chek endpointlarida (receipts verify/redeem/complete/release)
+   ishlamaydi — ular faqat RECEIPT_SHARED_KEY ni tekshiradi (receipt-routes.js).
+   Sarlavha: X-Bridge-Key: <BRIDGE_READ_KEY>. Eski X-Receipt-Key o'zgarmaydi. */
+const readKey = () => {
+  const k = String(process.env.BRIDGE_READ_KEY || '');
+  return k.length >= 32 ? k : '';
+};
+
+/** Ko'prik uchun biror kalit sozlanganmi (503 o'rniga 401 qaytarish uchun). */
+export function bridgeKeysConfigured() {
+  return !!(process.env.RECEIPT_SHARED_KEY || readKey());
+}
+
+export function checkBridgeKey(req) {
+  if (sameKey(String(req.headers?.['x-receipt-key'] || ''), String(process.env.RECEIPT_SHARED_KEY || ''))) return true;
+  return sameKey(String(req.headers?.['x-bridge-key'] || ''), readKey());
 }
 
 const owners = () => String(process.env.ANALYTICS_OWNER_KEYS || '')
@@ -409,7 +427,7 @@ export async function handleBridgeRequest(req, res) {
   const url = new URL(String(req.url || '/'), 'http://local');
   if (url.pathname !== '/api/bridge/analytics') return false;
   if (String(req.method || 'GET').toUpperCase() !== 'GET') return send(res, 405, { ok: false, error: 'Faqat GET' });
-  if (!process.env.RECEIPT_SHARED_KEY) return send(res, 503, { ok: false, error: 'RECEIPT_SHARED_KEY sozlanmagan' });
+  if (!bridgeKeysConfigured()) return send(res, 503, { ok: false, error: 'Ko‘prik kaliti sozlanmagan' });
   if (!checkBridgeKey(req)) return send(res, 401, { ok: false, error: 'Kalit noto‘g‘ri' });
   const range = bridgeRange(url.searchParams);
   if (range.error) return send(res, 400, { ok: false, error: range.error });

@@ -34,7 +34,7 @@
    ========================================================================== */
 import { pool } from '../backend/src/db.js';
 import { runOnce, ddl } from '../backend/src/schema-once.js';
-import { checkBridgeKey, bridgeRange } from './bridge-analytics.js';
+import { checkBridgeKey, bridgeRange, bridgeKeysConfigured } from './bridge-analytics.js';
 import { ensureAuditSchema } from './audit-routes.js';
 
 /* Kuzatiladigan jadvallar: [jadval, kalit ustun, e'tiborga olinmaydigan ustunlar] */
@@ -349,7 +349,7 @@ export async function handleEditsBridge(req, res) {
   const url = new URL(String(req.url || '/'), 'http://local');
   if (url.pathname !== '/api/bridge/edits') return false;
   if (String(req.method || 'GET').toUpperCase() !== 'GET') return send(res, 405, { ok: false, error: 'Faqat GET' });
-  if (!process.env.RECEIPT_SHARED_KEY) return send(res, 503, { ok: false, error: 'RECEIPT_SHARED_KEY sozlanmagan' });
+  if (!bridgeKeysConfigured()) return send(res, 503, { ok: false, error: 'Ko‘prik kaliti sozlanmagan' });
   if (!checkBridgeKey(req)) return send(res, 401, { ok: false, error: 'Kalit noto‘g‘ri' });
   const range = bridgeRange(url.searchParams);
   if (range.error) return send(res, 400, { ok: false, error: range.error });
