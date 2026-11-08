@@ -1524,6 +1524,9 @@ body.sheet-open { overflow: hidden; }
     <button class="nav-btn" type="button" data-p="finish"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Tugatish</button>
     <button class="nav-btn" type="button" data-p="frozen"><i class="fa-regular fa-snowflake" aria-hidden="true"></i> Muzlatilgan <span id="frozenCount" class="nav-badge"></span></button>
     <button class="nav-btn" type="button" data-p="assistant"><i class="fa-solid fa-robot" aria-hidden="true"></i> AI yordamchi</button>
+    <!-- Admin panel — PAROLSIZ (rahbar, 08.11.2026). Pul (tushum, to'lovlar,
+         kunlik hisobot eksporti) baribir faqat Maxsus paroli bilan ko'rinadi. -->
+    <button class="nav-btn" type="button" data-act="openAdminGate"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Admin panel</button>
 
     <div class="nav-section">Maxsus</div>
     <button class="nav-btn nav-maxsus" type="button" data-act="maxsusToggle" id="maxsusBtn" title="Hisobot, Excel, Nazorat va Boshqaruv — parol bilan">
@@ -1544,7 +1547,6 @@ body.sheet-open { overflow: hidden; }
       <button class="nav-btn" type="button" data-p="telegram"><i class="fa-brands fa-telegram" aria-hidden="true"></i> Telegram bot</button>
       <button class="nav-btn" type="button" data-p="scanner"><i class="fa-solid fa-qrcode" aria-hidden="true"></i> QR skaner <span id="scState" class="nav-badge"></span></button>
       <button class="nav-btn" type="button" data-p="accounts"><i class="fa-solid fa-users-viewfinder" aria-hidden="true"></i> Hisoblar <span id="accOnline" class="nav-badge"></span></button>
-      <button class="nav-btn" type="button" data-act="openAdminGate"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Admin panel</button>
       <div class="mx-foot">
         <button class="nav-btn mx-small" type="button" data-act="maxsusChange"><i class="fa-solid fa-key" aria-hidden="true"></i> Parolni o'zgartirish</button>
         <button class="nav-btn mx-small" type="button" data-act="entryChange"><i class="fa-solid fa-door-closed" aria-hidden="true"></i> Saytga kirish kodi</button>
@@ -4168,7 +4170,7 @@ function bootInner() {
   Post.init();
   /* Shaxsiy QR (skaner) yoqilganmi — boshida o'chiq */
   Card.load();
-  if (localStorage.getItem(CONFIG.ADMIN_FLAG_KEY) === '1' && STATE.admin.token && Maxsus.isOpen()) {
+  if (localStorage.getItem(CONFIG.ADMIN_FLAG_KEY) === '1' && STATE.admin.token) {
     $('adminPanel').classList.remove('hidden');
     document.body.classList.add('admin-open');
     Admin.setTab('dashboard');
@@ -4296,9 +4298,12 @@ const Maxsus = {
     this.lock(false, idle ? 'Maxsus bo\'lim 15 daqiqa ishlatilmadi — qulflandi' : 'Maxsus bo\'lim muddati tugadi — qulflandi');
   },
   save() { try { sessionStorage.setItem(this.KEY, JSON.stringify({ t: this.token, e: this.exp })); } catch (e) { /* noop */ } },
+  /* Admin panel endi parolsiz (08.11.2026) — qulflanganda yopilmaydi,
+     faqat Dashboard'dagi pul yashiriladi. */
   clearAdmin() {
-    try { if (typeof Admin !== 'undefined' && $('adminPanel') && !$('adminPanel').classList.contains('hidden')) Admin.closePanel(); } catch (e) { /* noop */ }
-    try { localStorage.removeItem(CONFIG.ADMIN_FLAG_KEY); } catch (e) { /* noop */ }
+    try {
+      if (typeof Admin !== 'undefined' && $('adminPanel') && !$('adminPanel').classList.contains('hidden') && Admin.tab === 'dashboard') Admin.setTab('dashboard');
+    } catch (e) { /* noop */ }
   },
   render() {
     const open = this.isOpen();
@@ -4370,8 +4375,8 @@ const Maxsus = {
     openModal(this.head('fa-key', reset ? 'Parolni tiklash' : 'Maxsus bo\'lim uchun parol',
         reset ? 'Yangi parol qo\'ying. Tasdiqlash uchun tizimga kirish (hisob) parolini yozing.'
               : 'Hisobot, Excel, Nazorat va Boshqaruv shu parol bilan ochiladi. Parolni faqat rahbar bilsin.')
-      + (reset ? '' : '<div class="mx-list"><b>Kassir</b> parolsiz ham ishlaydi: Yangi avtomobil, QR chek, Jarayonda, Kutish rejimi, Tugatish, Muzlatilgan.<br>'
-        + '<b>Parol bilan</b>: Kunlik hisobot, Rasxod, Excel, Tarix, Xatoliklar va aniqliklar, Instruktorlar, Admin panel.</div>')
+      + (reset ? '' : '<div class="mx-list"><b>Kassir</b> parolsiz ham ishlaydi: Yangi avtomobil, QR chek, Jarayonda, Kutish rejimi, Tugatish, Muzlatilgan, Admin panel (pulsiz).<br>'
+        + '<b>Parol bilan</b>: Kunlik hisobot, Rasxod, Excel, Tarix, Xatoliklar va aniqliklar, Instruktorlar, Admin paneldagi tushum va to\'lovlar.</div>')
       + '<form data-act="mxSetup" data-reset="' + (reset ? '1' : '') + '" novalidate>'
       + '<div class="fg"><label for="mxNew">Yangi parol (kamida 4 belgi)</label><input type="password" id="mxNew" autocomplete="new-password"></div>'
       + '<div class="fg"><label for="mxNew2">Yangi parol — yana bir marta</label><input type="password" id="mxNew2" autocomplete="new-password"></div>'
@@ -13755,19 +13760,24 @@ const Admin = {
       + '<div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i></div><div class="stat-label">Bugun kirgan</div><div class="stat-value" id="arToday">0</div></div>'
       + '<div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-car-side" aria-hidden="true"></i></div><div class="stat-label">Avtodromda</div><div class="stat-value" id="arActive">0</div></div>'
       + '<div class="stat-card"><div class="stat-icon blue"><i class="fa-regular fa-snowflake" aria-hidden="true"></i></div><div class="stat-label">Muzlatilgan</div><div class="stat-value" id="arFrozen">0</div></div>'
-      + '<div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-coins" aria-hidden="true"></i></div><div class="stat-label">Tushum</div><div class="stat-value green" id="arAmount">0</div></div>'
-      + '<div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i></div><div class="stat-label">Naqd</div><div class="stat-value green" id="arCash">0</div></div>'
-      + '<div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-credit-card" aria-hidden="true"></i></div><div class="stat-label">Terminal</div><div class="stat-value green" id="arTerminal">0</div></div>'
+      + (Maxsus.isOpen()
+        ? '<div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-coins" aria-hidden="true"></i></div><div class="stat-label">Tushum</div><div class="stat-value green" id="arAmount">0</div></div>'
+          + '<div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i></div><div class="stat-label">Naqd</div><div class="stat-value green" id="arCash">0</div></div>'
+          + '<div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-credit-card" aria-hidden="true"></i></div><div class="stat-label">Terminal</div><div class="stat-value green" id="arTerminal">0</div></div>'
+        : '<div class="stat-card" style="grid-column:span 3;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">'
+          + '<div><div class="stat-label"><i class="fa-solid fa-lock" aria-hidden="true"></i> Tushum, naqd, terminal</div>'
+          + '<div class="text-muted" style="font-size:13px;margin-top:4px">Pul faqat Maxsus bo\'lim paroli bilan ko\'rinadi.</div></div>'
+          + '<button class="btn btn-light btn-sm" type="button" data-act="adminMoneyUnlock"><i class="fa-solid fa-key" aria-hidden="true"></i> Parol bilan ko\'rish</button></div>')
       + '</div>'
       + '<div class="grid-2"><div class="panel"><h3>Hozir avtodromda <span class="live-dot">LIVE</span></h3><div id="adminActiveRows"></div></div>'
-      + '<div class="panel"><h3>Bugungi to\'lovlar</h3><div id="adminPaymentRows"></div></div></div>';
+      + (Maxsus.isOpen() ? '<div class="panel"><h3>Bugungi to\'lovlar</h3><div id="adminPaymentRows"></div></div>' : '') + '</div>';
   },
   async realtime() {
     if (!STATE.admin.token) return;
     try {
       const [d, r, a, f] = await Promise.all([
         api('/dashboard').catch(() => ({})),
-        api('/reports/daily?date=' + encodeURIComponent(localDateISO(0))).catch(() => ({})),
+        Maxsus.isOpen() ? api('/reports/daily?date=' + encodeURIComponent(localDateISO(0))).catch(() => ({})) : Promise.resolve({}),
         api('/sessions/active').catch(() => []),
         api('/sessions/frozen').catch(() => [])
       ]);
@@ -15723,7 +15733,8 @@ const ACTIONS = {
   reportOffset: d => Reports.setOffset(d.off),
   reportRange: d => Reports.setRange(d.r),
   loadDaily: () => Reports.loadDaily(),
-  exportDaily: () => Reports.exportDaily(),
+  /* Pul hisoboti — Admin panel parolsiz bo'lsa ham, eksport faqat Maxsus bilan */
+  exportDaily: () => { if (!Maxsus.isOpen()) return Maxsus.ask(() => Reports.exportDaily()); return Reports.exportDaily(); },
   dailySeg: (d, el) => Reports.setSeg(d.seg, el),
   historySubmit: () => History.search(),
 
@@ -15736,7 +15747,8 @@ const ACTIONS = {
   reloadInstructors: () => Instructors.load(),
 
   /* --- admin --- */
-  openAdminGate: () => { if (!Maxsus.isOpen()) return Maxsus.ask(() => Admin.openGate()); return Admin.openGate(); },
+  openAdminGate: () => Admin.openGate(),
+  adminMoneyUnlock: () => Maxsus.ask(() => { if (Admin.tab === 'dashboard') Admin.setTab('dashboard'); }),
   maxsusToggle: () => Maxsus.toggle(),
   postPick: () => Post.ask(false),
   netOpen: () => Outbox.open(),

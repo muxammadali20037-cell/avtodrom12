@@ -687,7 +687,7 @@ export const KB = [
     who: "hamma",
     where: "Chap menyu → «Maxsus bo'lim» (qulf belgisi)",
     page: null,
-    text: "Kunlik hisobot, Rasxod, Excel, Tarix, Xatoliklar va aniqliklar, Instruktorlar, Telegram bot, Hisoblar va Admin panel faqat Maxsus parol bilan ochiladi. Kassa bo'limlari parolsiz ishlaydi. Parol rahbarda.",
+    text: "Kunlik hisobot, Rasxod, Excel, Tarix, Xatoliklar va aniqliklar, Instruktorlar, Telegram bot, Hisoblar va QR skaner faqat Maxsus parol bilan ochiladi. Kassa bo'limlari va Admin panel parolsiz ishlaydi (Admin paneldagi pul — parol bilan). Parol rahbarda.",
     steps: [
       "Chap menyudagi «Maxsus bo'lim» ni bosing.",
       "Parolni yozing va «Ochish» ni bosing (parolni rahbar biladi).",
@@ -1065,18 +1065,19 @@ export const KB = [
     id: "admin-panel",
     title: "Admin panel (avtoshkola, guruh, o'quvchi, mashinalar)",
     keys: ["admin panel", "admin", "avtoshkolalar", "avtoshkola qoshish", "guruh qoshish", "oquvchilar", "oquvchi qoshish", "oquvchini ochirish", "kirish muddatlari", "mashinalar", "avtoshkola mashinalari", "dashboard", "operator paneliga qaytish"],
-    who: "rahbar",
-    where: "Maxsus bo'lim → Boshqaruv → «Admin panel»",
+    who: "hamma (parolsiz)",
+    where: "Chap menyu → Asosiy → «Admin panel»",
     page: null,
     text: "Avtoshkolalar, guruhlar, o'quvchilar, kirish muddatlari, instruktorlar, mashinalar va Excel import shu yerda boshqariladi.",
     steps: [
-      "Maxsus bo'limni oching va «Admin panel» ni bosing.",
+      "Chap menyudagi «Admin panel» ni bosing — parol so'ralmaydi.",
       "Chapdagi bo'limlardan birini tanlang: «Dashboard», «Avtoshkolalar», «O'quvchilar», «Kirish muddatlari», «Instruktorlar», «Mashinalar», «Excel».",
       "Ish tugagach «Operator paneliga qaytish» ni bosing."
     ],
     tips: [
       "Avtoshkolaning bepul kirishlar soni «Avtoshkolalar» da, guruh muddatlari «Kirish muddatlari» da qo'yiladi.",
-      "Maxsus bo'lim qulflansa admin panel ham yopiladi."
+      "Dashboard'dagi tushum, naqd, terminal va bugungi to'lovlar faqat Maxsus paroli bilan ko'rinadi («Parol bilan ko'rish»).",
+      "Excel bo'limidagi kunlik hisobot eksporti ham Maxsus parolini so'raydi."
     ],
     related: ["guruh-import", "guruh-tiklash", "kirish-muddati", "bepul-limit"]
   },
@@ -1089,7 +1090,7 @@ export const KB = [
     page: null,
     text: "Word yoki Excel fayldagi bir nechta guruh o'quvchilari birdaniga qo'shiladi; bazada yo'q guruhlar o'zi ochiladi.",
     steps: [
-      "Maxsus bo'lim → «Admin panel» → «Excel» ni oching.",
+      "Chap menyudagi «Admin panel» → «Excel» ni oching.",
       "«Guruhli ro'yxat» kartasida «Fayldan import» ni bosib faylni tanlang (yoki «Matndan qo'shish» → nusxani qo'yib «Ko'rib chiqish»).",
       "Oynada «Qaysi avtoshkolaga yozilsin?» ni tanlang va guruhlar jadvalini tekshiring.",
       "«… ta o'quvchini import qilish» tugmasini bosing."
@@ -1112,7 +1113,7 @@ export const KB = [
     page: null,
     text: "O'chirilgan guruh va uning o'quvchilari qaytariladi; davomatlar joyida saqlangan bo'ladi.",
     steps: [
-      "Maxsus bo'lim → «Admin panel» → «Avtoshkolalar» ni oching va avtoshkolani tanlang.",
+      "Chap menyudagi «Admin panel» → «Avtoshkolalar» ni oching va avtoshkolani tanlang.",
       "«O'chirilgan guruhlar» tugmasini bosing.",
       "Kerakli guruhda «Tiklash» ni bosing va tasdiqlang."
     ],
