@@ -1172,6 +1172,33 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 @media (max-width: 700px) { .kf-go .qe-go { flex: 1 1 100%; } .kf-help { margin-left: 0; } }
 .kf-tn { display: flex; align-items: center; gap: 10px; margin: 0; }
 .kf-tn .kf-n, .ins-lbl .kf-n, #hourLabel .kf-n { width: 26px; height: 26px; font-size: 14px; display: inline-grid; margin: 0 6px 0 0; vertical-align: middle; }
+/* ===== YANGI AVTOMOBIL — SODDALASHTIRILGAN (rahbar, 09.11.2026) =====
+   Asosiysi ko'rinadi: nom/o'quvchi → vaqt/dars → katta tugma. Kam
+   ishlatiladiganlari «Qo'shimcha» ichida (#startForm.more). */
+#typeSeg .tab-txt small, #typeSeg .tab-kbd { display: none; }
+#typeSeg .seg-btn { min-height: 48px; font-size: 15.5px; }
+#startForm .kf-n { display: none !important; }
+#startForm .kf-step { border-top: 0; padding: 8px 0; gap: 0; }
+#startForm .kf-step:first-child { padding-top: 0; }
+#kfOpenNote, #cpRow, #cpPanel, #kbHint, #studentBlock > .field-help { display: none !important; }
+#startForm .qe-more { display: none; }
+#startForm.more .qe-more { display: contents; }
+#startForm.is-school:not(.more) #instructorField,
+#startForm.is-school:not(.more) #schoolCarField,
+#startForm:not(.more) #hourSeg [data-h="period"] { display: none !important; }
+#startForm.is-school #addActions { margin-top: 18px; }
+#startForm.is-school #startBtn { flex: 1 1 100%; min-height: 62px; font-size: 21px; font-weight: 800; justify-content: center; }
+#startForm.is-school #attendOnlyBtn, #startForm.is-school #addActions [data-act="resetStart"] {
+  background: none; border: 0; box-shadow: none; color: var(--muted); font-weight: 600; min-height: 0; padding: 2px 8px; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; }
+#startForm.is-school #attendOnlyBtn .btn-icon, #startForm.is-school #addActions [data-act="resetStart"] i { display: none; }
+.kf-more-btn { font-weight: 700; color: var(--g-dark); font-size: 14px; gap: 5px; }
+#startForm.more .kf-more-btn .text-muted { display: none; }
+#startForm.is-school #comboStudentInput { font-size: 17px; min-height: 54px; }
+#startForm.is-school #hourSeg .seg-btn { min-height: 44px; min-width: 76px; font-size: 15px; }
+.kf-more-btn .text-muted { font-weight: 500; }
+.add-more-school { display: none; margin-top: 12px; }
+#startForm.is-school .add-more-school { display: inline-flex; }
+.student-pick-head .kf-t { margin-bottom: 0; }
 #startForm .only-school { display: none; }
 #startForm.is-school .only-school { display: inline-grid; }
 #startForm.is-school .only-ord { display: none; }
@@ -1374,8 +1401,8 @@ body.sheet-open { overflow: hidden; }
 .sh-empty { padding: 40px; text-align: center; color: #605e5c; }
 .sh-clip { position: fixed; left: -2000px; top: 0; width: 10px; height: 10px; opacity: 0; }
 /* Excel: shu kuni to'langan qarzlar va bugungi tushum */
-#shGrid tfoot tr.sh-dp td { background: #eff6ff; color: #1d4ed8; font-weight: 700; }
-#shGrid tfoot tr.sh-tot td { background: #fef9c3; font-weight: 800; }
+/* qarz to'lovi qatori (oldingi kunning qarzi shu kuni to'langan) */
+.sh-grid tr.pay td:not(.rn):not(.mod):not(.bad) { background-color: #f0fdf4; }
 /* ===== AI YORDAMCHI ===== */
 .as-wrap { display: flex; flex-direction: column; height: calc(100vh - 210px); min-height: 460px; padding: 0; overflow: hidden; }
 .as-log { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; background: linear-gradient(180deg, #f8fafc, #fff); }
@@ -1579,7 +1606,7 @@ body.sheet-open { overflow: hidden; }
       <!-- ===== YANGI AVTOMOBIL ===== -->
       <section id="p-add" class="page">
         <div class="page-header">
-          <div><h1>Yangi avtomobil</h1><p>Mijoz keldi: 1) raqamini yozing  2) vaqtini tanlang  3) «Kirdi» ni bosing</p></div>
+          <div><h1>Yangi avtomobil</h1><p>Raqamni yozing → vaqtni tanlang → «Kirdi»</p></div>
         </div>
 
         <div class="panel">
@@ -1593,8 +1620,8 @@ body.sheet-open { overflow: hidden; }
             <!-- O'quvchi bloki -->
             <div id="studentBlock" class="hidden">
               <div class="student-pick-head">
-                <label class="kf-t kf-tn" for="comboStudentInput"><span class="kf-n" aria-hidden="true">1</span> O'quvchini toping <span class="kf-hint">ismi yoki guruh raqami</span></label>
-                <button class="btn btn-light btn-sm" type="button" data-act="openGroupPick"><i class="fa-solid fa-users" aria-hidden="true"></i> Guruh bo'yicha tanlash</button>
+                <label class="kf-t kf-tn" for="comboStudentInput">O'quvchi</label>
+                <button class="btn btn-light btn-sm" type="button" data-act="openGroupPick"><i class="fa-solid fa-users" aria-hidden="true"></i> Guruhdan tanlash</button>
               </div>
               <!-- Bosqichma-bosqich: Avtoshkola → Guruh → O'quvchi -->
               <div class="cp-row" id="cpRow">
@@ -1635,14 +1662,14 @@ body.sheet-open { overflow: hidden; }
                 <div class="kf-step">
                   <span class="kf-n" aria-hidden="true">2</span>
                   <div class="kf-b">
-                    <div class="kf-t">Necha vaqtga? <span class="kf-hint">mijoz bilmasa — «Ochiq» qoladi</span></div>
+                    <div class="kf-t">Vaqt</div>
                     <div class="qe-chips" id="qeMin" role="radiogroup" aria-label="Necha soat"></div>
                   </div>
                 </div>
-                <div class="kf-step">
+                <div class="kf-step hidden" id="kfPayStep">
                   <span class="kf-n" aria-hidden="true">3</span>
                   <div class="kf-b">
-                    <div class="kf-t">Pul</div>
+                    <div class="kf-t">To'lov</div>
                     <div class="qe-chips" id="qePay" role="radiogroup" aria-label="To'lov"></div>
                     <div class="kf-note" id="kfOpenNote"><i class="fa-regular fa-hourglass-half" aria-hidden="true"></i> Vaqt ochiq — pul <b>chiqqanda</b> olinadi: mashina chiqsa pastdagi <b>«Chiqdi»</b> tugmasini bosasiz, narx o'zi hisoblanadi.</div>
                   </div>
@@ -1657,7 +1684,8 @@ body.sheet-open { overflow: hidden; }
                   </button>
                 </div>
                 <div class="qe-links">
-                  <span class="kf-more">Kerak bo'lsa:</span>
+                  <button class="link-btn kf-more-btn" type="button" data-act="addMore" aria-expanded="false"><span class="am-ar" aria-hidden="true">▸</span> Qo'shimcha <span class="text-muted">— bron / boshqa vaqtda kirgan · instruktor · navbat</span></button>
+                  <span class="qe-more">
                   <button class="link-btn" type="button" data-act="paidStartToggle" id="paidStartToggle"></button>
                   <span id="paidStartRow" class="hidden">
                     <i class="fa-regular fa-clock" aria-hidden="true"></i> Kirish:
@@ -1667,6 +1695,7 @@ body.sheet-open { overflow: hidden; }
                   <button class="link-btn" type="button" data-act="insToggle" id="insToggle"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktor biriktirish</button>
                   <button class="link-btn" type="button" data-act="addToQueue" id="queueLink"><i class="fa-regular fa-clock" aria-hidden="true"></i> Navbatga qo'yish</button>
                   <button class="link-btn kf-help" type="button" data-act="kassaHelp"><i class="fa-regular fa-circle-question" aria-hidden="true"></i> Qanday ishlaydi?</button>
+                  </span>
                 </div>
               </div>
 
@@ -1755,7 +1784,7 @@ body.sheet-open { overflow: hidden; }
               <button class="btn btn-light btn-lg hidden" id="attendOnlyBtn" type="button" data-act="attendNoChek">
                 <span class="spinner" aria-hidden="true"></span>
                 <i class="fa-solid fa-clipboard-check btn-icon" aria-hidden="true"></i>
-                <span class="btn-text">Davomat yozish (cheksiz)</span>
+                <span class="btn-text">Cheksiz yozish</span>
               </button>
               <button class="btn btn-light" id="queueBtn" type="button" data-act="addToQueue">
                 <span class="spinner" aria-hidden="true"></span>
@@ -1765,6 +1794,7 @@ body.sheet-open { overflow: hidden; }
               <button class="btn btn-ghost" type="button" data-act="printEntryForm"><i class="fa-solid fa-print" aria-hidden="true"></i> Talon</button>
               <button class="btn btn-ghost" type="button" data-act="resetStart"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Tozalash</button>
             </div>
+            <button class="link-btn kf-more-btn add-more-school" type="button" data-act="addMore" aria-expanded="false"><span class="am-ar" aria-hidden="true">▸</span> Qo'shimcha <span class="text-muted">— instruktor · mashina raqami · soat oralig'i</span></button>
             <div id="startErr" class="text-error" role="alert" aria-live="polite"></div>
           </form>
         </div>
@@ -1938,12 +1968,11 @@ body.sheet-open { overflow: hidden; }
           <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-credit-card" aria-hidden="true"></i></div><div class="stat-label">Terminal</div><div class="stat-value green" id="rdterm">0</div></div>
           <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-mobile-screen" aria-hidden="true"></i></div><div class="stat-label">Klik</div><div class="stat-value green" id="rdclick">0</div></div>
           <div class="stat-card is-clickable" data-act="goRasxod" role="button" tabindex="0"><div class="stat-icon red"><i class="fa-solid fa-receipt" aria-hidden="true"></i></div><div class="stat-label">Rasxod</div><div class="stat-value" id="rdexp">0</div></div>
-          <div class="stat-card" title="Oldingi kunlarda qarzga qolib, shu kuni to'langanlar"><div class="stat-icon blue"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></div><div class="stat-label">Kechagi (qarzdan)</div><div class="stat-value" id="rdkech">0</div></div>
           <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-cash-register" aria-hidden="true"></i></div><div class="stat-label">Kassada naqd qoldi</div><div class="stat-value" id="rdleft">0</div></div>
           <div class="stat-card is-clickable" data-act="goDebts" role="button" tabindex="0"><div class="stat-icon red"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i></div><div class="stat-label">To'lanmagan</div><div class="stat-value" id="rddebt">0</div></div>
           <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i></div><div class="stat-label">Jami vaqt</div><div class="stat-value" id="rdtime">0</div></div>
         </div>
-        <!-- 1-POST / 2-POST va KECHAGI -->
+        <!-- 1-POST / 2-POST -->
         <div id="rdPosts"></div>
         <!-- Platniy va avtoshkola alohida -->
         <div class="dash-two" id="rdSplit"></div>
@@ -2382,8 +2411,8 @@ const CONFIG = {
   HOURLY_RATE: 100000,
   MINIMUM_PAYMENT: 0,
   CALC_MODE: 'half',      /* 30 daqiqalik bo'laklar — soatiga HOURLY_RATE */
-  GRACE_MIN: 20,          /* vaqtdan shuncha daqiqa oshsa ham qo'shimcha olinmaydi (1:19 → 1 soat, 1:23 → 1,5 soat) */
-  FIRST_HOUR_MIN: 40,     /* 40 daqiqa bo'ldimi — 1 soat (100 000), undan kam — 30 daqiqa (50 000). Rahbar, 02.11.2026 */
+  GRACE_MIN: 20,          /* soatdan keyin shuncha daqiqagacha qo'shimcha olinmaydi (1:20 → 1 soat, 1:21 → 1,5 soat). Rahbar, 09.11.2026 */
+  FIRST_HOUR_MIN: 40,     /* soatning 40-daqiqasi bo'ldimi — to'liq soat: 0:40 → 1 soat, 1:40 → 2 soat. Rahbar, 02.11 va 09.11.2026 */
   ROUND_TO: 1000,
 
   DEBOUNCE: 300,
@@ -2739,12 +2768,14 @@ const normalizePlate = p => String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, 
 const PAY_NAMES = { cash: 'naqd', terminal: 'terminal', click: 'Klik' };
 /* KUNNING PULI — hamma joyda bitta qoida (Kunlik hisobot, «Bugungi tushum»,
    Admin paneli, Excel HISOBOT): seanslarning o'z to'lovi + shu kuni to'langan
-   qarzlar (bugungi qarz — naqd/terminal/Klik ichida, oldingi kunlarniki —
-   «Kechagi»). Bitta pul ikki marta sanalmaydi. */
+   qarzlar — qaysi kunning qarzi bo'lsa ham naqd/terminal/Klik ichida
+   (rahbar, 09.11.2026: alohida «Kechagi» kerak emas). Bitta pul ikki marta
+   sanalmaydi. */
 function moneyOf(summary) {
   const s = summary || {}, dp = s.debtPaid || {}, kc = s.kechagi || {};
-  const cash = num(s.cash) + num(dp.cash), terminal = num(s.terminal) + num(dp.terminal), click = num(s.click) + num(dp.click);
-  return { cash: cash, terminal: terminal, click: click, kechagi: num(kc.total), kechagiCash: num(kc.cash),
+  const cash = num(s.cash) + num(dp.cash) + num(kc.cash), terminal = num(s.terminal) + num(dp.terminal) + num(kc.terminal),
+    click = num(s.click) + num(dp.click) + num(kc.click);
+  return { cash: cash, terminal: terminal, click: click, kechagi: 0, kechagiCash: 0,
     total: num(s.amount) + num(dp.total) + num(kc.total), debt: num(s.debt) };
 }
 /* Erkin yozuv (oddiy mijoz) kaliti: harf va raqamlar, istalgan alifboda */
@@ -5754,19 +5785,19 @@ const Add = {
     if (btn) {
       const t = btn.querySelector('.btn-text');
       const ic = btn.querySelector('.btn-icon');
-      if (t) t.textContent = isSchool ? 'Davomat yozish + chek' : 'Vaqt ochish';
+      if (t) t.textContent = isSchool ? 'Davomat + chek' : 'Vaqt ochish';
       if (ic) ic.className = (isSchool ? 'fa-solid fa-clipboard-check' : 'fa-solid fa-play') + ' btn-icon';
     }
     const hl = $('hourLabel');
     if (hl) {
       hl.innerHTML = isSchool
-        ? '<span class="kf-n" aria-hidden="true">3</span> Necha dars? <span class="text-muted" style="font-weight:500">(1 soat = 1 dars · klaviaturada + / −)</span>'
+        ? 'Necha dars?'
         : '<i class="fa-regular fa-hourglass" aria-hidden="true"></i> Foydalanish soati <span class="text-muted" style="font-weight:500">(1 soat = 1 dars)</span>';
     }
     const sub = document.querySelector('#p-add .page-header p');
     if (sub) sub.textContent = isSchool
-      ? "Avtoshkola o'quvchisining darsini davomatga yozing — vaqt ochilmaydi"
-      : 'Mijoz keldi: 1) raqamini yozing  2) vaqtini tanlang  3) «Kirdi» ni bosing';
+      ? "O'quvchini toping → «Davomat + chek»"
+      : 'Raqamni yozing → vaqtni tanlang → «Kirdi»';
 
     /* Avtoshkolada «Boshqa» (daqiqa) ma'nosiz — dars soni butun bo'ladi */
     const other = document.querySelector('#hourSeg .seg-btn[data-h="custom"]');
@@ -5831,18 +5862,24 @@ const Add = {
     if (!pre) STATE.form.payNow = '';
     const m = num(STATE.form.paidMin);
     const mh = $('qeMin');
+    /* Asosiy vaqtlar ko'rinadi, qolganlari «Boshqa» ichida (soddalashtirish, 09.11.2026) */
+    const MAIN = [30, 60, 90, 120];
+    const showAll = this.moreTimes || (m && MAIN.indexOf(m) < 0);
+    const opts = showAll ? this.PAID_OPTIONS : MAIN;
     if (mh) mh.innerHTML = '<button class="qe-chip' + (!m ? ' active' : '') + '" type="button" role="radio" aria-checked="' + (!m) + '" data-act="paidMin" data-m="0"><b>Ochiq</b><small>chiqqanda</small></button>'
-      + this.PAID_OPTIONS.map(o => '<button class="qe-chip' + (o === m ? ' active' : '') + '" type="button" role="radio" aria-checked="' + (o === m) + '" data-act="paidMin" data-m="' + o + '">'
-        + '<b>' + esc(this.paidMinLabel(o)) + '</b><small>' + esc(money(this.paidPrice(o)).replace(/ so'm$/, '')) + '</small></button>').join('');
+      + opts.map(o => '<button class="qe-chip' + (o === m ? ' active' : '') + '" type="button" role="radio" aria-checked="' + (o === m) + '" data-act="paidMin" data-m="' + o + '">'
+        + '<b>' + esc(this.paidMinLabel(o)) + '</b><small>' + esc(money(this.paidPrice(o)).replace(/ so'm$/, '')) + '</small></button>').join('')
+      + (showAll ? '' : '<button class="qe-chip" type="button" data-act="paidMoreTimes"><b>Boshqa ▾</b><small>2,5 · 3 · 4 soat</small></button>');
     const ph = $('qePay');
     const p = STATE.form.payNow || '';
     const chip = (k, icon, label) => '<button class="qe-chip' + (k === '' ? ' later' : '') + (p === k ? ' active' : '') + '" type="button" role="radio" aria-checked="' + (p === k) + '"'
       + (k && !pre ? ' disabled title="Avval soatni tanlang — ochiq vaqtda pul chiqishda olinadi"' : '')
       + ' data-act="paidPay" data-p="' + k + '"><b><i class="fa-solid ' + icon + '" aria-hidden="true"></i> ' + label + '</b></button>';
     if (ph) ph.innerHTML = chip('', 'fa-hourglass-half', pre ? 'Keyin to\'laydi' : 'Chiqishda')
-      + chip('cash', 'fa-money-bill-wave', 'Naqd') + chip('terminal', 'fa-credit-card', 'Terminal') + chip('click', 'fa-mobile-screen', 'Klik');
-    /* Ochiq vaqtda pul chiqishda — tugmalar o'rniga oddiy tushuntirish */
+      + chip('cash', 'fa-money-bill-wave', 'Naqd') + chip('terminal', 'fa-credit-card', 'Terminal');
+    /* Ochiq vaqtda pul chiqishda — «To'lov» qadami umuman ko'rinmaydi */
     if (ph) ph.classList.toggle('hidden', !pre);
+    if ($('kfPayStep')) $('kfPayStep').classList.toggle('hidden', !pre);
     const on = $('kfOpenNote'); if (on) on.classList.toggle('hidden', pre);
     this.renderPaidSum();
   },
@@ -5880,6 +5917,18 @@ const Add = {
     if (t && STATE.form.customerType !== 'school') t.textContent = w.past ? 'Yozish' : w.future ? 'Bron qilish' : 'Kirdi';
   },
   setPaidMin(m) { STATE.form.paidMin = Math.max(0, num(m) || 0); this.renderPaid(); this.focusLabel(); },
+  paidMoreTimes() { this.moreTimes = true; this.renderPaid(); this.focusLabel(); },
+  /* «Qo'shimcha» — kam ishlatiladigan imkoniyatlar (bron, instruktor, navbat,
+     mashina raqami, soat oralig'i) */
+  toggleMore(open) {
+    const f = $('startForm'); if (!f) return;
+    const on = open === undefined ? !f.classList.contains('more') : !!open;
+    f.classList.toggle('more', on);
+    document.querySelectorAll('#startForm [data-act="addMore"]').forEach(b => {
+      b.setAttribute('aria-expanded', String(on));
+      const a = b.querySelector('.am-ar'); if (a) a.textContent = on ? '▾' : '▸';
+    });
+  },
   setPayNow(p) {
     if (!this.isPre() && p) return;
     STATE.form.payNow = ['cash', 'terminal', 'click'].indexOf(p) >= 0 ? p : '';
@@ -6134,7 +6183,7 @@ const Add = {
       const planned = Math.max(1, Math.round(this.targetSeconds() / CONFIG.LESSON_SECONDS));
       over = (num(q.used) + planned) > num(q.limit);
     }
-    t.textContent = over ? 'Davomat yozish (chek chiqmaydi)' : 'Davomat yozish + chek';
+    t.textContent = over ? 'Davomat yozish (chek chiqmaydi)' : 'Davomat + chek';
   },
 
   /* Formadan payloadni yig'ish — mavjud API contract saqlangan */
@@ -7961,9 +8010,33 @@ const DayExcel = {
     ['A', 'B', 'C', 'G', 'H', 'I', 'J'].concat(multi ? ['K', 'L'] : ['K']).forEach(c => J.mergeCells(c + '3:' + c + '4'));
     head(J, 3, 1, jCols); head(J, 4, 1, jCols);
     J.getRow(3).height = 30;
+    /* QARZ TO'LOVLARI — oddiy qator (rahbar, 09.11.2026: «kechagi qarz»,
+       «qarz to'landi» va pastdagi alohida blok kerak emas):
+         · qarz o'sha kuni to'langan — yozuvning o'z qatorida (naqd/terminal);
+         · oldingi kunning qarzi — to'langan kunda alohida qator: vaqt bo'sh,
+           MAKTAB NOMI katagida «04.11 qarzi» (mashinalar soni va soatlar
+           ikki marta sanalmaydi). */
+    const sameDay = {};
+    const payItems = [];
+    debtPays.forEach(d => {
+      const k = d.method === 'terminal' ? 'terminal_amount' : d.method === 'click' ? 'click_amount' : 'cash_amount';
+      const own = d.session_day && d.session_day === d.paid_day ? paidRows.find(r => String(r.id) === String(d.session_id)) : null;
+      /* o'z qatoriga — faqat pul o'sha postda olingan bo'lsa (HISOBOT postlar bo'yicha sanaydi) */
+      if (own && (num(d.post) || 1) === (num(own.pay_post) || num(own.post) || 1)) {
+        const m = sameDay[String(d.session_id)] || (sameDay[String(d.session_id)] = { cash_amount: 0, terminal_amount: 0, click_amount: 0 });
+        m[k] += num(d.amount);
+      } else {
+        const r = { plate: d.plate || '', started_at: d.paid_at, paid_at: d.paid_at, payRow: true, session_day: d.session_day,
+          paid_day: d.paid_day, cash_amount: 0, terminal_amount: 0, click_amount: 0, pay_post: num(d.post) || 1, note: d.note };
+        r[k] = num(d.amount);
+        payItems.push({ r: r, open: false, pay: true });
+      }
+    });
     /* BIR XIL MASHINA — BIR JOYDA: avval raqam (son tartibida: 083, 136, 148 …,
        keyin ismlar), shu mashinaning kirishlari vaqt bo'yicha ketma-ket */
-    const all = sortByPlate(paidRows.map(r => ({ r: r, open: !!(r.status && r.status !== 'completed') })).concat(actRows.map(v => ({ r: v, open: true }))), x => x.r);
+    const all = sortByPlate(paidRows.map(r => ({ r: r, open: !!(r.status && r.status !== 'completed') })).concat(actRows.map(v => ({ r: v, open: true }))).concat(payItems), x => x.r);
+    const cars = all.filter(x => !x.pay);
+    const mv = (x, k) => num(x.r[k]) + (!x.pay && sameDay[String(x.r.id)] ? num(sameDay[String(x.r.id)][k]) : 0);
     let rr = 5;
     let gKey = null, gNo = 0;
     const gStarts = [];
@@ -7972,23 +8045,20 @@ const DayExcel = {
       const k = plateKeyOf(r);
       if (k !== gKey) { gKey = k; gNo++; if (i) gStarts.push(rr); }
       row.getCell(1).value = i + 1;
-      row.getCell(2).value = r.school_name || '';
+      row.getCell(2).value = x.pay ? (r.session_day ? this.fullDate(r.session_day).slice(0, 5) + ' qarzi' : 'qarz') + (num(r.cash_amount) + num(r.terminal_amount) + num(r.click_amount) < 0 ? ' (bekor qilindi)' : '') : (r.school_name || '');
       row.getCell(3).value = r.plate || r.driver_name || '';
-      row.getCell(4).value = this.dayFrac(r.started_at);
-      row.getCell(5).value = x.open ? null : this.dayFrac(r.finished_at);
-      row.getCell(6).value = x.open ? null : { formula: 'IF(E' + rr + '="","",IF(E' + rr + '<D' + rr + ',E' + rr + '+1,E' + rr + ')-D' + rr + ')' };
+      row.getCell(4).value = x.pay ? null : this.dayFrac(r.started_at);
+      row.getCell(5).value = x.open || x.pay ? null : this.dayFrac(r.finished_at);
+      row.getCell(6).value = x.open || x.pay ? null : { formula: 'IF(E' + rr + '="","",IF(E' + rr + '<D' + rr + ',E' + rr + '+1,E' + rr + ')-D' + rr + ')' };
       row.getCell(7).value = { formula: 'H' + rr + '+I' + rr + '+J' + rr };
-      row.getCell(8).value = num(r.cash_amount) || null;
-      row.getCell(9).value = num(r.terminal_amount) || null;
-      row.getCell(10).value = num(r.click_amount) || null;
-      if (multi) row.getCell(11).value = this.fullDate(dayOf(r.started_at));
+      row.getCell(8).value = mv(x, 'cash_amount') || null;
+      row.getCell(9).value = mv(x, 'terminal_amount') || null;
+      row.getCell(10).value = mv(x, 'click_amount') || null;
+      if (multi) row.getCell(11).value = this.fullDate(x.pay ? r.paid_day : dayOf(r.started_at));
       row.getCell(POSTC).value = num(r.pay_post) || num(r.post) || 1;
-      /* Qarz keyinroq to'langan — pul o'sha kunning hisobotida («Kechagi») */
-      if (!x.open && num(r.debt_paid) > 0 && !num(r.debt_amount)) {
-        const pd = debtPays.find(d => String(d.session_id) === String(r.id));
-        row.getCell(7).note = 'Qarz edi: ' + money(num(r.debt_paid)) + (r.settled_at ? ' — ' + this.fullDate(dayOf(r.settled_at)) + ' da to\'landi' : ' — keyin to\'landi')
-          + (pd ? ' (' + (Rasxod.PAY[pd.method === 'terminal' ? 'card' : pd.method] || pd.method) + ', ' + (num(pd.post) || 1) + '-POST)' : '');
-        row.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+      if (x.pay) {
+        row.getCell(3).note = 'Qarz to\'lovi: ' + timeOnly(r.paid_at) + (r.note ? ' — ' + r.note : '');
+        row.getCell(2).font = { name: 'Calibri', size: 11, color: { argb: 'FF475569' } };
       }
       row.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
       row.getCell(3).font = { name: 'Calibri', size: 14, bold: true };
@@ -7999,9 +8069,11 @@ const DayExcel = {
       if (x.open) row.getCell(5).note = 'Hali yopilmagan';
       /* Qo'lda to'g'rilangan — avtomobil katagida izoh (sababi) */
       if (r.correction_note) row.getCell(3).note = 'To\'g\'rilangan: ' + r.correction_note;
-      /* To'lanmagan (qarz) — JAMI to'lov katagi qizg'ish, izohda summa */
-      if (!x.open && num(r.debt_amount) > 0) {
-        row.getCell(7).note = 'To\'lanmagan: ' + money(num(r.debt_amount));
+      /* To'lanmagan (qarz) — JAMI to'lov katagi qizg'ish, izohda summa.
+         Keyin to'langan bo'lsa ham — o'sha kun oxiridagi qarz (debt_then) */
+      const dueThen = x.pay ? 0 : num(r.debt_then !== undefined ? r.debt_then : r.debt_amount);
+      if (!x.open && dueThen > 0) {
+        row.getCell(7).note = 'To\'lanmagan: ' + money(dueThen);
         row.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDE2E2' } };
       }
       /* guruhlar navbatma-navbat ochiq kulrang — qayerda boshlanib tugashi ko'rinsin */
@@ -8024,43 +8096,6 @@ const DayExcel = {
     /* Excel'da filtr (raqam bo'yicha tanlash) */
     if (all.length) J.autoFilter = { from: { row: 4, column: 1 }, to: { row: jEnd, column: jCols } };
     const jTotalRow = rr;
-    /* SHU KUNI TO'LANGAN QARZLAR — pul to'langan kunning tushumi. JAMI dan
-       pastda alohida (HISOBOT formulalari JISMONIY 5..jEnd va QARZ TO'LOVLARI
-       varag'idan oladi — bu yerdagi qatorlar ikki marta sanalmaydi). */
-    if (debtPays.length && !multi) {
-      let dr = jTotalRow + 2;
-      const hd = J.getRow(dr);
-      hd.getCell(1).value = 'SHU KUNI TO\'LANGAN QARZLAR (bugungi tushumga kiradi)'; J.mergeCells(dr, 1, dr, 6);
-      hd.getCell(1).font = { bold: true, size: 12, color: { argb: 'FF1D4ED8' } };
-      dr++;
-      const d0 = dr;
-      debtPays.forEach((d, i) => {
-        const row = J.getRow(dr);
-        const kech = d.session_day && d.session_day < d.paid_day;
-        row.getCell(1).value = i + 1;
-        row.getCell(2).value = kech ? 'KECHAGI qarz (' + this.fullDate(d.session_day) + ')' : 'BUGUNGI qarz';
-        row.getCell(3).value = d.plate || '';
-        row.getCell(4).value = this.dayFrac(d.paid_at); row.getCell(4).numFmt = TIME;
-        row.getCell(7).value = { formula: 'H' + dr + '+I' + dr + '+J' + dr };
-        row.getCell(d.method === 'terminal' ? 9 : d.method === 'click' ? 10 : 8).value = num(d.amount);
-        row.getCell(POSTC).value = num(d.post) || 1;
-        [7, 8, 9, 10].forEach(c => { row.getCell(c).numFmt = MONEY; });
-        for (let c = 1; c <= jCols; c++) row.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF6FF' } };
-        if (d.note) row.getCell(3).note = d.note;
-        dr++;
-      });
-      const qtr = J.getRow(dr);
-      qtr.getCell(1).value = 'QARZDAN JAMI'; J.mergeCells(dr, 1, dr, 3);
-      ['G', 'H', 'I', 'J'].forEach((L, k) => { const c = qtr.getCell(7 + k); c.value = { formula: 'SUM(' + L + d0 + ':' + L + (dr - 1) + ')' }; c.numFmt = MONEY; });
-      qtr.font = { bold: true };
-      dr++;
-      const ttr = J.getRow(dr);
-      ttr.getCell(1).value = 'BUGUNGI TUSHUM (mashinalar + qarzdan)'; J.mergeCells(dr, 1, dr, 6);
-      ['G', 'H', 'I', 'J'].forEach((L, k) => { const c = ttr.getCell(7 + k); c.value = { formula: L + jTotalRow + '+' + L + (dr - 1) }; c.numFmt = MONEY; });
-      for (let c = 1; c <= jCols; c++) { const cell = ttr.getCell(c); cell.font = { bold: true, size: 12 }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }; }
-      box(J, d0 - 1, dr, 1, jCols);
-    }
-
     /* ---------- MASHINALAR: bir mashina — bir qator (necha marta, jami) ---------- */
     const M = wb.addWorksheet('MASHINALAR', { views: [{ state: 'frozen', ySplit: 3 }], pageSetup: PAGE });
     title(M, 'AVTOMOBILLAR BO\'YICHA — BIR MASHINA BIR QATORDA', 9);
@@ -8072,10 +8107,11 @@ const DayExcel = {
       const k = plateKeyOf(x.r);
       let g = groups[groups.length - 1];
       if (!g || g.k !== k) { g = { k: k, name: x.r.plate || x.r.driver_name || '', n: 0, sec: 0, cash: 0, term: 0, click: 0, debt: 0, open: 0 }; groups.push(g); }
-      g.n++;
-      g.sec += x.open ? Math.max(0, (Date.now() - new Date(x.r.started_at).getTime()) / 1000) : num(x.r.duration_seconds);
-      g.cash += num(x.r.cash_amount); g.term += num(x.r.terminal_amount); g.click += num(x.r.click_amount);
-      if (!x.open) g.debt += num(x.r.debt_amount); else g.open++;
+      if (!x.pay) g.n++;
+      g.sec += x.pay ? 0 : x.open ? Math.max(0, (Date.now() - new Date(x.r.started_at).getTime()) / 1000) : num(x.r.duration_seconds);
+      g.cash += mv(x, 'cash_amount'); g.term += mv(x, 'terminal_amount'); g.click += mv(x, 'click_amount');
+      if (x.pay) { /* qarz to'lovi — mashina soni va qarzga qo'shilmaydi */ }
+      else if (!x.open) g.debt += num(x.r.debt_then !== undefined ? x.r.debt_then : x.r.debt_amount); else g.open++;
     });
     groups.forEach((g, i) => {
       const r0 = 4 + i, row = M.getRow(r0);
@@ -8091,7 +8127,7 @@ const DayExcel = {
     });
     const mEnd = Math.max(3 + groups.length, 4);
     const mt = M.getRow(mEnd + 1);
-    mt.getCell(2).value = 'JAMI: ' + groups.length + ' ta mashina';
+    mt.getCell(2).value = 'JAMI: ' + groups.filter(g => g.n > 0).length + ' ta mashina';
     mt.getCell(3).value = { formula: 'SUM(C4:C' + mEnd + ')' };
     mt.getCell(4).value = { formula: 'SUM(D4:D' + mEnd + ')' }; mt.getCell(4).numFmt = DUR;
     ['E', 'F', 'G', 'H', 'I'].forEach((L, k) => { const c = mt.getCell(5 + k); c.value = { formula: 'SUM(' + L + '4:' + L + mEnd + ')' }; c.numFmt = MONEY; });
@@ -8170,10 +8206,10 @@ const DayExcel = {
     L.columns = [{ width: 6 }, { width: 24 }, { width: 11 }, { width: 11 }, { width: 16 }, { width: 12 }];
     L.getRow(3).values = ['№', 'AVTOMOBIL RAQAMI', 'KIRISH', 'CHIQISH', 'SUMMA', 'SANA'];
     head(L, 3, 1, 6);
-    const clk = all.filter(x => num(x.r.click_amount) > 0);
+    const clk = all.filter(x => mv(x, 'click_amount') !== 0);
     clk.forEach((x, i) => {
       const row = L.getRow(4 + i);
-      row.values = [i + 1, x.r.plate || '', this.dayFrac(x.r.started_at), x.open ? null : this.dayFrac(x.r.finished_at), num(x.r.click_amount), this.fullDate(dayOf(x.r.started_at))];
+      row.values = [i + 1, x.r.plate || '', x.pay ? null : this.dayFrac(x.r.started_at), x.open || x.pay ? null : this.dayFrac(x.r.finished_at), mv(x, 'click_amount'), this.fullDate(x.pay ? x.r.paid_day : dayOf(x.r.started_at))];
       row.getCell(3).numFmt = TIME; row.getCell(4).numFmt = TIME; row.getCell(5).numFmt = MONEY;
     });
     const lEnd = 3 + clk.length;
@@ -8182,31 +8218,6 @@ const DayExcel = {
     lt.getCell(5).value = clk.length ? { formula: 'SUM(E4:E' + lEnd + ')' } : 0; lt.getCell(5).numFmt = MONEY;
     lt.font = { bold: true };
     box(L, 3, lEnd + 1, 1, 6);
-
-    /* ---------- QARZ TO'LOVLARI ----------
-       Pul TO'LANGAN KUNI bo'yicha: «KECHAGI» — oldingi kunda qarzga qolib,
-       shu kuni to'langan; «BUGUNGI» — shu kunning o'zida to'langan qarz. */
-    const Q = wb.addWorksheet('QARZ TO\'LOVLARI', { pageSetup: PAGE });
-    title(Q, 'QARZDAN TUSHGAN TO\'LOVLAR', 8);
-    Q.columns = [{ width: 6 }, { width: 24 }, { width: 13 }, { width: 18 }, { width: 15 }, { width: 12 }, { width: 8 }, { width: 12 }];
-    Q.getRow(3).values = ['№', 'AVTOMOBIL RAQAMI', 'QARZ KUNI', 'TO\'LANGAN', 'SUMMA', 'TO\'LOV', 'POST', 'TUR'];
-    head(Q, 3, 1, 8);
-    const PAYQ = m => m === 'terminal' ? 'Terminal' : m === 'click' ? 'Klik' : 'Naqd';
-    debtPays.forEach((d, i) => {
-      const row = Q.getRow(4 + i);
-      const kech = d.session_day && d.session_day < d.paid_day;
-      row.values = [i + 1, d.plate || '', d.session_day ? this.fullDate(d.session_day) : '',
-        this.fullDate(d.paid_day) + ' ' + timeOnly(d.paid_at), num(d.amount), PAYQ(d.method), num(d.post) || 1, kech ? 'KECHAGI' : 'BUGUNGI'];
-      row.getCell(5).numFmt = MONEY;
-      /* o'tgan kundagi xato to'lov bekor qilingan — teskari (manfiy) yozuv */
-      if (num(d.amount) < 0) { row.getCell(5).font = { color: { argb: 'FFB91C1C' }, bold: true }; row.getCell(2).note = d.note || 'Bekor qilingan to\'lov'; }
-      [1, 3, 6, 7, 8].forEach(c => { row.getCell(c).alignment = { horizontal: 'center' }; });
-      if (kech) row.getCell(8).font = { bold: true, color: { argb: 'FF1D4ED8' } };
-    });
-    const qEnd = Math.max(3 + debtPays.length, 4);
-    const qt = Q.getRow(qEnd + 1);
-    qt.getCell(2).value = 'JAMI'; qt.getCell(5).value = { formula: 'SUM(E4:E' + qEnd + ')' }; qt.getCell(5).numFmt = MONEY; qt.font = { bold: true };
-    box(Q, 3, qEnd + 1, 1, 8);
 
     /* ---------- HISOBOT — avtodrom faylidagidek: 1-POST, 2-POST, JAMI KIRIM ---------- */
     const H = wb.addWorksheet('HISOBOT', { pageSetup: { fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
@@ -8228,18 +8239,18 @@ const DayExcel = {
     const jL = String.fromCharCode(64 + POSTC);           /* JISMONIY dagi POST ustuni harfi */
     const jE = Math.max(jEnd, 5);
     const jr = L => 'JISMONIY!$' + L + '$5:$' + L + '$' + jE;
-    const qr = L => '\'QARZ TO\'\'LOVLARI\'!$' + L + '$4:$' + L + '$' + qEnd;
+    /* Qarz to'lovlari JISMONIY ichida (oddiy qator yoki o'z qatorida) —
+       shuning uchun hammasi shu yerdan; alohida «KECHAGI» yo'q (09.11.2026) */
     const postRows = {};
     [1, 2].forEach(n => {
       section(n + '-POST');
       sub('KIRIM');
-      const t = line('TERMINAL', 'SUMIF(' + jr(jL) + ',' + n + ',' + jr('I') + ')+SUMIFS(' + qr('E') + ',' + qr('G') + ',' + n + ',' + qr('F') + ',"Terminal",' + qr('H') + ',"BUGUNGI")');
-      const c = line('NAQT', 'SUMIF(' + jr(jL) + ',' + n + ',' + jr('H') + ')+SUMIFS(' + qr('E') + ',' + qr('G') + ',' + n + ',' + qr('F') + ',"Naqd",' + qr('H') + ',"BUGUNGI")');
-      const k = line('KLIK', 'SUMIF(' + jr(jL) + ',' + n + ',' + jr('J') + ')+SUMIFS(' + qr('E') + ',' + qr('G') + ',' + n + ',' + qr('F') + ',"Klik",' + qr('H') + ',"BUGUNGI")');
+      const t = line('TERMINAL', 'SUMIF(' + jr(jL) + ',' + n + ',' + jr('I') + ')');
+      const c = line('NAQT', 'SUMIF(' + jr(jL) + ',' + n + ',' + jr('H') + ')');
+      const k = line('KLIK', 'SUMIF(' + jr(jL) + ',' + n + ',' + jr('J') + ')');
       const ko = line('KASSADA KO\'P', null, false, 'qo\'lda yoziladi');
-      const ke = line('KECHAGI', 'SUMIFS(' + qr('E') + ',' + qr('G') + ',' + n + ',' + qr('H') + ',"KECHAGI")', false, 'oldingi kun qarzidan');
-      const j = line('JAMI', 'SUM(C' + t + ':C' + ke + ')', true);
-      postRows[n] = { t, c, k, ke, j };
+      const j = line('JAMI', 'SUM(C' + t + ':C' + ko + ')', true);
+      postRows[n] = { t, c, k, j };
       h++;
     });
     section('JAMI KIRIM');
@@ -8247,14 +8258,13 @@ const DayExcel = {
     const hT = line('TERMINAL', 'C' + P1.t + '+C' + P2.t);
     const hN = line('NAQT', 'C' + P1.c + '+C' + P2.c);
     const hK = line('KLIK', 'C' + P1.k + '+C' + P2.k);
-    const hKe = line('KECHAGI', 'C' + P1.ke + '+C' + P2.ke);
     const hJ = line('JAMI', 'C' + P1.j + '+C' + P2.j, true);
     H.getCell(hJ, 3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
     /* o'sha kun oxiridagi qarz (keyinroq to'langani ham — u to'langan kunda) */
     const debtSum = paidRows.reduce((a, r) => a + num(r.debt_then !== undefined ? r.debt_then : r.debt_amount), 0);
     if (debtSum > 0) { const dr = H.getRow(h); dr.getCell(2).value = 'To\'lanmagan (keyin to\'laydi)'; dr.getCell(3).value = debtSum; dr.getCell(3).numFmt = MONEY;
       dr.getCell(3).font = { color: { argb: 'FFB91C1C' }, bold: true }; box(H, h, h, 2, 3); h++; }
-    const cnt = H.getRow(h); cnt.getCell(2).value = 'Avtomobillar soni'; cnt.getCell(3).value = all.length; box(H, h, h, 2, 3); h++;
+    const cnt = H.getRow(h); cnt.getCell(2).value = 'Avtomobillar soni'; cnt.getCell(3).value = cars.length; box(H, h, h, 2, 3); h++;
     const att = H.getRow(h); att.getCell(2).value = 'Avtoshkola davomati (dars)'; att.getCell(3).value = { formula: 'KURS!H' + (kEnd + 1) }; box(H, h, h, 2, 3); h++;
     h++;
     section('XARAJATLAR');
@@ -8275,8 +8285,8 @@ const DayExcel = {
     const hXN = xl('shundan naqd', 'SUMIF(D' + xStart + ':D' + xLast + ',"Naqd",E' + xStart + ':E' + xLast + ')');
     h++;
     section('QOLDIQ');
-    /* kassadagi naqd: bugungi naqd + kechagi qarzdan naqd − naqd xarajat */
-    const q1 = xl('QOLDI NAQT (naqt + kechagi naqt − naqd xarajat)', 'C' + hN + '+SUMIFS(' + qr('E') + ',' + qr('H') + ',"KECHAGI",' + qr('F') + ',"Naqd")-E' + hXN, true);
+    /* kassadagi naqd: naqd kirim (qarzdan naqd ham ichida) − naqd xarajat */
+    const q1 = xl('QOLDI NAQT (naqt − naqd xarajat)', 'C' + hN + '-E' + hXN, true);
     xl('Jami kirim − jami xarajat', 'C' + hJ + '-E' + hX, true);
     H.getCell(q1, 5).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
 
@@ -8829,20 +8839,23 @@ function tariff(v) {
     mode: (v && v.calculation_mode) || st.calculationMode || 'hour'
   };
 }
-/* YARIM SOATLIK HISOB: vaqt 30 daqiqalik bo'laklarda sotiladi.
-   Mijoz buyurtma qilgan vaqtdan (1 soat, 1,5 soat, ...) kam to'lamaydi;
-   ortiqcha vaqt keyingi 30 daqiqaga yaxlitlanadi, CONFIG.GRACE_MIN
-   (20 daqiqa) kechiriladi: 1 soat 19 daq → 1 soat (100 000), 1 soat 23 daq →
-   1,5 soat (150 000). Eng kami 30 daqiqa.
-   BIRINCHI SOAT: 40 daqiqa bo'ldimi — 1 soat (100 000); 39 daqiqagacha —
-   30 daqiqa (50 000). CONFIG.FIRST_HOUR_MIN. */
+/* SOATLIK HISOB (rahbar, 09.11.2026: «1 soatu 20 minut bo'lsa 1 soat,
+   1 soatu 40 bo'lsa 2 soat»). Ekrandagi to'liq daqiqalar bo'yicha:
+     · birinchi soat: 39 daqiqagacha — 30 daqiqa (50 000), 40 daqiqa
+       bo'ldimi — 1 soat (100 000);
+     · keyingi har soatda: soatdan keyin 20 daqiqagacha — o'sha soat,
+       21–39 daqiqa — yana 30 daqiqa, 40 daqiqa bo'ldimi — to'liq soat.
+       Masalan: 1:20 → 1 soat, 1:30 → 1,5 soat, 1:40 → 2 soat,
+       2:20 → 2 soat, 2:39 → 2,5 soat, 2:40 → 3 soat.
+   Mijoz buyurtma qilgan vaqtdan (1 soat, 1,5 soat, ...) kam to'lamaydi. */
 function billMinutes(elapsedSec, targetSec) {
+  const m = Math.floor(Math.max(0, num(elapsedSec)) / 60 + 1e-9);
   const grace = num(CONFIG.GRACE_MIN);
-  const minutes = Math.max(0, num(elapsedSec) / 60);
-  const actual = Math.max(0, minutes - grace);
-  let used = Math.max(30, Math.ceil(actual / 30 - 1e-9) * 30);
-  const firstHour = num(CONFIG.FIRST_HOUR_MIN);
-  if (firstHour > 0 && minutes >= firstHour - 1e-9) used = Math.max(used, 60);
+  const full = num(CONFIG.FIRST_HOUR_MIN);
+  const h = Math.floor(m / 60), r = m - h * 60;
+  let used;
+  if (h === 0) used = full > 0 && m >= full ? 60 : 30;
+  else used = h * 60 + (r <= grace ? 0 : full > 0 && r >= full ? 60 : 30);
   const planned = num(targetSec) > 0 ? Math.ceil(num(targetSec) / 60 / 30 - 1e-9) * 30 : 0;
   return Math.max(used, planned);
 }
@@ -9370,7 +9383,7 @@ const Sheet = {
       { k: 'debt', t: 'TO\'LANMAGAN', w: 112, type: 'money', cls: 'num' },
       { k: 'paid', t: 'JAMI TO\'LOV', w: 110, ro: true, cls: 'num', fx: '= NAQD + TERMINAL + KLIK' },
       { k: 'ticket', t: 'CHEK CHIQQAN', w: 104, ro: true, cls: 'ctr' },
-      { k: 'state', t: 'HOLAT', w: 112, ro: true, cls: 'ctr' },
+      /* HOLAT ustuni olib tashlandi (rahbar, 09.11.2026) */
       { k: 'note', t: 'IZOH (sabab)', w: 200 }
     ],
     X: [
@@ -9400,7 +9413,24 @@ const Sheet = {
   TAB_NAMES: { J: 'JISMONIY', X: 'XARAJATLAR', K: 'KURS' },
 
   /* ---------- yordamchilar ---------- */
-  cols() { return this.COLS[this.tab]; },
+  /* JISMONIY: KLIK ustuni ko'rsatilmaydi (rahbar, 09.11.2026) — faqat shu
+     kuni Klik orqali pul bo'lsa chiqadi, aks holda u pul ko'rinmay qolardi */
+  cols() {
+    if (this.tab !== 'J') return this.COLS[this.tab];
+    const hc = !!this.hasClick;
+    if (!this._jc || this._jcClick !== hc) {
+      this._jcClick = hc;
+      this._jc = this.COLS.J.filter(c => c.k !== 'click' || hc)
+        .map(c => c.k === 'paid' && !hc ? Object.assign({}, c, { fx: '= NAQD + TERMINAL' }) : c);
+    }
+    return this._jc;
+  },
+  /* pul katagi: yozuvning o'z puli + shu kuni to'langan qarzi (bir xil kun) */
+  mval(row, k) {
+    return num(row.v[k]) + (row.pay ? num(row.pay[k]) : 0)
+      /* keyin to'langan qarz — shu kunda «to'lanmagan» bo'lib qoladi */
+      + (k === 'debt' && row.src ? num(row.src.paid_later) : 0);
+  },
   list() { return this.rows[this.tab]; },
   letter(i) { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; },
   nowHHMM() { const d = new Date(Date.now() + 5 * 3600e3); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); },
@@ -9494,10 +9524,36 @@ const Sheet = {
     while (n < want) { L.push(this.blank(tab)); n++; }
   },
   firstBlank() { const L = this.list(); const i = L.findIndex((r, k) => r.blank && L.slice(k).every(x => x.blank)); return i; },
+  /* QARZ TO'LOVLARI — oddiy qator (rahbar, 09.11.2026: «Qarz to'landi»,
+     «KECHAGI qarz» va pastdagi alohida blok kerak emas):
+       · shu kunning qarzi shu kuni to'langan — o'sha qatorning NAQD /
+         TERMINAL katagida (o'zgartirib bo'lmaydi: bekor qilish — Qarzdorlar);
+       · oldingi kunning qarzi — to'langan kunda alohida qator: kirish /
+         chiqish bo'sh (mashinalar soni va soatlar ikki marta sanalmaydi),
+         CHEK CHIQQAN — to'langan vaqt, IZOH — «04.11 qarzi». */
+  payRow(p) {
+    const k = ['cash', 'terminal', 'click'].includes(p.method) ? p.method : 'cash';
+    const sd = String(p.session_day || '');
+    const v = { plate: p.plate || '—', start: '', end: '', cash: 0, terminal: 0, click: 0, debt: 0,
+      note: (sd ? sd.slice(8, 10) + '.' + sd.slice(5, 7) + ' qarzi' : 'qarz') + (num(p.amount) < 0 ? ' — to\'lov bekor qilindi' : '') };
+    v[k] = Math.round(num(p.amount));
+    return { _k: 'dp' + p.id, id: null, payRow: true, src: { paid_at: p.paid_at, pay: p }, v: v, o: Object.assign({}, v), err: {}, serr: {}, del: false };
+  },
   build(d) {
     this.data = d;
     this.dp = d.debtPayments || [];
-    this.rows.J = (d.sessions || []).map(s => this.jRow(s));
+    const ids = new Set((d.sessions || []).map(s => String(s.id)));
+    const merged = {}, extra = [];
+    this.dp.forEach(p => {
+      const k = ['cash', 'terminal', 'click'].includes(p.method) ? p.method : 'cash';
+      if (p.session_day === d.date && ids.has(String(p.session_id))) {
+        const m = merged[String(p.session_id)] || (merged[String(p.session_id)] = { cash: 0, terminal: 0, click: 0, at: p.paid_at });
+        m[k] += Math.round(num(p.amount));
+      } else extra.push(p);
+    });
+    this.rows.J = (d.sessions || []).map(s => { const r = this.jRow(s); if (merged[String(s.id)]) r.pay = merged[String(s.id)]; return r; })
+      .concat(extra.map(p => this.payRow(p)));
+    this.hasClick = (d.sessions || []).some(s => num(s.click_amount) > 0) || this.dp.some(p => p.method === 'click' && num(p.amount) !== 0);
     this.sortJ(false);
     this.rows.X = (d.expenses || []).map(e => this.xRow(e));
     this.rows.K = (d.school || []).map(s => ({ _k: String(s.id), id: s.id, src: s, v: s, o: s, err: {}, serr: {}, del: false }));
@@ -9508,7 +9564,7 @@ const Sheet = {
     const L = this.rows.J;
     const saved = L.filter(r => !r.blank && !r.isNew), fresh = L.filter(r => !r.blank && r.isNew), blanks = L.filter(r => r.blank);
     const key = r => plateKeyOf({ plate: r.v.plate });
-    const t = r => new Date((r.src && r.src.started_at) || 0).getTime();
+    const t = r => new Date((r.src && (r.src.started_at || r.src.paid_at)) || 0).getTime();
     if (this.order === 'plate') saved.sort((a, b) => plateCmp(key(a), key(b)) || (t(a) - t(b)));
     else saved.sort((a, b) => t(a) - t(b));
     const all = saved.concat(fresh);
@@ -9563,10 +9619,10 @@ const Sheet = {
       if (k === 'state') return s.status === 'completed' ? 'Tugagan' : s.status === 'active' ? 'Ichkarida' : 'Muzlatilgan';
       return v[k] === null || v[k] === undefined ? '' : String(v[k]);
     }
-    if (col.type === 'money') return this.fmtMoney(v[k]);
+    if (col.type === 'money') return this.tab === 'J' ? this.fmtMoney(this.mval(row, k)) : this.fmtMoney(v[k]);
     if (col.type === 'pay') return this.PAY[v[k]] || String(v[k] || '');
     if (k === 'dur') {
-      if (row.blank) return '';
+      if (row.blank || row.payRow) return '';
       const mins = v.end ? this.minutesBetween(v.start, v.end) : null;
       if (mins !== null) {
         /* vaqt o'zgarmagan bo'lsa — bazadagi aniq davomiylik (muzlatish hisobga olingan) */
@@ -9576,9 +9632,10 @@ const Sheet = {
       if (!v.end && s.started_at && s.status !== 'completed') return this.fmtDur((Date.now() - new Date(s.started_at).getTime()) / 1000);
       return '';
     }
-    if (k === 'paid') { const p = num(v.cash) + num(v.terminal) + num(v.click); return row.blank ? '' : this.fmtMoney(p) || (v.end || !row.isNew ? '0' : ''); }
+    if (k === 'paid') { const p = this.mval(row, 'cash') + this.mval(row, 'terminal') + this.mval(row, 'click'); return row.blank ? '' : this.fmtMoney(p) || (v.end || !row.isNew ? '0' : ''); }
     if (k === 'state') return '';
     if (k === 'ticket') {
+      if (row.payRow) return s.paid_at ? this.hms(s.paid_at) : '';
       if (row.blank || row.isNew || !s.ticket_at) return '';
       return this.hms(s.ticket_at) + (s.ticket_kind === 'bron' ? ' · bron' : s.ticket_kind === 'navbat' ? ' · navbat' : '') + (num(s.prints) > 1 ? ' ×' + num(s.prints) : '');
     }
@@ -9604,6 +9661,10 @@ const Sheet = {
   isRO(row, col) {
     if (this.tab === 'K' || col.ro) return true;
     if (row.del) return true;
+    /* qarz to'lovi qatori va qarzdan to'langan pul — bu yerda o'zgarmaydi */
+    if (row.payRow) return true;
+    if (row.pay && ['cash', 'terminal', 'click', 'debt'].includes(col.k)) return true;
+    if (col.k === 'debt' && row.src && num(row.src.paid_later) > 0) return true;
     if (this.tab === 'J' && !row.isNew && !row.blank) {
       const st = row.src && row.src.status;
       if ((st === 'frozen' || st === 'paused') && (col.k === 'start' || col.k === 'end')) return true;
@@ -9616,7 +9677,7 @@ const Sheet = {
     const cols = this.cols(), L = this.list();
     const tabs = $('shTabs');
     if (tabs) tabs.innerHTML = ['J', 'X', 'K'].map(t => {
-      const n = this.rows[t].filter(r => !r.blank).length;
+      const n = this.rows[t].filter(r => !r.blank && !r.payRow).length;
       return '<button type="button" class="sh-tab' + (t === this.tab ? ' on' : '') + '" role="tab" aria-selected="' + (t === this.tab) + '" data-act="shTab" data-t="' + t + '">'
         + this.TAB_NAMES[t] + '<small>' + n + '</small></button>';
     }).join('');
@@ -9643,7 +9704,7 @@ const Sheet = {
   },
   rowHTML(row, r) {
     const cols = this.cols();
-    const cls = [row.blank ? 'blank' : '', row.isNew ? 'new' : '', row.del ? 'del' : '',
+    const cls = [row.blank ? 'blank' : '', row.isNew ? 'new' : '', row.del ? 'del' : '', row.payRow ? 'pay' : '',
       this.tab === 'J' && row.grp ? 'g1' : '', this.tab === 'J' && row.gEnd ? 'ge' : ''].filter(Boolean).join(' ');
     const L = this.list();
     const hint = row.blank && (r === 0 || !L[r - 1].blank) && this.tab !== 'K';
@@ -9656,16 +9717,18 @@ const Sheet = {
       const ro = this.isRO(row, c) && !row.del;
       const tdc = [c.cls || '', ro ? 'ro' : '', mod ? 'mod' : '', bad ? 'bad' : ''].filter(Boolean).join(' ');
       const inner = k === 'state' ? this.stateHTML(row) : esc(this.display(row, c));
-      return '<td data-r="' + r + '" data-c="' + ci + '"' + (tdc ? ' class="' + tdc + '"' : '') + (bad ? ' title="' + esc(bad) + '"' : '') + '>' + inner + '</td>';
+      const tip = bad || (row.payRow ? 'Qarz to\'lovi — bekor qilish: Qarzdorlar' : row.pay && ['cash', 'terminal', 'click'].includes(k) && num(row.pay[k]) ? 'Qarzdan to\'langan — bekor qilish: Qarzdorlar'
+        : k === 'debt' && row.src && num(row.src.paid_later) > 0 ? 'Shu kuni to\'lanmagan edi — keyin to\'langan, pul to\'langan kunda' : '');
+      return '<td data-r="' + r + '" data-c="' + ci + '"' + (tdc ? ' class="' + tdc + '"' : '') + (tip ? ' title="' + esc(tip) + '"' : '') + '>' + inner + '</td>';
     }).join('') + '</tr>';
   },
   totalsHTML() {
     const cols = this.cols(), L = this.list().filter(r => !r.blank && !r.del);
-    const sum = k => L.reduce((a, r) => a + (num(r.v[k]) || 0), 0);
+    const sum = k => L.reduce((a, r) => a + (this.tab === 'J' ? this.mval(r, k) : (num(r.v[k]) || 0)), 0);
     return '<tr>' + cols.map((c, i) => {
       let v = '';
       if (i === 0) v = '';
-      else if (i === 1) v = 'JAMI: ' + L.length;
+      else if (i === 1) v = 'JAMI: ' + L.filter(r => !r.payRow).length;
       else if (this.tab === 'J' && ['cash', 'terminal', 'click', 'debt'].includes(c.k)) v = this.fmtMoney(sum(c.k)) || '0';
       else if (this.tab === 'J' && c.k === 'paid') v = this.fmtMoney(sum('cash') + sum('terminal') + sum('click')) || '0';
       else if (this.tab === 'J' && c.k === 'dur') {
@@ -9677,38 +9740,7 @@ const Sheet = {
       else if (this.tab === 'X' && c.k === 'liters') v = String(Math.round(sum('liters') * 100) / 100 || '');
       else if (this.tab === 'K' && c.k === 'lessons') v = String(L.reduce((a, r) => a + num(this.display(r, c)), 0));
       return '<td class="' + (i === 0 ? 'rn' : (c.cls || '')) + '">' + esc(v) + '</td>';
-    }).join('') + '</tr>' + (this.tab === 'J' ? this.debtRowsHTML(cols, sum) : '');
-  },
-  /* SHU KUNI TO'LANGAN QARZLAR — pul shu kunning tushumi: pastda alohida
-     qator va «BUGUNGI TUSHUM» (seanslar + qarzdan tushgani) */
-  debtRowsHTML(cols, sum) {
-    const dp = this.dp || [];
-    if (!dp.length) return '';
-    const by = m => dp.filter(d => (d.method || 'cash') === m).reduce((a, d) => a + num(d.amount), 0);
-    const q = { cash: by('cash'), terminal: by('terminal'), click: by('click') };
-    q.paid = q.cash + q.terminal + q.click;
-    const t = { cash: sum('cash') + q.cash, terminal: sum('terminal') + q.terminal, click: sum('click') + q.click };
-    t.paid = t.cash + t.terminal + t.click;
-    const old = dp.filter(d => d.session_day && d.session_day < this.date).length;
-    const row = (label, vals, cls, act) => '<tr class="' + cls + '">' + cols.map((c, i) => {
-      if (i === 0) return '<td class="rn"></td>';
-      if (i === 1) return '<td' + (act ? ' data-act="shDebts" style="cursor:pointer;text-decoration:underline dotted" title="Ro\'yxatni ko\'rish"' : '') + '>' + label + '</td>';
-      const v = ['cash', 'terminal', 'click', 'paid'].includes(c.k) ? vals[c.k] : null;
-      return '<td class="' + (c.cls || '') + '">' + (v === null ? '' : esc(this.fmtMoney(v) || '0')) + '</td>';
     }).join('') + '</tr>';
-    return row('QARZDAN TO\'LANDI: ' + dp.length + ' ta' + (old ? ' (' + old + ' tasi oldingi kunlardan)' : ''), q, 'sh-dp', true)
-      + row('BUGUNGI TUSHUM', t, 'sh-tot', false);
-  },
-  showDebts() {
-    const dp = this.dp || [];
-    const PAYQ = m => m === 'terminal' ? 'Terminal' : m === 'click' ? 'Klik' : 'Naqd';
-    openModal('<div class="modal-head"><div><h2>Shu kuni to\'langan qarzlar</h2><p class="text-muted" style="margin:4px 0 0">Pul to\'langan kunning tushumiga kiradi</p></div>'
-      + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
-      + '<div class="table-wrap responsive"><table class="tbl" style="min-width:0"><thead><tr><th>Raqam</th><th>Qarz kuni</th><th>To\'landi</th><th>Summa</th><th>To\'lov</th><th>Post</th></tr></thead><tbody>'
-      + dp.map(d => '<tr><td data-label="Raqam"><b>' + esc(d.plate || '—') + '</b></td><td data-label="Qarz kuni">' + esc(d.session_day ? fmtDate(d.session_day) : '—')
-        + (d.session_day && d.session_day < this.date ? ' <span class="badge badge-blue">kechagi</span>' : '') + '</td><td data-label="To\'landi">' + esc(d.time || timeOnly(d.paid_at)) + '</td>'
-        + '<td data-label="Summa"' + (num(d.amount) < 0 ? ' style="color:#b91c1c"' : '') + '>' + esc(money(d.amount)) + '</td><td data-label="To\'lov">' + PAYQ(d.method) + '</td><td data-label="Post">' + (num(d.post) || 1) + '-POST</td></tr>').join('')
-      + '</tbody></table></div>', { wide: true });
   },
   redrawRow(r) {
     const tr = $('shGrid').querySelector('tbody tr[data-r="' + r + '"]');
@@ -9753,6 +9785,8 @@ const Sheet = {
       else if (col.fx) fx.textContent = col.fx + '   →   ' + this.display(row, col);
       else if (col.hint) fx.textContent = this.display(row, col) + '      (' + col.hint + ')';
       else if (col.k === 'state') fx.textContent = (td && td.textContent) || '';
+      else if (row.payRow) fx.textContent = this.display(row, col) + '   (qarz to\'lovi: ' + esc(row.v.note) + ' — bekor qilish «Qarzdorlar» da)';
+      else if (row.pay && ['cash', 'terminal', 'click'].includes(col.k) && num(row.pay[col.k])) fx.textContent = this.display(row, col) + '   (shundan ' + this.fmtMoney(row.pay[col.k]) + ' — qarzdan to\'langan)';
       else if ((col.k === 'ticket' || col.k === 'start') && !row.blank && !row.isNew && row.src && row.src.ticket_at) fx.textContent = this.ticketInfo(row);
       else if (row.blank && this.sel.c === 1) fx.textContent = this.tab === 'J' ? 'Yangi mashina: raqami yoki ismini yozing, Enter. Kirish vaqti o\'zi qo\'yiladi.' : 'Yangi xarajat: kim oldi, keyin turi, summa…';
       else if (this.isRO(row, col) && !col.ro && this.tab === 'J' && !row.del) fx.textContent = this.display(row, col) + '   (muzlatilgan yozuv vaqti o\'zgarmaydi)';
@@ -9775,7 +9809,7 @@ const Sheet = {
     const L = this.list(), C = this.cols(), R = this.range();
     const parts = [];
     if (this.list().length) {
-      const filled = L.filter(r => !r.blank && !r.del).length;
+      const filled = L.filter(r => !r.blank && !r.del && !r.payRow).length;
       parts.push('<span>' + this.TAB_NAMES[this.tab] + ': <b>' + filled + '</b> ta yozuv</span>');
     }
     if (R.r1 !== R.r2 || R.c1 !== R.c2) {
@@ -9784,7 +9818,10 @@ const Sheet = {
         const row = L[r], col = C[c]; if (!row || !col || row.blank || row.del) continue;
         const txt = col.k === 'state' ? '' : this.display(row, col);
         if (txt) cnt++;
-        if (col.type === 'money' || col.k === 'paid') { const v = col.k === 'paid' ? num(row.v.cash) + num(row.v.terminal) + num(row.v.click) : num(row.v[col.k]); sum += v; nums++; }
+        if (col.type === 'money' || col.k === 'paid') {
+          const v = this.tab !== 'J' ? num(row.v[col.k]) : col.k === 'paid' ? this.mval(row, 'cash') + this.mval(row, 'terminal') + this.mval(row, 'click') : this.mval(row, col.k);
+          sum += v; nums++;
+        }
       }
       if (nums) parts.push('<span>O\'rtacha: <b>' + this.fmtMoney(sum / nums) + '</b></span>');
       parts.push('<span>Soni: <b>' + cnt + '</b></span>');
@@ -9814,12 +9851,12 @@ const Sheet = {
     else $('shGrid').innerHTML = '<tbody><tr><td class="sh-empty">' + 'Yuklanmoqda…' + '</td></tr></tbody>';
     this.load();
     clearInterval(this.timer);
-    /* O'zgarish bo'lmasa har 30 soniyada yangilanadi (yangi kirgan mashinalar ko'rinsin) */
+    /* O'zgarish bo'lmasa har 10 soniyada yangilanadi — bazaga yozilgani darrov ko'rinsin (rahbar, 09.11.2026) */
     this.timer = setInterval(() => {
       if (STATE.page !== 'sheet') { clearInterval(this.timer); return; }
       if (!this.edit && !this.saving && !this.dirtyCount() && !($('modal') && $('modal').innerHTML)) this.load(true);
       else if (this.tab === 'J') this.redrawDur();
-    }, 30000);
+    }, 10000);
     setTimeout(() => this.focusGrid(), 50);
   },
   redrawDur() {
@@ -10151,6 +10188,7 @@ const Sheet = {
     const group = [];
     for (let r = R.r1; r <= R.r2; r++) {
       const row = L[r]; if (!row || row.blank) continue;
+      if (row.payRow) { toast('Qarz to\'lovini bu yerda o\'chirib bo\'lmaydi — «Qarzdorlar» dan bekor qiling', 'warn'); continue; }
       const before = row.del; row.del = !row.del;
       group.push({ tab: this.tab, k: row._k, f: '__del', before: before, after: row.del });
     }
@@ -10542,11 +10580,11 @@ const Correct = {
       + '<div class="field-help" style="margin-bottom:8px">Hozir: ' + esc(this.fmt(r)) + '</div>'
       /* O'TGAN KUN: qo'shilgan pul o'sha kunga emas — bugungi tushumga (server shunday yozadi) */
       + (dayOf(r.started_at) !== localDateISO(0) ? '<div class="field-help" style="margin-bottom:10px;padding:8px 10px;border-radius:10px;background:#eff6ff;color:#1e40af">'
-        + '<b>Bu yozuv o\'tgan kunniki (' + esc(fmtDate(dayOf(r.started_at))) + ').</b> Bu yerda pul qo\'shsangiz, u o\'tgan kunga <b>yozilmaydi</b> — bugungi tushumga («Kechagi», shu postga) tushadi. O\'tgan kunning hisoboti o\'zgarmaydi.</div>'
+        + '<b>Bu yozuv o\'tgan kunniki (' + esc(fmtDate(dayOf(r.started_at))) + ').</b> Bu yerda pul qo\'shsangiz, u o\'tgan kunga <b>yozilmaydi</b> — bugungi tushumga (shu postga) tushadi. O\'tgan kunning hisoboti o\'zgarmaydi.</div>'
       /* Qarzni KEYINROQ to'lash — bu oyna emas: pul to'langan kunga tushishi kerak */
       : debt > 0 ? '<div class="field-help" style="margin-bottom:10px;padding:8px 10px;border-radius:10px;background:#fffbeb;color:#92400e">'
         + '<b>Qarzni hozir to\'layaptimi?</b> Unda bu yerda emas — kassadagi <b>«To\'lanmagan» → «To\'lash»</b> orqali: pul bugungi hisobotga'
-        + (dayOf(r.started_at) !== localDateISO(0) ? ' («Kechagi»)' : '') + ' va shu postga yoziladi. Bu oyna — xato yozilganini tuzatish uchun.</div>' : '')
+        + ' va shu postga yoziladi. Bu oyna — xato yozilganini tuzatish uchun.</div>' : '')
       + '<div class="field-label">Tez to\'g\'rilash (' + esc(money(this.base)) + ')</div>'
       + '<div class="fix-quick">'
       + (this.inside ? '' : q('debt', 'fa-hourglass-half', 'To\'lanmagan'))
@@ -10570,7 +10608,7 @@ const Correct = {
       + '<p class="ex-time">' + esc(when) + ' · <b>' + esc(ranText(num(r.duration_seconds))) + '</b></p></div>'
       + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
       + '<div class="price-hero paid"><div class="ph-sum">' + esc(money(r.debt_paid)) + '</div>'
-      + '<div class="ph-sub">qarz <b>' + esc(paidDay) + '</b> da to\'langan — pul o\'sha kunning hisobotida (shu kuni bo\'lsa naqd/terminal/Klik ichida, keyingi kunlarda «Kechagi»)</div></div>'
+      + '<div class="ph-sub">qarz <b>' + esc(paidDay) + '</b> da to\'langan — pul o\'sha kunning hisobotida (naqd/terminal ichida)</div></div>'
       + (num(r.debt_amount) > 0 ? '<div class="field-help" style="margin:10px 0;color:#b91c1c">Bu yozuvda yana ' + esc(money(r.debt_amount)) + ' to\'lanmagan turibdi (eski to\'g\'rilash). To\'lov bekor qilinsa — to\'lanmagan summa ' + esc(money(Math.max(num(r.debt_amount), num(r.debt_paid)))) + ' bo\'ladi, keyin odatdagidek to\'g\'rilash mumkin.</div>' : '')
       + '<div class="field-help" style="margin:10px 0">To\'lov xato bosilgan bo\'lsa (boshqa mijoz, noto\'g\'ri usul) — bekor qiling: summa yana «To\'lanmagan»ga qaytadi, keyin kassada to\'g\'risi bilan «To\'lash» qilinadi. '
       + 'Bugungi to\'lov o\'chiriladi; o\'tgan kundagi to\'lov o\'sha kunning hisobotida qoladi, bugun teskari (minus) yozuv tushadi — yopilgan kunlar o\'zgarmaydi.</div>'
@@ -11106,6 +11144,7 @@ function reportRowCells(r) {
     /* Davomat yozuvi mashina raqami bilan ham kelishi mumkin —
        shuning uchun turini alohida belgi bilan ko'rsatamiz. */
     '<b>' + esc(r.plate || (isSchool ? 'Davomat' : '—')) + '</b>'
+      + (r.payRow ? '<div class="text-muted" style="font-size:12px">' + esc(r.payNote || '') + ' · ' + esc(timeOnly(r.paid_at)) + '</div>' : '')
       + (isSchool ? '<div><span class="badge badge-blue">Davomat</span></div>' : '')
       + (r.correction_note ? '<div><span class="badge badge-amber" title="' + esc('To\'g\'rilangan: ' + r.correction_note) + '">'
         + '<i class="fa-solid fa-pen" aria-hidden="true"></i> to\'g\'rilangan</span></div>' : '')
@@ -11113,12 +11152,12 @@ function reportRowCells(r) {
       + (!isSchool && r.id && r.status !== 'cancelled'
         ? '<div><button class="btn btn-light btn-sm row-fix" type="button" data-act="correctOpen" data-id="' + esc(r.id) + '" data-stop="1" title="To\'lovni to\'g\'rilash">'
           + '<i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> To\'g\'rilash</button></div>' : ''),
-    esc(dt(r.started_at)),
+    r.payRow ? '—' : esc(dt(r.started_at)),
     /* Hali ichkarida — hisobotga kirishi bilan tushadi */
-    (r.status && r.status !== 'completed'
+    r.payRow ? '—' : (r.status && r.status !== 'completed'
       ? '<span class="badge badge-amber">' + (r.status === 'active' ? 'Ichkarida' : 'Muzlatilgan') + '</span>'
       : esc(dt(r.finished_at))),
-    dur(r.duration_seconds),
+    r.payRow ? '—' : dur(r.duration_seconds),
     esc(r.school_name || '—'),
     esc(r.group_name || '—'),
     esc(r.student_name || '—'),
@@ -11130,8 +11169,8 @@ function reportRowCells(r) {
     money(r.terminal_amount),
     '<b style="color:var(--g-dark)">' + money(r.amount) + '</b>'
       + (num(r.click_amount) > 0 ? '<div class="text-muted" style="font-size:11.5px">shundan Klik ' + esc(money(r.click_amount)) + '</div>' : '')
-      + (num(r.debt_amount) > 0 ? '<div style="font-size:11.5px;color:#b45309;font-weight:700">to\'lanmagan ' + esc(money(r.debt_amount)) + '</div>' : '')
-      + (num(r.debt_paid) > 0 && !num(r.debt_amount) ? '<div style="font-size:11.5px;color:#1d4ed8;font-weight:700" title="Pul to\'langan kunning hisobotida">qarz ' + esc(money(r.debt_paid)) + ' — ' + esc(r.settled_at ? fmtDate(dayOf(r.settled_at)) : 'keyin') + ' to\'landi</div>' : '')
+      /* to'lanmagan — o'sha kun oxiridagidek (keyin to'langan bo'lsa ham) */
+      + (num(r.debt_then !== undefined ? r.debt_then : r.debt_amount) > 0 ? '<div style="font-size:11.5px;color:#b45309;font-weight:700">to\'lanmagan ' + esc(money(r.debt_then !== undefined ? r.debt_then : r.debt_amount)) + '</div>' : '')
       + (num(r.pay_post || r.post) > 1 ? '<div style="font-size:11px;color:#64748b">' + num(r.pay_post || r.post) + '-POST</div>' : '')
   ];
 }
@@ -11241,6 +11280,39 @@ const Reports = {
   },
   allRows() {
     return (this.data && Array.isArray(this.data.rows)) ? this.data.rows : [];
+  },
+  /* QARZ TO'LOVLARI (rahbar, 09.11.2026 — «kechagi qarz» deb alohida emas):
+     · yozuvning qarzi o'sha kuni to'langan — pul o'z qatoriga qo'shiladi
+       (r._dp — qancha qo'shilgani; «To'g'rilash» buni hisobga oladi);
+     · oldingi kunning qarzi — jadvalda oddiy qator (vaqtsiz, «04.11 qarzi»). */
+  prepPays() {
+    const d = this.data || {};
+    const byId = {};
+    this.allRows().forEach(r => { if (r && r.id) byId[String(r.id)] = r; });
+    this.pays = [];
+    (d.debtPayments || []).forEach(p => {
+      const k = p.method === 'terminal' ? 'terminal' : p.method === 'click' ? 'click' : 'cash';
+      const r = byId[String(p.session_id)];
+      const a = num(p.amount);
+      if (r && p.session_day && p.session_day === p.paid_day && dayOf(r.started_at) === p.paid_day) {
+        if (!r._dp) r._dp = { cash: 0, terminal: 0, click: 0 };
+        r._dp[k] += a;
+        r[k + '_amount'] = num(r[k + '_amount']) + a;
+        r.amount = num(r.amount) + a;
+      } else {
+        const sd = String(p.session_day || '');
+        const x = { payRow: true, plate: p.plate || '—', status: 'completed', duration_seconds: 0, customer_type: 'paid',
+          cash_amount: 0, terminal_amount: 0, click_amount: 0, amount: a, pay_post: num(p.post) || 1, paid_at: p.paid_at,
+          payNote: (sd ? sd.slice(8, 10) + '.' + sd.slice(5, 7) + ' qarzi' : 'qarz') + (a < 0 ? ' — bekor qilindi' : '') };
+        x[k + '_amount'] = a;
+        this.pays.push(x);
+      }
+    });
+  },
+  payRowsVisible() {
+    if (this.seg === 'school') return [];
+    const q = String(this.q || '').trim();
+    return (this.pays || []).filter(x => !q || smartMatch(x.plate, q));
   },
 
   setSeg(seg, el) {
@@ -11414,7 +11486,7 @@ const Reports = {
   render() {
     const qEl = $('dailyQ');
     this.q = qEl ? qEl.value : '';
-    const rows = this.visibleRows();
+    const rows = this.visibleRows().concat(this.payRowsVisible());
     const t = this.totals(rows);
     const host = $('dailyTableWrap');
     if (host) {
@@ -11438,23 +11510,23 @@ const Reports = {
     this.renderDays();
   },
 
-  /* 1-POST / 2-POST: kassalar bo'yicha kirim, kechagi qarzlar, xarajat, qoldiq */
+  /* 1-POST / 2-POST: kassalar bo'yicha kirim (qarzdan to'langani ham), xarajat, qoldiq */
   postTotals() {
     const d = this.data || {};
     const P = {};
-    const get = n => (P[n] = P[n] || { cars: 0, cash: 0, terminal: 0, click: 0, kech: 0, kechCash: 0, debt: 0, exp: 0, expCash: 0 });
+    const get = n => (P[n] = P[n] || { cars: 0, cash: 0, terminal: 0, click: 0, debt: 0, exp: 0, expCash: 0 });
     get(1); get(2);
     this.allRows().filter(r => !isSchoolRow(r)).forEach(r => {
       const open = num(r.post) || 1, pay = num(r.pay_post) || open;
       get(open).cars++;
       const x = get(pay);
-      x.cash += num(r.cash_amount); x.terminal += num(r.terminal_amount); x.click += num(r.click_amount);
+      /* qatorlarda shu kuni to'langan o'z qarzi ham bor (prepPays) */
+      x.cash += num(r.cash_amount) - num(r._dp && r._dp.cash); x.terminal += num(r.terminal_amount) - num(r._dp && r._dp.terminal); x.click += num(r.click_amount) - num(r._dp && r._dp.click);
       get(open).debt += num(r.debt_amount);
     });
     (d.debtPayments || []).forEach(p => {
       const x = get(num(p.post) || 1), a = num(p.amount);
-      if (p.session_day && p.session_day < p.paid_day) { x.kech += a; if (p.method === 'cash') x.kechCash += a; }
-      else if (p.method === 'terminal') x.terminal += a; else if (p.method === 'click') x.click += a; else x.cash += a;
+      if (p.method === 'terminal') x.terminal += a; else if (p.method === 'click') x.click += a; else x.cash += a;
     });
     (this.exp || []).forEach(e => { const x = get(num(e.post) || 1); x.exp += num(e.amount); if (e.pay_method === 'cash') x.expCash += num(e.amount); });
     return P;
@@ -11464,31 +11536,24 @@ const Reports = {
     const d = this.data || {};
     const P = this.postTotals();
     const posts = Object.keys(P).map(Number).sort();
-    const used = posts.filter(n => n === 1 || P[n].cars || P[n].cash || P[n].terminal || P[n].click || P[n].kech || P[n].exp);
+    const used = posts.filter(n => n === 1 || P[n].cars || P[n].cash || P[n].terminal || P[n].click || P[n].exp);
     const T = used.reduce((a, n) => { Object.keys(P[n]).forEach(k => { a[k] = (a[k] || 0) + P[n][k]; }); return a; }, {});
-    const kirim = x => x.cash + x.terminal + x.click + x.kech;
+    const kirim = x => x.cash + x.terminal + x.click;
     const line = (label, f, cls) => '<tr' + (cls ? ' class="' + cls + '"' : '') + '><th>' + label + '</th>'
       + used.map(n => '<td>' + f(P[n]) + '</td>').join('') + (used.length > 1 ? '<td><b>' + f(T) + '</b></td>' : '') + '</tr>';
     const m = v => money(v || 0);
-    const kech = d.debtPayments || [];
-    const kechRows = kech.filter(p => p.session_day && p.session_day < p.paid_day);
     host.innerHTML = '<div class="panel post-panel"><div class="panel-head"><h3><i class="fa-solid fa-cash-register" style="color:var(--g)" aria-hidden="true"></i> Kassalar bo\'yicha</h3>'
-      + '<span class="text-muted" style="font-size:12.5px">Pul olingan post bo\'yicha · Kechagi — oldingi kunlardagi qarzdan shu kuni to\'langani</span></div>'
+      + '<span class="text-muted" style="font-size:12.5px">Pul olingan post bo\'yicha · qarzdan shu kuni to\'langani ham ichida</span></div>'
       + '<div class="table-wrap"><table class="tbl post-tbl"><thead><tr><th></th>' + used.map(n => '<th>' + n + '-POST</th>').join('') + (used.length > 1 ? '<th>JAMI</th>' : '') + '</tr></thead><tbody>'
       + line('Avtomobillar', x => x.cars)
       + line('Terminal', x => m(x.terminal))
       + line('Naqd', x => m(x.cash))
       + line('Klik', x => m(x.click))
-      + line('Kechagi (qarzdan)', x => m(x.kech))
       + line('<b>JAMI KIRIM</b>', x => '<b>' + m(kirim(x)) + '</b>', 'tot')
       + line('To\'lanmagan', x => x.debt ? '<span class="red">' + m(x.debt) + '</span>' : m(0))
       + line('Xarajat', x => m(x.exp))
-      + line('Kassada naqd qoldi', x => '<b>' + m(x.cash + x.kechCash - x.expCash) + '</b>', 'tot')
+      + line('Kassada naqd qoldi', x => '<b>' + m(x.cash - x.expCash) + '</b>', 'tot')
       + '</tbody></table></div>'
-      + (kechRows.length ? '<div class="kech-list"><b>Kechagi qarzlardan to\'langanlar (' + kechRows.length + ')</b>'
-        + kechRows.map(p => '<div class="kech-row' + (num(p.amount) < 0 ? ' rev' : '') + '"><span class="kp">' + esc(p.plate || '—') + '</span><span>' + esc(fmtDate(p.session_day)) + ' dagi qarz</span>'
-          + '<span>' + esc(timeOnly(p.paid_at)) + (num(p.amount) < 0 ? ' da bekor qilindi' : ' da to\'landi') + ' · ' + (num(p.post) || 1) + '-POST</span><b>' + m(num(p.amount)) + ' · ' + esc(PAY_NAMES[p.method] || p.method) + '</b>'
-          + (num(p.amount) < 0 && p.note ? '<small class="kech-note">' + esc(p.note) + '</small>' : '') + '</div>').join('') + '</div>' : '')
       + '</div>';
   },
 
@@ -11521,16 +11586,14 @@ const Reports = {
       const s = this.data.summary || {};
       const rows = this.allRows();
       /* Pul TO'LANGAN KUNI bo'yicha: seanslarning o'z to'lovlari + shu kuni
-         to'langan qarzlar (bugungi qarz — naqd/terminal/Klik ichida,
-         oldingi kunlarniki — «Kechagi» alohida) */
-      const kc = s.kechagi || {};
+         to'langan qarzlar — hammasi naqd/terminal/Klik ichida */
       const mo = moneyOf(s);
+      this.prepPays();
       $('rdc').textContent = s.count !== undefined && s.count !== null ? s.count : rows.length;
       $('rdm').textContent = money(mo.total);
       $('rdcash').textContent = money(mo.cash);
       $('rdterm').textContent = money(mo.terminal);
       if ($('rdclick')) $('rdclick').textContent = money(mo.click);
-      if ($('rdkech')) { $('rdkech').textContent = money(num(kc.total)); $('rdkech').title = 'naqd ' + money(num(kc.cash)) + ' · terminal ' + money(num(kc.terminal)) + ' · Klik ' + money(num(kc.click)); }
       if ($('rddebt')) { $('rddebt').textContent = money(s.debt || 0); $('rddebt').classList.toggle('red', num(s.debt) > 0); }
       this.exp = null;
       this.renderPosts();
@@ -11540,7 +11603,7 @@ const Reports = {
         const es = (x && x.summary) || {};
         this.exp = (x && x.rows) || [];
         if ($('rdexp')) $('rdexp').textContent = money(es.total || 0);
-        if ($('rdleft')) $('rdleft').textContent = money(mo.cash + mo.kechagiCash - num(es.cash));
+        if ($('rdleft')) $('rdleft').textContent = money(mo.cash - num(es.cash));
         this.renderPosts();
       }).catch(() => { if ($('rdexp')) $('rdexp').textContent = '—'; if ($('rdleft')) $('rdleft').textContent = '—'; });
       $('rdtime').textContent = dur(rows.reduce((a, x) => a + num(x.duration_seconds), 0));
@@ -11555,13 +11618,13 @@ const Reports = {
   },
   exportDaily() {
     /* Ekranda nima ko'rinsa — Excelga ham o'sha tushadi */
-    const rows = this.visibleRows();
+    const rows = this.visibleRows().concat(this.payRowsVisible());
     if (!rows.length) { toast("Eksport uchun ma'lumot yo'q.", 'warn'); return; }
     const rg = this.range();
     const date = rg.days > 1 ? rg.from + '_' + rg.to : rg.from;
     const aoa = [['Tur'].concat(REPORT_COLS, ['Soat'])].concat(rows.map(r => [
       isSchoolRow(r) ? 'Avtoshkola' : 'Platniy'].concat([
-      r.plate || 'Davomat', dt(r.started_at), dt(r.finished_at), dur(r.duration_seconds),
+      (r.plate || 'Davomat') + (r.payNote ? ' (' + r.payNote + ')' : ''), r.payRow ? '' : dt(r.started_at), r.payRow ? '' : dt(r.finished_at), r.payRow ? '' : dur(r.duration_seconds),
       r.school_name || '', r.group_name || '', r.student_name || '',
       r.instructor_label || r.instructor_name || '',
       r.student_name ? num(r.attendance_count) : '', num(r.cash_amount), num(r.terminal_amount), num(r.amount)
@@ -15646,6 +15709,8 @@ const ACTIONS = {
   addToQueue: () => Queue.addFromForm(),
   paidMin: d => Add.setPaidMin(d.m),
   paidStartToggle: () => Add.paidStartToggle(),
+  paidMoreTimes: () => Add.paidMoreTimes(),
+  addMore: () => Add.toggleMore(),
   /* --- rasxod va kunlik Excel --- */
   rxCat: d => Rasxod.setCat(d.c),
   rxPay: d => Rasxod.setPay(d.p),
@@ -15759,7 +15824,6 @@ const ACTIONS = {
   cleanupOpen: () => Cleanup.open(),
   accReload: () => Accounts.load(),
   accDel: d => AccDel.open(d.id),
-  shDebts: () => Sheet.showDebts(),
   asSend: () => Assist.send(),
   asClear: () => Assist.clear(),
   asSettings: () => Assist.settings(),

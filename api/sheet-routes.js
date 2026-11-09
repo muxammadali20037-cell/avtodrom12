@@ -171,9 +171,21 @@ async function dayData(user, day) {
     r.ticket_at = t.queued_at || t.print_first || t.created_at || null;
     r.ticket_kind = t.queued_at ? (t.booked_for ? 'bron' : 'navbat') : 'kirdi';
   });
+  /* TO'LANMAGAN — o'sha kun oxiridagidek: keyingi kunlarda to'langan qarz
+     ham shu kunning qatorida «to'lanmagan» bo'lib qoladi (pul to'langan kunda).
+     paid_later — shu kundan keyin to'langani (faqat ko'rsatish uchun). */
+  if (ids.length) {
+    try {
+      const pl = await pool.query(`SELECT session_id::text AS id, SUM(amount)::float8 AS s FROM debt_payments
+          WHERE user_id = $1 AND session_id::text = ANY($2::text[]) AND (paid_at AT TIME ZONE '${TZ}')::date > $3::date
+          GROUP BY session_id`, [user, ids, day]);
+      const m = new Map(pl.rows.map(r => [r.id, Number(r.s) || 0]));
+      ss.rows.forEach(r => { r.paid_later = Math.max(0, m.get(String(r.id)) || 0); });
+    } catch (e) { /* qarz to'lovlari jadvali yo'q — eski baza */ }
+  }
   /* SHU KUNI TO'LANGAN QARZLAR — pul shu kunning tushumiga kiradi (bugungi
-     qarz ham, oldingi kunlarniki ham). Jadvalda pastda alohida qator bo'lib
-     chiqadi va «BUGUNGI TUSHUM» ga qo'shiladi; qatorlarni tahrirlab bo'lmaydi. */
+     qarz ham, oldingi kunlarniki ham). Jadvalda (09.11.2026 dan) oddiy qator:
+     shu kunning qarzi — o'z qatorida, oldingi kunniki — alohida qator. */
   let dps = [];
   try {
     dps = (await pool.query(`SELECT d.id, d.session_id, d.amount::float8 AS amount, d.method, d.post,

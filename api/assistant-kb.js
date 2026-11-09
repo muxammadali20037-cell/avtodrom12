@@ -151,8 +151,9 @@ export const KB = [
     text: "Soatiga 100 000 so'm, vaqt 30 daqiqalik bo'laklarda: 39 daqiqagacha — 30 daqiqa (50 000 so'm), 40 daqiqa bo'ldimi — 1 soat (100 000 so'm). Narxni dastur o'zi hisoblaydi.",
     steps: [],
     tips: [
-      "1 soatdan keyin 20 daqiqa kechiriladi: 1 soat 19 daqiqa ham 100 000 so'm.",
-      "1 soat 20 daqiqadan oshdimi — 1,5 soat: 150 000 so'm. Keyingi har 30 daqiqada ham 20 daqiqagacha kechiriladi.",
+      "1 soatdan keyin 20 daqiqagacha qo'shilmaydi: 1 soat 20 daqiqa ham 100 000 so'm.",
+      "1 soat 21–39 daqiqa — 1,5 soat (150 000 so'm); 1 soat 40 daqiqa bo'ldimi — 2 soat (200 000 so'm).",
+      "Keyingi soatlarda ham shunday: 2:20 — 2 soat, 2:30 — 2,5 soat, 2:40 — 3 soat.",
       "Buyurtma qilingan vaqtdan kam olinmaydi: 2 soat olib 1 soatda chiqsa ham 2 soat narxi.",
       "Avtoshkola o'quvchisi (davomat) uchun pul olinmaydi."
     ],
@@ -163,12 +164,12 @@ export const KB = [
     title: "Bron va «Boshqa vaqtda kirgan / bron»",
     keys: ["bron", "bron qilish", "oldindan yozish", "keyinroq keladi", "kechqurun keladi", "vaqtni oldindan", "boshqa vaqtda kirgan", "kirish vaqti", "kirish vaqtini ozgartirish", "oldin kirgan", "yozish esdan chiqdi", "kech yozdim", "otgan vaqt", "zakaz", "rezerv"],
     who: "kassir",
-    where: "Yangi avtomobil → «Boshqa vaqtda kirgan / bron»",
+    where: "Yangi avtomobil → «Qo'shimcha» → «Boshqa vaqtda kirgan / bron»",
     page: "add",
     text: "Kirish vaqtini qo'lda yozish uchun. Keyingi vaqt yozilsa — bron: o'sha vaqtda o'zi ochiladi. O'tgan vaqt yozilsa — mashina aslida kirgan vaqtdan hisoblanadi.",
     steps: [
       "Nom va vaqtni yozing.",
-      "«Boshqa vaqtda kirgan / bron» ni bosing va «Kirish:» maydoniga soatni yozing.",
+      "«Qo'shimcha» ni oching, «Boshqa vaqtda kirgan / bron» ni bosing va «Kirish:» maydoniga soatni yozing.",
       "Vaqt keyinroq bo'lsa tugma «Bron qilish» bo'ladi — bosing, chek darhol chiqadi.",
       "Vaqt o'tgan bo'lsa — «Kirdi» ni bosing (tanlangan vaqt ham o'tib bo'lgan bo'lsa tugma «Yozish» bo'ladi va yozuv darhol yopiladi).",
       "Hozirgi vaqtga qaytish uchun «Hozir» ni bosing."
@@ -185,16 +186,16 @@ export const KB = [
     title: "Instruktor biriktirish",
     keys: ["instruktor biriktirish", "instruktor tanlash", "instruktorni yozish", "instruktor ismi", "kim bilan uchdi", "kim bilan yurdi", "ustoz", "instruktor bilan keldi", "instruktor yozish", "instruktorni korsatish", "instruktorsiz"],
     who: "kassir",
-    where: "Yangi avtomobil → «Instruktor biriktirish»",
+    where: "Yangi avtomobil → «Qo'shimcha» → «Instruktor biriktirish»",
     page: "add",
     text: "Mashina instruktor bilan kirsa, uni yozib qo'yish mumkin (ixtiyoriy). Bu «Xatoliklar va aniqliklar» nazorati uchun kerak.",
     steps: [
-      "Oddiy mijozda «Instruktor biriktirish» havolasini bosing.",
+      "Oddiy mijozda «Qo'shimcha» ni oching va «Instruktor biriktirish» ni bosing.",
       "Instruktor ismini yozing va ro'yxatdan tanlang.",
       "«Kirdi» ni bosing — kartada «Instruktor: …» ko'rinadi."
     ],
     tips: [
-      "Avtoshkola o'quvchisida instruktor maydoni o'zi ko'rinadi, u ham ixtiyoriy.",
+      "Avtoshkola o'quvchisida instruktor va mashina raqami «Qo'shimcha» ichida, ular ham ixtiyoriy.",
       "Ro'yxatda bo'lmasa ham yozilgan ism saqlanadi."
     ],
     related: ["instruktorlar", "nazorat", "kirdi"]
@@ -216,7 +217,7 @@ export const KB = [
     tips: [
       "«Kirish taloni» yangi oynada ochiladi — brauzer so'rasa, yangi oynalarga ruxsat bering.",
       "Bron yoki navbatga qo'yilganda ham chek darhol chiqadi.",
-      "Avtoshkola o'quvchisiga chek «Davomat yozish + chek» yoki «QR chek» orqali chiqadi."
+      "Avtoshkola o'quvchisiga chek «Davomat + chek» yoki «QR chek» orqali chiqadi."
     ],
     related: ["muammo-chek", "jarayonda", "davomat", "qr-chek"]
   },
@@ -413,7 +414,7 @@ export const KB = [
     page: "queue",
     text: "Bitta mashinaga bir nechta mijoz navbatda turishi mumkin. Ichkaridagi mashina chiqishi bilan navbatdagisi o'zi boshlanadi; bron — o'z vaqtida.",
     steps: [
-      "«Yangi avtomobil» da nom va vaqtni yozing, so'ng «Navbatga qo'yish» ni bosing.",
+      "«Yangi avtomobil» da nom va vaqtni yozing, so'ng «Qo'shimcha» → «Navbatga qo'yish» ni bosing.",
       "Ro'yxatni ko'rish uchun chap menyudan «Kutish rejimi» ni oching.",
       "Mashina bo'sh bo'lsa, darhol boshlash uchun navbatdagida «Boshlash» ni bosing.",
       "Mijoz ketib qolsa — qizil ✕ tugmasini bosib «Chiqarish» ni tasdiqlang."
@@ -460,9 +461,9 @@ export const KB = [
     ],
     tips: [
       "Kam yoki ko'p summa yozilsa ham aynan o'sha summa hisobotga tushadi va qarz yopiladi — qoldiq qarz bo'lib qolmaydi.",
-      "Oldingi kunlardagi qarz bugun to'lansa — bugungi hisobotda «Kechagi (qarzdan)» bo'lib chiqadi.",
+      "Oldingi kunlardagi qarz bugun to'lansa — bugungi hisobotda va Excel'da oddiy qator bo'lib chiqadi (IZOH'da «04.11 qarzi» kabi), pul Naqd/Terminal ichida.",
       "Internet yo'q bo'lsa ham ishlaydi, keyin o'zi yuboriladi.",
-      "To'langan qarz shu kunning tushumiga tushadi: Kunlik hisobotda «Jami», Excel'da pastda «QARZDAN TO'LANDI» va «BUGUNGI TUSHUM» qatorlari."
+      "Bugungi qarz bugun to'lansa — Excel'da o'sha mashinaning o'z qatorida Naqd/Terminal ustuniga tushadi."
     ],
     related: ["keyin-tolaydi", "qarz-bekor", "kechagi", "hisobot"]
   },
@@ -499,10 +500,10 @@ export const KB = [
     text: "Avtoshkola o'quvchisi uchun vaqt ochilmaydi: dars darhol davomatga yoziladi va chek chiqadi. 1 soat = 1 dars, pul olinmaydi.",
     steps: [
       "«Yangi avtomobil» da «Avtoshkola o'quvchisi» ni tanlang.",
-      "«O'quvchini toping» maydoniga ism yoki guruh raqamini yozib o'quvchini tanlang (yoki «Guruh bo'yicha tanlash»).",
+      "«O'quvchi» maydoniga ism yoki guruh raqamini yozib o'quvchini tanlang (yoki «Guruhdan tanlash»).",
       "Instruktor va mashinani tanlang (ixtiyoriy).",
-      "«Necha dars?» dan «1 soat», «2 soat» ... yoki «Soat oralig'i» ni tanlang.",
-      "«Davomat yozish + chek» ni bosing. Printer ishlamasa — «Davomat yozish (cheksiz)»."
+      "«Necha dars?» dan «1 soat», «2 soat» ... ni tanlang (aniq soat oralig'i — «Qo'shimcha» ichida).",
+      "«Davomat + chek» ni bosing. Printer ishlamasa — «Cheksiz yozish»."
     ],
     tips: [
       "Bir yozuvda 2 tadan ko'p dars bo'lsa sababini yozish shart.",
@@ -521,9 +522,9 @@ export const KB = [
     page: "add",
     text: "Ismni xato yozsangiz ham dastur o'xshashini topadi. Guruh raqamini yozsangiz o'sha guruhlar chiqadi; telefon raqamining oxiri bilan ham topiladi.",
     steps: [
-      "«O'quvchini toping» maydoniga ism yoki familiyani yozing.",
+      "«O'quvchi» maydoniga ism yoki familiyani yozing.",
       "Yoki guruh raqamini yozing (masalan 12) — guruhlar chiqadi.",
-      "Yoki «Guruh bo'yicha tanlash» ni bosib avtoshkola → guruh → o'quvchini bosing.",
+      "Yoki «Guruhdan tanlash» ni bosib avtoshkola → guruh → o'quvchini bosing.",
       "Yoki «1. Avtoshkola» → «2. Guruh» → «3. O'quvchi» tugmalari bilan tanlang.",
       "Umuman topilmasa — Enter bosing: «Yangi o'quvchi» oynasida F.I.Sh. va avtoshkolani yozib «Saqlash» ni bosing."
     ],
@@ -753,12 +754,12 @@ export const KB = [
     text: "Tanlangan kun yoki davrning to'liq hisoboti: kartalar, kassalar bo'yicha jadval va har bir yozuv. Pul hamma joyda bitta qoida bilan sanaladi.",
     steps: [
       "Maxsus bo'limni oching va «Kunlik hisobot» ni bosing.",
-      "Kartalar: «Avtomobillar», «Umumiy summa», «Naqd», «Terminal», «Klik», «Rasxod», «Kechagi (qarzdan)», «Kassada naqd qoldi», «To'lanmagan», «Jami vaqt».",
-      "«Kassalar bo'yicha» jadvalida har post alohida: Naqd, Terminal, Klik, Kechagi, «JAMI KIRIM», To'lanmagan, Xarajat, «Kassada naqd qoldi».",
+      "Kartalar: «Avtomobillar», «Umumiy summa», «Naqd», «Terminal», «Klik», «Rasxod», «Kassada naqd qoldi», «To'lanmagan», «Jami vaqt».",
+      "«Kassalar bo'yicha» jadvalida har post alohida: Naqd, Terminal, Klik, «JAMI KIRIM», To'lanmagan, Xarajat, «Kassada naqd qoldi».",
       "Pastda «Hammasi», «Platniy», «Avtoshkola» bilan ro'yxatni ajrating va qidiruvdan foydalaning."
     ],
     tips: [
-      "«Kassada naqd qoldi» = naqd tushum + kechagi qarzdan naqd − naqd xarajat.",
+      "«Kassada naqd qoldi» = naqd tushum (qarzdan naqd to'langani ham ichida) − naqd xarajat.",
       "«To'lanmagan» kartasi kassadagi «To'lanmagan» ro'yxatini, «Rasxod» kartasi Rasxod sahifasini ochadi.",
       "Ichkaridagi mashina ham hisobotga darhol tushadi («Ichkarida» belgisi bilan).",
       "Hisobot raqamlarini yordamchi aytmaydi — ularni shu sahifada ko'rasiz."
@@ -767,17 +768,17 @@ export const KB = [
   },
   {
     id: "kechagi",
-    title: "«Kechagi (qarzdan)» nima va qarz to'lovi qaysi kunga tushadi",
+    title: "Qarz to'lovi qaysi kunga tushadi",
     keys: ["kechagi", "kechagi qarzdan", "kechagi qarz", "eski qarz", "oldingi kun qarzi", "qarz qaysi kunga", "qarz qaysi kunga tushadi", "yagona qoida", "ikki marta sanalmaydi", "kecha qarz bugun toladi", "qarz tolovi hisobotda"],
     who: "hamma",
-    where: "Kunlik hisobot → «Kechagi (qarzdan)» kartasi va «Kassalar bo'yicha»",
+    where: "Kunlik hisobot va Excel — to'langan kun",
     page: "daily",
-    text: "Pul to'langan kunga yoziladi. Bugungi qarz bugun to'lansa — Naqd/Terminal/Klik ichida; oldingi kunlardagi qarz bugun to'lansa — bugungi «Kechagi (qarzdan)» da. Bitta pul ikki marta sanalmaydi.",
+    text: "Pul to'langan kunga yoziladi va Naqd/Terminal ichida sanaladi — alohida «Kechagi» yo'q. Bugungi qarz bugun to'lansa — o'z qatorida; oldingi kunlardagi qarz bugun to'lansa — bugungi jadvalda oddiy qator (vaqtsiz, IZOH'da «04.11 qarzi»). Bitta pul ikki marta sanalmaydi.",
     steps: [],
     tips: [
       "Qarz to'lovi qaysi postda olingan bo'lsa, o'sha postga yoziladi.",
-      "«Kassalar bo'yicha» ostida «Kechagi qarzlardan to'langanlar» ro'yxati bor: qaysi kungi qarz, qachon va qaysi postda to'langan.",
-      "Qatordagi «qarz … — … to'landi» yozuvi qarz keyinroq to'langanini bildiradi.",
+      "Qarz to'lovi qatorini Excel bo'limida o'zgartirib yoki o'chirib bo'lmaydi — xato bo'lsa «Qarzdorlar» dan bekor qiling.",
+      "Qarz to'lovi qatorida kirish/chiqish bo'sh — mashinalar soni va soatlar ikki marta sanalmaydi.",
       "Pul faqat to'langan kunga tushadi: o'tgan kunning hisobotida pul ham, «To'lanmagan» ham o'sha kun oxiridagidek qoladi."
     ],
     related: ["hisobot", "qarz-tolash", "qarz-bekor"]
@@ -820,7 +821,7 @@ export const KB = [
       "Qarzni hozir to'layotgan bo'lsa — bu oyna emas, kassadagi «To'lanmagan» → «To'lash» ishlatiladi.",
       "To'g'rilangan qatorda «to'g'rilangan» belgisi turadi, har o'zgarish jurnalga yoziladi.",
       "Kassir xato qilsa — rahbarga aytadi, rahbar Maxsus bo'limdan to'g'rilaydi.",
-      "O'tgan kundagi yozuvga pul qo'shilsa — u o'tgan kunga yozilmaydi: bugungi tushumga («Kechagi») tushadi, o'tgan kun hisoboti o'zgarmaydi."
+      "O'tgan kundagi yozuvga pul qo'shilsa — u o'tgan kunga yozilmaydi: bugungi tushumga (Naqd/Terminal ichida) tushadi, o'tgan kun hisoboti o'zgarmaydi."
     ],
     related: ["qarz-bekor", "hisobot", "excel-bolimi", "tarix"]
   },
@@ -1225,14 +1226,14 @@ export const KB = [
     title: "Chek chiqmasa",
     keys: ["chek chiqmadi", "chek chiqmayapti", "printer ishlamayapti", "printer", "pechat bolmayapti", "chop etilmadi", "qogoz", "chek qogozi", "chek yoq", "talon chiqmadi", "oyna ochilmadi", "pop-up", "yangi oyna", "chek chiqmadi xabari"],
     who: "kassir",
-    where: "«Kirdi» / «Davomat yozish + chek» / «Kirish taloni»",
+    where: "«Kirdi» / «Davomat + chek» / «Kirish taloni»",
     page: "active",
     text: "Avval printerni tekshiring: yoqilganmi, qog'oz bormi, kabel ulanganmi. Yozuv chek chiqmasa ham saqlangan bo'ladi — faqat chekni qayta chiqarasiz.",
     steps: [
       "Printerni tekshiring (yoqilgan, qog'oz bor, USB ulangan).",
       "Oddiy mijoz cheki: «Jarayonda» → mashina kartasidagi «Kirish taloni» → «Chop etish — 80 mm».",
       "Brauzer yangi oynani to'xtatsa — manzil satridagi belgidan bu saytga yangi oynalarga ruxsat bering.",
-      "Avtoshkola o'quvchisida printer ishlamasa — «Davomat yozish (cheksiz)» bilan davomatni yozib qo'ying."
+      "Avtoshkola o'quvchisida printer ishlamasa — «Cheksiz yozish» bilan davomatni yozib qo'ying."
     ],
     tips: [
       "Chop etishda: masshtab 100%, sarlavha va pastki yozuvlar o'chirilgan bo'lsin.",

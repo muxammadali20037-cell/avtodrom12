@@ -457,6 +457,9 @@ async function remove(req, res, me) {
   try {
     await c.query('BEGIN');
     await c.query(`SET LOCAL statement_timeout = '25s'`);
+    /* Hisob butunlay o'chiriladi — o'chirishning o'zi tahrirlar jurnaliga
+       (api/edits-log.js) yangi yozuv bo'lib qolmasin («hech nima qolmasin») */
+    await c.query(`SELECT set_config('avtodrom.audit_off', '1', true)`);
     await c.query(`SELECT 1 FROM users WHERE id::text = $1 FOR UPDATE`, [t.id]);
     /* Boshqa hisob yozuvlari shu hisobning mashinasiga bog'langan bo'lsa —
        mashina o'sha hisobga o'tadi (aks holda o'chirib bo'lmaydi) */
