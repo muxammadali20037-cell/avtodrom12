@@ -2985,7 +2985,8 @@ async function request(path, opt, kind) {
   opt = opt || {};
   const method = String(opt.method || 'GET').toUpperCase();
   const safe = opt.retry === true || (opt.retry !== false && (method === 'GET' || method === 'HEAD'));
-  const tries = safe && !(opt.timeout > 20000) && navigator.onLine !== false ? 2 : 1;
+  /* uzoq kutiladigan og'ir so'rov (hisobot davri) — bir marta; retry: true — baribir ikki marta */
+  const tries = safe && (opt.retry === true || !(opt.timeout > 20000)) && navigator.onLine !== false ? 2 : 1;
   let err;
   for (let i = 0; i < tries; i++) {
     const ms = opt.timeout || (safe ? (i === 0 ? 8000 : 12000) : CONFIG.TIMEOUT);
@@ -5235,7 +5236,7 @@ const Data = {
     const [schools, instructors, students, settings] = await Promise.all([
       api('/schools').catch(e => { console.error('[schools]', e.technical); return null; }),
       api('/instructors').catch(e => { console.error('[instructors]', e.technical); return null; }),
-      api('/students').catch(e => { console.error('[students]', e.technical); return null; }),
+      api('/students', Data.LIST_OPT).catch(e => { console.error('[students]', e.technical); return null; }),
       api('/settings').catch(e => { console.error('[settings]', e.technical); return null; })
     ]);
     /* Internet bo'lsa — kompyuterga saqlab qo'yiladi; bo'lmasa — oxirgi
@@ -5247,7 +5248,7 @@ const Data = {
     if (set0 && !CONFIG.TARIFF_OVERRIDE) STATE.settings = set0;
     STATE.schools = Array.isArray(sch) ? sch : (sch && sch.rows) || [];
     STATE.instructors = Array.isArray(ins) ? ins : (ins && ins.rows) || [];
-    if (sts === null || sts === undefined) { STATE.studentsLoadFailed = true; STATE.students = []; }
+    if (sts === null || sts === undefined) { STATE.studentsLoadFailed = true; STATE.students = []; this.retryStudents(); }
     else {
       STATE.students = Outbox.overlayStudents(Array.isArray(sts) ? sts : (sts.rows || []));
       STATE.studentsLoaded = true;
@@ -5259,16 +5260,44 @@ const Data = {
     Active.load(true);
     Frozen.load(true);
   },
+  /* O'QUVCHILAR RO'YXATI (18.11.2026): ~9 600 ta, siqilgani ~0.5 MB.
+     Sekin aloqada yuklanishi 8 s dan oshishi mumkin — shuning uchun 30 s
+     kutiladi va bir marta qayta urinadi. Baribir kelmasa — 20 s dan
+     keyin o'zi yana yuklaydi (6 martagacha), kelgach ochiq oynalar
+     (avtoshkola/guruh sonlari, qidiruv) yangilanadi. */
+  LIST_OPT: { timeout: 30000, retry: true },
+  studentsRetry: 0, studentsTimer: null,
+  retryStudents() {
+    clearTimeout(this.studentsTimer);
+    if (this.studentsRetry >= 6) return;
+    this.studentsRetry++;
+    this.studentsTimer = setTimeout(() => { if (STATE.auth.token) this.reloadStudents(); }, 20000);
+  },
   async reloadStudents() {
     try {
-      const r = await api('/students');
+      const r = await api('/students', this.LIST_OPT);
       LocalCache.put('students', r);
       STATE.students = Outbox.overlayStudents(Array.isArray(r) ? r : (r && r.rows) || []);
       STATE.studentsLoaded = true;
       STATE.studentsLoadFailed = false;
+      this.studentsRetry = 0;
       Add.syncStudentSource();
+      this.afterStudents();
       return true;
-    } catch (e) { STATE.studentsLoadFailed = true; console.error('[students]', e.technical); return false; }
+    } catch (e) {
+      STATE.studentsLoadFailed = true;
+      console.error('[students]', e.technical);
+      this.retryStudents();
+      return false;
+    }
+  },
+  /* ro'yxat kelgach — admin panelda ochiq turgan sonlar yangilansin */
+  afterStudents() {
+    try {
+      if (typeof Admin === 'undefined' || !$('adminPanel') || $('adminPanel').classList.contains('hidden')) return;
+      Admin.refreshCounters();
+      if (Admin.tab === 'schools') { Admin.renderSchools(); if (Admin.schoolShown) Admin.renderSchoolDetail(true); }
+    } catch (e) { console.error('[students after]', e); }
   },
   async reloadSchools() {
     const r = await api('/schools').catch(() => null);
@@ -14047,13 +14076,15 @@ const Admin = {
 
     const rows = groups.map(g => {
       const gst = students.filter(s => String(s.group_id || s.groupId) === String(g.id));
+      /* ro'yxat kelmagan bo'lsa — serverdagi son (guruh bilan birga keladi) */
+      const gCount = Data.studentsOk() ? gst.length : num(g.student_count);
       const open = String(this.openGroup || '') === String(g.id);
       return '<div class="grp' + (open ? ' open' : '') + '">'
         + '<div class="grp-head" data-act="toggleGroup" data-id="' + esc(g.id) + '" role="button" tabindex="0">'
         + '<span class="grp-ico"><i class="fa-solid fa-chevron-' + (open ? 'down' : 'right') + '" aria-hidden="true"></i></span>'
         + '<b class="grp-name">' + esc(g.name) + '</b>'
         + Access.groupBadge(g.id)
-        + '<span class="badge badge-green">' + gst.length + " o'quvchi</span>"
+        + '<span class="badge badge-green">' + gCount + " o'quvchi</span>"
         + '<span class="grp-act">'
         + '<button class="btn btn-light btn-sm" type="button" data-act="groupModal" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '" data-stop="1" title="Tahrirlash"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>'
         + '<button class="btn btn-danger btn-sm" type="button" data-act="groupDelete" data-id="' + esc(g.id) + '" data-school="' + esc(sid) + '" data-stop="1" title="O\'chirish"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>'
