@@ -54,9 +54,34 @@ function ensureSchema(){
     /* Trigger faqat yo'q bo'lsa yaratiladi (o'chirib-qayta yaratilmaydi) */
     const tg=await pool.query(`SELECT 1 FROM pg_trigger WHERE tgrelid='public.sessions'::regclass AND tgname='trg_avtodrom_student_attendance' AND NOT tgisinternal`);
     if(!tg.rowCount) await ddl(`CREATE TRIGGER trg_avtodrom_student_attendance AFTER UPDATE OF status ON public.sessions FOR EACH ROW EXECUTE FUNCTION public.avtodrom_increment_student_attendance()`);
-  }).catch(e=>{schemaP=null;throw e;});
+  }).then(()=>runOnce('students-updated-at-v1',async()=>{
+    /* O'ZGARGANLARINI OLISH UCHUN (18.11.2026): kassa ro'yxatni bir marta
+       yuklab kompyuterda saqlaydi, keyin faqat «updated_at > oxirgi marta»
+       qatorlarni so'raydi. Har INSERT/UPDATE (davomat triggeri ham) vaqtni
+       yangilaydi. Eski qatorlar ALTER paytidagi vaqtni oladi. */
+    await ddl(`ALTER TABLE public.students ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now()`);
+    await ddl(`ALTER TABLE public.students ALTER COLUMN updated_at SET DEFAULT now()`);
+    await pool.query(`CREATE OR REPLACE FUNCTION public.avt_students_touch() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN NEW.updated_at := now(); RETURN NEW; END $$`);
+    const t=await pool.query(`SELECT 1 FROM pg_trigger WHERE tgrelid='public.students'::regclass AND tgname='trg_students_touch' AND NOT tgisinternal`);
+    if(!t.rowCount) await ddl(`CREATE TRIGGER trg_students_touch BEFORE INSERT OR UPDATE ON public.students FOR EACH ROW EXECUTE FUNCTION public.avt_students_touch()`);
+    await ddl(`CREATE INDEX IF NOT EXISTS idx_students_owner_updated ON public.students(owner_key, updated_at)`);
+  })).catch(e=>{schemaP=null;throw e;});
   return schemaP;
 }
+
+/* Avtoshkola va guruh nomlari «barmoq izi» — nom o'zgarsa kassa keshidagi
+   nomlarni yangilaydi (o'quvchi qatori o'zgarmagan bo'lsa ham) */
+async function namesHash(owner){
+  const r=await pool.query(`SELECT md5(COALESCE((SELECT string_agg(id::text||':'||name,'|' ORDER BY id) FROM driving_schools WHERE owner_key=$1),'')
+      ||'#'||COALESCE((SELECT string_agg(id::text||':'||name,'|' ORDER BY id) FROM school_groups WHERE owner_key=$1),'')) h`,[owner]);
+  return r.rows[0].h;
+}
+const LIST_SQL=`SELECT st.*,s.name school_name,g.name group_name,
+       COALESCE(st.attendance_count,0)::int AS attendance_count
+  FROM students st
+  JOIN driving_schools s ON s.id=st.school_id
+  LEFT JOIN school_groups g ON g.id=st.group_id`;
 
 export default async function handler(req,res){
   if(req.method==='OPTIONS'){res.statusCode=204;return res.end();}
@@ -64,6 +89,36 @@ export default async function handler(req,res){
   try{
     try{await ensureSchema();}catch(e){console.error('STUDENTS SCHEMA:',e.message);}
     const owner=uid(req);
+
+    /* 2-VERSIYA (18.11.2026): { rows, now, total, nh }.
+         ?v=2           — hamma faol o'quvchi (birinchi marta)
+         ?since=ISO     — faqat shu vaqtdan keyin o'zgarganlar (o'chirilganlari
+                          ham — active=false; kassa ularni olib tashlaydi)
+         &nh=…          — nomlar izi; mos kelmasa names: {s:{id:nom}, g:{id:nom}}
+       Eski sahifa (parametrsiz) avvalgidek massiv oladi. */
+    if(req.method==='GET' && (req.query.v==='2' || req.query.since)){
+      const now=(await pool.query(`SELECT now() t`)).rows[0].t;
+      const since=String(req.query.since||'');
+      let rows, full=true;
+      if(since && !isNaN(Date.parse(since))){
+        full=false;
+        rows=(await pool.query(`${LIST_SQL} WHERE st.owner_key=$1 AND st.updated_at > $2::timestamptz ORDER BY st.updated_at LIMIT 5001`,[owner,since])).rows;
+      } else {
+        rows=(await pool.query(`${LIST_SQL} WHERE st.owner_key=$1 AND st.active=true ORDER BY st.full_name,st.created_at`,[owner])).rows;
+      }
+      const total=(await pool.query(`SELECT COUNT(*)::int n FROM students st JOIN driving_schools s ON s.id=st.school_id WHERE st.owner_key=$1 AND st.active=true`,[owner])).rows[0].n;
+      const nh=await namesHash(owner);
+      let names=null;
+      if(!full && String(req.query.nh||'')!==nh){
+        const [a,b]=await Promise.all([
+          pool.query(`SELECT id::text id,name FROM driving_schools WHERE owner_key=$1`,[owner]),
+          pool.query(`SELECT id::text id,name FROM school_groups WHERE owner_key=$1`,[owner])]);
+        names={s:Object.fromEntries(a.rows.map(x=>[x.id,x.name])),g:Object.fromEntries(b.rows.map(x=>[x.id,x.name]))};
+      }
+      res.setHeader('Cache-Control','no-store');
+      const more=!full && rows.length>5000;
+      return json(res,200,{v:2,full,now,total,nh,names,more,rows:more?[]:rows},req);
+    }
 
     if(req.method==='GET'){
       /* O'CHIRILGAN O'QUVCHI RO'YXATGA TUSHMASIN.

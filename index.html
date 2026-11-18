@@ -5261,67 +5261,136 @@ document.addEventListener('change', e => {
 });
 
 /* ===================== 9. DATA (yuklash va kesh) ===================== */
+/* Brauzer bazasi (IndexedDB) — katta ro'yxatlar uchun (localStorage 5 MB
+   bilan cheklangan). Ochilmasa (maxfiy oyna va h.k.) — null, dastur
+   keshsiz ishlayveradi. */
+const IDB = {
+  dbp: null,
+  open() {
+    if (this.dbp) return this.dbp;
+    this.dbp = new Promise((resolve) => {
+      try {
+        const rq = indexedDB.open('avtodrom', 1);
+        rq.onupgradeneeded = () => { try { rq.result.createObjectStore('kv'); } catch (e) { /* bor */ } };
+        rq.onsuccess = () => resolve(rq.result);
+        rq.onerror = () => resolve(null);
+        rq.onblocked = () => resolve(null);
+      } catch (e) { resolve(null); }
+    });
+    return this.dbp;
+  },
+  async get(k) {
+    const db = await this.open(); if (!db) return null;
+    return new Promise(res => { try { const q = db.transaction('kv', 'readonly').objectStore('kv').get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); } catch (e) { res(null); } });
+  },
+  async put(k, v) {
+    const db = await this.open(); if (!db) return false;
+    return new Promise(res => { try { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = () => res(true); tx.onerror = () => res(false); tx.onabort = () => res(false); } catch (e) { res(false); } });
+  }
+};
 const Data = {
   async preload() {
-    /* Kerakli ro'yxatlar parallel — har navigatsiyada qayta so'ralmaydi */
-    const [schools, instructors, students, settings] = await Promise.all([
+    /* O'quvchilar — kompyuterdagi keshdan darhol, keyin faqat o'zgarganlari
+       (syncStudents). Qolgan kichik ro'yxatlar parallel. */
+    const stP = this.syncStudents().catch(() => false);
+    const [schools, instructors, settings] = await Promise.all([
       api('/schools').catch(e => { console.error('[schools]', e.technical); return null; }),
       api('/instructors').catch(e => { console.error('[instructors]', e.technical); return null; }),
-      api('/students', Data.LIST_OPT).catch(e => { console.error('[students]', e.technical); return null; }),
       api('/settings').catch(e => { console.error('[settings]', e.technical); return null; })
     ]);
     /* Internet bo'lsa — kompyuterga saqlab qo'yiladi; bo'lmasa — oxirgi
        saqlangani olinadi (kassa internetsiz ham o'quvchini topadi) */
     const keep = (val, name) => { if (val !== null && val !== undefined) { LocalCache.put(name, val); return val; } return LocalCache.get(name); };
-    const sch = keep(schools, 'schools'), ins = keep(instructors, 'instructors'), sts = keep(students, 'students');
+    const sch = keep(schools, 'schools'), ins = keep(instructors, 'instructors');
     const set0 = keep(settings, 'settings');
     /* Tarif ilovada belgilangan bo'lsa serverdagi sozlama ustidan yozmaydi */
     if (set0 && !CONFIG.TARIFF_OVERRIDE) STATE.settings = set0;
     STATE.schools = Array.isArray(sch) ? sch : (sch && sch.rows) || [];
     STATE.instructors = Array.isArray(ins) ? ins : (ins && ins.rows) || [];
-    if (sts === null || sts === undefined) { STATE.studentsLoadFailed = true; STATE.students = []; this.retryStudents(); }
-    else {
-      STATE.students = Outbox.overlayStudents(Array.isArray(sts) ? sts : (sts.rows || []));
-      STATE.studentsLoaded = true;
-      STATE.studentsLoadFailed = false;
-    }
+    /* kesh bor bo'lsa ro'yxat allaqachon tayyor; yo'q bo'lsa bir oz kutamiz */
+    await Promise.race([stP, new Promise(r => setTimeout(r, 300))]);
     Add.syncStudentSource();
     Add.syncInstructorSource();
     Instructors.render();
     Active.load(true);
     Frozen.load(true);
   },
-  /* O'QUVCHILAR RO'YXATI (18.11.2026): ~9 600 ta, siqilgani ~0.5 MB.
-     Sekin aloqada yuklanishi 8 s dan oshishi mumkin — shuning uchun 30 s
-     kutiladi va bir marta qayta urinadi. Baribir kelmasa — 20 s dan
-     keyin o'zi yana yuklaydi (6 martagacha), kelgach ochiq oynalar
-     (avtoshkola/guruh sonlari, qidiruv) yangilanadi. */
-  LIST_OPT: { timeout: 30000, retry: true },
-  studentsRetry: 0, studentsTimer: null,
+  /* O'QUVCHILAR RO'YXATI — KOMPYUTERDA SAQLANADI (18.11.2026).
+     Aloqa tekshiruvi: kassadan serverga katta ma'lumot ~20 KB/s tezlikda
+     keladi. To'liq ro'yxat (~9 700 ta, siqilgani ~0.55 MB) har ochilishda
+     va har o'zgarishdan keyin qayta yuklanardi — 30 s gacha yo'lni band
+     qilib, boshqa so'rovlarni ham «uzib» qo'yardi. Endi:
+       • ro'yxat IndexedDB'da (brauzer bazasi) saqlanadi — sahifa ochilishi
+         bilan darhol tayyor, internetsiz ham qidiriladi;
+       • serverdan faqat oxirgi marta­dan keyin o'zgarganlar so'raladi
+         (/api/students?since=…) — odatda bir necha KB;
+       • faol o'quvchilar soni serverdagidan farq qilsa yoki 5000 dan
+         ko'p o'zgargan bo'lsa — to'liq qayta yuklanadi;
+       • avtoshkola/guruh nomi o'zgarsa — nomlar yangilanadi. */
+  LIST_OPT: { timeout: 45000, retry: true },
+  studentsRetry: 0, studentsTimer: null, stSync: null,
   retryStudents() {
     clearTimeout(this.studentsTimer);
-    if (this.studentsRetry >= 6) return;
+    if (this.studentsRetry >= 4) return;
     this.studentsRetry++;
-    this.studentsTimer = setTimeout(() => { if (STATE.auth.token) this.reloadStudents(); }, 20000);
+    this.studentsTimer = setTimeout(() => { if (STATE.auth.token) this.reloadStudents(); }, 30000 * this.studentsRetry);
   },
-  async reloadStudents() {
-    try {
-      const r = await api('/students', this.LIST_OPT);
-      LocalCache.put('students', r);
-      STATE.students = Outbox.overlayStudents(Array.isArray(r) ? r : (r && r.rows) || []);
-      STATE.studentsLoaded = true;
-      STATE.studentsLoadFailed = false;
+  studentsKey() { return 'students:' + Outbox.uid(); },
+  applyStudents(rows) {
+    STATE.students = Outbox.overlayStudents(rows.slice());
+    STATE.studentsLoaded = true;
+    STATE.studentsLoadFailed = false;
+    if (typeof GroupPick !== 'undefined') { GroupPick.index = null; GroupPick.stamp = ''; }
+    Add.syncStudentSource();
+    this.afterStudents();
+  },
+  syncStudents(forceFull) {
+    if (this.stSync) return this.stSync;
+    this.stSync = (async () => {
+      const key = this.studentsKey();
+      let cache = forceFull ? null : await IDB.get(key);
+      if (cache && (cache.v !== 2 || !Array.isArray(cache.rows) || !cache.since)) cache = null;
+      /* kesh — darhol ishlatiladi (sahifa ochilishi bilan qidiruv ishlaydi) */
+      if (cache && !STATE.studentsLoaded) this.applyStudents(cache.rows);
+      let rows, r, full = !cache;
+      if (cache) {
+        r = await api('/students?v=2&since=' + encodeURIComponent(cache.since) + '&nh=' + encodeURIComponent(cache.nh || ''), { timeout: 25000, retry: true });
+        const map = new Map(cache.rows.map(x => [String(x.id), x]));
+        (r.rows || []).forEach(x => { if (x.active === false) map.delete(String(x.id)); else map.set(String(x.id), x); });
+        rows = Array.from(map.values());
+        if (r.names) rows.forEach(x => {
+          const sn = r.names.s && r.names.s[String(x.school_id)], gn = r.names.g && r.names.g[String(x.group_id)];
+          if (sn !== undefined) x.school_name = sn;
+          if (gn !== undefined) x.group_name = gn;
+        });
+        if ((r.rows || []).length) rows.sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || '')));
+        /* soni mos kelmasa (masalan bazadan butunlay o'chirilgan) — to'liq */
+        if (r.more || rows.length !== Number(r.total)) full = true;
+        else if (!(r.rows || []).length && !r.names && STATE.studentsLoaded) {
+          await IDB.put(key, Object.assign({}, cache, { since: new Date(Date.parse(r.now) - 120000).toISOString(), at: Date.now() }));
+          STATE.studentsLoadFailed = false;
+          this.studentsRetry = 0;
+          return true;
+        }
+      }
+      if (full) {
+        r = await api('/students?v=2', this.LIST_OPT);
+        rows = r.rows || [];
+      }
+      /* 2 daqiqa «ustma-ust» — bir vaqtda yozilgan o'zgarish o'tkazib yuborilmasin */
+      await IDB.put(key, { v: 2, since: new Date(Date.parse(r.now) - 120000).toISOString(), nh: r.nh || '', at: Date.now(), rows: rows });
+      this.applyStudents(rows);
       this.studentsRetry = 0;
-      Add.syncStudentSource();
-      this.afterStudents();
       return true;
-    } catch (e) {
-      STATE.studentsLoadFailed = true;
-      console.error('[students]', e.technical);
+    })().catch(e => {
+      console.error('[students]', e && (e.technical || e.message));
+      if (!STATE.studentsLoaded) STATE.studentsLoadFailed = true;
       this.retryStudents();
       return false;
-    }
+    }).finally(() => { this.stSync = null; });
+    return this.stSync;
   },
+  reloadStudents() { return this.syncStudents(false); },
   /* ro'yxat kelgach — admin panelda ochiq turgan sonlar yangilansin */
   afterStudents() {
     try {
@@ -14463,11 +14532,16 @@ const Admin = {
 
   /* --- O'quvchilar --- */
   async loadStudents(silent) {
-    /* Admin paneli o'z ro'yxatini admin endpointidan oladi. Operator ro'yxatida
-       o'chirilgan o'quvchilar qolib ketishi mumkin - ularni bosganda 404 chiqardi. */
+    /* 18.11.2026: admin ro'yxati ham kompyuterdagi keshdan (Data.syncStudents —
+       faqat o'zgarganlari so'raladi). Avval har ochilishda 0.4 MB qayta
+       yuklanardi va sekin aloqada qolgan so'rovlarni ham to'sib qo'yardi.
+       Kesh bo'lmasa (masalan brauzer bazasi yopiq) — eski yo'l. */
     try {
-      const r = await adminApi('/students');
-      STATE.adminStudents = Array.isArray(r) ? r : (r && r.rows) || [];
+      await Data.reloadStudents();
+      let list;
+      if (Data.studentsOk()) list = STATE.students.map(x => Object.assign({}, x));
+      else { const r = await adminApi('/students'); list = Array.isArray(r) ? r : (r && r.rows) || []; }
+      STATE.adminStudents = list;
       /* Qidiruv matnini oldindan tayyorlaymiz: har bosilgan harfda 500 ta
          obyekt uchun qayta hisoblanmaydi */
       STATE.adminStudents.forEach(x => {
