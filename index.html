@@ -2971,11 +2971,42 @@ function deviceId() {
     return d;
   } catch (e) { return 'nomalum'; }
 }
+/* ALOQA UZILIB-ULANSA (18.11.2026). Server o'zi tez javob beradi (Vercel:
+   hamma so'rov 1.5 s dan kam), lekin kompyuter bilan server orasida aloqa
+   ba'zan bir zumga «osilib» qoladi — so'rov 15 s kutib, «Server javob
+   bermadi» chiqardi. Endi:
+     • o'qish (GET) va xavfsiz so'rovlar 8 s kutadi, javob bo'lmasa
+       o'zi YANA BIR MARTA yuboradi — ko'pincha ikkinchisi darhol o'tadi;
+     • ikkalasi ham o'tmasa — Net.failed(): aloqa tekshiriladi (o'z
+       serverimiz va tashqi sayt), belgi sababini aniq yozadi va aloqa
+       qaytishi bilan o'zi yo'qoladi.
+   Yozuvlar (POST) avvalgidek bir marta — o'tmasa navbatga tushadi. */
 async function request(path, opt, kind) {
   opt = opt || {};
+  const method = String(opt.method || 'GET').toUpperCase();
+  const safe = opt.retry === true || (opt.retry !== false && (method === 'GET' || method === 'HEAD'));
+  const tries = safe && !(opt.timeout > 20000) && navigator.onLine !== false ? 2 : 1;
+  let err;
+  for (let i = 0; i < tries; i++) {
+    const ms = opt.timeout || (safe ? (i === 0 ? 8000 : 12000) : CONFIG.TIMEOUT);
+    /* qayta urinishda manzil biroz boshqacha — brauzer birinchi (osilgan)
+       so'rovning javobini kutib turmasin */
+    const p2 = i === 0 ? path : path + (path.indexOf('?') >= 0 ? '&' : '?') + '_r=' + Date.now().toString(36);
+    try { return await requestOnce(p2, i === 0 ? opt : Object.assign({}, opt, { cache: 'no-store' }), kind, ms); }
+    catch (e) {
+      err = e;
+      if (!e || !e.netFail || i === tries - 1) break;
+      console.warn('[API qayta]', path);
+      await new Promise(r => setTimeout(r, 300));
+    }
+  }
+  if (err && err.netFail) Net.failed(path);
+  throw err;
+}
+async function requestOnce(path, opt, kind, ms) {
   kind = kind || 'user';
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), opt.timeout || CONFIG.TIMEOUT);
+  const timer = setTimeout(() => ctrl.abort(), ms || CONFIG.TIMEOUT);
   const authToken = kind === 'admin' ? STATE.admin.token : (kind === 'public' ? '' : STATE.auth.token);
   try {
     const headers = Object.assign(
@@ -3038,20 +3069,62 @@ async function request(path, opt, kind) {
     return data;
   } catch (e) {
     if (e && e.name === 'AbortError') {
-      /* Kompyuterda internet bor-u, server vaqtida javob bermadi — bu
-         «Internet yo'q» emas, server/baza sekinligi (18.11.2026) */
-      STATE.offlineWhy = navigator.onLine === false ? 'net' : 'slow';
-      setOnline(false);
       console.error('[API timeout]', path);
-      throw ApiError('Server javob bermadi. Internet aloqasini tekshiring.', 0, 'timeout');
+      const te = ApiError('Aloqa uzilib qoldi — javob kelmadi. Bir ozdan keyin yana urinib ko‘ring.', 0, 'timeout');
+      te.netFail = true;
+      throw te;
     }
     if (e && e.status !== undefined) throw e;
-    STATE.offlineWhy = 'net';
-    setOnline(false);
     console.error('[API network]', path, e);
-    throw ApiError('Internet yoki server aloqasini tekshiring.', 0, String(e && e.message));
+    const ne = ApiError('Aloqa uzilib qoldi. Bir ozdan keyin yana urinib ko‘ring.', 0, String(e && e.message));
+    ne.netFail = true;
+    throw ne;
   } finally { clearTimeout(timer); }
 }
+
+/* ALOQANI TEKSHIRISH: o'z serverimiz (/api/net — bazasiz, bir zumda) va
+   tashqi sayt. Server javob bersa — bu bir zumlik uzilish edi, belgi
+   yo'qoladi. Server yo'q, tashqi sayt bor — «Server javob bermayapti».
+   Ikkalasi ham yo'q — «Internet yo'q». Aloqa qaytmaguncha har 8 s
+   tekshirib turadi va qaytishi bilan navbatdagilar o'zi yuboriladi. */
+const Net = {
+  checking: null, timer: null,
+  failed(path) {
+    if (STATE.online !== false || !STATE.offlineWhy) STATE.offlineWhy = navigator.onLine === false ? 'net' : 'check';
+    setOnline(false);
+    if (typeof Outbox !== 'undefined') Outbox.render();
+    this.diagnose();
+  },
+  async probe(url, ms, outside) {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), ms);
+    try {
+      const r = await fetch(url, outside ? { mode: 'no-cors', cache: 'no-store', signal: c.signal } : { cache: 'no-store', signal: c.signal });
+      return outside ? true : (r.ok || r.status === 204);
+    } catch (e) { return false; }
+    finally { clearTimeout(t); }
+  },
+  diagnose() {
+    if (this.checking) return this.checking;
+    this.checking = (async () => {
+      if (navigator.onLine === false) { STATE.offlineWhy = 'net'; return 'net'; }
+      const [ours, g, cf] = await Promise.all([
+        this.probe(CONFIG.API + '/net?_=' + Date.now(), 6000, false),
+        this.probe('https://www.gstatic.com/generate_204', 6000, true),
+        this.probe('https://www.cloudflare.com/cdn-cgi/trace', 6000, true)
+      ]);
+      if (ours) { STATE.offlineWhy = ''; setOnline(true); return 'ok'; }
+      STATE.offlineWhy = g || cf ? 'server' : 'net';
+      return STATE.offlineWhy;
+    })().catch(() => 'net').finally(() => {
+      this.checking = null;
+      if (typeof Outbox !== 'undefined') Outbox.render();
+      clearTimeout(this.timer);
+      if (STATE.online === false) this.timer = setTimeout(() => { if (STATE.online === false) this.diagnose(); }, 8000);
+    });
+    return this.checking;
+  }
+};
 const api = (path, opt) => request(path, opt, 'user');
 const adminApi = (path, opt) => request('/admin' + path, Object.assign({}, opt, {
   headers: Object.assign(
@@ -4047,7 +4120,12 @@ const Outbox = {
 
   /* ---------- Tepadagi belgi va oyna ---------- */
   /* «Internet yo'q» yoki «Server sekin» — sababiga qarab */
-  offLabel() { return navigator.onLine !== false && STATE.offlineWhy === 'slow' ? 'Server sekin javob bermayapti' : 'Internet yo‘q'; },
+  offLabel() {
+    if (navigator.onLine === false) return 'Internet yo‘q';
+    if (STATE.offlineWhy === 'server') return 'Server javob bermayapti';
+    if (STATE.offlineWhy === 'check') return 'Aloqa tekshirilmoqda…';
+    return 'Internet yo‘q';
+  },
   kindName(k) {
     return { start: 'Kirdi', finish: 'Chiqdi', debtpay: 'Qarz to‘landi', att: 'Davomat', ticket: 'Chek jurnali' }[k] || 'Amal';
   },
@@ -4058,9 +4136,12 @@ const Outbox = {
     const off = this.isOffline();
     if (warn) warn.classList.toggle('show', off);
     const wt = $('connWarnText');
-    if (wt && off) wt.textContent = this.offLabel() === 'Internet yo‘q'
-      ? 'Internet yo‘q — kassa ishlayveradi: «Kirdi», «Chiqdi», «To‘lash» va davomat shu kompyuterda saqlanadi, internet qaytishi bilan o‘zi serverga yuboriladi. Hisobot internet qaytgach yangilanadi.'
-      : 'Server sekin javob bermayapti (internet bor) — kassa ishlayveradi: «Kirdi», «Chiqdi», «To‘lash» va davomat shu kompyuterda saqlanadi, server javob berishi bilan o‘zi yuboriladi.';
+    const lb = off ? this.offLabel() : '';
+    if (wt && off) wt.textContent = lb === 'Server javob bermayapti'
+      ? 'Internet bor, lekin server javob bermayapti — kassa ishlayveradi: «Kirdi», «Chiqdi», «To‘lash» va davomat shu kompyuterda saqlanadi, server javob berishi bilan o‘zi yuboriladi.'
+      : lb === 'Aloqa tekshirilmoqda…'
+        ? 'Aloqa uzilib qoldi — tekshirilmoqda. Kassa ishlayveradi: «Kirdi», «Chiqdi», «To‘lash» va davomat shu kompyuterda saqlanadi, aloqa qaytishi bilan o‘zi yuboriladi.'
+        : 'Internet yo‘q — kassa ishlayveradi: «Kirdi», «Chiqdi», «To‘lash» va davomat shu kompyuterda saqlanadi, internet qaytishi bilan o‘zi serverga yuboriladi. Hisobot internet qaytgach yangilanadi.';
     if (!chip) return;
     let cls = '', txt = '', ico = 'fa-wifi';
     if (this.syncing && !off) { cls = 'sync'; ico = 'fa-arrows-rotate fa-spin'; txt = 'Yuborilmoqda: ' + n + ' ta'; }
@@ -13716,7 +13797,7 @@ const Admin = {
   async ensureToken() {
     if (STATE.admin.token) return STATE.admin.token;
     const data = await request('/admin/login', {
-      method: 'POST',
+      method: 'POST', retry: true,
       headers: STATE.auth.token ? { 'X-Operator-Token': STATE.auth.token } : {},
       body: jsonBody({})
     }, 'public');

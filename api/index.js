@@ -57,6 +57,14 @@ export default function handler(req, res) {
 async function handle(req, res) {
   const path = String(req.url || "").split("?",1)[0];
 
+  /* ALOQA TEKSHIRUVI (18.11.2026): bazaga ham, sxemaga ham tegmaydi —
+     sahifa «server javob beryaptimi» ni bir zumda bilib oladi */
+  if (path === "/api/net") {
+    res.statusCode = 204;
+    res.setHeader("Cache-Control", "no-store");
+    return res.end();
+  }
+
   /* INTERNETSIZ REJIM: sahifa va kutubxonalarni kompyuterda saqlovchi skript */
   if (path === "/sw.js" && req.method === "GET") {
     res.statusCode = 200;
