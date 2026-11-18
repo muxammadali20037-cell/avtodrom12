@@ -9,6 +9,7 @@ import zlib from 'node:zlib';
 import { pool, poolStats } from './db.js';
 import { postOf } from './post.js';
 import { dbLimits, ensureDbSafety } from './schema-once.js';
+import { deepCheck } from './db-deep.js';
 import { logChange } from '../../api/audit-routes.js';
 import { tgNotify, tgText } from '../../api/telegram.js';
 import { loginPost } from '../../api/accounts-routes.js';
@@ -354,6 +355,11 @@ function elapsedSeconds(s) {
 }
 
 app.get('/api/health', async (req, res) => {
+  /* chuqur tekshiruv: o'lchamlar, jadvallar, sekin so'rovlar (shaxsiy ma'lumotsiz) */
+  if (String(req.query.deep || '') === '1') {
+    try { return res.json({ ok: true, deep: await deepCheck() }); }
+    catch (e) { return res.status(503).json({ ok: false, error: e.message }); }
+  }
   try {
     const t0 = Date.now();
     await pool.query('SELECT 1');
