@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { endJson } from '../backend/src/gzip-json.js';
 import { MONEY_EVENTS } from './money-sql.js';
 import jwt from 'jsonwebtoken';
 
@@ -19,7 +20,7 @@ const send = (res,status,data) => {
   res.statusCode=status;
   res.setHeader('Content-Type','application/json; charset=utf-8');
   res.setHeader('Cache-Control','no-store');
-  res.end(JSON.stringify(data));
+  endJson(res, JSON.stringify(data));
   return true;
 };
 const bodyOf=req=>req.body&&typeof req.body==='object'?req.body:{};

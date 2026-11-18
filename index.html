@@ -1219,6 +1219,8 @@ tr.be-dirty td:first-child{box-shadow:inset 3px 0 0 #16a34a}
 .maxsus-nav.hidden { display: none; }
 .mx-foot { display: flex; flex-direction: column; gap: 0; margin-top: 6px; border-top: 1px dashed rgba(255,255,255,.15); padding-top: 4px; }
 .nav-btn.mx-small { font-size: 12.5px; opacity: .8; min-height: 36px; }
+/* Rahbar olib tashlagan bo'limlar (18.11.2026) — kodi turibdi, menyuda yo'q */
+.nav-off, #adminPanel .admin-nav.nav-off { display: none !important; }
 .mx-modal .mx-lock { width: 64px; height: 64px; border-radius: 18px; background: var(--g-surface); color: var(--g-dark); display: grid; place-items: center; font-size: 28px; margin: 0 auto 10px; }
 .mx-modal h2 { text-align: center; }
 .mx-modal .mx-sub { text-align: center; color: var(--muted); font-size: 14px; margin: 4px 0 16px; }
@@ -1545,18 +1547,18 @@ body.sheet-open { overflow: hidden; }
 
     <div class="nav-section">Asosiy</div>
     <button class="nav-btn" type="button" data-p="add"><i class="fa-solid fa-plus" aria-hidden="true"></i> Yangi avtomobil</button>
-    <button class="nav-btn" type="button" data-p="kassa"><i class="fa-solid fa-qrcode" aria-hidden="true"></i> QR chek <span id="kassaCount" class="nav-badge amber"></span></button>
+    <button class="nav-btn nav-off" type="button" data-p="kassa"><i class="fa-solid fa-qrcode" aria-hidden="true"></i> QR chek <span id="kassaCount" class="nav-badge amber"></span></button>
     <button class="nav-btn" type="button" data-p="active"><i class="fa-solid fa-circle-play" aria-hidden="true"></i> Jarayonda <span id="activeCount" class="nav-badge"></span></button>
     <button class="nav-btn" type="button" data-p="queue"><i class="fa-regular fa-clock" aria-hidden="true"></i> Kutish rejimi <span id="queueCount" class="nav-badge amber"></span></button>
-    <button class="nav-btn" type="button" data-p="finish"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Tugatish</button>
-    <button class="nav-btn" type="button" data-p="frozen"><i class="fa-regular fa-snowflake" aria-hidden="true"></i> Muzlatilgan <span id="frozenCount" class="nav-badge"></span></button>
-    <button class="nav-btn" type="button" data-p="assistant"><i class="fa-solid fa-robot" aria-hidden="true"></i> AI yordamchi</button>
+    <button class="nav-btn nav-off" type="button" data-p="finish"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Tugatish</button>
+    <button class="nav-btn nav-off" type="button" data-p="frozen"><i class="fa-regular fa-snowflake" aria-hidden="true"></i> Muzlatilgan <span id="frozenCount" class="nav-badge"></span></button>
+    <button class="nav-btn nav-off" type="button" data-p="assistant"><i class="fa-solid fa-robot" aria-hidden="true"></i> AI yordamchi</button>
     <!-- Admin panel — PAROLSIZ (rahbar, 08.11.2026). Pul (tushum, to'lovlar,
          kunlik hisobot eksporti) baribir faqat Maxsus paroli bilan ko'rinadi. -->
     <button class="nav-btn" type="button" data-act="openAdminGate"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Admin panel</button>
 
     <div class="nav-section">Maxsus</div>
-    <button class="nav-btn nav-maxsus" type="button" data-act="maxsusToggle" id="maxsusBtn" title="Hisobot, Excel, Nazorat va Boshqaruv — parol bilan">
+    <button class="nav-btn nav-maxsus" type="button" data-act="maxsusToggle" id="maxsusBtn" title="Hisobot, Excel va Boshqaruv — parol bilan">
       <i class="fa-solid fa-lock" aria-hidden="true" id="maxsusIco"></i> <span class="mx-txt">Maxsus bo'lim</span> <span class="mx-state" id="maxsusState">parol</span>
     </button>
     <div id="maxsusNav" class="maxsus-nav hidden">
@@ -1566,11 +1568,11 @@ body.sheet-open { overflow: hidden; }
       <button class="nav-btn" type="button" data-p="sheet"><i class="fa-solid fa-table-cells" aria-hidden="true"></i> Excel</button>
       <button class="nav-btn" type="button" data-p="history"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Tarix</button>
 
-      <div class="nav-section">Nazorat</div>
-      <button class="nav-btn" type="button" data-p="control"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> Xatoliklar va aniqliklar <span id="ctrlCount" class="nav-badge amber"></span></button>
+      <div class="nav-section nav-off">Nazorat</div>
+      <button class="nav-btn nav-off" type="button" data-p="control"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> Xatoliklar va aniqliklar <span id="ctrlCount" class="nav-badge amber"></span></button>
 
       <div class="nav-section">Boshqaruv</div>
-      <button class="nav-btn" type="button" data-p="instructors"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktorlar</button>
+      <button class="nav-btn nav-off" type="button" data-p="instructors"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktorlar</button>
       <button class="nav-btn" type="button" data-p="telegram"><i class="fa-brands fa-telegram" aria-hidden="true"></i> Telegram bot</button>
       <button class="nav-btn" type="button" data-p="scanner"><i class="fa-solid fa-qrcode" aria-hidden="true"></i> QR skaner <span id="scState" class="nav-badge"></span></button>
       <button class="nav-btn" type="button" data-p="accounts"><i class="fa-solid fa-users-viewfinder" aria-hidden="true"></i> Hisoblar <span id="accOnline" class="nav-badge"></span></button>
@@ -1874,6 +1876,12 @@ body.sheet-open { overflow: hidden; }
           </div>
           <div id="activeList" aria-live="polite"></div>
         </div>
+        <!-- «Muzlatilgan» bo'limi olib tashlandi (18.11.2026). Avval muzlatib
+             qo'yilganlari bo'lsa — shu yerda chiqadi: davom ettirish yoki tugatish. -->
+        <div class="panel hidden" id="frozenWrap" style="margin-top:14px">
+          <h3 style="margin:0 0 10px"><i class="fa-regular fa-snowflake" aria-hidden="true"></i> Muzlatilganlar</h3>
+          <div id="frozenList" aria-live="polite"></div>
+        </div>
       </section>
 
       <!-- ===== KUTISH REJIMI ===== -->
@@ -1920,21 +1928,6 @@ body.sheet-open { overflow: hidden; }
         <script>/*AVT_ASSIST_BOOT*/</script>
       </section>
 
-      <section id="p-frozen" class="page hidden">
-        <div class="page-header">
-          <div><h1>Muzlatilgan</h1><p>Davom ettirish yoki yakunlash mumkin</p></div>
-          <button class="btn btn-ghost" type="button" data-act="reloadFrozen"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Yangilash</button>
-        </div>
-        <div class="panel">
-          <div class="search-bar">
-            <div class="search-field">
-              <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-              <input id="frozenQ" placeholder="Muzlatilgan raqam" aria-label="Muzlatilganlar orasidan qidirish">
-            </div>
-          </div>
-          <div id="frozenList" aria-live="polite"></div>
-        </div>
-      </section>
 
       <!-- ===== KUNLIK HISOBOT ===== -->
       <section id="p-daily" class="page hidden">
@@ -2316,9 +2309,9 @@ body.sheet-open { overflow: hidden; }
           <button class="admin-nav" type="button" role="tab" data-act="adminTab" data-tab="schools"><i class="fa-solid fa-school" aria-hidden="true"></i> Avtoshkolalar</button>
           <button class="admin-nav" type="button" role="tab" data-act="adminTab" data-tab="students"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> O'quvchilar</button>
           <button class="admin-nav" type="button" role="tab" data-act="adminTab" data-tab="access"><i class="fa-solid fa-calendar-check" aria-hidden="true"></i> Kirish muddatlari</button>
-          <div class="admin-side-label">Avtodrom</div>
-          <button class="admin-nav" type="button" role="tab" data-act="adminTab" data-tab="instructors"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktorlar</button>
-          <button class="admin-nav" type="button" role="tab" data-act="adminTab" data-tab="cars"><i class="fa-solid fa-car-side" aria-hidden="true"></i> Mashinalar</button>
+          <div class="admin-side-label nav-off">Avtodrom</div>
+          <button class="admin-nav nav-off" type="button" role="tab" data-act="adminTab" data-tab="instructors"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i> Instruktorlar</button>
+          <button class="admin-nav nav-off" type="button" role="tab" data-act="adminTab" data-tab="cars"><i class="fa-solid fa-car-side" aria-hidden="true"></i> Mashinalar</button>
           <div class="admin-side-label">Hisobot</div>
           <button class="admin-nav" type="button" role="tab" data-act="adminTab" data-tab="excel"><i class="fa-solid fa-file-excel" aria-hidden="true"></i> Excel</button>
         </nav>
@@ -4510,7 +4503,7 @@ function go(page) {
   window.scrollTo({ top: 0, behavior: 'auto' });
 
   if (page === 'add') Add.onEnter();
-  if (page === 'active') Active.load();
+  if (page === 'active') { Active.load(); Frozen.load(true); }
   if (page === 'queue') Queue.render();
   if (page === 'finish') { Active.load(); Finish.renderList(); }
   if (page === 'frozen') Frozen.load();
@@ -5217,6 +5210,20 @@ const Data = {
     STATE.instructors = Array.isArray(r) ? r : (r && r.rows) || [];
     Add.syncInstructorSource();
     return STATE.instructors;
+  },
+  /* O'QUVCHILAR SONI (18.11.2026): ro'yxat yuklanmagan bo'lsa ham son
+     to'g'ri chiqsin — server avtoshkola bilan birga student_count beradi.
+     Ilgari faqat yuklangan ro'yxatdan sanalardi: ro'yxat kelmay qolsa
+     hamma joyda «0 o'quvchi» chiqardi. */
+  studentsOk() { return !!STATE.studentsLoaded && !STATE.studentsLoadFailed && STATE.students.length > 0; },
+  studentCount(s) {
+    if (this.studentsOk()) return STATE.students.filter(st => String(st.school_id || st.schoolId) === String(s.id)).length;
+    return num(s.student_count);
+  },
+  studentTotal() {
+    if (Array.isArray(STATE.adminStudents) && STATE.adminStudents.length) return STATE.adminStudents.length;
+    if (this.studentsOk()) return STATE.students.length;
+    return this.activeSchools().reduce((a, s) => a + num(s.student_count), 0);
   },
   activeSchools() {
     /* Backend o'chirilgan (active=false) avtoshkolani ham qaytarishi mumkin */
@@ -9061,7 +9068,6 @@ const Active = {
     const actions = opts.readonly ? '' : '<div class="vehicle-actions">'
       + '<button class="btn btn-green" type="button" data-act="openFinish" data-id="' + esc(v.id) + '"><i class="fa-solid fa-check" aria-hidden="true"></i> Tugatish</button>'
       + '<button class="btn btn-light" type="button" data-act="printEntrySession" data-id="' + esc(v.id) + '"><i class="fa-solid fa-print" aria-hidden="true"></i> Kirish taloni</button>'
-      + '<button class="btn btn-light" type="button" data-act="freeze" data-id="' + esc(v.id) + '"><span class="spinner"></span><i class="fa-regular fa-snowflake btn-icon" aria-hidden="true"></i><span class="btn-text">Muzlatish</span></button>'
       + '</div>';
 
     return '<div class="vehicle-card tier-' + tier + '" data-sid="' + esc(v.id) + '">'
@@ -11110,6 +11116,8 @@ const Frozen = {
   render() {
     const host = $('frozenList');
     if (!host) return;
+    const wrap = $('frozenWrap');
+    if (wrap) wrap.classList.toggle('hidden', !STATE.frozen.length);
     const q = lower($('frozenQ') ? $('frozenQ').value : '').trim();
     const list = STATE.frozen.filter(v => !q || lower(v.plate).indexOf(q) >= 0 || normalizePlate(v.plate).indexOf(normalizePlate(q)) >= 0);
     if (!STATE.frozen.length) { host.innerHTML = emptyState('fa-regular fa-snowflake', 'Muzlatilgan avtomobil yo\'q', ''); return; }
@@ -13822,8 +13830,8 @@ const Admin = {
 
   refreshCounters() {
     $('adSchools').textContent = Data.activeSchools().length;
-    $('adGroups').textContent = Data.activeGroups().length;
-    $('adStudents').textContent = (STATE.adminStudents || STATE.students).length;
+    $('adGroups').textContent = Math.max(Data.activeGroups().length, Data.activeSchools().reduce((a, s) => a + num(s.group_count), 0));
+    $('adStudents').textContent = Data.studentTotal();
   },
 
   dashboardHTML() {
@@ -13896,7 +13904,7 @@ const Admin = {
     c.innerHTML = schools.map(s => {
       /* Server yuborgan aniq son — STATE.groups da faqat ochilgan avtoshkolalarniki bo'ladi */
       const gCount = Math.max(num(s.group_count), Data.activeGroups(s.id).length);
-      const sCount = STATE.students.filter(st => String(st.school_id || st.schoolId) === String(s.id)).length;
+      const sCount = Data.studentCount(s);
       return '<div class="card is-clickable" data-act="schoolDetail" data-id="' + esc(s.id) + '" role="button" tabindex="0">'
         + '<h3><i class="fa-solid fa-school" style="color:var(--g)" aria-hidden="true"></i> ' + esc(s.name) + '</h3>'
         + '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><span class="badge badge-blue">' + gCount + ' guruh</span>'

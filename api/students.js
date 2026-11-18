@@ -1,14 +1,15 @@
 import jwt from 'jsonwebtoken';
 import { pool } from '../backend/src/db.js';
 import { runOnce, ddl } from '../backend/src/schema-once.js';
+import { endJson } from '../backend/src/gzip-json.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 const uid = req => String(req.user.sub);
 
-function json(res, code, data){
+function json(res, code, data, req){
   res.statusCode=code;
   res.setHeader('Content-Type','application/json; charset=utf-8');
-  res.end(JSON.stringify(data));
+  endJson(res, JSON.stringify(data), req);
 }
 function auth(req,res){
   try{
@@ -81,7 +82,7 @@ export default async function handler(req,res){
          WHERE ${w}
          ORDER BY st.full_name,st.created_at
       `,p);
-      return json(res,200,r.rows);
+      return json(res,200,r.rows,req);
     }
 
     if(req.method==='POST'){
