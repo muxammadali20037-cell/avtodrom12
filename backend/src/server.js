@@ -597,21 +597,20 @@ const SESSION_SELECT = `SELECT s.id, v.plate, v.model, COALESCE(s.driver_name, v
     COALESCE((to_jsonb(s)->>'auto_close')::boolean,false) auto_close,
     (to_jsonb(s)->>'planned_amount')::numeric planned_amount,
     ds.name school_name, g.name group_name, st.full_name student_name,
-    i.full_name instructor_name
-  FROM sessions s
-  LEFT JOIN vehicles v ON v.id = s.vehicle_id
-  LEFT JOIN driving_schools ds ON ds.id::text = s.school_id::text
-  LEFT JOIN school_groups g ON g.id::text = s.group_id::text
-  LEFT JOIN students st ON st.id::text = s.student_id::text
-  LEFT JOIN instructors i ON i.id::text = s.instructor_id::text`;
+    i.full_name instructor_name`;
+/* Jarayonda ro'yxati har 10–20 s so'raladi. ::text bilan JOIN har safar
+   butun students jadvalini (9 700+) o'qirdi — endi ID bo'yicha (indeks),
+   turlar mos kelmasa reportQuery() eski usulga o'tadi (18.11.2026). */
+const sessionSelect = fast => `${SESSION_SELECT}
+  ${reportJoins(fast)}`;
 
 app.get('/api/sessions/active', auth, async (req, res) => {
-  const r = await pool.query(`${SESSION_SELECT} WHERE s.user_id=$1 AND s.status='active' ORDER BY s.started_at`, [uid(req)]);
+  const r = await reportQuery(fast => `${sessionSelect(fast)} WHERE s.user_id=$1 AND s.status='active' ORDER BY s.started_at`, [uid(req)]);
   res.json(r.rows);
 });
 /* YANGI: muzlatilgan sessiyalar */
 app.get('/api/sessions/frozen', auth, async (req, res) => {
-  const r = await pool.query(`${SESSION_SELECT} WHERE s.user_id=$1 AND s.status='frozen' ORDER BY s.frozen_at DESC`, [uid(req)]);
+  const r = await reportQuery(fast => `${sessionSelect(fast)} WHERE s.user_id=$1 AND s.status='frozen' ORDER BY s.frozen_at DESC`, [uid(req)]);
   res.json(r.rows);
 });
 
