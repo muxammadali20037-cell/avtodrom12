@@ -24,6 +24,7 @@ import instructorDailyHandler from "./instructor-daily.js";
 import { readFile } from "node:fs/promises";
 import { opGuard } from "./op-guard.js";
 import { SW_SOURCE } from "./sw-source.js";
+import { handleNetRequest } from "./net-routes.js";
 import { handleTelegramRequest, tgFlushIfAny } from "./telegram.js";
 import { handleCleanupRequest, cleanupAllOnce } from "./cleanup-routes.js";
 import { movePastCorrectionsOnce } from "./fix-once.js";
@@ -57,12 +58,10 @@ export default function handler(req, res) {
 async function handle(req, res) {
   const path = String(req.url || "").split("?",1)[0];
 
-  /* ALOQA TEKSHIRUVI (18.11.2026): bazaga ham, sxemaga ham tegmaydi —
-     sahifa «server javob beryaptimi» ni bir zumda bilib oladi */
-  if (path === "/api/net") {
-    res.statusCode = 204;
-    res.setHeader("Cache-Control", "no-store");
-    return res.end();
+  /* ALOQA TEKSHIRUVI (18.11.2026): /api/net, /api/net/log, /aloqa —
+     bazaga ham, sxemaga ham tegmaydi (api/net-routes.js) */
+  if (path === "/api/net" || path === "/api/net/log" || path === "/aloqa" || path === "/aloqa.html") {
+    if (await handleNetRequest(req, res, path)) return;
   }
 
   /* INTERNETSIZ REJIM: sahifa va kutubxonalarni kompyuterda saqlovchi skript */

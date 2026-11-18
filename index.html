@@ -2993,9 +2993,14 @@ async function request(path, opt, kind) {
     /* qayta urinishda manzil biroz boshqacha — brauzer birinchi (osilgan)
        so'rovning javobini kutib turmasin */
     const p2 = i === 0 ? path : path + (path.indexOf('?') >= 0 ? '&' : '?') + '_r=' + Date.now().toString(36);
-    try { return await requestOnce(p2, i === 0 ? opt : Object.assign({}, opt, { cache: 'no-store' }), kind, ms); }
+    try {
+      const ok = await requestOnce(p2, i === 0 ? opt : Object.assign({}, opt, { cache: 'no-store' }), kind, ms);
+      if (Net.log.length) Net.flush();
+      return ok;
+    }
     catch (e) {
       err = e;
+      if (e && e.netFail) Net.note(path, e, i, ms);
       if (!e || !e.netFail || i === tries - 1) break;
       console.warn('[API qayta]', path);
       await new Promise(r => setTimeout(r, 300));
@@ -3090,6 +3095,32 @@ async function requestOnce(path, opt, kind, ms) {
    tekshirib turadi va qaytishi bilan navbatdagilar o'zi yuboriladi. */
 const Net = {
   checking: null, timer: null,
+  /* Aloqa xatolari jurnali: qaysi so'rov, nechanchi urinish, qancha kutildi.
+     Aloqa tiklangach (ko'pi bilan daqiqada bir) serverga yuboriladi —
+     dasturchi Vercel jurnalida «NET LOG» bo'lib ko'radi. Shaxsiy ma'lumot yo'q. */
+  log: [], lastSent: 0,
+  note(path, e, attempt, ms) {
+    this.log.push({ p: String(path || '').split('?')[0].slice(0, 60), k: e && e.technical === 'timeout' ? 'timeout' : 'net',
+      a: attempt + 1, w: ms, at: new Date().toISOString().slice(11, 19), pg: STATE.page || '' });
+    if (this.log.length > 40) this.log.shift();
+  },
+  flush() {
+    if (!this.log.length || Date.now() - this.lastSent < 60000) return;
+    const items = this.log.splice(0);
+    this.lastSent = Date.now();
+    let proto = '?';
+    try {
+      const es = performance.getEntriesByType('resource').filter(x => x.name.indexOf('/api/') >= 0 && x.nextHopProtocol);
+      proto = es.length ? es[es.length - 1].nextHopProtocol : '?';
+    } catch (x) { /* noop */ }
+    let conn = null;
+    try { const nc = navigator.connection; if (nc) conn = { t: nc.effectiveType, rtt: nc.rtt, d: nc.downlink }; } catch (x) { /* noop */ }
+    fetch(CONFIG.API + '/net/log', {
+      method: 'POST', keepalive: true,
+      headers: { 'Content-Type': 'application/json', 'X-Device': deviceId() },
+      body: JSON.stringify({ kind: 'app', proto: proto, conn: conn, why: STATE.offlineWhy || '', user: (STATE.auth.user || {}).username || '', post: Post.get(), items: items })
+    }).catch(() => { this.log = items.concat(this.log).slice(-40); });
+  },
   failed(path) {
     if (STATE.online !== false || !STATE.offlineWhy) STATE.offlineWhy = navigator.onLine === false ? 'net' : 'check';
     setOnline(false);
@@ -3114,7 +3145,7 @@ const Net = {
         this.probe('https://www.gstatic.com/generate_204', 6000, true),
         this.probe('https://www.cloudflare.com/cdn-cgi/trace', 6000, true)
       ]);
-      if (ours) { STATE.offlineWhy = ''; setOnline(true); return 'ok'; }
+      if (ours) { STATE.offlineWhy = ''; setOnline(true); this.flush(); return 'ok'; }
       STATE.offlineWhy = g || cf ? 'server' : 'net';
       return STATE.offlineWhy;
     })().catch(() => 'net').finally(() => {
