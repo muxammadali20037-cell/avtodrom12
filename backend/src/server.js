@@ -463,8 +463,29 @@ app.post('/api/groups',auth,async(req,res)=>{const schoolId=String(req.body.scho
 
 /* O'ZGARTIRILDI: attendance_count endi DARSLAR yig'indisi (1 soat = 1 dars),
    avval oddiy tashriflar SONI edi — shuning uchun 2 soat 1 ko'rinardi. */
-const STUDENT_ATTENDANCE_SQL = `(SELECT COALESCE(SUM(CASE WHEN se.lessons_counted > 0 THEN se.lessons_counted ELSE 1 END),0)::int
-   FROM sessions se WHERE se.student_id::text = st.id::text AND se.status = 'completed')`;
+/* TEZLIK (18.11.2026): avval `se.student_id::text = st.id::text` edi —
+   ::text indeksni o'chirib qo'yadi va hisobotning HAR QATORI uchun butun
+   sessions jadvali boshdan-oxir o'qilardi (kuniga 300 qator × 90 ming
+   yozuv). Kunlik hisobot 4–6 soniyaga cho'zilib, baza bo'g'ilib qolar,
+   ilova esa «Internet yo'q» deb ko'rsatardi. Ustunlar bir xil turda
+   (uuid) — to'g'ridan-to'g'ri solishtirilsa idx_sessions_student_done
+   indeksi ishlaydi. Juda eski bazada turlar mos kelmasa, reportQuery()
+   bir marta eski (::text) usulga o'tadi. */
+const attendanceSql = fast => `(SELECT COALESCE(SUM(CASE WHEN se.lessons_counted > 0 THEN se.lessons_counted ELSE 1 END),0)::int
+   FROM sessions se WHERE ${fast ? 'se.student_id = st.id' : 'se.student_id::text = st.id::text'} AND se.status = 'completed')`;
+let reportFast = true;
+async function reportQuery(build, params) {
+  if (reportFast) {
+    try { return await pool.query(build(true), params); }
+    catch (e) {
+      /* 42883 — «operator does not exist: text = uuid»; 42804 — tur mos emas */
+      if (!e || (e.code !== '42883' && e.code !== '42804')) throw e;
+      reportFast = false;
+      console.error('HISOBOT: ustun turlari mos emas, eski usulga o‘tildi:', e.message);
+    }
+  }
+  return pool.query(build(false), params);
+}
 
 app.get('/api/students',auth,async(req,res)=>{
   const p=[ownerKey(req)];let w='st.owner_key=$1 AND st.active IS NOT FALSE';
@@ -915,7 +936,11 @@ const REPORT_STATUSES = `('completed','active','frozen','paused')`;
 const TZ='Asia/Tashkent';
 const tkDayRange=(col,a,b)=>`${col} >= (${a}::date::timestamp AT TIME ZONE '${TZ}') AND ${col} < ((${b}::date + 1)::timestamp AT TIME ZONE '${TZ}')`;
 const tkToday=()=>new Date(Date.now()+5*3600e3).toISOString().slice(0,10);
-const REPORT_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,v.driver_name) driver_name,s.started_at,s.finished_at,CASE WHEN s.status='active' THEN COALESCE(s.duration_seconds,0)+GREATEST(EXTRACT(EPOCH FROM now()-COALESCE(s.resumed_at,s.started_at)),0)::bigint ELSE s.duration_seconds END duration_seconds,s.status,
+/* Hisobot ustunlari va JOIN'lar. «fast» — ID'lar to'g'ridan-to'g'ri
+   solishtiriladi (indeks + to'g'ri reja); aks holda eski ::text usul.
+   ::text bilan rejalashtiruvchi qatorlar sonini 50 baravar ko'p deb
+   o'ylab, so'rovga yarim soniyalik JIT kompilyatsiyasini ham qo'shardi. */
+const REPORT_COLS = `s.id,v.plate,v.model,COALESCE(s.driver_name,v.driver_name) driver_name,s.started_at,s.finished_at,CASE WHEN s.status='active' THEN COALESCE(s.duration_seconds,0)+GREATEST(EXTRACT(EPOCH FROM now()-COALESCE(s.resumed_at,s.started_at)),0)::bigint ELSE s.duration_seconds END duration_seconds,s.status,
     s.amount,s.cash_amount,s.terminal_amount,s.payment_method,s.lessons_counted,s.student_id,
     COALESCE((to_jsonb(s)->>'click_amount')::numeric,0) click_amount, s.target_duration,
     COALESCE((to_jsonb(s)->>'debt_amount')::numeric,0) debt_amount, COALESCE((to_jsonb(s)->>'auto_closed')::boolean,false) auto_closed,
@@ -923,13 +948,21 @@ const REPORT_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,v.driv
     (to_jsonb(s)->>'post')::int post, (to_jsonb(s)->>'pay_post')::int pay_post,
     COALESCE((to_jsonb(s)->>'debt_paid')::numeric,0) debt_paid, to_jsonb(s)->>'settled_at' settled_at,
     s.customer_type,s.instructor_id,COALESCE(i.full_name,i.bio,s.instructor_name) instructor_label,
-    ds.name school_name,g.name group_name,st.full_name student_name,i.full_name instructor_name,
-    ${STUDENT_ATTENDANCE_SQL} attendance_count
-  FROM sessions s LEFT JOIN vehicles v ON v.id=s.vehicle_id
+    ds.name school_name,g.name group_name,st.full_name student_name,i.full_name instructor_name`;
+const reportJoins = fast => fast
+  ? `FROM sessions s LEFT JOIN vehicles v ON v.id=s.vehicle_id
+  LEFT JOIN driving_schools ds ON ds.id=s.school_id
+  LEFT JOIN school_groups g ON g.id=s.group_id
+  LEFT JOIN students st ON st.id=s.student_id
+  LEFT JOIN instructors i ON i.id::text=s.instructor_id::text`
+  : `FROM sessions s LEFT JOIN vehicles v ON v.id=s.vehicle_id
   LEFT JOIN driving_schools ds ON ds.id::text=s.school_id::text
   LEFT JOIN school_groups g ON g.id::text=s.group_id::text
   LEFT JOIN students st ON st.id::text=s.student_id::text
   LEFT JOIN instructors i ON i.id::text=s.instructor_id::text`;
+const reportSelect = fast => `SELECT ${REPORT_COLS},
+    ${attendanceSql(fast)} attendance_count
+  ${reportJoins(fast)}`;
 
 /* HISOBOT: bitta kun (?date=) yoki davr (?from=&to=, ko'pi bilan 92 kun).
    Bitta kun avvalgidek ishlaydi. Davrda o'quvchining jami darslari har
@@ -938,32 +971,20 @@ const REPORT_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,v.driv
    va brauzer qabul qilsa, gzip qilib yuboriladi. */
 const REPORT_MAX_DAYS = 92;
 const isoDay = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v||'')) && !isNaN(Date.parse(v+'T00:00:00Z'));
-const REPORT_RANGE_SELECT = `SELECT s.id,v.plate,v.model,COALESCE(s.driver_name,v.driver_name) driver_name,s.started_at,s.finished_at,CASE WHEN s.status='active' THEN COALESCE(s.duration_seconds,0)+GREATEST(EXTRACT(EPOCH FROM now()-COALESCE(s.resumed_at,s.started_at)),0)::bigint ELSE s.duration_seconds END duration_seconds,s.status,
-    s.amount,s.cash_amount,s.terminal_amount,s.payment_method,s.lessons_counted,s.student_id,
-    COALESCE((to_jsonb(s)->>'click_amount')::numeric,0) click_amount, s.target_duration,
-    COALESCE((to_jsonb(s)->>'debt_amount')::numeric,0) debt_amount, COALESCE((to_jsonb(s)->>'auto_closed')::boolean,false) auto_closed,
-    to_jsonb(s)->>'correction_note' correction_note, to_jsonb(s)->>'corrected_at' corrected_at,
-    (to_jsonb(s)->>'post')::int post, (to_jsonb(s)->>'pay_post')::int pay_post,
-    COALESCE((to_jsonb(s)->>'debt_paid')::numeric,0) debt_paid, to_jsonb(s)->>'settled_at' settled_at,
-    s.customer_type,s.instructor_id,COALESCE(i.full_name,i.bio,s.instructor_name) instructor_label,
-    ds.name school_name,g.name group_name,st.full_name student_name,i.full_name instructor_name,
+const reportRangeSelect = fast => `SELECT ${REPORT_COLS},
     (st.id IS NOT NULL) _has_student
-  FROM sessions s LEFT JOIN vehicles v ON v.id=s.vehicle_id
-  LEFT JOIN driving_schools ds ON ds.id::text=s.school_id::text
-  LEFT JOIN school_groups g ON g.id::text=s.group_id::text
-  LEFT JOIN students st ON st.id::text=s.student_id::text
-  LEFT JOIN instructors i ON i.id::text=s.instructor_id::text
+  ${reportJoins(fast)}
   WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND ${tkDayRange('s.started_at','$2','$3')}
   ORDER BY s.started_at DESC`;
 /* Davrdagi o'quvchilarning jami darslari — BITTA guruhlangan so'rov
    (har qator uchun alohida hisoblansa 30 kunda soniyalab ketardi). */
 async function rangeReportRows(userId,from,to){
-  const r=await pool.query(REPORT_RANGE_SELECT,[userId,from,to]);
+  const r=await reportQuery(reportRangeSelect,[userId,from,to]);
   const ids=[...new Set(r.rows.filter(x=>x._has_student&&x.student_id).map(x=>String(x.student_id)))];
   const att=new Map();
   if(ids.length){
-    const a=await pool.query(`SELECT student_id::text sid, COALESCE(SUM(CASE WHEN lessons_counted > 0 THEN lessons_counted ELSE 1 END),0)::int n
-        FROM sessions WHERE status='completed' AND student_id::text = ANY($1::text[]) GROUP BY 1`,[ids]);
+    const a=await reportQuery(fast=>`SELECT student_id::text sid, COALESCE(SUM(CASE WHEN lessons_counted > 0 THEN lessons_counted ELSE 1 END),0)::int n
+        FROM sessions WHERE status='completed' AND ${fast?'student_id = ANY($1::uuid[])':'student_id::text = ANY($1::text[])'} GROUP BY 1`,[ids]);
     a.rows.forEach(x=>att.set(x.sid,x.n));
   }
   for(const x of r.rows){ x.attendance_count=x._has_student?(att.get(String(x.student_id))||0):0; delete x._has_student; }
@@ -1025,14 +1046,14 @@ app.get('/api/reports/daily',auth,async(req,res)=>{try{
     const days=Math.round((Date.parse(b)-Date.parse(a))/86400000)+1;
     if(days>REPORT_MAX_DAYS)return res.status(400).json({error:`Davr juda uzun — ko‘pi bilan ${REPORT_MAX_DAYS} kun tanlang`});
     const r=a===b
-      ? await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND ${tkDayRange('s.started_at','$2','$2')} ORDER BY s.started_at DESC`,[uid(req),a])
+      ? await reportQuery(fast=>`${reportSelect(fast)} WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND ${tkDayRange('s.started_at','$2','$2')} ORDER BY s.started_at DESC`,[uid(req),a])
       : {rows:await rangeReportRows(uid(req),a,b)};
     const dps=await debtPaymentsBetween(uid(req),a,b);
     await withDebtThen(r.rows,b);
     return sendReport(req,res,{date:a,from:a,to:b,days,summary:Object.assign(reportSummary(r.rows),debtSummary(dps)),rows:r.rows,debtPayments:dps});
   }
-  const date=/^\d{4}-\d{2}-\d{2}$/.test(req.query.date||'')?req.query.date:tkToday();const r=await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND ${tkDayRange('s.started_at','$2','$2')} ORDER BY s.started_at DESC`,[uid(req),date]);const dps=await debtPaymentsBetween(uid(req),date,date);await withDebtThen(r.rows,date);res.json({date,summary:Object.assign(reportSummary(r.rows),debtSummary(dps)),rows:r.rows,debtPayments:dps})}catch(e){console.error('DAILY:',e.message);res.status(500).json({error:'Hisobotni olishda xatolik'})}});
-app.get('/api/history',auth,async(req,res)=>{const plate=String(req.query.plate||'').trim().toUpperCase();if(!plate)return res.status(400).json({error:'Avtomobil raqami kerak'});const like='%'+plate.replace(/\s+/g,'%')+'%';const r=await pool.query(`${REPORT_SELECT} WHERE s.user_id=$1 AND v.plate ILIKE $2 AND s.status IN ${REPORT_STATUSES} ORDER BY s.started_at DESC`,[uid(req),like]);res.json({plate,rows:r.rows})});
+  const date=/^\d{4}-\d{2}-\d{2}$/.test(req.query.date||'')?req.query.date:tkToday();const r=await reportQuery(fast=>`${reportSelect(fast)} WHERE s.user_id=$1 AND s.status IN ${REPORT_STATUSES} AND ${tkDayRange('s.started_at','$2','$2')} ORDER BY s.started_at DESC`,[uid(req),date]);const dps=await debtPaymentsBetween(uid(req),date,date);await withDebtThen(r.rows,date);res.json({date,summary:Object.assign(reportSummary(r.rows),debtSummary(dps)),rows:r.rows,debtPayments:dps})}catch(e){console.error('DAILY:',e.message);res.status(500).json({error:'Hisobotni olishda xatolik'})}});
+app.get('/api/history',auth,async(req,res)=>{const plate=String(req.query.plate||'').trim().toUpperCase();if(!plate)return res.status(400).json({error:'Avtomobil raqami kerak'});const like='%'+plate.replace(/\s+/g,'%')+'%';const r=await reportQuery(fast=>`${reportSelect(fast)} WHERE s.user_id=$1 AND v.plate ILIKE $2 AND s.status IN ${REPORT_STATUSES} ORDER BY s.started_at DESC`,[uid(req),like]);res.json({plate,rows:r.rows})});
 app.get('/api/dashboard',auth,async(req,res)=>{
   /* «Bugun» — Toshkent kuni; pul: kunlik hisobot bilan bir xil (seanslar + shu kuni to'langan qarzlar) */
   const day=tkToday();
@@ -1140,12 +1161,12 @@ app.delete('/api/admin/students/:id', adminAuth, async (req, res) => {
 /* O'quvchi kartochkasi: ma'lumot + barcha tashriflar */
 app.get('/api/admin/students/:id', adminAuth, async (req, res) => {
   const sr = await pool.query(
-    `SELECT st.*, s.name school_name, g.name group_name, ${STUDENT_ATTENDANCE_SQL} attendance_count
+    `SELECT st.*, s.name school_name, g.name group_name, ${attendanceSql(reportFast)} attendance_count
      FROM students st JOIN driving_schools s ON s.id=st.school_id
      LEFT JOIN school_groups g ON g.id=st.group_id
      WHERE st.id=$1 AND st.owner_key=$2`, [req.params.id, ownerKey(req)]);
   if (!sr.rows[0]) return res.status(404).json({ error: 'O‘quvchi topilmadi' });
-  const rows = await pool.query(`${REPORT_SELECT} WHERE s.student_id=$1 AND s.status='completed' ORDER BY s.started_at DESC LIMIT 200`, [req.params.id]);
+  const rows = await reportQuery(fast=>`${reportSelect(fast)} WHERE s.student_id=$1 AND s.status='completed' ORDER BY s.started_at DESC LIMIT 200`, [req.params.id]);
   res.json({ student: sr.rows[0], rows: rows.rows });
 });
 

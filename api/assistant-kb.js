@@ -661,7 +661,7 @@ export const KB = [
   {
     id: "internetsiz",
     title: "Internet o'chsa (internetsiz rejim)",
-    keys: ["internet", "internet yoq", "internet yo'q", "internet ochdi", "internet o'chdi", "internetsiz", "offline", "oflayn", "aloqa yoq", "wifi", "vay fay", "kutmoqda", "qizil belgi", "internet qaytdi", "net yoq", "svet ochdi"],
+    keys: ["internet", "internet yoq", "internet yo'q", "server sekin", "server javob bermayapti", "internet ochdi", "internet o'chdi", "internetsiz", "offline", "oflayn", "aloqa yoq", "wifi", "vay fay", "kutmoqda", "qizil belgi", "internet qaytdi", "net yoq", "svet ochdi"],
     who: "hamma",
     where: "Tepadagi qizil «Internet yo'q · N ta kutmoqda» belgisi",
     page: null,
@@ -675,7 +675,8 @@ export const KB = [
       "Navbat va bron, «Bir qismini yopish», hisobot, Excel va Maxsus bo'lim faqat internet bilan ishlaydi.",
       "Sahifani yopsangiz yoki yangilasangiz ham internetsiz yozilganlar yo'qolmaydi.",
       "Internetsiz ochilgan mashina yonida bulut belgisi turadi.",
-      "Hisobot internet qaytgach yangilanadi."
+      "Hisobot internet qaytgach yangilanadi.",
+      "Belgida «Server sekin javob bermayapti» yozilsa — internet bor, lekin server kechikib javob beryapti. Kassa xuddi shunday ishlayveradi; uzoq davom etsa rahbarga ayting."
     ],
     related: ["muammo-otmadi", "muammo-qotdi", "kirdi", "qarz-tolash"]
   },

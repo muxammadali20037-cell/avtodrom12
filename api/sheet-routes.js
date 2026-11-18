@@ -109,17 +109,23 @@ const S_SELECT = `
          s.correction_note, s.hourly_rate::float8 AS hourly_rate, s.minimum_payment::float8 AS minimum_payment,
          s.calculation_mode, ds.name AS school_name,
          (to_jsonb(s)->>'post')::int AS post, (to_jsonb(s)->>'pay_post')::int AS pay_post,
-         COALESCE((to_jsonb(s)->>'debt_paid')::numeric, 0)::float8 AS debt_paid
+         COALESCE((to_jsonb(s)->>'debt_paid')::numeric, 0)::float8 AS debt_paid,
+         to_jsonb(s)->>'created_at' AS _created_at
     FROM sessions s
     LEFT JOIN vehicles v ON v.id = s.vehicle_id
     LEFT JOIN driving_schools ds ON ds.id = s.school_id`;
 const S_WHERE_REGULAR = `s.student_id IS NULL AND COALESCE(s.customer_type, '') <> 'school'`;
 
+/* Toshkent kuni — oraliq ko'rinishida, started_at indeksi ishlaydi.
+   Avval `(started_at AT TIME ZONE ..)::date = kun` edi: panel har 10
+   soniyada butun sessions jadvalini ikki marta o'qirdi (18.11.2026). */
+const DAY_RANGE = `s.started_at >= ($2::date::timestamp AT TIME ZONE '${TZ}') AND s.started_at < (($2::date + 1)::timestamp AT TIME ZONE '${TZ}')`;
+
 async function dayData(user, day) {
   const [ss, xx, kk] = await Promise.all([
     pool.query(`${S_SELECT}
       WHERE s.user_id = $1 AND s.status IN ('completed','active','frozen','paused')
-        AND (s.started_at AT TIME ZONE '${TZ}')::date = $2::date AND ${S_WHERE_REGULAR}
+        AND ${DAY_RANGE} AND ${S_WHERE_REGULAR}
       ORDER BY s.started_at, s.id LIMIT 3000`, [user, day]),
     pool.query(`SELECT id, to_char(spent_on,'YYYY-MM-DD') spent_on, person, category, vehicle, amount::float8 amount,
         pay_method, liters::float8 liters, odometer, note, created_at
@@ -136,7 +142,7 @@ async function dayData(user, day) {
         LEFT JOIN school_groups g ON g.id = s.group_id
         LEFT JOIN vehicles v ON v.id = s.vehicle_id
        WHERE s.user_id = $1 AND s.status IN ('completed','active','frozen','paused')
-         AND (s.started_at AT TIME ZONE '${TZ}')::date = $2::date
+         AND ${DAY_RANGE}
          AND NOT (${S_WHERE_REGULAR})
        ORDER BY s.started_at, s.id LIMIT 3000`, [user, day]).catch(e => { console.error('SHEET KURS:', e.message); return { rows: [] }; })
   ]);
@@ -146,8 +152,9 @@ async function dayData(user, day) {
   const ids = ss.rows.map(r => String(r.id));
   const tk = new Map();
   if (ids.length) {
-    const c = await pool.query(`SELECT id::text AS id, created_at FROM sessions WHERE id::text = ANY($1::text[])`, [ids]);
-    c.rows.forEach(r => tk.set(r.id, { created_at: r.created_at }));
+    /* yaratilgan vaqt — asosiy so'rovning o'zidan (avval alohida so'rov
+       id::text bilan butun jadvalni o'qirdi) */
+    ss.rows.forEach(r => tk.set(String(r.id), { created_at: r._created_at ? new Date(r._created_at) : null }));
     try {
       const q = await pool.query(`SELECT session_id, MIN(created_at) AS queued_at, MIN(data->>'startAt') AS booked_for
           FROM waiting_queue WHERE session_id = ANY($1::text[]) GROUP BY session_id`, [ids]);
@@ -162,6 +169,7 @@ async function dayData(user, day) {
   }
   ss.rows.forEach(r => {
     const t = tk.get(String(r.id)) || {};
+    delete r._created_at;
     r.created_at = t.created_at || null;
     r.queued_at = t.queued_at || null;
     r.booked_for = t.booked_for || null;

@@ -1599,7 +1599,7 @@ body.sheet-open { overflow: hidden; }
         <button class="btn btn-ghost" type="button" data-act="logout" aria-label="Tizimdan chiqish"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> <span>Chiqish</span></button>
       </div>
     </header>
-    <div class="conn-warning" id="connWarning" role="status"><i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i> Internet yo'q — kassa ishlayveradi: «Kirdi», «Chiqdi», «To'lash» va davomat shu kompyuterda saqlanadi, internet qaytishi bilan o'zi serverga yuboriladi. Hisobot internet qaytgach yangilanadi.</div>
+    <div class="conn-warning" id="connWarning" role="status"><i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i> <span id="connWarnText">Internet yo'q — kassa ishlayveradi: «Kirdi», «Chiqdi», «To'lash» va davomat shu kompyuterda saqlanadi, internet qaytishi bilan o'zi serverga yuboriladi. Hisobot internet qaytgach yangilanadi.</span></div>
 
     <div class="content">
 
@@ -3045,11 +3045,15 @@ async function request(path, opt, kind) {
     return data;
   } catch (e) {
     if (e && e.name === 'AbortError') {
+      /* Kompyuterda internet bor-u, server vaqtida javob bermadi — bu
+         «Internet yo'q» emas, server/baza sekinligi (18.11.2026) */
+      STATE.offlineWhy = navigator.onLine === false ? 'net' : 'slow';
       setOnline(false);
       console.error('[API timeout]', path);
       throw ApiError('Server javob bermadi. Internet aloqasini tekshiring.', 0, 'timeout');
     }
     if (e && e.status !== undefined) throw e;
+    STATE.offlineWhy = 'net';
     setOnline(false);
     console.error('[API network]', path, e);
     throw ApiError('Internet yoki server aloqasini tekshiring.', 0, String(e && e.message));
@@ -4049,6 +4053,8 @@ const Outbox = {
   },
 
   /* ---------- Tepadagi belgi va oyna ---------- */
+  /* «Internet yo'q» yoki «Server sekin» — sababiga qarab */
+  offLabel() { return navigator.onLine !== false && STATE.offlineWhy === 'slow' ? 'Server sekin javob bermayapti' : 'Internet yo‘q'; },
   kindName(k) {
     return { start: 'Kirdi', finish: 'Chiqdi', debtpay: 'Qarz to‘landi', att: 'Davomat', ticket: 'Chek jurnali' }[k] || 'Amal';
   },
@@ -4058,10 +4064,14 @@ const Outbox = {
     const n = this.visible().length, f = this.myFailed().filter(x => x.kind !== 'ticket').length;
     const off = this.isOffline();
     if (warn) warn.classList.toggle('show', off);
+    const wt = $('connWarnText');
+    if (wt && off) wt.textContent = this.offLabel() === 'Internet yo‘q'
+      ? 'Internet yo‘q — kassa ishlayveradi: «Kirdi», «Chiqdi», «To‘lash» va davomat shu kompyuterda saqlanadi, internet qaytishi bilan o‘zi serverga yuboriladi. Hisobot internet qaytgach yangilanadi.'
+      : 'Server sekin javob bermayapti (internet bor) — kassa ishlayveradi: «Kirdi», «Chiqdi», «To‘lash» va davomat shu kompyuterda saqlanadi, server javob berishi bilan o‘zi yuboriladi.';
     if (!chip) return;
     let cls = '', txt = '', ico = 'fa-wifi';
     if (this.syncing && !off) { cls = 'sync'; ico = 'fa-arrows-rotate fa-spin'; txt = 'Yuborilmoqda: ' + n + ' ta'; }
-    else if (off) { cls = 'off'; ico = 'fa-plug-circle-xmark'; txt = 'Internet yo‘q' + (n ? ' · ' + n + ' ta kutmoqda' : ''); }
+    else if (off) { cls = 'off'; ico = 'fa-plug-circle-xmark'; txt = this.offLabel() + (n ? ' · ' + n + ' ta kutmoqda' : ''); }
     else if (n) { cls = 'sync'; ico = 'fa-cloud-arrow-up'; txt = n + ' ta yuborilmagan'; }
     if (f) { txt = (txt ? txt + ' · ' : '') + f + ' ta o‘tmadi'; if (!cls) { cls = 'off'; ico = 'fa-circle-exclamation'; } }
     chip.className = 'net-chip ' + cls + (txt ? '' : ' hidden');
@@ -4082,7 +4092,7 @@ const Outbox = {
   open() {
     const p = this.visible(), f = this.myFailed();
     const off = this.isOffline();
-    openModal('<div class="modal-head"><div><h2>' + (off ? 'Internet yo‘q — kassa ishlayveradi' : 'Internetsiz yozilganlar') + '</h2>'
+    openModal('<div class="modal-head"><div><h2>' + (off ? this.offLabel() + ' — kassa ishlayveradi' : 'Internetsiz yozilganlar') + '</h2>'
       + '<p class="text-muted">«Kirdi», «Chiqdi», «To‘lash» va davomat shu kompyuterda saqlanadi, internet qaytishi bilan o‘zi serverga yuboriladi (haqiqiy vaqti bilan). Sahifani yopsangiz ham yo‘qolmaydi.</p></div>'
       + '<button class="modal-close" type="button" data-act="closeModal" aria-label="Yopish"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>'
       + '<div class="field-label">Yuborilishini kutayotganlar (' + p.length + ')</div>'
