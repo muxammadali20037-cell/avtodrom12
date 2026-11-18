@@ -163,11 +163,16 @@ async function connectRetry() {
   /* 4 urinish (~2.5 s): baza qayta ishga tushishi / qisqa uzilish shu
      vaqt ichida o'tib ketadi */
   for (let i = 0; i < 4; i++) {
+    const t0 = Date.now();
     try { return track(await rawConnect()); }
     catch (e) {
       last = e;
       if (!isTransientDbError(e) || i === 3) throw e;
-      console.warn('DB CONNECT RETRY', i + 1, e.code || '', e.message);
+      const ms = Date.now() - t0;
+      console.warn('DB CONNECT RETRY', i + 1, ms + 'ms', e.code || '', e.message);
+      /* Bir zumda (≤1 s) kelgan xato — funksiya «uxlab» turganda eskirgan
+         ulanish/taymer (Vercel). Kutmasdan darhol yangisi ochiladi. */
+      if (i === 0 && ms < 1000) continue;
       await sleep(300 + 400 * i + Math.floor(Math.random() * 200));
     }
   }
