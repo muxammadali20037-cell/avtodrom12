@@ -12758,7 +12758,41 @@ const TgBot = {
       + '<div class="field-label" style="margin-top:12px">Xabar shunday ko\'rinadi</div>'
       + '<div class="tg-msg">🟢 <b>KIRDI</b> · <b>01A777AA</b>\n🕐 14:05–15:05 · 1 soat\n💵 to\'landi: naqd 100 000 so\'m · 1-POST</div>'
       + '<div class="tg-msg">🔴 <b>CHIQDI</b> · <b>455 DILNOZA</b>\n🕐 13:10–15:02 · 1 soat 52 daq\n💵 terminal 200 000 so\'m · 2-POST</div></div>';
-    host.innerHTML = '<div class="tg-grid"><div>' + bot + who + '</div><div>' + evs + this.helpCard() + '</div></div>';
+    host.innerHTML = '<div class="tg-grid"><div>' + bot + who + this.backupHTML(chats) + '</div><div>' + evs + this.helpCard() + '</div></div>';
+  },
+  /* KUNLIK ZAXIRA (20.11.2026): har kuni 22:00 da o'quvchilar ro'yxati
+     (necha marta darsga kelgani bilan) Excel fayl bo'lib faqat shaxsiy
+     chatga keladi. Telefon va tug'ilgan sana faylda yo'q. */
+  backupHTML(chats) {
+    const own = chats.filter(c => c.kind === 'private');
+    const anyOn = own.some(c => c.backup);
+    const when = v => { try { return new Date(v).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } };
+    return '<div class="panel"><h3 style="margin-top:0"><i class="fa-solid fa-box-archive" style="color:#047857" aria-hidden="true"></i> Kunlik zaxira</h3>'
+      + '<div class="field-help" style="margin:0 0 6px">Har kuni soat <b>22:00</b> da barcha o\'quvchilar ro\'yxati — avtoshkola, guruh, F.I.Sh., <b>necha marta darsga kelgani</b> — Excel fayl bo\'lib shaxsiy chatingizga keladi. Telefon raqami va tug\'ilgan sana faylga kirmaydi.</div>'
+      + (own.length ? own.map(c => '<div class="tg-row"><div class="tg-ico"><i class="fa-solid fa-user" aria-hidden="true"></i></div>'
+        + '<div class="tg-name"><b>' + esc(c.title || c.chat_id) + '</b><small>'
+        + (c.backup_error ? '<span style="color:#b91c1c">yuborilmadi: ' + esc(/blocked/i.test(c.backup_error) ? 'botni bloklagan' : c.backup_error) + '</span>'
+          : c.backup_at ? 'oxirgi fayl: ' + esc(when(c.backup_at)) : (c.backup ? 'birinchi fayl bugun 22:00 da' : 'zaxira kelmaydi'))
+        + '</small></div>'
+        + this.sw(!!c.backup, 'tgBackup', 'data-id="' + esc(c.chat_id) + '" data-on="' + (c.backup ? '0' : '1') + '"') + '</div>').join('')
+        : '<div class="text-muted" style="margin:4px 0 10px">Avval o\'zingizni qo\'shing: «Odam yoki guruh qo\'shish» → «Shaxsiy chatda ochish». Guruhga zaxira yuborilmaydi.</div>')
+      + (anyOn ? '<button class="btn btn-light" type="button" id="tgBackupBtn" data-act="tgBackupNow" style="margin-top:10px"><span class="spinner"></span><i class="fa-solid fa-file-excel btn-icon" aria-hidden="true"></i><span class="btn-text">Hozir yuborish</span></button>' : '')
+      + '<div class="field-help" style="margin-top:8px">Faylni boshqalarga yubormang. Telegram hisobingizga <b>ikki bosqichli parol</b> qo\'ying (Sozlamalar → Maxfiylik → Ikki bosqichli tasdiqlash).</div></div>';
+  },
+  async backup(id, on) {
+    try { await api('/telegram/chat', { method: 'POST', body: jsonBody({ chat_id: id, backup: on === '1' }) });
+      if (on === '1') toast('Zaxira yoqildi — har kuni 22:00 da fayl keladi.');
+      this.load(true); }
+    catch (e) { toast(e.message, 'error'); }
+  },
+  async backupNow() {
+    await withBusy('tgBackupNow', $('tgBackupBtn'), async () => {
+      try {
+        await api('/telegram/backup/now', { method: 'POST', body: '{}', timeout: 45000 });
+        toast('Fayl yuborildi — Telegramni tekshiring.');
+        this.load(true);
+      } catch (e) { toast(e.message, 'error'); this.load(true); }
+    });
   },
   helpCard() {
     return '<div class="panel tg-help"><h3 style="margin-top:0">Botdan qanday foydalaniladi</h3>'
@@ -16082,6 +16116,8 @@ const ACTIONS = {
   tgChatRemove: d => TgBot.removeChat(d.id),
   tgEvent: d => TgBot.event(d.k),
   tgTest: () => TgBot.test(),
+  tgBackup: d => TgBot.backup(d.id, d.on),
+  tgBackupNow: () => TgBot.backupNow(),
   debtUnpay: () => Correct.unpay(),
   obSync: () => { Outbox.kick(0); closeModal(); toast('Yuborilmoqda…'); },
   obRetry: d => Outbox.retry(d.op),

@@ -1,5 +1,8 @@
 {
   "version": 2,
+  "crons": [
+    { "path": "/api/telegram/backup/cron", "schedule": "0 17 * * *" }
+  ],
   "builds": [
     { "src": "api/index.js", "use": "@vercel/node" },
     { "src": "api/students.js", "use": "@vercel/node" },

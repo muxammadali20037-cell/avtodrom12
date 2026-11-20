@@ -350,13 +350,13 @@ const LABEL = {
   instructors: 'Instruktorlar', avtodrom_instructors: 'Instruktorlar',
   vehicles: 'Mashinalar ro‘yxati', school_vehicles: 'Mashinalar ro‘yxati',
   receipts: 'Cheklar (QR)', gate_passes: 'Turniket', gate_events: 'Turniket', gate_devices: 'Turniket', gate_settings: 'Turniket',
-  tg_bots: 'Telegram bot', tg_chats: 'Telegram bot', tg_codes: 'Telegram bot', tg_outbox: 'Telegram bot',
+  tg_bots: 'Telegram bot', tg_chats: 'Telegram bot', tg_codes: 'Telegram bot', tg_outbox: 'Telegram bot', tg_backups: 'Telegram bot',
   change_log: 'O‘zgartirishlar jurnali', session_cleanups: 'Tozalash tarixi',
   user_activity: 'Kirishlar (kompyuterlar)', client_ops: 'Internetsiz amallar izi',
   section_locks: 'Sozlamalar va parollar', user_settings: 'Sozlamalar va parollar', receipt_config: 'Sozlamalar va parollar'
 };
 /* Avval bog'liq (bola) jadvallar, keyin asosiylari */
-const ORDER = ['debt_payments', 'waiting_queue', 'tg_outbox', 'tg_codes', 'tg_chats', 'tg_bots', 'gate_events', 'gate_passes',
+const ORDER = ['debt_payments', 'waiting_queue', 'tg_outbox', 'tg_backups', 'tg_codes', 'tg_chats', 'tg_bots', 'gate_events', 'gate_passes',
   'gate_devices', 'gate_settings', 'receipts', 'receipt_config', 'session_cleanups', 'client_ops', 'change_log', 'user_activity',
   'section_locks', 'expenses', 'sessions', 'waiting_sessions', 'students', 'school_groups', 'school_vehicles', 'instructors',
   'avtodrom_instructors', 'driving_schools', 'vehicles', 'user_settings'];
@@ -522,7 +522,7 @@ async function remove(req, res, me) {
 /* Qo'shilganda: qo'shilgan hisobning o'z sozlamalari, paroli, boti olib
    tashlanadi (asosiy hisobniki ishlaydi); kirishlar tarixi login nomida
    qoladi; qolgan HAMMA yozuv asosiy hisobga o'tadi. */
-const DROP_ON_ATTACH = ['section_locks', 'user_settings', 'tg_bots', 'tg_chats', 'tg_codes', 'tg_outbox', 'gate_settings', 'receipt_config'];
+const DROP_ON_ATTACH = ['section_locks', 'user_settings', 'tg_bots', 'tg_chats', 'tg_codes', 'tg_outbox', 'tg_backups', 'gate_settings', 'receipt_config'];
 const KEEP_ON_ATTACH = ['user_activity'];
 const MOVABLE = new Set(['text', 'character varying', 'uuid', 'character']);
 

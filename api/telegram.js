@@ -31,6 +31,7 @@ import { pool } from '../backend/src/db.js';
 import { runOnce } from '../backend/src/schema-once.js';
 import { maxsusOk, lockedResponse } from './lock-routes.js';
 import { MONEY_EVENTS, IS_KECHAGI } from './money-sql.js';
+import { ensureBackupSchema, runBackups, backupCron, maybeBackupDue } from './tg-backup.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
 const TG_BASE = () => String(process.env.TELEGRAM_API_BASE || 'https://api.telegram.org').replace(/\/+$/, '');
@@ -255,6 +256,8 @@ export async function tgFlushIfAny(maxMs) {
   try {
     if (!(await tgAnyBots())) return;
     await Promise.race([flushTg(maxMs || 1500), new Promise(r => setTimeout(r, maxMs || 1500))]);
+    /* Kunlik zaxira: cron o'tkazib yuborilgan bo'lsa (22:30 dan keyin) */
+    await Promise.race([maybeBackupDue(), new Promise(r => setTimeout(r, 2500))]);
   } catch { /* noop */ }
 }
 
@@ -589,7 +592,9 @@ function publicBase(req) {
 async function status(res, user) {
   const b = (await pool.query(`SELECT bot_username, bot_name, events, webhook_ok, last_error, updated_at FROM tg_bots WHERE user_id = $1`, [user])).rows[0];
   if (!b) return json(res, 200, { configured: false, events: TG_EVENTS });
-  const chats = (await pool.query(`SELECT chat_id::text AS chat_id, title, kind, username, notify, linked_at, last_seen, last_error
+  await ensureBackupSchema();
+  const chats = (await pool.query(`SELECT chat_id::text AS chat_id, title, kind, username, notify, linked_at, last_seen, last_error,
+      backup, backup_at, backup_error
     FROM tg_chats WHERE user_id = $1 ORDER BY linked_at`, [user])).rows;
   const q = (await pool.query(`SELECT COUNT(*) FILTER (WHERE status IN ('pending','sending'))::int pending,
       COUNT(*) FILTER (WHERE status = 'failed' AND created_at > now() - interval '1 day')::int failed,
@@ -666,6 +671,15 @@ async function setChat(req, res, user) {
     await pool.query(`DELETE FROM tg_chats WHERE user_id = $1 AND chat_id = $2::bigint`, [user, id]);
     return json(res, 200, { ok: true });
   }
+  if (typeof body.backup === 'boolean') {
+    /* Kunlik zaxira (o'quvchilar fayli) — faqat SHAXSIY chatga */
+    await ensureBackupSchema();
+    const c = (await pool.query(`SELECT kind FROM tg_chats WHERE user_id = $1 AND chat_id = $2::bigint`, [user, id])).rows[0];
+    if (!c) return json(res, 404, { error: 'Chat topilmadi' });
+    if (body.backup && c.kind !== 'private') return json(res, 400, { error: 'Zaxira fayli faqat shaxsiy chatga yuboriladi (guruhga emas)' });
+    await pool.query(`UPDATE tg_chats SET backup = $3, backup_error = NULL WHERE user_id = $1 AND chat_id = $2::bigint`, [user, id, body.backup]);
+    return json(res, 200, { ok: true });
+  }
   await pool.query(`UPDATE tg_chats SET notify = $3, last_error = CASE WHEN $3 THEN NULL ELSE last_error END WHERE user_id = $1 AND chat_id = $2::bigint`, [user, id, body.notify !== false]);
   json(res, 200, { ok: true });
 }
@@ -690,6 +704,20 @@ async function testMsg(res, user) {
   json(res, 200, { ok: true, total: r.rowCount, sent, errors: st.rows.filter(x => x.status === 'failed' || x.error).map(x => x.error).filter(Boolean) });
 }
 
+/* «Hozir yuborish» — zaxira faylini darhol (sinov uchun). Kechki 22:00
+   dagisi baribir ketadi. Tez-tez bosilmasin: 1 daqiqada bir marta. */
+const nowAt = new Map();
+async function backupNow(res, user) {
+  await ensureBackupSchema();
+  const on = await pool.query(`SELECT 1 FROM tg_chats WHERE user_id = $1 AND backup AND kind = 'private' LIMIT 1`, [user]);
+  if (!on.rowCount) return json(res, 409, { error: 'Avval shaxsiy chatingiz uchun «Zaxira» ni yoqing' });
+  if (Date.now() - (nowAt.get(user) || 0) < 60000) return json(res, 429, { error: 'Bir daqiqadan keyin qayta bosing' });
+  nowAt.set(user, Date.now());
+  const r = await runBackups({ user, force: true });
+  if (!r.sent) return json(res, 502, { error: 'Yuborilmadi: ' + (r.errors[0] || 'Telegram javob bermadi') });
+  json(res, 200, { ok: true, sent: r.sent, chats: r.chats });
+}
+
 export async function handleTelegramRequest(req, res) {
   const path = String(req.url || '').split('?', 1)[0];
   if (!path.startsWith('/api/telegram/')) return false;
@@ -701,10 +729,13 @@ export async function handleTelegramRequest(req, res) {
       await webhook(req, res, hm[1]);
       return true;
     }
+    /* Kunlik zaxira — Vercel cron (har kuni 22:00 Toshkent) */
+    if (path === '/api/telegram/backup/cron' && req.method === 'GET') { await backupCron(req, res); return true; }
     const user = auth(req);
     if (!user) { json(res, 401, { error: 'Kirish talab qilinadi' }); return true; }
     if (!maxsusOk(req, user)) { lockedResponse(res); return true; }
     await ensureTgSchema();
+    if (path === '/api/telegram/backup/now' && req.method === 'POST') { await backupNow(res, user); return true; }
     if (path === '/api/telegram/status' && req.method === 'GET') { await status(res, user); return true; }
     if (path === '/api/telegram/connect' && req.method === 'POST') { await connect(req, res, user); return true; }
     if (path === '/api/telegram/disconnect' && req.method === 'POST') { await disconnect(res, user); return true; }
